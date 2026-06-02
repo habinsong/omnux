@@ -46,6 +46,9 @@
       filtered,
       refresh,
       readNote,
+      deleteNote,
+      renameNote,
+      clearMemory,
       backup,
       requestBackupExport,
       importBackupFile,
@@ -79,7 +82,9 @@
     return React.createElement("div", null,
       React.createElement("div", { className: "between", style: { marginBottom: 4 } },
         React.createElement("div", { className: "card-title" }, "Memory & portable package"),
-        React.createElement("button", { className: "btn sm", onClick: refresh }, I.refresh({ size: 14 }), "새로고침")),
+        React.createElement("div", { className: "items-center gap8" },
+          React.createElement("button", { className: "btn sm ghost", style: { color: "var(--red-text)" }, onClick: () => clearMemory("chat"), title: "이 범위의 대화와 메모리 노트를 모두 삭제" }, I.x({ size: 14 }), "메모리 비우기"),
+          React.createElement("button", { className: "btn sm", onClick: refresh }, I.refresh({ size: 14 }), "새로고침"))),
       React.createElement("div", { className: "card card-pad mt12" },
         React.createElement(Row, { label: "메모리 검색", sub: "메모리 노트 파일을 찾습니다." },
           React.createElement("input", {
@@ -109,7 +114,12 @@
             )
         ),
         React.createElement("div", { className: "card card-pad mt16", style: { background: "var(--surface-2)" } },
-          React.createElement("div", { className: "card-title", style: { marginBottom: 10 } }, selected || "선택한 메모리 내용"),
+          React.createElement("div", { className: "between", style: { marginBottom: 10 } },
+            React.createElement("div", { className: "card-title" }, selected || "선택한 메모리 내용"),
+            selected ? React.createElement("div", { className: "items-center gap8" },
+              React.createElement("button", { className: "btn sm ghost", onClick: () => renameNote(selected) }, "이름 변경"),
+              React.createElement("button", { className: "btn sm ghost", style: { color: "var(--red-text)" }, onClick: () => deleteNote(selected) }, I.x({ size: 13 }), "삭제")
+            ) : null),
           React.createElement("pre", { style: { whiteSpace: "pre-wrap", margin: 0, fontSize: 13, lineHeight: 1.6, color: "var(--text-2)" } }, preview || "메모리 노트를 선택하면 내용이 표시됩니다.")
         ),
       ),
