@@ -1,10 +1,10 @@
-# Omni-node Usage
+# omnux Usage
 
 [한국어](../사용법_빠른시작.md) · [English](./usage.md)
 
 Updated: 2026-05-21
 
-For a fresh checkout, run `./scripts/Omni-node setup` before starting the dashboard. It checks or installs dependencies, builds the core and middleware, runs `npm test`, and registers the launcher.
+For a fresh checkout, run `./scripts/omnux setup` before starting the dashboard. It checks or installs dependencies, builds the core and middleware, runs `npm test`, and registers the launcher.
 
 ## Chat
 

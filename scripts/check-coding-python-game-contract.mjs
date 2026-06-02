@@ -21,21 +21,21 @@ function assertNotIncludes(text, needle, label) {
 }
 
 function main() {
-  const execution = read("apps/omninode-middleware/src/CommandService.CodingExecution.cs");
-  const verification = read("apps/omninode-middleware/src/CommandService.CodingVerification.cs");
-  const quality = read("apps/omninode-middleware/src/CommandService.CodingQuality.cs");
-  const codingWorkerSelectionPolicy = read("apps/omninode-middleware/src/CodingWorkerSelectionPolicy.cs");
-  const profiles = read("apps/omninode-middleware/src/CommandService.CodingProfiles.cs");
-  const projectProfiles = read("apps/omninode-middleware/src/CommandService.CodingProjectProfiles.cs");
-  const utils = read("apps/omninode-middleware/src/CommandService.Utils.cs");
-  const codingLanguagePolicy = read("apps/omninode-middleware/src/CodingLanguagePolicy.cs");
-  const codingPromptPolicy = read("apps/omninode-middleware/src/CodingPromptPolicy.cs");
-  const codingFallbackPolicy = read("apps/omninode-middleware/src/CodingFallbackPolicy.cs");
-  const codingExecutionSafetyPolicy = read("apps/omninode-middleware/src/CodingExecutionSafetyPolicy.cs");
-  const codingFallbackDecisionPolicy = read("apps/omninode-middleware/src/CodingFallbackDecisionPolicy.cs");
-  const coding = read("apps/omninode-middleware/src/CommandService.Coding.cs");
-  const rerun = read("apps/omninode-middleware/src/CommandService.CodingResultActions.cs");
-  const dashboardConstants = read("apps/omninode-dashboard/modules/dashboard-constants.js");
+  const execution = read("apps/omnux-middleware/src/CommandService.CodingExecution.cs");
+  const verification = read("apps/omnux-middleware/src/CommandService.CodingVerification.cs");
+  const quality = read("apps/omnux-middleware/src/CommandService.CodingQuality.cs");
+  const codingWorkerSelectionPolicy = read("apps/omnux-middleware/src/CodingWorkerSelectionPolicy.cs");
+  const profiles = read("apps/omnux-middleware/src/CommandService.CodingProfiles.cs");
+  const projectProfiles = read("apps/omnux-middleware/src/CommandService.CodingProjectProfiles.cs");
+  const utils = read("apps/omnux-middleware/src/CommandService.Utils.cs");
+  const codingLanguagePolicy = read("apps/omnux-middleware/src/CodingLanguagePolicy.cs");
+  const codingPromptPolicy = read("apps/omnux-middleware/src/CodingPromptPolicy.cs");
+  const codingFallbackPolicy = read("apps/omnux-middleware/src/CodingFallbackPolicy.cs");
+  const codingExecutionSafetyPolicy = read("apps/omnux-middleware/src/CodingExecutionSafetyPolicy.cs");
+  const codingFallbackDecisionPolicy = read("apps/omnux-middleware/src/CodingFallbackDecisionPolicy.cs");
+  const coding = read("apps/omnux-middleware/src/CommandService.Coding.cs");
+  const rerun = read("apps/omnux-middleware/src/CommandService.CodingResultActions.cs");
+  const dashboardConstants = read("apps/omnux-dashboard/modules/dashboard-constants.js");
 
   assertIncludes(execution, "EnsureWorkspacePythonEnvironmentAsync", "venv helper");
   assertIncludes(execution, "EnumeratePythonDependencySourceFiles", "python multi-file dependency scan");
@@ -45,8 +45,12 @@ function main() {
   assertIncludes(execution, ".venv\\\\Scripts\\\\python.exe", "windows venv python");
   assertIncludes(execution, "npm init -y", "node local package init");
   assertIncludes(execution, "npm install --no-save --no-fund --no-audit", "node local package install");
+  assertIncludes(execution, "workspace .venv missing; refusing host pip install", "python install refuses host pip");
+  assertIncludes(execution, "host package manager 설치 금지", "runtime auto install refuses host mutation");
   assertNotIncludes(execution, "Python 게임 외부 패키지 자동 설치 차단", "no game dependency block");
   assertNotIncludes(execution, "ShouldSkipPythonThirdPartyAutoInstallForInteractiveScript", "no skip helper");
+  assertNotIncludes(execution, "pip install --disable-pip-version-check --user", "no user-site pip install");
+  assertNotIncludes(execution, "npm install -g", "no global npm install");
 
   assertIncludes(verification, "[\"SDL_VIDEODRIVER\"] = \"dummy\"", "pygame headless smoke");
   assertIncludes(verification, "[\"OMNI_HEADLESS_TEST\"] = \"1\"", "headless smoke flag");

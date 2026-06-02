@@ -4,19 +4,19 @@
 
 업데이트 기준: 2026-05-21
 
-Omni-node는 프로젝트 지침과 스킬을 런타임 문맥으로 읽는다. 기본 원칙은 단순하다. 항상 주입할 지침은 AGENTS에 두고, 필요할 때만 켤 작업 방식은 Skill로 분리한다.
+omnux는 프로젝트 지침과 스킬을 런타임 문맥으로 읽는다. 기본 원칙은 단순하다. 항상 주입할 지침은 AGENTS에 두고, 필요할 때만 켤 작업 방식은 Skill로 분리한다.
 
 ![스킬 탭](./assets/readme/dashboard-skills-tab.png)
 
 ## 읽는 순서
 
-1. `~/.omninode/AGENTS.md`
+1. `~/.omnux/AGENTS.md`
 2. 프로젝트 루트와 현재 작업 디렉터리 사이의 `AGENTS.override.md`, `AGENTS.md`
 3. fallback 문서: 기본 `TEAM_GUIDE.md`, `.agents.md`
 4. 프로젝트 skill: `.omni/skills/**/SKILL.md`
-5. 전역 skill: `~/.omninode/skills/**/SKILL.md`
+5. 전역 skill: `~/.omnux/skills/**/SKILL.md`
 6. 프로젝트 command: `.omni/commands/*.md`
-7. 전역 command: `~/.omninode/commands/*.md`
+7. 전역 command: `~/.omnux/commands/*.md`
 
 ## 스킬 동작
 
@@ -69,7 +69,7 @@ UI 드롭다운으로 선택한 스킬은 이번 대화의 활성 스킬로 서�
 | `/skill quick remove <별명>` | 별명 제거 |
 | `/<별명> [질문]` | 별명으로 즉시 호출 (`/e 양자역학 원리` 등) |
 
-별명 정의는 `~/.omninode/skill_aliases.json` 으로 영구화된다.
+별명 정의는 `~/.omnux/skill_aliases.json` 으로 영구화된다.
 
 `/skill create`는 같은 이름의 기존 스킬을 조용히 덮어쓰지 않는다. 기존 스킬을 고치려면 스킬탭에서 해당 스킬을 열어 저장한다.
 

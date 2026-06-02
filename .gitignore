@@ -6,6 +6,7 @@
 *.exe
 *.out
 omninode_core
+omnux_core
 
 bin/
 obj/
@@ -22,6 +23,8 @@ Library/
 *.swp
 *.swo
 *.DS_Store
+__pycache__/
+*.pyc
 node_modules/
 .runtime/
 runtime/
@@ -45,6 +48,19 @@ workspace/coding/__pycache__/
 workspace/coding/**/*.pyc
 docs/gemini-retriever-plan/loop-automation/runtime/
 apps/.runtime/
+apps/omnux-middleware/__pycache__/
+apps/omnux-middleware/app
+apps/omnux-middleware/app.js
+apps/omnux-middleware/main.*
+apps/omnux-middleware/gugudan.py
+apps/omnux-middleware/ledger.*
+apps/omnux-middleware/snapshot.*
+apps/omnux-middleware/planner.js
+apps/omnux-middleware/schedule.json
+apps/omnux-middleware/Main.java
+apps/omnux-middleware/Ledger.java
+apps/omnux-middleware/index.html
+apps/omnux-middleware/styles.css
 apps/omninode-middleware/__pycache__/
 apps/omninode-middleware/app
 apps/omninode-middleware/app.js

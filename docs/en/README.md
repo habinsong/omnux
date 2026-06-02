@@ -1,10 +1,10 @@
-# Omni-node Documentation
+# omnux Documentation
 
 [한국어](../README.md) · [English](./README.md)
 
 Updated: 2026-05-21
 
-This folder keeps the practical documentation for installing, using, operating, and validating Omni-node. As of v1.0.5, the docs reflect `./scripts/Omni-node setup`, the remote-dashboard limited-mode permission table, WebSocket security boundaries, sticky skill behavior, routines, and Telegram flows. Older Gemini search migration notes are kept as archival records under `gemini-retriever-plan/`.
+This folder keeps the practical documentation for installing, using, operating, and validating omnux. As of v1.0.5, the docs reflect `./scripts/omnux setup`, the remote-dashboard limited-mode permission table, WebSocket security boundaries, sticky skill behavior, routines, and Telegram flows. Older Gemini search migration notes are kept as archival records under `gemini-retriever-plan/`.
 
 | Topic | Korean | English |
 |---|---|---|
@@ -24,5 +24,5 @@ This folder keeps the practical documentation for installing, using, operating, 
 | 계획과 Task Graph | [Open](../PLANNING_AND_TASKS.md) | [Open](./planning-and-tasks.md) |
 | 정리 기준 | [Open](../CLEANUP.md) | [Open](./cleanup.md) |
 | 토큰과 메모리 초기화 | [Open](../토큰_메모리_초기화_가이드.md) | [Open](./token-memory-reset.md) |
-| 수동 회귀 체크리스트 | [Open](../OMNINODE_실환경_수동_최종회귀_체크리스트.md) | [Open](./manual-regression-checklist.md) |
+| 수동 회귀 체크리스트 | [Open](../OMNUX_실환경_수동_최종회귀_체크리스트.md) | [Open](./manual-regression-checklist.md) |
 | Gemini 검색 전환 기록 | [Open](../GEMINI_SEARCH_RETRIEVER_INTEGRATION_PLAN.md) | [Open](./gemini-search-retriever-integration-plan.md) |

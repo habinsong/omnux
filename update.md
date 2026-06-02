@@ -1,4 +1,4 @@
-# Omni-node 업데이트 내역
+# omnux 업데이트 내역
 
 문서 최신화: 2026-05-21
 
@@ -25,12 +25,12 @@
 ### 검증 (2026-05-21 기준)
 
 ```bash
-dotnet build apps/omninode-middleware/OmniNode.Middleware.csproj   # 경고 0
-dotnet test apps/omninode-middleware-tests/OmniNode.Middleware.Tests.csproj   # 841 통과
+dotnet build apps/omnux-middleware/Omnux.Middleware.csproj   # 경고 0
+dotnet test apps/omnux-middleware-tests/Omnux.Middleware.Tests.csproj   # 841 통과
 node scripts/check-security-boundaries.mjs                          # assertions 721
 node scripts/check-coding-python-game-contract.mjs                  # assertions 106
 npm test                                                            # 전체 통과
-make -C apps/omninode-core -B
+make -C apps/omnux-core -B
 ```
 
 ---
@@ -39,7 +39,7 @@ make -C apps/omninode-core -B
 
 > **정정 (2026-05-21)**: 아래 v1.0.5 본문의 "외부 제한 모드에서 대화/코딩/루틴/로직 그래프 실행 허용" 설명은 v1.0.6에서 보안 정책이 강화되면서 더 이상 유효하지 않다. **현재 외부 제한 모드는 모든 작업 실행(대화/코딩/루틴/로직 그래프/task graph/refactor/tool)을 차단하고, 읽기 중심 조회와 모델/라우팅 설정만 허용한다.** 권한표의 최신 기준은 [아키텍처 문서](./docs/아키텍처_흐름.md#외부접속-제한-모드-권한표)와 [검증 가이드](./docs/검증_가이드.md)를 따른다. 아래 v1.0.5 내역은 당시 릴리스 기록으로 보존한다.
 
-이번 업데이트는 v1.0.4 이후 확인한 외부접속 제한 모드와 문서/릴리스 위생을 정리한 패치다. 외부 접속에서 OTP 요청 자체를 제거하고 제한 모드로 자동 진입하게 했으며, 원격에서 허용할 작업과 차단할 인증/시크릿/외부접속 설정을 UI·서버·문서·계약 테스트에 같은 기준으로 맞췄다. `./scripts/Omni-node setup` 실행 흐름도 README와 docs에 명시했다.
+이번 업데이트는 v1.0.4 이후 확인한 외부접속 제한 모드와 문서/릴리스 위생을 정리한 패치다. 외부 접속에서 OTP 요청 자체를 제거하고 제한 모드로 자동 진입하게 했으며, 원격에서 허용할 작업과 차단할 인증/시크릿/외부접속 설정을 UI·서버·문서·계약 테스트에 같은 기준으로 맞췄다. `./scripts/omnux setup` 실행 흐름도 README와 docs에 명시했다.
 
 ### 핵심 요약
 
@@ -49,7 +49,7 @@ make -C apps/omninode-core -B
 - 서버 차단 메시지를 `forbidden_remote_auth`, `forbidden_remote_secret_settings`, `forbidden_remote_external_access`로 세분화했다.
 - 설정 탭의 외부 제한 패널에 허용/차단 권한표를 표시한다.
 - 보안 경계 계약 테스트에 원격 제한 모드, 로직 그래프 허용, 모델/라우팅 허용, 세분화된 차단 메시지를 추가했다.
-- README와 docs에 `./scripts/Omni-node setup` 및 Windows `.\scripts\Omni-node.ps1 setup` 흐름을 명시했다.
+- README와 docs에 `./scripts/omnux setup` 및 Windows `.\scripts\omnux.ps1 setup` 흐름을 명시했다.
 - `package.json`과 `package-lock.json` 버전을 1.0.5로 맞췄다.
 
 ### 외부접속 제한 모드
@@ -82,18 +82,18 @@ make -C apps/omninode-core -B
 
 ### 변경된 주요 영역
 
-- 대시보드 UI: `apps/omninode-dashboard/app.js`, `apps/omninode-dashboard/modules/dashboard-settings-renderers.js`, `apps/omninode-dashboard/modules/dashboard-server-message-router.mjs`, `apps/omninode-dashboard/modules/error-messages.js`, `apps/omninode-dashboard/styles.css`
-- 미들웨어 인증/설정/로직: `apps/omninode-middleware/src/AuthSessionGateway.cs`, `apps/omninode-middleware/src/WebSocketGateway.SocketLoop.cs`, `apps/omninode-middleware/src/WsSetupCommandDispatcher.cs`, `apps/omninode-middleware/src/WsLogicCommandDispatcher.cs`
+- 대시보드 UI: `apps/omnux-dashboard/app.js`, `apps/omnux-dashboard/modules/dashboard-settings-renderers.js`, `apps/omnux-dashboard/modules/dashboard-server-message-router.mjs`, `apps/omnux-dashboard/modules/error-messages.js`, `apps/omnux-dashboard/styles.css`
+- 미들웨어 인증/설정/로직: `apps/omnux-middleware/src/AuthSessionGateway.cs`, `apps/omnux-middleware/src/WebSocketGateway.SocketLoop.cs`, `apps/omnux-middleware/src/WsSetupCommandDispatcher.cs`, `apps/omnux-middleware/src/WsLogicCommandDispatcher.cs`
 - 문서와 버전: `README.md`, `README.en.md`, `docs/**/*.md`, `update.md`, `package.json`, `package-lock.json`
-- 계약 테스트: `scripts/check-security-boundaries.mjs`, `scripts/check-logic-tab-contract.mjs`, `apps/omninode-dashboard/check-dashboard-server-message-router.mjs`
+- 계약 테스트: `scripts/check-security-boundaries.mjs`, `scripts/check-logic-tab-contract.mjs`, `apps/omnux-dashboard/check-dashboard-server-message-router.mjs`
 
 ### 검증한 명령
 
 ```bash
 node scripts/check-security-boundaries.mjs
 node scripts/check-logic-tab-contract.mjs
-node apps/omninode-dashboard/check-dashboard-server-message-router.mjs
-dotnet build apps/omninode-middleware/OmniNode.Middleware.csproj
+node apps/omnux-dashboard/check-dashboard-server-message-router.mjs
+dotnet build apps/omnux-middleware/Omnux.Middleware.csproj
 npm test
 ```
 
@@ -109,4 +109,4 @@ v1.0.5는 외부접속을 “OTP를 다시 요구하는 원격 화면”이 아�
 
 반대로 OTP 요청, CLI 로그인/로그아웃, Telegram/LLM 키 변경, 외부접속 토글 변경은 막는다. 서버와 대시보드는 이 차단 이유를 인증, 시크릿, 외부접속 설정으로 나눠 보여준다.
 
-또한 처음 설치하는 사람이 헷갈리지 않도록 `./scripts/Omni-node setup`과 `.\scripts\Omni-node.ps1 setup`을 README와 docs에 명확히 넣었다.
+또한 처음 설치하는 사람이 헷갈리지 않도록 `./scripts/omnux setup`과 `.\scripts\omnux.ps1 setup`을 README와 docs에 명확히 넣었다.

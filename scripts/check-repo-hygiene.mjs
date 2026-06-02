@@ -10,10 +10,12 @@ const OPTIONAL_CANONICAL_DIRECTORIES = ["workspace"];
 const ROOT_ALIAS_SYMLINKS = [
   { path: "coding", target: "workspace/coding" },
   { path: "runtime", target: "workspace/runtime" },
-  { path: "omninode-core", target: "apps/omninode-core" },
-  { path: "omninode-dashboard", target: "apps/omninode-dashboard" },
-  { path: "omninode-middleware", target: "apps/omninode-middleware" },
-  { path: "omninode-sandbox", target: "apps/omninode-sandbox" }
+  { path: "omnux-dashboard", target: "apps/omnux-dashboard" },
+  { path: "omnux-middleware", target: "apps/omnux-middleware" },
+  { path: "omnux-sandbox", target: "apps/omnux-sandbox" },
+  { path: "omninode-dashboard", target: "apps/omnux-dashboard" },
+  { path: "omninode-middleware", target: "apps/omnux-middleware" },
+  { path: "omninode-sandbox", target: "apps/omnux-sandbox" }
 ];
 const REQUIRED_GITIGNORE_PATTERNS = [
   "node_modules/",
@@ -21,7 +23,7 @@ const REQUIRED_GITIGNORE_PATTERNS = [
   "workspace/",
   "docs/gemini-retriever-plan/loop-automation/runtime/",
   "apps/.runtime/",
-  "apps/omninode-middleware/gugudan.py"
+  "apps/omnux-middleware/gugudan.py"
 ];
 const ARTIFACT_PATHS = [
   "node_modules",
@@ -34,7 +36,31 @@ const ARTIFACT_PATHS = [
   "apps/.runtime"
 ];
 const DISALLOWED_TRACKED_FILES = [
-  "apps/omninode-middleware/gugudan.py"
+  "apps/omnux-middleware/gugudan.py",
+  "main.js",
+  "preload.js",
+  "worker.js"
+];
+const GENERATED_STACK_ARTIFACT_PATHS = [
+  "main.js",
+  "preload.js",
+  "worker.js",
+  "apps/omnux-middleware/app",
+  "apps/omnux-middleware/app.js",
+  "apps/omnux-middleware/main.js",
+  "apps/omnux-middleware/planner.js",
+  "apps/omnux-middleware/main.py",
+  "apps/omnux-middleware/ledger.py",
+  "apps/omnux-middleware/main.c",
+  "apps/omnux-middleware/ledger.c",
+  "apps/omnux-middleware/ledger.h",
+  "apps/omnux-middleware/Main.java",
+  "apps/omnux-middleware/Ledger.java",
+  "apps/omnux-middleware/index.html",
+  "apps/omnux-middleware/styles.css",
+  "apps/omnux-middleware/schedule.json",
+  "apps/omnux-middleware/snapshot.json",
+  "apps/omnux-middleware/snapshot.txt"
 ];
 
 function toAbsolute(relativePath) {
@@ -155,12 +181,23 @@ function ensureArtifactsAreUntracked() {
   return trackedArtifactCounts;
 }
 
+function ensureGeneratedStackArtifactsAreAbsent() {
+  const existingArtifacts = GENERATED_STACK_ARTIFACT_PATHS.filter((relativePath) =>
+    !!lstatSync(toAbsolute(relativePath), { throwIfNoEntry: false })
+  );
+
+  if (existingArtifacts.length > 0) {
+    throw new Error(`미들웨어/루트 생성 스택 산출물이 남아 있습니다: ${existingArtifacts.join(", ")}`);
+  }
+}
+
 function main() {
   REQUIRED_DIRECTORIES.forEach(ensureDirectory);
   const canonicalDirectories = OPTIONAL_CANONICAL_DIRECTORIES.map(inspectCanonicalDirectory);
   const aliases = ensureAliasTargets();
   ensureGitignorePatterns();
   const trackedArtifactCounts = ensureArtifactsAreUntracked();
+  ensureGeneratedStackArtifactsAreAbsent();
 
   console.log(JSON.stringify({
     ok: true,

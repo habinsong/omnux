@@ -1,4 +1,4 @@
-# Omni-node 5분 시작
+# omnux 5분 시작
 
 [한국어](./QUICKSTART.md) · [English](./en/quickstart.md)
 
@@ -13,7 +13,6 @@
 | 도구 | 용도 |
 |---|---|
 | `.NET SDK 9` | 미들웨어 빌드와 실행 |
-| C 컴파일러 | `apps/omninode-core` 빌드 |
 | `python3` | 샌드박스와 코딩 검증 |
 | `node`, `npm` | 대시보드 회귀 테스트 |
 | 선택: `gh`, `copilot`, `codex` | Copilot/Codex CLI 연동 |
@@ -25,26 +24,24 @@ LLM 키는 하나 이상만 있어도 시작할 수 있다. 키는 설정 탭에
 전역 실행기가 등록되어 있으면 macOS/Linux에서는 아래 두 개로 충분하다.
 
 ```bash
-Omni-node setup
-Omni-node
-Omni-node shutdown
+omnux setup
+omnux
+omnux shutdown
 ```
 
-처음 클론한 저장소에서는 `./scripts/Omni-node setup`을 먼저 실행한다. setup은 필수 도구 확인/설치, `apps/omninode-core` 빌드, 미들웨어 빌드, `npm test`, 실행기 등록을 처리한다. setup marker가 없으면 `Omni-node` 첫 실행 때 자동 setup도 시도한다.
+처음 클론한 저장소에서는 `./scripts/omnux setup`을 먼저 실행한다. setup은 필수 도구 확인/설치, 미들웨어 빌드, `npm test`, 실행기 등록을 처리한다. setup marker가 없으면 `omnux` 첫 실행 때 자동 setup도 시도한다.
 
 수동 실행은 두 단계다.
 
 ```bash
-make -C apps/omninode-core
-dotnet run --project apps/omninode-middleware/OmniNode.Middleware.csproj
+dotnet run --project apps/omnux-middleware/Omnux.Middleware.csproj
 ```
 
 Windows:
 
 ```powershell
-.\scripts\Omni-node.ps1 setup
-.\apps\omninode-core\build.ps1
-dotnet run --project apps\omninode-middleware\OmniNode.Middleware.csproj
+.\scripts\omnux.ps1 setup
+dotnet run --project apps\omnux-middleware\Omnux.Middleware.csproj
 ```
 
 ## 3. 접속
@@ -57,10 +54,10 @@ dotnet run --project apps\omninode-middleware\OmniNode.Middleware.csproj
 
 ## 4. 첫 확인 순서
 
-1. 대시보드가 열리고 좌측 상태가 `연결됨 / OTP 대기`인지 본다.
+1. 대시보드 Home이 열리고 상단 상태가 `미들웨어 연결됨` 또는 `인증 필요`인지 본다.
 2. 설정 탭에서 사용할 LLM 키 또는 CLI 인증 상태를 확인한다.
-3. 대화 탭에서 짧은 질문을 보낸다.
-4. 코딩 탭에서 작은 파일 생성 요청을 실행한다.
+3. Ask에서 짧은 질문을 보낸다.
+4. Build에서 작은 변경 계획/미리보기를 실행한다.
 5. `readyz`와 `doctor --json`으로 상태를 확인한다.
 
 ## 5. 외부접속

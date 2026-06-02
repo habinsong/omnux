@@ -8,17 +8,16 @@ Canonical paths are `apps/`, `docs/`, and `workspace/`.
 
 | Path | Purpose |
 |---|---|
-| `apps/omninode-core` | C core daemon |
-| `apps/omninode-middleware` | .NET server and command layer |
-| `apps/omninode-dashboard` | Static dashboard |
-| `apps/omninode-sandbox` | Python executor |
+| `apps/omnux-middleware` | .NET server and command layer |
+| `apps/omnux-dashboard` | Static dashboard |
+| `apps/omnux-sandbox` | Python executor |
 | `docs/assets/readme` | README screenshots |
-| `scripts` | `Omni-node setup/start/shutdown`, Windows `Omni-node.ps1`, and test scripts |
+| `scripts` | `omnux setup/start/shutdown`, Windows `omnux.ps1`, and test scripts |
 | `workspace` | Generated work artifacts |
 
 ## Launchers
 
-- `./scripts/Omni-node setup`: checks or installs dependencies, builds, validates, and registers the launcher on macOS/Linux.
-- `./scripts/Omni-node`: starts the server; if the setup marker is missing, it attempts automatic setup first.
-- `./scripts/Omni-node shutdown`: stops running Omni-node processes.
-- `.\scripts\Omni-node.ps1 setup`: Windows setup, build, and validation path.
+- `./scripts/omnux setup`: checks or installs dependencies, builds the middleware, validates, and registers the launcher on macOS/Linux.
+- `./scripts/omnux`: starts the server; if the setup marker is missing, it attempts automatic setup first.
+- `./scripts/omnux shutdown`: stops running omnux processes.
+- `.\scripts\omnux.ps1 setup`: Windows setup, build, and validation path.

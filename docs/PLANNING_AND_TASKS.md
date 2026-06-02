@@ -18,9 +18,9 @@
 
 | 위치 | 내용 |
 |---|---|
-| `~/.omninode/plans/` | plan, review, execution 상태 |
-| `~/.omninode/tasks/` | task graph 원본 |
+| `~/.omnux/plans/` | plan, review, execution 상태 |
+| `~/.omnux/tasks/` | task graph 원본 |
 | `workspace/.runtime/tasks/` | task stdout/stderr/result.json |
-| `~/.omninode/routing-policy.json` | 라우팅 override |
+| `~/.omnux/routing-policy.json` | 라우팅 override |
 
 계획 생성과 리뷰는 LLM을 사용하고, task graph 생성은 승인된 plan을 규칙 기반으로 분해한다.

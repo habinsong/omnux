@@ -4,7 +4,7 @@
 
 업데이트 기준: 2026-05-21
 
-Omni-node의 NVIDIA NIM provider key는 `nvidia`다. UI 표시명은 `NVIDIA NIM`이고, `nvidia-nim`, `nvidia_nim`, `nim` alias도 `nvidia`로 정규화한다.
+omnux의 NVIDIA NIM provider key는 `nvidia`다. UI 표시명은 `NVIDIA NIM`이고, `nvidia-nim`, `nvidia_nim`, `nim` alias도 `nvidia`로 정규화한다.
 
 ## 기본값
 
@@ -17,13 +17,13 @@ Omni-node의 NVIDIA NIM provider key는 `nvidia`다. UI 표시명은 `NVIDIA NIM
 
 ## 환경변수
 
-- `OMNINODE_NVIDIA_API_KEY`
-- `OMNINODE_NVIDIA_API_KEY_FILE`
-- `OMNINODE_NVIDIA_KEYCHAIN_SERVICE`
-- `OMNINODE_NVIDIA_KEYCHAIN_ACCOUNT`
-- `OMNINODE_NVIDIA_BASE_URL`
-- `OMNINODE_NVIDIA_MODEL`
-- `OMNINODE_NVIDIA_TIMEOUT_SEC`
+- `OMNUX_NVIDIA_API_KEY`
+- `OMNUX_NVIDIA_API_KEY_FILE`
+- `OMNUX_NVIDIA_KEYCHAIN_SERVICE`
+- `OMNUX_NVIDIA_KEYCHAIN_ACCOUNT`
+- `OMNUX_NVIDIA_BASE_URL`
+- `OMNUX_NVIDIA_MODEL`
+- `OMNUX_NVIDIA_TIMEOUT_SEC`
 
 ## 동작
 

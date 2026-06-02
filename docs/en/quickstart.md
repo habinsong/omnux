@@ -1,4 +1,4 @@
-# Omni-node Quickstart
+# omnux Quickstart
 
 [한국어](../QUICKSTART.md) · [English](./quickstart.md)
 
@@ -13,7 +13,6 @@ This is the shortest path from clone to dashboard.
 | Tool | Purpose |
 |---|---|
 | `.NET SDK 9` | Middleware build and run |
-| C compiler | Core daemon build |
 | `python3` | Sandbox and coding validation |
 | `node`, `npm` | Dashboard checks and regression scripts |
 | Optional: `gh`, `copilot`, `codex` | Copilot/Codex CLI integration |
@@ -23,26 +22,24 @@ This is the shortest path from clone to dashboard.
 macOS/Linux launcher:
 
 ```bash
-Omni-node setup
-Omni-node
-Omni-node shutdown
+omnux setup
+omnux
+omnux shutdown
 ```
 
-From a fresh checkout, run `./scripts/Omni-node setup` first. Setup checks or installs required tools, builds `apps/omninode-core`, builds the middleware, runs `npm test`, and registers the launcher. If the setup marker is missing, the first `Omni-node` start also attempts automatic setup.
+From a fresh checkout, run `./scripts/omnux setup` first. Setup checks or installs required tools, builds the middleware, runs `npm test`, and registers the launcher. If the setup marker is missing, the first `omnux` start also attempts automatic setup.
 
 Manual run:
 
 ```bash
-make -C apps/omninode-core
-dotnet run --project apps/omninode-middleware/OmniNode.Middleware.csproj
+dotnet run --project apps/omnux-middleware/Omnux.Middleware.csproj
 ```
 
 Windows:
 
 ```powershell
-.\scripts\Omni-node.ps1 setup
-.\apps\omninode-core\build.ps1
-dotnet run --project apps\omninode-middleware\OmniNode.Middleware.csproj
+.\scripts\omnux.ps1 setup
+dotnet run --project apps\omnux-middleware\Omnux.Middleware.csproj
 ```
 
 Open `http://127.0.0.1:8080/`. Health endpoints are `/healthz` and `/readyz`.

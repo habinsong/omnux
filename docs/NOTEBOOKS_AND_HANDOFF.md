@@ -17,7 +17,7 @@
 | 확인한 내용 | `verification.md` |
 | 다음에 이어볼 것 | `handoff.md` |
 
-기본 저장 위치는 `~/.omninode/notebooks/<project-key>/`다.
+기본 저장 위치는 `~/.omnux/notebooks/<project-key>/`다.
 
 ## 사용 흐름
 

@@ -5,16 +5,16 @@
 현재 상태:
 
 - 이 디렉터리는 검색 파이프라인 설계/확장 계획 묶음이다.
-- 실제 구현 기준은 `apps/omninode-middleware/src/CommandService.SearchPipeline.cs`, `GeminiGroundedRetriever.cs`, `SearchAnswerGuard.cs`, `DefaultSearchAnswerComposer.cs`를 우선 본다.
+- 실제 구현 기준은 `apps/omnux-middleware/src/CommandService.SearchPipeline.cs`, `GeminiGroundedRetriever.cs`, `SearchAnswerGuard.cs`, `DefaultSearchAnswerComposer.cs`를 우선 본다.
 - 현재 운영 문서는 상위 `README.md`, `docs/아키텍처_흐름.md`, `docs/도구_통합_패널_사용_가이드.md`, `docs/검증_가이드.md`를 우선 본다.
 - 이 하위 문서들은 검색 전환 당시의 설계/실행 기록 성격을 유지한다.
 
 ## 목적
-Gemini 검색 리트리버 기반 구조를 Omni-node에 적용하기 위한 실행 문서 모음이다.
-본 문서 세트는 기존 Omni-node UI/UX와 동작 방식을 유지한 상태에서 검색 신뢰성과 최신성 품질을 높이는 것을 목표로 한다.
+Gemini 검색 리트리버 기반 구조를 omnux에 적용하기 위한 실행 문서 모음이다.
+본 문서 세트는 기존 omnux UI/UX와 동작 방식을 유지한 상태에서 검색 신뢰성과 최신성 품질을 높이는 것을 목표로 한다.
 
 ## 핵심 전제
-- 검색 경로는 `gemini-3.1-flash-lite-preview` + Google Search grounding 단일 경로로 운영한다.
+- 검색 경로는 `gemini-3.1-flash-lite` + Google Search grounding 단일 경로로 운영한다.
 - 최종 답변 생성은 `groq`, `gemini`, `copilot`, `cerebras` 멀티 제공자 경로를 유지한다.
 - `Evidence Pack` 외부 사실 단정은 금지한다.
 - `fail-closed`와 `count-lock` 정책을 기본 적용한다.

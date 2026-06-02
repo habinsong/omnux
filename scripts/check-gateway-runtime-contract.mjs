@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import net from "node:net";
@@ -8,7 +8,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const coreBinaryPath = path.join(repoRoot, "apps", "omninode-core", "omninode_core");
 
 function findFreePort() {
   return new Promise((resolve, reject) => {
@@ -36,31 +35,6 @@ function findNonLoopbackIPv4() {
   }
 
   return "";
-}
-
-function repoCorePids() {
-  const result = spawnSync("pgrep", ["-f", coreBinaryPath], {
-    cwd: repoRoot,
-    encoding: "utf8"
-  });
-  if (result.status !== 0 || !result.stdout.trim()) {
-    return new Set();
-  }
-
-  return new Set(
-    result.stdout
-      .split(/\s+/)
-      .map((value) => value.trim())
-      .filter(Boolean)
-  );
-}
-
-function killPid(pid) {
-  try {
-    process.kill(Number(pid), "SIGTERM");
-  } catch {
-    return;
-  }
 }
 
 async function stopProcess(processHandle) {
@@ -96,6 +70,14 @@ async function waitForHttpOk(url, logs) {
   }
 
   throw new Error(`gateway did not become healthy: ${lastError}\n${logs()}`);
+}
+
+async function fetchWithDesktopOrigin(url) {
+  return fetch(url, {
+    headers: {
+      Origin: "http://localhost:1420"
+    }
+  });
 }
 
 function rawWebSocketHandshake({ host = "127.0.0.1", port, origin }) {
@@ -407,31 +389,28 @@ function waitForPong(url) {
 async function main() {
   const port = await findFreePort();
   const externalHost = findNonLoopbackIPv4();
-  const runtimeRoot = mkdtempSync(path.join(os.tmpdir(), "omninode-gateway-runtime-"));
+  const runtimeRoot = mkdtempSync(path.join(os.tmpdir(), "omnux-gateway-runtime-"));
   const homeDir = path.join(runtimeRoot, "home");
   const workspaceRoot = path.join(runtimeRoot, "workspace", "coding");
   mkdirSync(homeDir, { recursive: true });
   mkdirSync(workspaceRoot, { recursive: true });
 
-  const beforeCorePids = repoCorePids();
   const logs = [];
   const middleware = spawn(
     "dotnet",
-    ["run", "--project", "apps/omninode-middleware/OmniNode.Middleware.csproj"],
+    ["run", "--project", "apps/omnux-middleware/Omnux.Middleware.csproj"],
     {
       cwd: repoRoot,
       env: {
         ...process.env,
         HOME: homeDir,
-        OMNINODE_WS_PORT: String(port),
-        OMNINODE_WORKSPACE_ROOT: workspaceRoot,
-        OMNINODE_CORE_SOCKET_PATH: path.join(runtimeRoot, "core.sock"),
-        OMNINODE_DASHBOARD_ACCESS_STATE_PATH: path.join(runtimeRoot, "dashboard_access.json"),
-        OMNINODE_ENABLE_LOCAL_OTP_FALLBACK: "1",
-        OMNINODE_GATEWAY_STARTUP_PROBE: "0",
-        OMNINODE_EXTERNAL_DASHBOARD: externalHost ? "1" : "0",
-        OMNINODE_SKIP_CORE_BOOTSTRAP: "1",
-        OMNINODE_SKIP_MEMORY_INDEX_BOOTSTRAP: "1",
+        OMNUX_WS_PORT: String(port),
+        OMNUX_WORKSPACE_ROOT: workspaceRoot,
+        OMNUX_DASHBOARD_ACCESS_STATE_PATH: path.join(runtimeRoot, "dashboard_access.json"),
+        OMNUX_ENABLE_LOCAL_OTP_FALLBACK: "1",
+        OMNUX_GATEWAY_STARTUP_PROBE: "0",
+        OMNUX_EXTERNAL_DASHBOARD: externalHost ? "1" : "0",
+        OMNUX_SKIP_MEMORY_INDEX_BOOTSTRAP: "1",
         DOTNET_CLI_TELEMETRY_OPTOUT: "1",
         DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1",
         DOTNET_CLI_HOME: process.env.HOME || homeDir
@@ -446,9 +425,26 @@ async function main() {
   try {
     const baseUrl = `http://127.0.0.1:${port}`;
     await waitForHttpOk(`${baseUrl}/healthz`, () => logs.join(""));
+    const desktopHealth = await fetchWithDesktopOrigin(`${baseUrl}/healthz`);
+    assert.equal(desktopHealth.status, 200, "desktop healthz fetch should pass");
+    assert.equal(
+      desktopHealth.headers.get("access-control-allow-origin"),
+      "http://localhost:1420",
+      "desktop healthz fetch should be CORS-readable from local Tauri dev origin"
+    );
 
     const noOrigin = await rawWebSocketHandshake({ port });
     assert.equal(noOrigin.status, 101, "local websocket without Origin should be accepted");
+
+    const loopbackCrossPortOrigin = await rawWebSocketHandshake({
+      port,
+      origin: "http://localhost:1420"
+    });
+    assert.equal(
+      loopbackCrossPortOrigin.status,
+      101,
+      "desktop loopback websocket with cross-port Origin should be accepted"
+    );
 
     const badOrigin = await rawWebSocketHandshake({
       port,
@@ -523,8 +519,13 @@ async function main() {
     }
 
     await waitForPong(`ws://127.0.0.1:${port}/ws/`);
-    const ready = await fetch(`${baseUrl}/readyz`);
+    const ready = await fetchWithDesktopOrigin(`${baseUrl}/readyz`);
     assert.equal(ready.status, 200, "readyz should pass after websocket ping/pong");
+    assert.equal(
+      ready.headers.get("access-control-allow-origin"),
+      "http://localhost:1420",
+      "desktop readyz fetch should be CORS-readable from local Tauri dev origin"
+    );
 
     const firstIndex = await fetch(`${baseUrl}/`);
     assert.equal(firstIndex.status, 200, "dashboard index should load");
@@ -544,22 +545,18 @@ async function main() {
       port,
       checks: [
         "healthz",
+        "desktop_healthz_cors",
         "websocket_no_origin_local_accept",
         "websocket_bad_origin_reject",
         "websocket_local_unauthorized_protected_reject",
         ...remoteChecks,
         "readyz_after_ping",
+        "desktop_readyz_cors",
         "static_index_etag_304"
       ]
     }, null, 2));
   } finally {
     await stopProcess(middleware);
-    const afterCorePids = repoCorePids();
-    for (const pid of afterCorePids) {
-      if (!beforeCorePids.has(pid)) {
-        killPid(pid);
-      }
-    }
     rmSync(runtimeRoot, { recursive: true, force: true });
   }
 }

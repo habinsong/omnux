@@ -22,7 +22,7 @@ MAX_LOOPS="${MAX_LOOPS:-0}"
 LOOP_SLEEP_SEC="${LOOP_SLEEP_SEC:-2}"
 AUTO_CLEAR_STOP="${AUTO_CLEAR_STOP:-1}"
 
-export OMNINODE_ACP_OPTION_SMOKE_PROMOTE_WRITE_RESULT_TO_PREVIOUS="${OMNINODE_ACP_OPTION_SMOKE_PROMOTE_WRITE_RESULT_TO_PREVIOUS:-1}"
+export OMNUX_ACP_OPTION_SMOKE_PROMOTE_WRITE_RESULT_TO_PREVIOUS="${OMNUX_ACP_OPTION_SMOKE_PROMOTE_WRITE_RESULT_TO_PREVIOUS:-1}"
 
 SESSION_STARTED_AT="$(date '+%Y-%m-%dT%H:%M:%S%z')"
 LOOPS_DONE=0
@@ -159,7 +159,7 @@ build_prompt_file() {
     local prev_loop_rel="$4"
 
     cat > "$prompt_file" <<EOF2
-당신은 Omni-node Gemini 전환 자동 개발 루프를 수행하는 Codex 에이전트입니다.
+당신은 omnux Gemini 전환 자동 개발 루프를 수행하는 Codex 에이전트입니다.
 
 반드시 아래 문서를 기준으로 작업하세요.
 - GEMINI_SEARCH_RETRIEVER_INTEGRATION_PLAN.md
@@ -237,7 +237,7 @@ main() {
     echo "[loop] 워크스페이스: $WORKSPACE_ROOT"
     echo "[loop] 정지 요청 파일: $STOP_FILE"
     echo "[loop] codex 실행 모드: unsandboxed (--dangerously-bypass-approvals-and-sandbox)"
-    echo "[loop] ACP 스모크 자동 승격 기본값: OMNINODE_ACP_OPTION_SMOKE_PROMOTE_WRITE_RESULT_TO_PREVIOUS=$OMNINODE_ACP_OPTION_SMOKE_PROMOTE_WRITE_RESULT_TO_PREVIOUS"
+    echo "[loop] ACP 스모크 자동 승격 기본값: OMNUX_ACP_OPTION_SMOKE_PROMOTE_WRITE_RESULT_TO_PREVIOUS=$OMNUX_ACP_OPTION_SMOKE_PROMOTE_WRITE_RESULT_TO_PREVIOUS"
 
     local extra_flags=()
     if [[ -n "$CODEX_EXEC_EXTRA_FLAGS" ]]; then

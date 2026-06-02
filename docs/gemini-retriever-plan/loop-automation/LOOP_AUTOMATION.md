@@ -60,4 +60,4 @@ bash docs/gemini-retriever-plan/loop-automation/stop_codex_dev_loop.sh
 - `MAX_LOOPS` 기본: `0`
 - `LOOP_SLEEP_SEC` 기본: `2`
 - `AUTO_CLEAR_STOP` 기본: `1`
-- `OMNINODE_ACP_OPTION_SMOKE_PROMOTE_WRITE_RESULT_TO_PREVIOUS` 기본: `1`
+- `OMNUX_ACP_OPTION_SMOKE_PROMOTE_WRITE_RESULT_TO_PREVIOUS` 기본: `1`

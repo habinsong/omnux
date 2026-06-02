@@ -4,4 +4,4 @@
 
 Updated: 2026-05-21
 
-Regenerable: `node_modules/`, .NET `bin/obj`, Python venvs, and generated Playwright screenshots. Be careful with `workspace/coding/runs`, `workspace/coding/routines`, and anything under `~/.omninode`.
+Regenerable: `node_modules/`, .NET `bin/obj`, Python venvs, and generated Playwright screenshots. Be careful with `workspace/coding/runs`, `workspace/coding/routines`, and anything under `~/.omnux`.

@@ -1,4 +1,4 @@
-# Omni-node
+# omnux
 
 <div align="center">
 
@@ -7,8 +7,8 @@
 [한국어](./README.md) · [English](./README.en.md)
 
 [![local first](https://img.shields.io/badge/local--first-workflow-111111?style=for-the-badge)](./docs/아키텍처_흐름.md)
-[![.NET 9](https://img.shields.io/badge/.NET-9-512BD4?style=for-the-badge)](./apps/omninode-middleware)
-[![dashboard](https://img.shields.io/badge/dashboard-websocket-0A7EA4?style=for-the-badge)](./apps/omninode-dashboard)
+[![.NET 9](https://img.shields.io/badge/.NET-9-512BD4?style=for-the-badge)](./apps/omnux-middleware)
+[![dashboard](https://img.shields.io/badge/dashboard-websocket-0A7EA4?style=for-the-badge)](./apps/omnux-dashboard)
 [![telegram](https://img.shields.io/badge/telegram-natural%20control-26A5E4?style=for-the-badge)](./docs/사용법_빠른시작.md)
 [![safe refactor](https://img.shields.io/badge/Safe%20Refactor-preview%20→%20apply-2E8B57?style=for-the-badge)](./docs/SAFE_REFACTORING.md)
 
@@ -16,9 +16,9 @@
 
 업데이트 기준: 2026-05-21
 
-Omni-node는 챗봇 하나 더 만들자는 프로젝트가 아니다. LLM에게 물어보고, 코드 만들고, 실행해 보고, 실패하면 고치고, 그 기록을 다시 꺼내보는 과정을 한 화면에 묶으려고 만든 도구다.
+omnux는 챗봇 하나 더 만들자는 프로젝트가 아니다. LLM에게 물어보고, 코드 만들고, 실행해 보고, 실패하면 고치고, 그 기록을 다시 꺼내보는 과정을 한 화면에 묶으려고 만든 도구다.
 
-요즘 AI 도구 이야기는 종종 이상한 방향으로 흐른다. 비싼 장비를 사야 한다거나, 최고가 모델 하나만 써야 한다거나, 토큰 비용을 크게 태우는 게 실력처럼 보이는 식이다. Omni-node는 반대로 간다. 지금 가진 환경에서 바로 켜고, 여러 제공자를 바꿔 쓰고, 결과를 파일과 로그로 남기는 쪽을 우선한다.
+요즘 AI 도구 이야기는 종종 이상한 방향으로 흐른다. 비싼 장비를 사야 한다거나, 최고가 모델 하나만 써야 한다거나, 토큰 비용을 크게 태우는 게 실력처럼 보이는 식이다. omnux는 반대로 간다. 지금 가진 환경에서 바로 켜고, 여러 제공자를 바꿔 쓰고, 결과를 파일과 로그로 남기는 쪽을 우선한다.
 
 Groq, Gemini, Cerebras, NVIDIA NIM 같은 HTTP 제공자와 Copilot, Codex CLI/API 흐름을 같은 대시보드에서 다룬다. 웹에서 하던 일은 텔레그램으로 이어갈 수 있고, 코딩 결과는 실행 폴더와 최근 결과 카드로 다시 확인할 수 있다.
 
@@ -28,7 +28,7 @@ Groq, Gemini, Cerebras, NVIDIA NIM 같은 HTTP 제공자와 Copilot, Codex CLI/A
   <tr>
     <td bgcolor="#EAF4FF">
       <strong><font color="#315B7C">한 줄로 말하면</font></strong><br><br>
-      <strong><font color="#1F3A5F">Omni-node는 말만 하는 AI가 아니라, 실제 작업을 만들고 돌려 보고 검증한 흔적까지 남기는 로컬 우선 AI 워크벤치다.</font></strong><br><br>
+      <strong><font color="#1F3A5F">omnux는 말만 하는 AI가 아니라, 실제 작업을 만들고 돌려 보고 검증한 흔적까지 남기는 로컬 우선 AI 워크벤치다.</font></strong><br><br>
       <strong><font color="#1F3A5F">비싼 모델 하나에 묶이지 않고, 웹 대시보드와 텔레그램에서 같은 흐름으로 계속 작업할 수 있게 만든다.</font></strong>
     </td>
   </tr>
@@ -45,9 +45,9 @@ Groq, Gemini, Cerebras, NVIDIA NIM 같은 HTTP 제공자와 Copilot, Codex CLI/A
 - 리팩터링이 preview 없이 파일을 바로 덮어쓴다.
 - 루틴, 검색, 노트북, 작업 계획이 서로 다른 도구처럼 흩어진다.
 
-Omni-node는 이 문제를 기능 목록이 아니라 작업 흐름으로 풀려고 한다.
+omnux는 이 문제를 기능 목록이 아니라 작업 흐름으로 풀려고 한다.
 
-| 흔한 문제 | Omni-node의 방식 |
+| 흔한 문제 | omnux의 방식 |
 |---|---|
 | 채팅과 실행 결과가 분리됨 | 대화, 코딩 결과, 실행 로그를 같은 흐름에 저장 |
 | 모델 비교가 귀찮음 | 단일, 오케스트레이션, 다중 LLM 모드를 대화와 코딩 모두에서 지원 |
@@ -84,7 +84,7 @@ Omni-node는 이 문제를 기능 목록이 아니라 작업 흐름으로 풀려
 
 ### 전체 대시보드
 
-![Omni-node 데스크톱 대시보드](docs/assets/readme/dashboard-desktop-1920x1080.png)
+![omnux 데스크톱 대시보드](docs/assets/readme/dashboard-desktop-1920x1080.png)
 
 ### 핵심 화면
 
@@ -136,31 +136,29 @@ Omni-node는 이 문제를 기능 목록이 아니라 작업 흐름으로 풀려
 
 ## 5분 시작
 
-필수 도구는 `.NET SDK 9`, C 컴파일러, `python3`, `node/npm`이다. LLM 키는 하나 이상만 있어도 시작할 수 있다.
+필수 도구는 `.NET SDK 9`, `python3`, `node/npm`이다. LLM 키는 하나 이상만 있어도 시작할 수 있다.
 
 macOS/Linux에서 전역 실행기가 등록되어 있으면:
 
 ```bash
-Omni-node setup
-Omni-node
-Omni-node shutdown
+omnux setup
+omnux
+omnux shutdown
 ```
 
-저장소에서 바로 준비하려면 `./scripts/Omni-node setup`을 먼저 실행한다. 이 명령은 의존성 확인/설치, 코어 빌드, 미들웨어 빌드, `npm test`, 실행기 등록을 한 번에 처리한다. 첫 `Omni-node` 실행 시 setup marker가 없으면 자동 setup도 시도한다.
+저장소에서 바로 준비하려면 `./scripts/omnux setup`을 먼저 실행한다. 이 명령은 의존성 확인/설치, 미들웨어 빌드, `npm test`, 실행기 등록을 한 번에 처리한다. 첫 `omnux` 실행 시 setup marker가 없으면 자동 setup도 시도한다.
 
 수동 실행:
 
 ```bash
-make -C apps/omninode-core
-dotnet run --project apps/omninode-middleware/OmniNode.Middleware.csproj
+dotnet run --project apps/omnux-middleware/Omnux.Middleware.csproj
 ```
 
 Windows:
 
 ```powershell
-.\scripts\Omni-node.ps1 setup
-.\apps\omninode-core\build.ps1
-dotnet run --project apps\omninode-middleware\OmniNode.Middleware.csproj
+.\scripts\omnux.ps1 setup
+dotnet run --project apps\omnux-middleware\Omnux.Middleware.csproj
 ```
 
 접속 주소:
@@ -173,15 +171,14 @@ dotnet run --project apps\omninode-middleware\OmniNode.Middleware.csproj
 
 ```text
 apps/
-  omninode-core/        C11 코어 데몬
-  omninode-middleware/  .NET 9 서버, WebSocket/HTTP, 텔레그램, 라우팅
-  omninode-dashboard/   정적 웹 대시보드
-  omninode-sandbox/     Python 샌드박스 실행기
+  omnux-middleware/  .NET 9 서버, WebSocket/HTTP, 텔레그램, 라우팅
+  omnux-dashboard/   정적 웹 대시보드
+  omnux-sandbox/     Python 샌드박스 실행기
 docs/                   한국어 문서와 docs/en 영어 문서
 workspace/              코딩/루틴/로직/task 실행 산출물
 ```
 
-영속 상태는 기본적으로 `~/.omninode` 아래에 남고, 작업 산출물은 `workspace/` 아래에 남는다.
+영속 상태는 기본적으로 `~/.omnux` 아래에 남고, 작업 산출물은 `workspace/` 아래에 남는다.
 
 ## 제공자
 
@@ -199,9 +196,8 @@ workspace/              코딩/루틴/로직/task 실행 산출물
 ## 검증
 
 ```bash
-make -C apps/omninode-core
-python3 apps/omninode-sandbox/executor.py --code "print('ok')"
-dotnet build apps/omninode-middleware/OmniNode.Middleware.csproj
+python3 apps/omnux-sandbox/executor.py --code "print('ok')"
+dotnet build apps/omnux-middleware/Omnux.Middleware.csproj
 npm test
 ```
 
@@ -210,7 +206,7 @@ npm test
 ```bash
 curl -s http://127.0.0.1:8080/healthz
 curl -s http://127.0.0.1:8080/readyz
-dotnet run --project apps/omninode-middleware/OmniNode.Middleware.csproj -- doctor --json
+dotnet run --project apps/omnux-middleware/Omnux.Middleware.csproj -- doctor --json
 ```
 
 ## 문서
@@ -234,7 +230,7 @@ dotnet run --project apps/omninode-middleware/OmniNode.Middleware.csproj -- doct
 | [계획과 Task Graph](./docs/PLANNING_AND_TASKS.md) | [English](./docs/en/planning-and-tasks.md) |
 | [정리 기준](./docs/CLEANUP.md) | [English](./docs/en/cleanup.md) |
 | [토큰과 메모리 초기화](./docs/토큰_메모리_초기화_가이드.md) | [English](./docs/en/token-memory-reset.md) |
-| [수동 회귀 체크리스트](./docs/OMNINODE_실환경_수동_최종회귀_체크리스트.md) | [English](./docs/en/manual-regression-checklist.md) |
+| [수동 회귀 체크리스트](./docs/OMNUX_실환경_수동_최종회귀_체크리스트.md) | [English](./docs/en/manual-regression-checklist.md) |
 | [Gemini 검색 전환 기록](./docs/GEMINI_SEARCH_RETRIEVER_INTEGRATION_PLAN.md) | [English](./docs/en/gemini-search-retriever-integration-plan.md) |
 
 ## 이런 사람에게 맞다

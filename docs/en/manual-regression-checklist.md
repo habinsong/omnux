@@ -1,6 +1,6 @@
 # Manual Regression Checklist
 
-[한국어](../OMNINODE_실환경_수동_최종회귀_체크리스트.md) · [English](./manual-regression-checklist.md)
+[한국어](../OMNUX_실환경_수동_최종회귀_체크리스트.md) · [English](./manual-regression-checklist.md)
 
 Updated: 2026-05-21
 

@@ -10,9 +10,8 @@
 - 근거 데이터 계약(Evidence Pack)을 경계 인터페이스로 고정한다.
 
 ## 2. 대상 코드베이스
-- 코어 제어: `omninode-core`
-- 메인 런타임: `omninode-middleware`
-- UI: `omninode-dashboard`
+- 코어 런타임/메인 런타임: `omnux-middleware`
+- UI: `omnux-dashboard`
 
 ## 3. 모듈 매핑표
 

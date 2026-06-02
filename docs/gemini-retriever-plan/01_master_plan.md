@@ -5,7 +5,7 @@
 현재 상태: 이 문서는 Gemini 검색 전환 당시의 실행 계획서다. 최신 운영 기준은 상위 `README.md`, `docs/아키텍처_흐름.md`, `docs/도구_통합_패널_사용_가이드.md`, `docs/검증_가이드.md`를 우선 본다.
 
 ## 1. 목표
-Omni-node에 검색-생성 분리 구조를 적용해 다음을 제공한다.
+omnux에 검색-생성 분리 구조를 적용해 다음을 제공한다.
 
 - Gemini grounding 기반 최신 정보 검색
 - Evidence Pack 기반 근거 표준화

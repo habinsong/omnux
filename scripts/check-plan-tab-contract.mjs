@@ -9,24 +9,28 @@ function read(relativePath) {
   return readFileSync(path.join(repoRoot, relativePath), "utf8");
 }
 
-const app = read("apps/omninode-dashboard/app.js");
-const composer = read("apps/omninode-dashboard/modules/dashboard-composer-renderers.js");
-const threadRenderer = read("apps/omninode-dashboard/modules/dashboard-thread-renderers.js");
-const workspaceRenderer = read("apps/omninode-dashboard/modules/dashboard-workspace-renderers.js");
-const contracts = read("apps/omninode-middleware/src/Application/Planning/PlanningContracts.cs");
-const planJson = read("apps/omninode-middleware/src/Application/Planning/PlanJson.cs");
-const planJsonContext = read("apps/omninode-middleware/src/Application/Planning/PlanJsonContext.cs");
-const planService = read("apps/omninode-middleware/src/Application/Planning/PlanService.cs");
-const llmRouter = read("apps/omninode-middleware/src/LlmRouter.cs");
-const planningPromptPolicy = read("apps/omninode-middleware/src/PlanningPromptPolicy.cs");
-const telegram = read("apps/omninode-middleware/src/CommandService.Telegram.cs");
-const telegramCoding = read("apps/omninode-middleware/src/CommandService.Telegram.Coding.cs");
+const appShellRender = read("apps/omnux-dashboard/modules/app-shell-render.js");
+const buildPageState = read("apps/omnux-dashboard/modules/build-page-state.js");
+const build = read("apps/omnux-dashboard/build.js");
+const composer = read("apps/omnux-dashboard/modules/dashboard-composer-renderers.js");
+const threadRenderer = read("apps/omnux-dashboard/modules/dashboard-thread-renderers.js");
+const workspaceRenderer = read("apps/omnux-dashboard/modules/dashboard-workspace-renderers.js");
+const contracts = read("apps/omnux-middleware/src/Application/Planning/PlanningContracts.cs");
+const planJson = read("apps/omnux-middleware/src/Application/Planning/PlanJson.cs");
+const planJsonContext = read("apps/omnux-middleware/src/Application/Planning/PlanJsonContext.cs");
+const planService = read("apps/omnux-middleware/src/Application/Planning/PlanService.cs");
+const llmRouter = read("apps/omnux-middleware/src/LlmRouter.cs");
+const planningPromptPolicy = read("apps/omnux-middleware/src/PlanningPromptPolicy.cs");
+const telegram = read("apps/omnux-middleware/src/CommandService.Telegram.Conversation.cs");
+const telegramCoding = read("apps/omnux-middleware/src/CommandService.Telegram.Coding.cs");
 
-assert.match(app, /function createPlanFromCurrentInput/, "현재 입력을 작업계획 생성폼으로 옮기는 핸들러가 있어야 합니다.");
-assert.match(app, /function createPlanFromAssistantMessage/, "최근 답변 기반 계획 생성 핸들러가 있어야 합니다.");
-assert.match(app, /function createPlanFromLatestCodingResult/, "최근 코딩 결과 기반 계획 생성 핸들러가 있어야 합니다.");
-assert.match(app, /setRootTab\("automation"\)/, "계획 생성 전환은 작업계획이 있는 automation 탭으로 이동해야 합니다.");
-assert.match(app, /setResponsivePane\("automation", "plans"\)/, "모바일/반응형에서도 계획 pane으로 이동해야 합니다.");
+assert.match(appShellRender, /build: window\.BuildPage/, "새 Home 중심 앱은 Build 화면을 라우팅해야 합니다.");
+assert.match(buildPageState, /const PLAN = \[/, "새 Build 화면에는 계획 preview 데이터가 있어야 합니다.");
+assert.match(buildPageState, /setStage\('planning'\)/, "새 Build 화면은 계획 생성 상태를 가져야 합니다.");
+assert.match(build, /t\('Generate plan'\)/, "새 Build 화면은 계획 생성 버튼을 제공해야 합니다.");
+assert.match(buildPageState, /ctx\.requestPermission\(\{/, "새 Build 화면은 적용 전 권한 모달을 호출해야 합니다.");
+assert.match(build, /t\('Preview'\)/, "새 Build 화면은 변경 preview 액션을 제공해야 합니다.");
+assert.match(build, /t\('Apply changes'\)/, "새 Build 화면은 적용 액션을 제공해야 합니다.");
 
 assert.match(composer, /createPlanFromCurrentInput\("chat:single"\)/, "대화 단일 입력창에서 계획 전환을 제공해야 합니다.");
 assert.match(composer, /createPlanFromCurrentInput\("coding:single"\)/, "코딩 단일 입력창에서 계획 전환을 제공해야 합니다.");

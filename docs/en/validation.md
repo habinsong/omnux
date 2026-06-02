@@ -5,15 +5,14 @@
 Updated: 2026-05-21
 
 ```bash
-make -C apps/omninode-core
-python3 apps/omninode-sandbox/executor.py --code "print('ok')"
-dotnet build apps/omninode-middleware/OmniNode.Middleware.csproj
+python3 apps/omnux-sandbox/executor.py --code "print('ok')"
+dotnet build apps/omnux-middleware/Omnux.Middleware.csproj
 npm test
-./scripts/Omni-node setup
+./scripts/omnux setup
 curl -s http://127.0.0.1:8080/readyz
 ```
 
-`npm test` includes repository hygiene, dashboard syntax checks, router contracts, Telegram/chat contracts, routine/plan/notebook contracts, and the security boundary contract.
+`npm test` includes repository hygiene, dashboard syntax checks, router contracts, Telegram/chat contracts, routine/plan/notebook contracts, the security boundary contract, the core daemon boundary contract, and the tech stack contract.
 
 For screenshots, check the PNG files under `docs/assets/readme/`, including `dashboard-mobile-composer-390x844.png.png`.
 

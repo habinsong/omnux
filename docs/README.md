@@ -1,10 +1,10 @@
-# Omni-node 문서
+# omnux 문서
 
 [한국어](./README.md) · [English](./en/README.md)
 
 업데이트 기준: 2026-05-21
 
-이 폴더는 Omni-node를 실제로 설치하고 운영할 때 필요한 문서만 앞에 둔다. v1.0.5 기준 `./scripts/Omni-node setup`, 외부접속 제한 모드 권한표, WebSocket 보안 경계, 스킬 sticky 동작, 루틴/텔레그램 흐름을 현재 기준으로 맞췄다. 오래된 설계 기록은 `gemini-retriever-plan/` 아래에 따로 남겨 두었다.
+이 폴더는 omnux를 실제로 설치하고 운영할 때 필요한 문서만 앞에 둔다. v1.0.5 기준 `./scripts/omnux setup`, 외부접속 제한 모드 권한표, WebSocket 보안 경계, 스킬 sticky 동작, 루틴/텔레그램 흐름을 현재 기준으로 맞췄다. 오래된 설계 기록은 `gemini-retriever-plan/` 아래에 따로 남겨 두었다.
 
 ## 빠르게 볼 문서
 
@@ -26,7 +26,7 @@
 | 계획과 Task Graph | [열기](./PLANNING_AND_TASKS.md) | [Open](./en/planning-and-tasks.md) |
 | 정리 기준 | [열기](./CLEANUP.md) | [Open](./en/cleanup.md) |
 | 토큰과 메모리 초기화 | [열기](./토큰_메모리_초기화_가이드.md) | [Open](./en/token-memory-reset.md) |
-| 수동 회귀 체크리스트 | [열기](./OMNINODE_실환경_수동_최종회귀_체크리스트.md) | [Open](./en/manual-regression-checklist.md) |
+| 수동 회귀 체크리스트 | [열기](./OMNUX_실환경_수동_최종회귀_체크리스트.md) | [Open](./en/manual-regression-checklist.md) |
 | Gemini 검색 전환 기록 | [열기](./GEMINI_SEARCH_RETRIEVER_INTEGRATION_PLAN.md) | [Open](./en/gemini-search-retriever-integration-plan.md) |
 
 ## 스크린샷 자산

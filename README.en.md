@@ -1,4 +1,4 @@
-# Omni-node
+# omnux
 
 <div align="center">
 
@@ -7,8 +7,8 @@
 [한국어](./README.md) · [English](./README.en.md)
 
 [![local first](https://img.shields.io/badge/local--first-workflow-111111?style=for-the-badge)](./docs/en/architecture.md)
-[![.NET 9](https://img.shields.io/badge/.NET-9-512BD4?style=for-the-badge)](./apps/omninode-middleware)
-[![dashboard](https://img.shields.io/badge/dashboard-websocket-0A7EA4?style=for-the-badge)](./apps/omninode-dashboard)
+[![.NET 9](https://img.shields.io/badge/.NET-9-512BD4?style=for-the-badge)](./apps/omnux-middleware)
+[![dashboard](https://img.shields.io/badge/dashboard-websocket-0A7EA4?style=for-the-badge)](./apps/omnux-dashboard)
 [![telegram](https://img.shields.io/badge/telegram-natural%20control-26A5E4?style=for-the-badge)](./docs/en/usage.md)
 [![safe refactor](https://img.shields.io/badge/Safe%20Refactor-preview%20→%20apply-2E8B57?style=for-the-badge)](./docs/en/safe-refactoring.md)
 
@@ -16,7 +16,7 @@
 
 Updated: 2026-05-21
 
-Omni-node is not just another chat UI. It is a local-first AI workbench that keeps conversations, coding runs, generated files, validation logs, routines, logic graphs, notebooks, Safe Refactor previews, and Telegram control in the same operational flow.
+omnux is not just another chat UI. It is a local-first AI workbench that keeps conversations, coding runs, generated files, validation logs, routines, logic graphs, notebooks, Safe Refactor previews, and Telegram control in the same operational flow.
 
 It does not assume that one expensive model or one expensive machine is the answer. You can use Groq, Gemini, Cerebras, NVIDIA NIM, Copilot, and Codex from the same dashboard, then keep the result as files, logs, previews, and recoverable run snapshots.
 
@@ -32,9 +32,9 @@ A lot of AI tools look good until the first answer is over. Then the trail disap
 - Refactoring often means overwriting a file without a real preview.
 - Scheduled jobs, chat context, search, and handoff notes live in separate places.
 
-Omni-node turns those loose pieces into a working loop.
+omnux turns those loose pieces into a working loop.
 
-| Common problem | Omni-node approach |
+| Common problem | omnux approach |
 |---|---|
 | Chat and execution are separate | Conversations, coding results, and logs stay connected |
 | Provider comparison is messy | Single, orchestration, and multi-LLM modes work in chat and coding |
@@ -46,7 +46,7 @@ Omni-node turns those loose pieces into a working loop.
 
 ### Full dashboard
 
-![Omni-node dashboard](docs/assets/readme/dashboard-desktop-1920x1080.png)
+![omnux dashboard](docs/assets/readme/dashboard-desktop-1920x1080.png)
 
 ### Core screens
 
@@ -95,26 +95,24 @@ Omni-node turns those loose pieces into a working loop.
 macOS/Linux global launcher:
 
 ```bash
-Omni-node setup
-Omni-node
-Omni-node shutdown
+omnux setup
+omnux
+omnux shutdown
 ```
 
-From a fresh checkout, run `./scripts/Omni-node setup` first. It checks or installs dependencies, builds the core and middleware, runs `npm test`, and registers the launcher. A first `Omni-node` start also attempts automatic setup if the setup marker is missing.
+From a fresh checkout, run `./scripts/omnux setup` first. It checks or installs dependencies, builds the middleware, runs `npm test`, and registers the launcher. A first `omnux` start also attempts automatic setup if the setup marker is missing.
 
 Manual run:
 
 ```bash
-make -C apps/omninode-core
-dotnet run --project apps/omninode-middleware/OmniNode.Middleware.csproj
+dotnet run --project apps/omnux-middleware/Omnux.Middleware.csproj
 ```
 
 Windows:
 
 ```powershell
-.\scripts\Omni-node.ps1 setup
-.\apps\omninode-core\build.ps1
-dotnet run --project apps\omninode-middleware\OmniNode.Middleware.csproj
+.\scripts\omnux.ps1 setup
+dotnet run --project apps\omnux-middleware\Omnux.Middleware.csproj
 ```
 
 Open:
@@ -154,5 +152,5 @@ Open:
 | [계획과 Task Graph](./docs/PLANNING_AND_TASKS.md) | [English](./docs/en/planning-and-tasks.md) |
 | [정리 기준](./docs/CLEANUP.md) | [English](./docs/en/cleanup.md) |
 | [토큰과 메모리 초기화](./docs/토큰_메모리_초기화_가이드.md) | [English](./docs/en/token-memory-reset.md) |
-| [수동 회귀 체크리스트](./docs/OMNINODE_실환경_수동_최종회귀_체크리스트.md) | [English](./docs/en/manual-regression-checklist.md) |
+| [수동 회귀 체크리스트](./docs/OMNUX_실환경_수동_최종회귀_체크리스트.md) | [English](./docs/en/manual-regression-checklist.md) |
 | [Gemini 검색 전환 기록](./docs/GEMINI_SEARCH_RETRIEVER_INTEGRATION_PLAN.md) | [English](./docs/en/gemini-search-retriever-integration-plan.md) |

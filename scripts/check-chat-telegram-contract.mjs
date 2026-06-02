@@ -14,23 +14,28 @@ function assert(condition, message) {
   }
 }
 
-const telegram = read("apps/omninode-middleware/src/CommandService.Telegram.cs");
-const updateLoop = read("apps/omninode-middleware/src/TelegramUpdateLoop.cs");
-const execution = read("apps/omninode-middleware/src/CommandService.Execution.cs");
-const executionContext = read("apps/omninode-middleware/src/Application/ExecutionContext.cs");
-const contracts = read("apps/omninode-middleware/src/Application/ApplicationServiceContracts.cs");
-const inputPrep = read("apps/omninode-middleware/src/CommandService.InputPreparation.cs");
-const utils = read("apps/omninode-middleware/src/CommandService.Utils.cs");
-const searchPipeline = read("apps/omninode-middleware/src/CommandService.SearchPipeline.cs");
-const searchQueryPolicy = read("apps/omninode-middleware/src/Infrastructure/Search/SearchQueryPolicy.cs");
+const telegram = read("apps/omnux-middleware/src/CommandService.Telegram.cs");
+const telegramCoding = read("apps/omnux-middleware/src/CommandService.Telegram.Coding.cs");
+const telegramConversation = read("apps/omnux-middleware/src/CommandService.Telegram.Conversation.cs");
+const updateLoop = read("apps/omnux-middleware/src/TelegramUpdateLoop.cs");
+const execution = read("apps/omnux-middleware/src/CommandService.Execution.cs");
+const executionContext = read("apps/omnux-middleware/src/Application/ExecutionContext.cs");
+const contracts = read("apps/omnux-middleware/src/Application/ApplicationServiceContracts.cs");
+const inputPrep = read("apps/omnux-middleware/src/CommandService.InputPreparation.cs");
+const utils = read("apps/omnux-middleware/src/CommandService.Utils.cs");
+const searchPipeline = read("apps/omnux-middleware/src/CommandService.SearchPipeline.cs");
+const searchQueryPolicy = read("apps/omnux-middleware/src/Infrastructure/Search/SearchQueryPolicy.cs");
 const telegramResponseFormatterPolicy = read(
-  "apps/omninode-middleware/src/Infrastructure/Telegram/TelegramResponseFormatterPolicy.cs"
+  "apps/omnux-middleware/src/Infrastructure/Telegram/TelegramResponseFormatterPolicy.cs"
+);
+const telegramCodingHandoffPolicy = read(
+  "apps/omnux-middleware/src/Infrastructure/Telegram/TelegramCodingHandoffPolicy.cs"
 );
 const telegramPromptPolicy = read(
-  "apps/omninode-middleware/src/Infrastructure/Telegram/TelegramPromptPolicy.cs"
+  "apps/omnux-middleware/src/Infrastructure/Telegram/TelegramPromptPolicy.cs"
 );
 const telegramConversationContextPolicy = read(
-  "apps/omninode-middleware/src/Infrastructure/Telegram/TelegramConversationContextPolicy.cs"
+  "apps/omnux-middleware/src/Infrastructure/Telegram/TelegramConversationContextPolicy.cs"
 );
 
 assert(
@@ -44,7 +49,8 @@ assert(
   "CommandService 실행 중 TelegramTurnContext를 설정하고 복원해야 합니다."
 );
 assert(
-  telegram.includes("ResolveTelegramStateKey") && telegram.includes("_executionContext.CurrentTelegramTurn?.SessionKey"),
+  telegramConversation.includes("ResolveTelegramStateKey") &&
+    telegramConversation.includes("_executionContext.CurrentTelegramTurn?.SessionKey"),
   "텔레그램 상태 키는 chat/user 컨텍스트를 우선해야 합니다."
 );
 assert(
@@ -82,8 +88,20 @@ assert(
 assert(
   !telegram.includes(".Take(safeMaxChars == 0 ? 200") &&
     telegram.includes("TelegramResponseFormatterPolicy.FormatSanitizedResponse") &&
-    telegramResponseFormatterPolicy.includes("telegram_response_truncated"),
-  "FormatTelegramResponse가 줄 수 기준으로 조용히 자르면 안 됩니다."
+    telegramResponseFormatterPolicy.includes("telegram_response_truncated") &&
+    telegramResponseFormatterPolicy.includes("telegram_heavy_output_handoff") &&
+    telegramResponseFormatterPolicy.includes("/handoff") &&
+    telegramResponseFormatterPolicy.includes("데스크톱"),
+  "FormatTelegramResponse가 줄 수 기준으로 조용히 자르거나 handoff 안내 없이 끝나면 안 됩니다."
+);
+assert(
+  telegramCoding.includes("TelegramCodingHandoffPolicy.ShouldUseMobileHandoff") &&
+    telegramCoding.includes("TelegramCodingHandoffPolicy.BuildMobileHandoffText") &&
+    telegramCodingHandoffPolicy.includes("코딩 결과가 커서 텔레그램에는 요약만 표시합니다.") &&
+    telegramCodingHandoffPolicy.includes("/coding files") &&
+    telegramCodingHandoffPolicy.includes("/coding download <번호>") &&
+    telegramCodingHandoffPolicy.includes("/handoff"),
+  "텔레그램 코딩 결과는 대형 변경/워커 결과를 사전 요약+handoff로 제한해야 합니다."
 );
 assert(
   updateLoop.includes("cleanedText.Length > 3800") &&
@@ -110,7 +128,7 @@ assert(
   "대화탭은 'ㅎㅇ' 같은 독립 인사를 최근 대화 맥락 주입에서 제외해야 합니다."
 );
 assert(
-  telegram.includes("TelegramConversationContextPolicy.BuildFollowupAwareInput") &&
+  telegramConversation.includes("TelegramConversationContextPolicy.BuildFollowupAwareInput") &&
     telegramConversationContextPolicy.includes("FindAnchorTurn") &&
     telegramConversationContextPolicy.includes("[직전 답변]") &&
     telegramConversationContextPolicy.includes("IsContextualFollowup") &&

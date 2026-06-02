@@ -4,12 +4,12 @@
 
 업데이트 기준: 2026-05-21
 
-Doctor는 Omni-node를 운영할 때 가장 먼저 보는 진단 명령이다. provider 키, CLI 인증, 코어 연결, 상태 파일, 작업공간, 검색/도구 상태를 한 번에 확인한다.
+Doctor는 omnux를 운영할 때 가장 먼저 보는 진단 명령이다. provider 키, CLI 인증, 코어 연결, 상태 파일, 작업공간, 검색/도구 상태를 한 번에 확인한다.
 
 ## 실행
 
 ```bash
-dotnet run --project apps/omninode-middleware/OmniNode.Middleware.csproj -- doctor --json
+dotnet run --project apps/omnux-middleware/Omnux.Middleware.csproj -- doctor --json
 ```
 
 대시보드 설정 탭의 환경 진단 패널에서도 최근 doctor 결과를 볼 수 있다.
