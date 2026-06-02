@@ -290,7 +290,7 @@ public sealed partial class CommandService
 
         if (mode == "single")
         {
-            var result = await RunCodingSingleAsync(
+            var result = await CodingAppService.RunCodingSingleAsync(
                 new CodingRunRequest(
                     input,
                     "telegram",
@@ -317,7 +317,7 @@ public sealed partial class CommandService
 
         if (mode == "orchestration")
         {
-            var result = await RunCodingOrchestrationAsync(
+            var result = await CodingAppService.RunCodingOrchestrationAsync(
                 new CodingRunRequest(
                     input,
                     "telegram",
@@ -348,7 +348,7 @@ public sealed partial class CommandService
             return BuildTelegramCodingRunText(result, "코딩 실행 완료");
         }
 
-        var multiResult = await RunCodingMultiAsync(
+        var multiResult = await CodingAppService.RunCodingMultiAsync(
             new CodingRunRequest(
                 input,
                 "telegram",
@@ -566,7 +566,7 @@ public sealed partial class CommandService
 
     private string BuildTelegramCodingRunText(CodingRunResult result, string heading)
     {
-        var snapshot = BuildConversationCodingResultSnapshot(result);
+        var snapshot = CodingApplicationService.BuildConversationCodingResultSnapshot(result);
         return BuildTelegramCodingResultText(result.Conversation, snapshot, heading);
     }
 

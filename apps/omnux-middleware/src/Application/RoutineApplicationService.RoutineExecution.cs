@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace Omnux.Middleware;
 
-public sealed partial class CommandService
+public sealed partial class RoutineApplicationService
 {
     private const string RoutineBrowserAgentDefaultProvider = "codex";
     private const string RoutineBrowserAgentDefaultModel = "gpt-5.4";
@@ -423,7 +423,7 @@ public sealed partial class CommandService
         );
     }
 
-    private static string NormalizeRoutineExecutionMode(string? executionMode)
+    internal static string NormalizeRoutineExecutionMode(string? executionMode)
     {
         var normalized = (executionMode ?? string.Empty).Trim().ToLowerInvariant();
         return normalized switch
@@ -446,8 +446,7 @@ public sealed partial class CommandService
         }
 
         var normalizedRequest = (request ?? string.Empty).Trim();
-        var urls = ResolveWebUrls(normalizedRequest, null, webSearchEnabled: true);
-        if (urls.Count > 0)
+        if (ContainsHttpUrl(normalizedRequest))
         {
             return "url";
         }
@@ -641,7 +640,7 @@ public sealed partial class CommandService
 
         if (string.Equals(mode, "gemini-url-single", StringComparison.Ordinal))
         {
-            var urlResult = await GenerateGeminiUrlContextAnswerDetailedAsync(
+            var urlResult = await _llmGateway.GenerateGeminiUrlContextAnswerAsync(
                 taskRequest,
                 urls,
                 string.Empty,
@@ -655,13 +654,13 @@ public sealed partial class CommandService
                 decisionMs: 0,
                 cancellationToken
             );
-            var output = (urlResult.Response.Text ?? string.Empty).Trim();
+            var output = (urlResult.Text ?? string.Empty).Trim();
             var failed = SearchPromptPolicy.IsGeminiUrlContextFailureText(output)
                 || output.StartsWith("요청하신 URL 참조 답변을 생성하지 못했습니다.", StringComparison.Ordinal);
             return (output, failed ? "error" : "ok", failed ? output : null);
         }
 
-        var webResult = await ComposeGroundedWebAnswerWithFallbackAsync(
+        var webResult = await _llmGateway.ComposeGroundedWebAnswerWithFallbackAsync(
             taskRequest,
             string.Empty,
             false,

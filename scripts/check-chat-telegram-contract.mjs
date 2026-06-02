@@ -19,7 +19,7 @@ const telegramClient = read("apps/omnux-middleware/src/TelegramClient.cs");
 const telegramCoding = read("apps/omnux-middleware/src/CommandService.Telegram.Coding.cs");
 const telegramConversation = read("apps/omnux-middleware/src/CommandService.Telegram.Conversation.cs");
 const telegramRefactor = read("apps/omnux-middleware/src/CommandService.Telegram.Refactor.cs");
-const telegramDoctor = read("apps/omnux-middleware/src/CommandService.Telegram.Doctor.cs");
+const telegramRouting = read("apps/omnux-middleware/src/CommandService.Execution.TelegramRouting.cs");
 const taskSlashCommandHandler = read("apps/omnux-middleware/src/CommandDispatch/TaskSlashCommandHandler.cs");
 const doctorSlashCommandHandler = read("apps/omnux-middleware/src/CommandDispatch/DoctorSlashCommandHandler.cs");
 const handoffSlashCommandHandler = read("apps/omnux-middleware/src/CommandDispatch/HandoffSlashCommandHandler.cs");
@@ -174,7 +174,8 @@ assert(
     taskSlashCommandHandler.includes("FormatTaskOutput(output, isTelegram)") &&
     taskSlashCommandHandler.includes("BuildRawTaskOutputText") &&
     doctorSlashCommandHandler.includes("TelegramCommandHandoffPolicy.ShouldUseCommandHandoff(jsonText") &&
-    telegramDoctor.includes("TryHandleViaSlashRouterAsync(text, \"telegram\", cancellationToken)"),
+    !telegramRouting.includes("TryHandleTelegramDoctorCommandAsync") &&
+    !telegramRouting.includes("TryHandleTelegramMemoryCommandAsync"),
   "텔레그램 명령별 대형 파일/diff/task output/doctor JSON은 본문 직접 출력 대신 요약+handoff 정책을 거쳐야 합니다."
 );
 assert(

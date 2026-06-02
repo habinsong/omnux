@@ -2,7 +2,7 @@ using System.Text;
 
 namespace Omnux.Middleware;
 
-public sealed partial class CommandService
+public sealed partial class RoutineApplicationService
 {
     private void EnsureRoutinePromptFiles()
     {

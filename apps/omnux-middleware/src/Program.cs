@@ -131,6 +131,27 @@ internal static class Program
             telegramLlmMutationApplicationService,
             llmRouter.GetSelectedGroqModel
         );
+        var llmControlApplicationService = new LlmControlApplicationService(
+            groqModelCatalog,
+            copilotWrapper,
+            llmRouter,
+            llmSettingsApplicationService,
+            llmPreferenceContext,
+            providers
+        );
+        var slashCommandHandlers = new List<ISlashCommandHandler>
+        {
+            new StaticSlashCommandHandler(),
+            new DoctorSlashCommandHandler(appServices.Doctor),
+            new NotebookSlashCommandHandler(appServices.Notebook),
+            new HandoffSlashCommandHandler(appServices.Notebook),
+            new PlanSlashCommandHandler(appServices.Plan),
+            new TaskSlashCommandHandler(appServices.TaskGraph),
+            new MemorySlashCommandHandler(appServices.Memory, appServices.Conversation),
+            new ChannelSettingsSlashCommandHandler(llmSettingsApplicationService),
+            new LlmControlSlashCommandHandler(llmControlApplicationService),
+        };
+        var slashCommandRouter = new SlashCommandRouter(slashCommandHandlers);
         var telegramCodingSettingsApplicationService = new TelegramCodingSettingsApplicationService(llmPreferenceContext);
         var executionContext = new ExecutionContext();
         var routineRegistry = new RoutineRegistry(persistence.RoutineStore);
@@ -177,24 +198,27 @@ internal static class Program
             refactorServices.DiffPreview,
             refactorServices.LspRefactor,
             refactorServices.AstGrepRefactor,
-            appServices.Doctor,
-            appServices.Notebook,
             appServices.Settings,
             appServices.Refactor,
             appServices.Context,
             appServices.Cleanup,
-            appServices.TaskGraph,
-            appServices.Memory,
-            appServices.Plan,
             appServices.Conversation,
             appServices.Tool,
             llmSettingsApplicationService,
+            llmControlApplicationService,
+            slashCommandRouter,
             telegramLlmMutationApplicationService,
             telegramCodingSettingsApplicationService,
             llmPreferenceContext,
             executionContext,
             routineRegistry
         );
+        slashCommandHandlers.Add(new CoreRuntimeSlashCommandHandler(
+            coreClient,
+            auditLogger,
+            config.Security.KillAllowlistCsv,
+            commandService.RecordRoutedEvent
+        ));
         appServices.Memory.ConfigureCreateMemoryNoteDelegate(commandService.CreateMemoryNoteAsync);
         appServices.Conversation.ConfigureClearActiveSkillDelegate(commandService.ClearActiveSkillForConversation);
         appServices.Tool.ConfigureCronAndSearchDelegates(new ToolApplicationService.CronSearchDelegates(
@@ -209,7 +233,41 @@ internal static class Program
             commandService.SearchWebAsync
         ));
         var commandExecutionService = new CommandExecutionService(commandService, executionContext);
-        var routineApplicationService = new RoutineApplicationService(commandService);
+        var routineLlmGateway = commandService.CreateRoutineLlmGateway();
+        var routineLogicGraphRunner = commandService.CreateRoutineLogicGraphRunner();
+        var routineApplicationService = new RoutineApplicationService(
+            config.Providers,
+            config.Paths,
+            config.Context,
+            config.Security,
+            llmRouter,
+            groqModelCatalog,
+            persistence.ConversationStoreService,
+            persistence.RunArtifactStore,
+            codeRunner,
+            telegramClient,
+            toolServices.SessionSpawn,
+            routineRegistry,
+            routineLlmGateway,
+            routineLogicGraphRunner
+        );
+        slashCommandHandlers.Add(new RoutineSlashCommandHandler(routineApplicationService));
+        commandService.ConfigureRoutineApplicationService(routineApplicationService);
+        var codingCommandGateway = commandService.CreateCodingCommandGateway();
+        var codingApplicationService = new CodingApplicationService(
+            config.Providers,
+            config.Paths,
+            config.Security,
+            config.Context,
+            config.Execution,
+            persistence.ConversationStoreService,
+            persistence.RunArtifactStore,
+            codeRunner,
+            auditLogger,
+            codingCommandGateway
+        );
+        commandService.ConfigureCodingApplicationService(codingApplicationService);
+        slashCommandHandlers.Add(new CodingSlashCommandHandler(codingApplicationService));
         var logicGraphRuntimeCoordinator = new LogicGraphRuntimeCoordinator(pathResolver);
         commandService.ConfigureLogicGraphRuntime(pathResolver, logicGraphRuntimeCoordinator);
         var runtimeServices = ConfigureRuntimeServices(
@@ -224,6 +282,7 @@ internal static class Program
             runtimeSettings,
             appServices,
             routineApplicationService,
+            codingApplicationService,
             commandService,
             workflowServices.TaskGraphCoordinator,
             auditLogger
@@ -746,6 +805,7 @@ internal static class Program
         RuntimeSettings runtimeSettings,
         ApplicationServices appServices,
         RoutineApplicationService routineApplicationService,
+        CodingApplicationService codingApplicationService,
         CommandService commandService,
         BackgroundTaskCoordinator taskGraphCoordinator,
         AuditLogger auditLogger
@@ -753,7 +813,6 @@ internal static class Program
     {
         var logicApplicationService = new LogicApplicationService(commandService);
         var chatApplicationService = new ChatApplicationService(commandService);
-        var codingApplicationService = new CodingApplicationService(commandService);
         taskGraphCoordinator.ConfigureExecutors(codingApplicationService, commandExecutionService);
         return new RuntimeServices(
             new WebSocketGateway(

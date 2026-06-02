@@ -34,6 +34,7 @@ const coreRuntimeClient = read("apps/omnux-middleware/src/CoreRuntimeClient.cs")
 const coreDoctor = read("apps/omnux-middleware/src/Application/Doctor/Checks/CoreSocketDoctorCheck.cs");
 const settingsService = read("apps/omnux-middleware/src/Application/SettingsApplicationService.cs");
 const commandPostRouting = read("apps/omnux-middleware/src/CommandService.Execution.PostRouting.cs");
+const coreRuntimeSlashHandler = read("apps/omnux-middleware/src/CommandDispatch/CoreRuntimeSlashCommandHandler.cs");
 const telegramLlmControl = read("apps/omnux-middleware/src/CommandService.Telegram.LlmControl.cs");
 const program = read("apps/omnux-middleware/src/Program.cs");
 const appConfig = read("apps/omnux-middleware/src/AppConfig.cs");
@@ -92,9 +93,9 @@ assertNotIncludes(pathResolver, "omninode_core", "state path resolver must not p
 assertNotIncludes(pathResolver, "omnux_core", "state path resolver must not preserve core socket path");
 
 assertIncludes(settingsService, "GetMetricsAsync", "settings can read dotnet runtime metrics");
-assertIncludes(commandPostRouting, "text.Equals(\"/metrics\"", "local metrics command remains explicit");
-assertIncludes(commandPostRouting, "KillCommandPolicy.TryParse", "local kill command remains policy-gated");
-assertIncludes(commandPostRouting, "ValidateKillTargetAsync", "local kill command remains guarded");
+assertIncludes(coreRuntimeSlashHandler, "text.Equals(\"/metrics\"", "local metrics command remains explicit");
+assertIncludes(coreRuntimeSlashHandler, "KillCommandPolicy.TryParse", "local kill command remains policy-gated");
+assertIncludes(coreRuntimeSlashHandler, "KillTargetGuardPolicy.ValidateAsync", "local kill command remains guarded");
 assertIncludes(commandPostRouting, "RouterIntent.QuerySystem", "query system can still read metrics");
 assertIncludes(telegramLlmControl, "ExecuteTelegramMetricsPseudoCommandAsync", "telegram metrics path remains explicit");
 assertIncludes(telegramLlmControl, "ExecuteTelegramKillPseudoCommandAsync", "telegram kill path remains explicit");

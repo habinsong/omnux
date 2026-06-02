@@ -1,6 +1,6 @@
 namespace Omnux.Middleware;
 
-public sealed partial class CommandService
+public sealed partial class RoutineApplicationService
 {
     private static RoutineSummary ToRoutineSummary(RoutineDefinition routine)
     {
@@ -204,7 +204,7 @@ public sealed partial class CommandService
         return $"{minutes:0.0}m";
     }
 
-    private static string BuildRoutineTitle(string request)
+    internal static string BuildRoutineTitle(string request)
     {
         var text = (request ?? string.Empty)
             .Replace("\r", " ", StringComparison.Ordinal)
@@ -219,7 +219,7 @@ public sealed partial class CommandService
         return title;
     }
 
-    private static DateTimeOffset ComputeNextDailyRunUtc(int hour, int minute, string timezoneId, DateTimeOffset nowUtc)
+    internal static DateTimeOffset ComputeNextDailyRunUtc(int hour, int minute, string timezoneId, DateTimeOffset nowUtc)
     {
         var tz = RoutineSchedulePolicy.ResolveTimeZone(timezoneId);
         var nowLocal = TimeZoneInfo.ConvertTime(nowUtc, tz);

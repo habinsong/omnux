@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace Omnux.Middleware;
 
-public sealed partial class CommandService
+public sealed partial class CodingApplicationService
 {
     public Task<CodingRunResult> RunCodingSingleAsync(
         CodingRunRequest request,
@@ -1366,7 +1366,7 @@ public sealed partial class CommandService
         };
     }
 
-    private static ConversationCodingResultSnapshot BuildConversationCodingResultSnapshot(CodingRunResult result)
+    internal static ConversationCodingResultSnapshot BuildConversationCodingResultSnapshot(CodingRunResult result)
     {
         return new ConversationCodingResultSnapshot(
             result.Mode,

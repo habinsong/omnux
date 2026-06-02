@@ -149,6 +149,9 @@ public sealed partial class CommandService
 
     private TelegramPseudoCommandHandlers BuildTelegramPseudoCommandHandlers()
     {
+        TelegramPseudoCommandHandler slashRouter =
+            (command, token) => TryHandleViaSlashRouterAsync(command, "telegram", token);
+
         return new TelegramPseudoCommandHandlers(
             ParseHelpTopicFromInput,
             BuildTelegramHelpText,
@@ -158,12 +161,12 @@ public sealed partial class CommandService
             TryHandleTelegramSkillCommandAsync,
             TryHandleTelegramCodingCommandAsync,
             TryHandleTelegramRefactorCommandAsync,
-            TryHandleTelegramMemoryCommandAsync,
-            TryHandleTelegramDoctorCommandAsync,
-            TryHandleTelegramPlanCommandAsync,
-            TryHandleTelegramTaskCommandAsync,
-            TryHandleTelegramNotebookCommandAsync,
-            (command, token) => TryHandleRoutineCommandAsync(command, "telegram", token),
+            slashRouter,
+            slashRouter,
+            slashRouter,
+            slashRouter,
+            slashRouter,
+            slashRouter,
             ExecuteTelegramMetricsPseudoCommandAsync,
             ExecuteTelegramKillPseudoCommandAsync
         );
@@ -184,7 +187,7 @@ public sealed partial class CommandService
             return null;
         }
 
-        var guard = await ValidateKillTargetAsync(pid, "telegram", cancellationToken);
+        var guard = await KillTargetGuardPolicy.ValidateAsync(pid, "telegram", _security.KillAllowlistCsv, cancellationToken);
         if (!guard.Allowed)
         {
             _auditLogger.Log("telegram", "kill", "deny", $"pid={pid} reason={guard.Reason} natural_control");

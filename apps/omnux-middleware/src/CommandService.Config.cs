@@ -86,8 +86,7 @@ public sealed partial class CommandService
                 }
             }
 
-            var schedulerEnabled = _routineSchedulerTask is null
-                || (!_routineSchedulerTask.IsFaulted && !_routineSchedulerTask.IsCanceled);
+            var schedulerEnabled = RoutineAppService.GetRoutineSchedulerStatus().Enabled;
             return new CronToolStatusResult(
                 Enabled: schedulerEnabled,
                 StorePath: _routineRegistry.StorePath,
@@ -1415,7 +1414,7 @@ public sealed partial class CommandService
 
         try
         {
-            var result = await RunRoutineNowAsync(normalizedId, source, cancellationToken).ConfigureAwait(false);
+            var result = await RoutineAppService.RunRoutineNowAsync(normalizedId, source, cancellationToken).ConfigureAwait(false);
             if (!result.Ok)
             {
                 return new CronToolRunResult(false, false, null, result.Message);
@@ -1494,7 +1493,7 @@ public sealed partial class CommandService
             return new CronToolRemoveResult(false, false, "jobId is required");
         }
 
-        var result = DeleteRoutine(normalizedId);
+        var result = RoutineAppService.DeleteRoutine(normalizedId);
         return new CronToolRemoveResult(
             Ok: result.Ok,
             Removed: result.Ok,
@@ -3276,7 +3275,7 @@ public sealed partial class CommandService
             {
                 try
                 {
-                    var result = await RunRoutineNowAsync(id, source, CancellationToken.None).ConfigureAwait(false);
+                    var result = await RoutineAppService.RunRoutineNowAsync(id, source, CancellationToken.None).ConfigureAwait(false);
                     if (!result.Ok)
                     {
                         Console.Error.WriteLine($"[routine] wake run skipped ({id}): {result.Message}");
@@ -3462,7 +3461,7 @@ public sealed partial class CommandService
         return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
     }
 
-    private static string? NormalizeOptionalCronPayloadString(string? value)
+    internal static string? NormalizeOptionalCronPayloadString(string? value)
     {
         var normalized = (value ?? string.Empty).Trim();
         return normalized.Length == 0 ? null : normalized;
@@ -3815,7 +3814,7 @@ public sealed partial class CommandService
         return false;
     }
 
-    private static string NormalizeCronPayloadKindOrDefault(string? payloadKindRaw)
+    internal static string NormalizeCronPayloadKindOrDefault(string? payloadKindRaw)
     {
         return TryParseCronPayloadKind(payloadKindRaw, allowEmpty: true, out var normalized)
             ? normalized
@@ -3839,14 +3838,14 @@ public sealed partial class CommandService
         return null;
     }
 
-    private static string NormalizeCronSessionTargetOrDefault(string? sessionTargetRaw)
+    internal static string NormalizeCronSessionTargetOrDefault(string? sessionTargetRaw)
     {
         return TryParseCronSessionTarget(sessionTargetRaw, allowEmpty: true, out var normalized)
             ? normalized
             : "main";
     }
 
-    private static string NormalizeCronScheduleKind(string? kind)
+    internal static string NormalizeCronScheduleKind(string? kind)
     {
         var normalized = (kind ?? string.Empty).Trim().ToLowerInvariant();
         return normalized switch
@@ -3857,7 +3856,7 @@ public sealed partial class CommandService
         };
     }
 
-    private static DateTimeOffset ComputeNextCronBridgeRunUtc(RoutineDefinition routine, DateTimeOffset nowUtc)
+    internal static DateTimeOffset ComputeNextCronBridgeRunUtc(RoutineDefinition routine, DateTimeOffset nowUtc)
     {
         var scheduleKind = NormalizeCronScheduleKind(routine.CronScheduleKind);
         if (string.Equals(scheduleKind, "at", StringComparison.Ordinal))
@@ -4051,7 +4050,7 @@ public sealed partial class CommandService
         return true;
     }
 
-    private static string ResolveRoutineExecutionRequestText(string? request, string? title, string? scheduleSourceMode)
+    internal static string ResolveRoutineExecutionRequestText(string? request, string? title, string? scheduleSourceMode)
     {
         var normalizedTask = NormalizeRoutineTaskRequest(request);
         if (!string.IsNullOrWhiteSpace(normalizedTask))
@@ -4070,7 +4069,7 @@ public sealed partial class CommandService
             : title.Trim();
     }
 
-    private static string NormalizeRoutineScheduleSourceMode(string? mode, string? request)
+    internal static string NormalizeRoutineScheduleSourceMode(string? mode, string? request)
     {
         var normalized = (mode ?? string.Empty).Trim().ToLowerInvariant();
         if (normalized is "auto" or "manual")
@@ -4162,7 +4161,7 @@ public sealed partial class CommandService
         return normalized.Trim();
     }
 
-    private static string? NormalizeCronRunStatus(string? status)
+    internal static string? NormalizeCronRunStatus(string? status)
     {
         var normalized = (status ?? string.Empty).Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(normalized))
@@ -4189,7 +4188,7 @@ public sealed partial class CommandService
         return null;
     }
 
-    private static string? TrimForCronError(string? text)
+    internal static string? TrimForCronError(string? text)
     {
         var normalized = (text ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(normalized))
