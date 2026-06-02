@@ -30,7 +30,7 @@ omnux 저장소에서 동작하는 모든 AI 에이전트(Codex / Claude / Gemin
 - 수정: **파일을 먼저 읽고 문맥 파악 후 최소 수정**.
 - 명시 요청 없는 대규모 리팩터링·구조 변경 금지. **요구사항 해결에만 집중**.
 - canonical 경로 준수: `apps/`, `docs/`, `workspace/`.
-  루트 `coding`, `runtime`, `omnux-*`는 alias이므로 새 코드는 `apps/` 하위에 둠.
+  루트 바로가기 alias는 저장소에 두지 않으며 새 코드는 `apps/` 하위에 둠.
 - 동작 변경 시 관련 문서·주석도 함께 갱신.
 
 ## 5. 검증

@@ -1,4 +1,4 @@
-import { lstatSync, readFileSync, readlinkSync } from "node:fs";
+import { lstatSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -7,15 +7,28 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 
 const REQUIRED_DIRECTORIES = ["apps", "docs"];
 const OPTIONAL_CANONICAL_DIRECTORIES = ["workspace"];
-const ROOT_ALIAS_SYMLINKS = [
-  { path: "coding", target: "workspace/coding" },
-  { path: "runtime", target: "workspace/runtime" },
-  { path: "omnux-dashboard", target: "apps/omnux-dashboard" },
-  { path: "omnux-middleware", target: "apps/omnux-middleware" },
-  { path: "omnux-sandbox", target: "apps/omnux-sandbox" },
-  { path: "omninode-dashboard", target: "apps/omnux-dashboard" },
-  { path: "omninode-middleware", target: "apps/omnux-middleware" },
-  { path: "omninode-sandbox", target: "apps/omnux-sandbox" }
+const DISALLOWED_ROOT_SHORTCUTS = [
+  ".runtime",
+  "coding",
+  "runtime",
+  "gemini-retriever-plan",
+  "omninode-dashboard",
+  "omninode-middleware",
+  "omninode-sandbox",
+  "omnux-dashboard",
+  "omnux-middleware",
+  "omnux-sandbox",
+  "GEMINI_SEARCH_RETRIEVER_INTEGRATION_PLAN.md",
+  "OMNINODE_실환경_수동_최종회귀_체크리스트.md",
+  "OMNUX_실환경_수동_최종회귀_체크리스트.md",
+  "검증_가이드.md",
+  "기술스택_정리.md",
+  "도구_통합_패널_사용_가이드.md",
+  "디렉터리_가이드.md",
+  "사용법_빠른시작.md",
+  "아키텍처_흐름.md",
+  "토큰_메모리_초기화_가이드.md",
+  "환경변수_및_상태파일.md"
 ];
 const REQUIRED_GITIGNORE_PATTERNS = [
   "node_modules/",
@@ -105,39 +118,51 @@ function inspectCanonicalDirectory(relativePath) {
   };
 }
 
-function ensureAliasTargets() {
-  return ROOT_ALIAS_SYMLINKS.map((entry) => {
-    const stat = lstatSync(toAbsolute(entry.path), { throwIfNoEntry: false });
-    if (!stat) {
-      throw new Error(`하위 호환 alias가 없습니다: ${entry.path}`);
-    }
-    const expectedTarget = path.normalize(entry.target);
-
-    if (stat.isSymbolicLink()) {
-      const rawTarget = readlinkSync(toAbsolute(entry.path));
-      const normalizedTarget = path.normalize(rawTarget);
-      if (normalizedTarget !== expectedTarget) {
-        throw new Error(`하위 호환 alias 대상이 다릅니다: ${entry.path} -> ${rawTarget} (expected: ${entry.target})`);
-      }
-
-      return { path: entry.path, target: normalizedTarget, kind: "symlink" };
-    }
-
-    if (process.platform === "win32") {
-      if (stat.isDirectory()) {
-        return { path: entry.path, target: expectedTarget, kind: "directory_alias" };
-      }
-
-      if (stat.isFile()) {
-        const fileTarget = readFileSync(toAbsolute(entry.path), "utf8").trim();
-        if (path.normalize(fileTarget) === expectedTarget) {
-          return { path: entry.path, target: expectedTarget, kind: "git_symlink_placeholder" };
-        }
-      }
-    }
-
-    throw new Error(`하위 호환 alias는 심볼릭 링크여야 합니다: ${entry.path}`);
+function readTrackedSymlinks() {
+  const result = spawnSync("git", ["ls-files", "-z", "-s"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    env: process.env,
+    maxBuffer: 32 * 1024 * 1024
   });
+
+  if (result.status !== 0) {
+    throw new Error("git ls-files symlink 검사 실패");
+  }
+
+  return result.stdout
+    .split("\0")
+    .filter(Boolean)
+    .flatMap((record) => {
+      const tabIndex = record.indexOf("\t");
+      if (tabIndex < 0) {
+        return [];
+      }
+
+      const metadata = record.slice(0, tabIndex);
+      const filePath = record.slice(tabIndex + 1);
+      const [mode] = metadata.split(" ");
+      return mode === "120000" ? [filePath] : [];
+    });
+}
+
+function ensureNoRootShortcuts() {
+  const existingRootShortcuts = DISALLOWED_ROOT_SHORTCUTS.filter((relativePath) =>
+    !!lstatSync(toAbsolute(relativePath), { throwIfNoEntry: false })
+  );
+  if (existingRootShortcuts.length > 0) {
+    throw new Error(`루트 바로가기 alias가 남아 있습니다: ${existingRootShortcuts.join(", ")}`);
+  }
+
+  const trackedSymlinks = readTrackedSymlinks();
+  if (trackedSymlinks.length > 0) {
+    throw new Error(`git에 추적되는 심볼릭 링크가 남아 있습니다: ${trackedSymlinks.join(", ")}`);
+  }
+
+  return {
+    disallowedRootShortcuts: DISALLOWED_ROOT_SHORTCUTS.length,
+    trackedSymlinks: 0
+  };
 }
 
 function ensureGitignorePatterns() {
@@ -194,7 +219,7 @@ function ensureGeneratedStackArtifactsAreAbsent() {
 function main() {
   REQUIRED_DIRECTORIES.forEach(ensureDirectory);
   const canonicalDirectories = OPTIONAL_CANONICAL_DIRECTORIES.map(inspectCanonicalDirectory);
-  const aliases = ensureAliasTargets();
+  const rootShortcuts = ensureNoRootShortcuts();
   ensureGitignorePatterns();
   const trackedArtifactCounts = ensureArtifactsAreUntracked();
   ensureGeneratedStackArtifactsAreAbsent();
@@ -202,7 +227,7 @@ function main() {
   console.log(JSON.stringify({
     ok: true,
     canonicalDirectories,
-    aliases,
+    rootShortcuts,
     trackedArtifactCounts
   }, null, 2));
 }

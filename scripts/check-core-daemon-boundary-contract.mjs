@@ -20,6 +20,11 @@ function assertNotIncludes(text, needle, label) {
   assert.ok(!text.includes(needle), `${label}: expected not to include ${needle}`);
 }
 
+function assertEmpty(text, label) {
+  assertionCount += 1;
+  assert.equal(text, "", `${label}: expected empty text`);
+}
+
 function assertPathMissing(relativePath, label) {
   assertionCount += 1;
   assert.equal(existsSync(path.join(repoRoot, relativePath)), false, `${label}: ${relativePath}`);
@@ -102,9 +107,7 @@ for (const text of [shellScript, powershellScript, repoHygiene]) {
   assertNotIncludes(text, "omninode-core", "scripts must not require removed legacy core alias");
 }
 
-assertIncludes(readme, ".NET SDK 9`, `python3`, `node/npm`", "README scopes current requirements to active runtimes");
-assertNotIncludes(readme, "C 컴파일러", "README must not require C compiler");
-assertNotIncludes(readme, "omnux-core/", "README must not list removed core directory");
+assertEmpty(readme, "README stays empty until public copy is rewritten");
 assertNotIncludes(readmeEn, "legacy C core", "README.en must not document removed legacy core");
 assertNotIncludes(quickstart, "C 컴파일러", "quickstart must not require C compiler");
 assertNotIncludes(quickstart, "legacy C core", "quickstart must not document removed legacy core");
