@@ -203,7 +203,7 @@ git diff --check
 
 ## 5. UI 전환 및 마이그레이션 진척도 (Phase 1~5)
 
-전체 WS 연결률: 55/93 (59%). Phase 1~4 완료 시 93/93 (100%).
+전체 WS 연결률: 58/93 (62%). Phase 1~4 완료 시 93/93 (100%).
 
 | 단계 (Phase) | 상태 | 목표 및 내용 |
 |---|---|---|
@@ -225,6 +225,8 @@ git diff --check
 - `Ask` 화면은 초기 대화/메모리 목록 조회 의존성을 `ctx` 전체가 아니라 필요한 함수 참조로 분리해 재실행 범위를 줄였다.
 - `Settings` 화면의 Memory 탭도 `send`/`toast` 참조를 분리하고, 메모리 내용 갱신 시 선택 항목이 stale 상태에 묶이지 않도록 정리했다.
 - 실제 브라우저 검증에서 `Settings` -> `Memory & backup` 진입과 메모리 검색/백업 버튼 렌더를 확인했다.
+- `Settings` Memory 탭에 메모리 노트 CRUD를 연결했다: 선택 노트 `이름 변경`(rename_memory_note)·`삭제`(delete_memory_notes)와 범위 `메모리 비우기`(clear_memory). 백엔드가 mutation 후 `memory_notes`를 재브로드캐스트하므로 리스트는 자동 갱신되고, 파괴적 작업은 confirm으로 가드했다. 브라우저 프리뷰에서 렌더·선택 시 액션 노출·delete/rename end-to-end(전송+낙관적 UI)·리스트 갱신 경로(`omnux:memory_notes`)를 콘솔 에러 없이 확인했다.
+- Phase 2 잔여: 대화 `create_conversation`·`delete_conversation`·`update_conversation_meta`·`conversation_search`와 `create_memory_note`(대화 기반)를 `Ask` 화면 사이드바에 연결. 백엔드는 모두 지원(`WsConversationMemoryDispatcher`), 프론트 와이어링만 남음. 백업 3종은 연결 완료.
 
 **Phase 3 — Web 검색 / Browser / Sessions**
 1. `ws-web.js`, `ws-sessions.js` 작성.
