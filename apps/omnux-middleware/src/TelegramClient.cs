@@ -41,9 +41,14 @@ public sealed class TelegramClient : IDisposable
     private DateTimeOffset _lastGetUpdatesErrorLogUtc = DateTimeOffset.MinValue;
 
     public TelegramClient(RuntimeSettings runtimeSettings)
+        : this(runtimeSettings, new HttpClient())
     {
-        _httpClient = new HttpClient();
+    }
+
+    internal TelegramClient(RuntimeSettings runtimeSettings, HttpClient httpClient)
+    {
         _runtimeSettings = runtimeSettings;
+        _httpClient = httpClient;
     }
 
     public bool IsConfigured

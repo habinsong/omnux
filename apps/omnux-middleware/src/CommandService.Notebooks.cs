@@ -80,7 +80,6 @@ public sealed partial class CommandService
         CancellationToken cancellationToken
     )
     {
-        _ = source;
         if (tokens.Count >= 2 && tokens[1].Equals("help", StringComparison.OrdinalIgnoreCase))
         {
             return """
@@ -91,6 +90,11 @@ public sealed partial class CommandService
 
         var projectKey = tokens.Count >= 2 ? tokens[1] : null;
         var result = await CreateHandoffAsync(projectKey, cancellationToken);
+        if (string.Equals(source, "telegram", StringComparison.OrdinalIgnoreCase))
+        {
+            return TelegramHandoffPresentationPolicy.BuildTelegramHandoffResult(result);
+        }
+
         return FormatNotebookActionResult(result);
     }
 

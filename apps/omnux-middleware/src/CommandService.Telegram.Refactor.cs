@@ -218,6 +218,24 @@ public sealed partial class CommandService
 
     private static string BuildTelegramRefactorPreviewText(RefactorPreview preview)
     {
+        if (TelegramCommandHandoffPolicy.ShouldUseCommandHandoff(
+                preview.UnifiedDiff,
+                heavyChars: 1600,
+                heavyLines: 28))
+        {
+            return TelegramCommandHandoffPolicy.BuildCommandHandoffText(
+                "Safe Refactor 미리보기",
+                $"{preview.Path} previewId={preview.PreviewId} safeToApply={(preview.SafeToApply ? "yes" : "no")}",
+                preview.UnifiedDiff,
+                new[]
+                {
+                    "/refactor apply",
+                    $"/refactor apply {preview.PreviewId}",
+                    "/handoff"
+                }
+            );
+        }
+
         var diffPreview = TrimForOutput(preview.UnifiedDiff, 2200);
         return $"""
                 [Safe Refactor 미리보기]
