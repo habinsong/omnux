@@ -1,6 +1,6 @@
 namespace Omnux.Middleware;
 
-public sealed partial class CommandService
+public sealed partial class RoutineApplicationService
 {
     private async Task<RoutineGenerationResult> GenerateSplitRoutineResultAsync(
         string objective,
@@ -17,7 +17,7 @@ public sealed partial class CommandService
         {
             var model = strategy.Models[i];
             var prompt = objective + $"\n\n[{partLabels[Math.Min(i, partLabels.Length - 1)]}] 관점으로 설계/코드 초안을 작성하세요.";
-            var generated = await GenerateByProviderSafeAsync(
+            var generated = await _llmGateway.GenerateByProviderSafeAsync(
                 "groq",
                 model,
                 prompt,
@@ -63,7 +63,7 @@ public sealed partial class CommandService
     )
     {
         var model = strategy.Models[0];
-        var generated = await GenerateByProviderSafeAsync(
+        var generated = await _llmGateway.GenerateByProviderSafeAsync(
             "groq",
             model,
             objective,

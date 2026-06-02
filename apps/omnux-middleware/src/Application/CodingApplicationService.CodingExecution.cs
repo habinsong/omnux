@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 
 namespace Omnux.Middleware;
 
-public sealed partial class CommandService
+public sealed partial class CodingApplicationService
 {
     private async Task<ShellRunResult> RunWorkspaceCommandWithAutoInstallAsync(
         string command,

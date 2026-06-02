@@ -12,8 +12,8 @@ function read(relativePath) {
 const protocol = read("apps/omnux-middleware/src/WebSocketGateway.Protocol.cs");
 const gateway = read("apps/omnux-middleware/src/WebSocketGateway.cs");
 const dispatcher = read("apps/omnux-middleware/src/WsRoutineCommandDispatcher.cs");
-const routines = read("apps/omnux-middleware/src/CommandService.Routines.cs");
-const routineExecution = read("apps/omnux-middleware/src/CommandService.RoutineExecution.cs");
+const routines = read("apps/omnux-middleware/src/Application/RoutineApplicationService.Routines.cs");
+const routineExecution = read("apps/omnux-middleware/src/Application/RoutineApplicationService.RoutineExecution.cs");
 const routineUtils = read("apps/omnux-dashboard/modules/routine-utils.js");
 const appShellRender = read("apps/omnux-dashboard/modules/app-shell-render.js");
 const automateState = read("apps/omnux-dashboard/modules/automate-page-state.js");

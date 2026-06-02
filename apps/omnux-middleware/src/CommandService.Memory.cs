@@ -2,30 +2,6 @@ namespace Omnux.Middleware;
 
 public sealed partial class CommandService
 {
-    public string ClearMemory(string? scope, string source = "web")
-        => _memoryAppService.ClearMemory(scope, source);
-
-    public IReadOnlyList<MemoryNoteItem> ListMemoryNotes()
-        => _memoryAppService.ListMemoryNotes();
-
-    public MemoryNoteReadResult? ReadMemoryNote(string name)
-        => _memoryAppService.ReadMemoryNote(name);
-
-    public (MemoryNoteRenameResult Result, int RelinkedConversations) RenameMemoryNote(string name, string newName)
-        => _memoryAppService.RenameMemoryNote(name, newName);
-
-    public MemoryNoteDeleteResult DeleteMemoryNotes(IReadOnlyList<string>? names)
-        => _memoryAppService.DeleteMemoryNotes(names);
-
-    public MemorySearchToolResult SearchMemory(string query, int? maxResults = null, double? minScore = null)
-        => _memoryAppService.SearchMemory(query, maxResults, minScore);
-
-    public MemoryGetToolResult GetMemory(string path, int? from = null, int? lines = null)
-        => _memoryAppService.GetMemory(path, from, lines);
-
-    public MemoryIndexRebuildResult RebuildMemoryIndex()
-        => _memoryAppService.RebuildMemoryIndex();
-
     // CreateMemoryNoteAsync는 _telegramLlmPreferences / _webLlmPreferences private
     // 상태와 다른 partial 헬퍼(NormalizeProvider, ResolveAutoProviderAsync,
     // ResolveModel, GenerateByProviderSafeAsync, IsLikelyWorkerFailure)에 결합되어

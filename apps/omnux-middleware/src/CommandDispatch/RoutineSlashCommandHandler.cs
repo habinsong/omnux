@@ -2,16 +2,25 @@ using System.Text;
 
 namespace Omnux.Middleware;
 
-public sealed partial class CommandService
+internal sealed class RoutineSlashCommandHandler : ISlashCommandHandler
 {
-    private async Task<string?> TryHandleRoutineCommandAsync(string text, string source, CancellationToken cancellationToken)
-    {
-        if (!text.StartsWith("/routine", StringComparison.OrdinalIgnoreCase)
-            && !text.StartsWith("/routines", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
+    private readonly IRoutineApplicationService _routines;
 
+    public RoutineSlashCommandHandler(IRoutineApplicationService routines)
+    {
+        _routines = routines;
+    }
+
+    public bool CanHandle(SlashCommandContext context)
+    {
+        var text = (context.Text ?? string.Empty).Trim();
+        return text.StartsWith("/routine", StringComparison.OrdinalIgnoreCase)
+            || text.StartsWith("/routines", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public async Task<string> HandleAsync(SlashCommandContext context, CancellationToken cancellationToken)
+    {
+        var text = (context.Text ?? string.Empty).Trim();
         var tokens = text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (tokens.Length == 1 || tokens[1].Equals("help", StringComparison.OrdinalIgnoreCase))
         {
@@ -31,7 +40,7 @@ public sealed partial class CommandService
                 return "사용법: /routine create <요청>";
             }
 
-            var created = await CreateRoutineFromCommandTokensAsync(tokens, source, cancellationToken);
+            var created = await CreateRoutineFromCommandTokensAsync(tokens, context.Source, cancellationToken);
             return RoutineCommandPolicy.FormatActionResult(created);
         }
 
@@ -53,7 +62,7 @@ public sealed partial class CommandService
                 return "사용법: /routine run <routine-id>";
             }
 
-            var result = await RunRoutineNowAsync(tokens[2], source, cancellationToken);
+            var result = await _routines.RunRoutineNowAsync(tokens[2], context.Source, cancellationToken);
             return RoutineCommandPolicy.FormatActionResult(result);
         }
 
@@ -84,7 +93,7 @@ public sealed partial class CommandService
                 return "사용법: /routine resend <routine-id> <ts>";
             }
 
-            var result = await ResendRoutineRunToTelegramAsync(tokens[2], resendTs, cancellationToken);
+            var result = await _routines.ResendRoutineRunToTelegramAsync(tokens[2], resendTs, cancellationToken);
             return RoutineCommandPolicy.FormatActionResult(result);
         }
 
@@ -96,7 +105,7 @@ public sealed partial class CommandService
             }
 
             var enabled = action == "on";
-            var result = SetRoutineEnabled(tokens[2], enabled);
+            var result = _routines.SetRoutineEnabled(tokens[2], enabled);
             return RoutineCommandPolicy.FormatActionResult(result);
         }
 
@@ -107,27 +116,16 @@ public sealed partial class CommandService
                 return "사용법: /routine delete <routine-id>";
             }
 
-            var result = DeleteRoutine(tokens[2]);
+            var result = _routines.DeleteRoutine(tokens[2]);
             return RoutineCommandPolicy.FormatActionResult(result);
         }
 
         return "알 수 없는 /routine 명령입니다. /routine help를 확인하세요.";
     }
 
-    private async Task<string?> TryHandleNaturalRoutineRequestAsync(string text, string source, CancellationToken cancellationToken)
-    {
-        if (!RoutineCommandPolicy.LooksLikeRoutineRequest(text))
-        {
-            return null;
-        }
-
-        var result = await CreateRoutineAsync(text, source, cancellationToken);
-        return RoutineCommandPolicy.FormatActionResult(result);
-    }
-
     private string BuildRoutineListCommandResponse()
     {
-        var list = ListRoutines();
+        var list = _routines.ListRoutines();
         if (list.Count == 0)
         {
             return "등록된 루틴이 없습니다.";
@@ -157,7 +155,7 @@ public sealed partial class CommandService
                 return new RoutineActionResult(false, browserError, null);
             }
 
-            return await CreateRoutineAsync(
+            return await _routines.CreateRoutineAsync(
                 request: browserSpec.Request,
                 title: null,
                 executionMode: "browser_agent",
@@ -184,7 +182,7 @@ public sealed partial class CommandService
         }
 
         var request = string.Join(' ', tokens.Skip(2)).Trim();
-        return await CreateRoutineAsync(request, source, cancellationToken);
+        return await _routines.CreateRoutineAsync(request, source, cancellationToken);
     }
 
     private async Task<RoutineActionResult> UpdateRoutineFromCommandTokensAsync(
@@ -200,7 +198,7 @@ public sealed partial class CommandService
                 return new RoutineActionResult(false, browserError, null);
             }
 
-            return await UpdateRoutineAsync(
+            return await _routines.UpdateRoutineAsync(
                 routineId: routineId,
                 request: browserSpec.Request,
                 title: null,
@@ -226,7 +224,7 @@ public sealed partial class CommandService
         }
 
         var request = string.Join(' ', tokens.Skip(3)).Trim();
-        return await UpdateRoutineAsync(
+        return await _routines.UpdateRoutineAsync(
             routineId: routineId,
             request: request,
             title: null,
@@ -253,7 +251,7 @@ public sealed partial class CommandService
 
     private string BuildRoutineRunsCommandResponse(string routineId)
     {
-        var summary = ListRoutines().FirstOrDefault(item => item.Id.Equals(routineId, StringComparison.OrdinalIgnoreCase));
+        var summary = _routines.ListRoutines().FirstOrDefault(item => item.Id.Equals(routineId, StringComparison.OrdinalIgnoreCase));
         if (summary == null)
         {
             return "루틴을 찾을 수 없습니다.";
@@ -286,7 +284,7 @@ public sealed partial class CommandService
 
     private string BuildRoutineDetailCommandResponse(string routineId, long ts)
     {
-        var detail = GetRoutineRunDetail(routineId, ts);
+        var detail = _routines.GetRoutineRunDetail(routineId, ts);
         if (!detail.Ok)
         {
             return $"루틴 상세 오류: {detail.Error ?? "실행 이력을 찾지 못했습니다."}";
@@ -305,5 +303,10 @@ public sealed partial class CommandService
 
                 {content}
                 """;
+    }
+
+    private static string TrimForOutput(string text, int limit = 3500)
+    {
+        return TextOutputTruncator.TruncateWithMin200(text, limit);
     }
 }

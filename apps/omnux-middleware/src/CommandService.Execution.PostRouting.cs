@@ -25,18 +25,6 @@ public sealed partial class CommandService
             return naturalResult;
         }
 
-        var routineCommandResult = await TryHandleRoutineCommandAsync(text, source, cancellationToken);
-        if (routineCommandResult != null)
-        {
-            return routineCommandResult;
-        }
-
-        var localSystemResult = await TryHandleLocalSystemCommandAsync(text, source, cancellationToken);
-        if (localSystemResult != null)
-        {
-            return localSystemResult;
-        }
-
         var telegramChatResult = await TryHandleTelegramChatFallbackAsync(
             source,
             text,
@@ -104,36 +92,15 @@ public sealed partial class CommandService
         );
     }
 
-    private async Task<string?> TryHandleLocalSystemCommandAsync(
-        string text,
-        string source,
-        CancellationToken cancellationToken
-    )
+    private async Task<string?> TryHandleNaturalRoutineRequestAsync(string text, string source, CancellationToken cancellationToken)
     {
-        if (text.Equals("/metrics", StringComparison.OrdinalIgnoreCase))
-        {
-            var metrics = await _coreClient.GetMetricsAsync(cancellationToken);
-            RecordEvent($"{source}:core:{metrics}");
-            _auditLogger.Log(source, "metrics", "ok", metrics);
-            return metrics;
-        }
-
-        if (!KillCommandPolicy.TryParse(text, out var pid))
+        if (!RoutineCommandPolicy.LooksLikeRoutineRequest(text))
         {
             return null;
         }
 
-        var guard = await ValidateKillTargetAsync(pid, source, cancellationToken);
-        if (!guard.Allowed)
-        {
-            _auditLogger.Log(source, "kill", "deny", $"pid={pid} reason={guard.Reason}");
-            return $"kill denied: {guard.Reason}";
-        }
-
-        var result = await _coreClient.KillAsync(pid, cancellationToken);
-        RecordEvent($"{source}:core:{result}");
-        _auditLogger.Log(source, "kill", "ok", $"pid={pid}");
-        return result;
+        var result = await RoutineAppService.CreateRoutineAsync(text, source, cancellationToken);
+        return RoutineCommandPolicy.FormatActionResult(result);
     }
 
     private async Task<string?> TryHandleTelegramChatFallbackAsync(

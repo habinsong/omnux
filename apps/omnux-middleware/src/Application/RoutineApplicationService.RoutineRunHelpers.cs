@@ -3,7 +3,7 @@ using System.Text;
 
 namespace Omnux.Middleware;
 
-public sealed partial class CommandService
+public sealed partial class RoutineApplicationService
 {
     private static string BuildRoutineExecutionText(RoutineDefinition routine, CodeExecutionResult exec)
     {
@@ -65,7 +65,7 @@ public sealed partial class CommandService
         return TrimForCronError(output);
     }
 
-    private static string? BuildCronRunEntrySummary(string output)
+    internal static string? BuildCronRunEntrySummary(string output)
     {
         var normalized = (output ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(normalized))
@@ -292,7 +292,7 @@ public sealed partial class CommandService
         return "[cron.agentTurn.options]\n" + string.Join("\n", lines);
     }
 
-    private static void AppendRoutineRunLogEntry(RoutineDefinition routine, RoutineRunLogEntry entry)
+    internal static void AppendRoutineRunLogEntry(RoutineDefinition routine, RoutineRunLogEntry entry)
     {
         routine.CronRunLog ??= new List<RoutineRunLogEntry>();
         routine.CronRunLog.Add(entry);

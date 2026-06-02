@@ -21,20 +21,20 @@ function assertNotIncludes(text, needle, label) {
 }
 
 function main() {
-  const execution = read("apps/omnux-middleware/src/CommandService.CodingExecution.cs");
-  const verification = read("apps/omnux-middleware/src/CommandService.CodingVerification.cs");
-  const quality = read("apps/omnux-middleware/src/CommandService.CodingQuality.cs");
+  const execution = read("apps/omnux-middleware/src/Application/CodingApplicationService.CodingExecution.cs");
+  const verification = read("apps/omnux-middleware/src/Application/CodingApplicationService.CodingVerification.cs");
+  const quality = read("apps/omnux-middleware/src/Application/CodingApplicationService.CodingQuality.cs");
   const codingWorkerSelectionPolicy = read("apps/omnux-middleware/src/CodingWorkerSelectionPolicy.cs");
-  const profiles = read("apps/omnux-middleware/src/CommandService.CodingProfiles.cs");
-  const projectProfiles = read("apps/omnux-middleware/src/CommandService.CodingProjectProfiles.cs");
-  const utils = read("apps/omnux-middleware/src/CommandService.Utils.cs");
+  const profiles = read("apps/omnux-middleware/src/Application/CodingApplicationService.CodingProfiles.cs");
+  const projectProfiles = read("apps/omnux-middleware/src/Application/CodingApplicationService.CodingProjectProfiles.cs");
+  const loop = read("apps/omnux-middleware/src/Application/CodingApplicationService.CodingLoop.cs");
   const codingLanguagePolicy = read("apps/omnux-middleware/src/CodingLanguagePolicy.cs");
   const codingPromptPolicy = read("apps/omnux-middleware/src/CodingPromptPolicy.cs");
   const codingFallbackPolicy = read("apps/omnux-middleware/src/CodingFallbackPolicy.cs");
   const codingExecutionSafetyPolicy = read("apps/omnux-middleware/src/CodingExecutionSafetyPolicy.cs");
   const codingFallbackDecisionPolicy = read("apps/omnux-middleware/src/CodingFallbackDecisionPolicy.cs");
-  const coding = read("apps/omnux-middleware/src/CommandService.Coding.cs");
-  const rerun = read("apps/omnux-middleware/src/CommandService.CodingResultActions.cs");
+  const coding = read("apps/omnux-middleware/src/Application/CodingApplicationService.Coding.cs");
+  const rerun = read("apps/omnux-middleware/src/Application/CodingApplicationService.CodingResultActions.cs");
   const dashboardConstants = read("apps/omnux-dashboard/modules/dashboard-constants.js");
 
   assertIncludes(execution, "EnsureWorkspacePythonEnvironmentAsync", "venv helper");
@@ -117,10 +117,10 @@ function main() {
 
   assertNotIncludes(codingFallbackPolicy, "이번 수정에서는 pygame, pyglet, arcade 같은 외부 패키지와 pip install 시도를 금지한다", "no repair dependency ban");
   assertIncludes(codingFallbackPolicy, "OMNI_HEADLESS_TEST=1 smoke 실행", "repair headless guidance");
-  assertIncludes(utils, "ApplyCodingQualityGateToExecution", "quality gate applied after verification");
-  assertIncludes(utils, "ResolveMaxCodingRepairPasses", "dynamic repair pass count");
+  assertIncludes(loop, "ApplyCodingQualityGateToExecution", "quality gate applied after verification");
+  assertIncludes(loop, "ResolveMaxCodingRepairPasses", "dynamic repair pass count");
   assertIncludes(codingLanguagePolicy, "\"\" or \"auto\" => \"auto\"", "auto language preserved");
-  assertIncludes(utils, "CodingFallbackDecisionPolicy.ShouldPreferFileBundleFallback", "bundle fallback delegates to decision policy");
+  assertIncludes(loop, "CodingFallbackDecisionPolicy.ShouldPreferFileBundleFallback", "bundle fallback delegates to decision policy");
   assertIncludes(codingFallbackDecisionPolicy, "projectPrefersMultiFile", "bundle fallback defaults to project profile");
   assertIncludes(codingFallbackPolicy, "일반 코딩 요청은 여러 파일 프로젝트 구조를 우선하라", "bundle prompt multi-file default");
   assertIncludes(codingFallbackPolicy, "projectProfile", "bundle schema includes project profile");

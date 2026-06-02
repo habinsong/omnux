@@ -28,7 +28,7 @@ internal sealed class DoctorSlashCommandHandler : ISlashCommandHandler
     {
         var isTelegram = string.Equals(context.Source, "telegram", StringComparison.OrdinalIgnoreCase);
 
-        // 텔레그램 `/doctor help` → 텔레그램 도움말. 기존 TryHandleTelegramDoctorCommandAsync 동작 보존.
+        // 텔레그램 `/doctor help` → 텔레그램 도움말. 텔레그램 direct wrapper 없이 라우터에서 직접 보존한다.
         // (웹 `/doctor help`는 레거시와 동일하게 도움말이 아니라 리포트를 실행한다.)
         if (isTelegram)
         {

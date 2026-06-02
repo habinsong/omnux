@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Omnux.Middleware;
 
-public sealed partial class CommandService
+public sealed partial class CodingApplicationService
 {
     private sealed record CodingExecutionProfile(
         string Provider,

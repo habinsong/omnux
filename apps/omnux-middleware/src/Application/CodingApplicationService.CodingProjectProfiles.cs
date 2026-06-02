@@ -2,7 +2,7 @@ using System.Net;
 
 namespace Omnux.Middleware;
 
-public sealed partial class CommandService
+public sealed partial class CodingApplicationService
 {
     private sealed record CodingProjectProfile(
         string Language,

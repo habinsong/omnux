@@ -52,36 +52,6 @@ public sealed partial class CommandService
             return skillCommandResult;
         }
 
-        var doctorCommandResult = await TryHandleTelegramDoctorCommandAsync(text, cancellationToken);
-        if (doctorCommandResult != null)
-        {
-            return doctorCommandResult;
-        }
-
-        var planCommandResult = await TryHandleTelegramPlanCommandAsync(text, cancellationToken);
-        if (planCommandResult != null)
-        {
-            return planCommandResult;
-        }
-
-        var taskCommandResult = await TryHandleTelegramTaskCommandAsync(text, cancellationToken);
-        if (taskCommandResult != null)
-        {
-            return taskCommandResult;
-        }
-
-        var notebookCommandResult = await TryHandleTelegramNotebookCommandAsync(text, cancellationToken);
-        if (notebookCommandResult != null)
-        {
-            return notebookCommandResult;
-        }
-
-        var memoryCommandResult = await TryHandleTelegramMemoryCommandAsync(text, cancellationToken);
-        if (memoryCommandResult != null)
-        {
-            return memoryCommandResult;
-        }
-
         var historySlashResult = TryHandleTelegramHistorySlashCommand(text);
         if (historySlashResult != null)
         {

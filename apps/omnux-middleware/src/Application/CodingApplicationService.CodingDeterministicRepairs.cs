@@ -1,6 +1,6 @@
 namespace Omnux.Middleware;
 
-public sealed partial class CommandService
+public sealed partial class CodingApplicationService
 {
     private async Task<(bool Applied, string Language, string Code, string[] ChangedPaths, CodeExecutionResult Execution, string Note)> TryApplyDeterministicStructuredMultiFileRepairAsync(
         string objective,

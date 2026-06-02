@@ -1,6 +1,6 @@
 namespace Omnux.Middleware;
 
-public sealed partial class CommandService
+public sealed partial class RoutineApplicationService
 {
     private async Task<RoutineModelStrategy> SelectRoutineCodingStrategyAsync(string objective, CancellationToken cancellationToken)
     {

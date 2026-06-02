@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace Omnux.Middleware;
 
-public sealed partial class CommandService
+public sealed partial class CodingApplicationService
 {
     private static string BuildAutonomousCodingSummary(
         IReadOnlyList<string> iterations,

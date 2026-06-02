@@ -1679,7 +1679,7 @@ public sealed partial class CommandService
         }
     }
 
-    private static IReadOnlyList<string> ResolveWebUrls(string input, IReadOnlyList<string>? requestUrls, bool webSearchEnabled)
+    internal static IReadOnlyList<string> ResolveWebUrls(string input, IReadOnlyList<string>? requestUrls, bool webSearchEnabled)
     {
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (requestUrls != null)

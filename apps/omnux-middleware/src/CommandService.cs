@@ -14,9 +14,6 @@ public sealed partial class CommandService :
     private const string DefaultGroqPrimaryModel = "meta-llama/llama-4-scout-17b-16e-instruct";
     private const string DefaultGroqFastModel = "llama-3.1-8b-instant";
     private const string DefaultGroqComplexModel = "qwen/qwen3-32b";
-    private const string RoutineModelMaverick = "meta-llama/llama-4-maverick-17b-128e-instruct";
-    private const string RoutineModelGptOss = "openai/gpt-oss-120b";
-    private const string RoutineModelKimi = "moonshotai/kimi-k2-instruct-0905";
     private const string DefaultCerebrasModel = "gpt-oss-120b";
     private const string LegacyCerebrasLlamaModel = "llama3.1-8b";
     private const string DefaultCopilotModel = "gpt-5-mini";
@@ -104,15 +101,10 @@ public sealed partial class CommandService :
     private readonly Queue<string> _recentEvents = new();
     private readonly object _eventLock = new();
     private readonly object _telegramUpgradeQuotaLock = new();
-    private readonly IDoctorApplicationService _doctorAppService;
-    private readonly INotebookApplicationService _notebookAppService;
     private readonly ISettingsApplicationService _settingsAppService;
     private readonly IRefactorApplicationService _refactorAppService;
     private readonly IContextApplicationService _contextAppService;
     private readonly CleanupService _cleanupService;
-    private readonly ITaskGraphApplicationService _taskGraphAppService;
-    private readonly IMemoryApplicationService _memoryAppService;
-    private readonly IPlanningApplicationService _planAppService;
     private readonly IConversationApplicationService _conversationAppService;
     private readonly IToolApplicationService _toolAppService;
     private readonly ILlmSettingsApplicationService _llmSettingsAppService;
@@ -122,13 +114,6 @@ public sealed partial class CommandService :
     private readonly ExecutionContext _executionContext;
     private readonly RoutineRegistry _routineRegistry;
     private readonly string _telegramUpgradeQuotaStatePath;
-    private readonly string _routineStatePath;
-    private readonly string _routinePromptDir;
-    private readonly string[] _killAllowlist;
-    private readonly CancellationTokenSource _routineSchedulerCts = new();
-    private readonly SemaphoreSlim _routineSchedulerDispatchGate = new(2, 2);
-    private Task? _routineSchedulerTask;
-    private string? _routineSchedulerLastError;
     private string _telegramUpgradeQuotaDay = string.Empty;
     private int _telegramUpgradeQuotaCount;
 
@@ -185,18 +170,15 @@ public sealed partial class CommandService :
         DiffPreviewService diffPreviewService,
         LspRefactorService lspRefactorService,
         AstGrepRefactorService astGrepRefactorService,
-        IDoctorApplicationService doctorAppService,
-        INotebookApplicationService notebookAppService,
         ISettingsApplicationService settingsAppService,
         IRefactorApplicationService refactorAppService,
         IContextApplicationService contextAppService,
         CleanupService cleanupService,
-        ITaskGraphApplicationService taskGraphAppService,
-        IMemoryApplicationService memoryAppService,
-        IPlanningApplicationService planAppService,
         IConversationApplicationService conversationAppService,
         IToolApplicationService toolAppService,
         ILlmSettingsApplicationService llmSettingsAppService,
+        ILlmControlApplicationService llmControlApplicationService,
+        SlashCommandRouter slashCommandRouter,
         ITelegramLlmMutationApplicationService telegramLlmMutationAppService,
         ITelegramCodingSettingsApplicationService telegramCodingSettingsAppService,
         LlmPreferenceContext llmPreferenceContext,
@@ -250,27 +232,20 @@ public sealed partial class CommandService :
         _diffPreviewService = diffPreviewService;
         _lspRefactorService = lspRefactorService;
         _astGrepRefactorService = astGrepRefactorService;
-        _doctorAppService = doctorAppService;
-        _notebookAppService = notebookAppService;
         _settingsAppService = settingsAppService;
         _refactorAppService = refactorAppService;
         _contextAppService = contextAppService;
         _cleanupService = cleanupService;
-        _taskGraphAppService = taskGraphAppService;
-        _memoryAppService = memoryAppService;
-        _planAppService = planAppService;
         _conversationAppService = conversationAppService;
         _toolAppService = toolAppService;
         _llmSettingsAppService = llmSettingsAppService;
+        _llmControlApplicationService = llmControlApplicationService;
+        _slashCommandRouter = slashCommandRouter;
         _telegramLlmMutationAppService = telegramLlmMutationAppService;
         _telegramCodingSettingsAppService = telegramCodingSettingsAppService;
         _llmPreferenceContext = llmPreferenceContext;
         _executionContext = executionContext;
         _routineRegistry = routineRegistry;
-        _killAllowlist = (_security.KillAllowlistCsv ?? string.Empty)
-            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .ToArray();
         _telegramUpgradeQuotaStatePath = BuildTelegramUpgradeQuotaStatePath();
         var stateBaseDir = Path.GetDirectoryName(_paths.ConversationStatePath);
         if (string.IsNullOrWhiteSpace(stateBaseDir))
@@ -279,13 +254,8 @@ public sealed partial class CommandService :
             stateBaseDir = string.IsNullOrWhiteSpace(home) ? Path.GetTempPath() : Path.Combine(home, ".omnux");
         }
 
-        _routineStatePath = _routineRegistry.StorePath;
-        _routinePromptDir = _paths.RoutinePromptDir;
         LoadTelegramUpgradeQuotaState();
-        EnsureRoutinePromptFiles();
-        _routineRegistry.Load();
         RestoreActiveSkillBindingsFromStore();
-        _routineSchedulerTask = Task.Run(() => RoutineSchedulerLoopAsync(_routineSchedulerCts.Token));
     }
 
     private object _telegramLlmLock => _llmPreferenceContext.TelegramLlmLock;

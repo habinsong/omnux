@@ -1169,9 +1169,9 @@ public sealed partial class CommandService
 
         CodingRunResult result = mode switch
         {
-            "single" => await RunCodingSingleAsync(request, cancellationToken).ConfigureAwait(false),
-            "orchestration" => await RunCodingOrchestrationAsync(request, cancellationToken).ConfigureAwait(false),
-            "multi" => await RunCodingMultiAsync(request, cancellationToken).ConfigureAwait(false),
+            "single" => await CodingAppService.RunCodingSingleAsync(request, cancellationToken).ConfigureAwait(false),
+            "orchestration" => await CodingAppService.RunCodingOrchestrationAsync(request, cancellationToken).ConfigureAwait(false),
+            "multi" => await CodingAppService.RunCodingMultiAsync(request, cancellationToken).ConfigureAwait(false),
             _ => throw new InvalidOperationException($"지원하지 않는 coding mode입니다: {mode}")
         };
         return new LogicNodeExecutionOutcome(BuildLogicEnvelope(
@@ -1206,7 +1206,7 @@ public sealed partial class CommandService
             return new LogicNodeExecutionOutcome(BuildLogicEnvelope(false, node.Type, "routineId가 필요합니다."));
         }
 
-        var result = await RunRoutineNowAsync(targetRoutineId, "logic_graph", cancellationToken).ConfigureAwait(false);
+        var result = await RoutineAppService.RunRoutineNowAsync(targetRoutineId, "logic_graph", cancellationToken).ConfigureAwait(false);
         return new LogicNodeExecutionOutcome(BuildLogicEnvelope(
             ok: result.Ok,
             type: node.Type,
@@ -1290,7 +1290,7 @@ public sealed partial class CommandService
             return new LogicNodeExecutionOutcome(BuildLogicEnvelope(false, node.Type, "memory search query가 필요합니다."));
         }
 
-        var result = SearchMemory(
+        var result = _memorySearchTool.Search(
             query,
             LogicValueParsingPolicy.ParsePositiveInt(config.TryGetValue("maxResults", out var maxResults) ? maxResults : null, 6, 24),
             LogicValueParsingPolicy.ParseDouble(config.TryGetValue("minScore", out var minScore) ? minScore : null, 0.35d)
@@ -1322,7 +1322,7 @@ public sealed partial class CommandService
             return new LogicNodeExecutionOutcome(BuildLogicEnvelope(false, node.Type, "memory path가 필요합니다."));
         }
 
-        var result = GetMemory(
+        var result = _memoryGetTool.Get(
             path,
             LogicValueParsingPolicy.ParsePositiveInt(config.TryGetValue("from", out var fromValue) ? fromValue : null, 1, 100_000),
             LogicValueParsingPolicy.ParsePositiveInt(config.TryGetValue("lines", out var lineValue) ? lineValue : null, 120, 100_000)
@@ -1993,7 +1993,7 @@ public sealed partial class CommandService
             ?? Path.Combine(ResolveWorkspaceRoot(), ".runtime", "logic");
     }
 
-    private static bool IsLogicGraphRoutine(RoutineDefinition routine)
+    internal static bool IsLogicGraphRoutine(RoutineDefinition routine)
     {
         return string.Equals(
                    NormalizeRoutineExecutionMode(routine.ExecutionMode),

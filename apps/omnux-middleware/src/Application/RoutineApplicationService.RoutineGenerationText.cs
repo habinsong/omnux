@@ -1,6 +1,6 @@
 namespace Omnux.Middleware;
 
-public sealed partial class CommandService
+public sealed partial class RoutineApplicationService
 {
     private static string BuildRoutineGenerationPrompt(string request, string schedule, string systemPrompt, string baseConfig)
     {
@@ -145,7 +145,7 @@ public sealed partial class CommandService
         return normalized;
     }
 
-    private static string BuildFallbackRoutineCode(string request, RoutineSchedule schedule)
+    internal static string BuildFallbackRoutineCode(string request, RoutineSchedule schedule)
     {
         var escaped = EscapeForSingleQuotes(request);
         return $"""

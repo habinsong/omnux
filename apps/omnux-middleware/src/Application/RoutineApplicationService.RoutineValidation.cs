@@ -2,7 +2,7 @@ using System.Text;
 
 namespace Omnux.Middleware;
 
-public sealed partial class CommandService
+public sealed partial class RoutineApplicationService
 {
     private async Task<(string Language, string Code, string RawText)> TryRepairRoutineCodeAsync(
         string objective,
@@ -37,7 +37,7 @@ public sealed partial class CommandService
                            {truncatedRaw}
                            """;
 
-        var regenerated = await GenerateByProviderSafeAsync(
+        var regenerated = await _llmGateway.GenerateByProviderSafeAsync(
             "groq",
             model,
             repairPrompt,

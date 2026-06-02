@@ -15,7 +15,7 @@ function count(source, token) {
 
 const browserIntent = read("apps/omnux-middleware/src/CommandService.BrowserIntent.cs");
 const chat = read("apps/omnux-middleware/src/CommandService.Chat.cs");
-const coding = read("apps/omnux-middleware/src/CommandService.Coding.cs");
+const coding = read("apps/omnux-middleware/src/Application/CodingApplicationService.Coding.cs");
 const browserTool = read("apps/omnux-middleware/src/BrowserTool.cs");
 const usage = read("docs/사용법_빠른시작.md");
 const toolGuide = read("docs/도구_통합_패널_사용_가이드.md");

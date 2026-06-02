@@ -1,23 +1,124 @@
 namespace Omnux.Middleware;
 
-public sealed class RoutineApplicationService : IRoutineApplicationService
+internal interface IRoutineLlmGateway
 {
-    private readonly CommandService _inner;
+    Task<LlmSingleChatResult> GenerateByProviderSafeAsync(
+        string provider,
+        string? model,
+        string input,
+        CancellationToken cancellationToken,
+        int? maxOutputTokens = null
+    );
 
-    public RoutineApplicationService(CommandService inner)
+    Task<LlmSingleChatResult> GenerateGeminiUrlContextAnswerAsync(
+        string input,
+        IReadOnlyList<string> urls,
+        string memoryHint,
+        bool allowMarkdownTable,
+        bool enforceTelegramOutputStyle,
+        Action<ChatStreamUpdate>? streamCallback,
+        string scope,
+        string mode,
+        string conversationId,
+        string decisionPath,
+        long decisionMs,
+        CancellationToken cancellationToken
+    );
+
+    Task<SearchAnswerCompositionResult> ComposeGroundedWebAnswerWithFallbackAsync(
+        string input,
+        string memoryHint,
+        bool selfDecideNeedWeb,
+        bool allowMarkdownTable,
+        bool enforceTelegramOutputStyle,
+        Action<ChatStreamUpdate>? streamCallback,
+        string scope,
+        string mode,
+        string conversationId,
+        string decisionPath,
+        long decisionMs,
+        string source,
+        CancellationToken cancellationToken
+    );
+}
+
+internal interface IRoutineLogicGraphRunner
+{
+    Task<LogicRunSnapshot> ExecuteLogicGraphRunCoreAsync(
+        string graphId,
+        string runId,
+        string source,
+        string runInput,
+        Action<LogicRunEvent>? eventCallback,
+        CancellationToken cancellationToken
+    );
+}
+
+public sealed partial class RoutineApplicationService : IRoutineApplicationService
+{
+    private const string RoutineModelMaverick = "meta-llama/llama-4-maverick-17b-128e-instruct";
+    private const string RoutineModelGptOss = "openai/gpt-oss-120b";
+    private const string RoutineModelKimi = "moonshotai/kimi-k2-instruct-0905";
+    private const string LegacyCerebrasLlamaModel = "llama3.1-8b";
+    private const string DefaultCerebrasModel = "gpt-oss-120b";
+
+    private readonly ProviderOptions _providers;
+    private readonly PathOptions _paths;
+    private readonly ContextOptions _context;
+    private readonly SecurityOptions _security;
+    private readonly LlmRouter _llmRouter;
+    private readonly GroqModelCatalog _groqModelCatalog;
+    private readonly IConversationStore _conversationStore;
+    private readonly IRunArtifactStore _runArtifactStore;
+    private readonly UniversalCodeRunner _codeRunner;
+    private readonly TelegramClient _telegramClient;
+    private readonly SessionSpawnTool _sessionSpawnTool;
+    private readonly RoutineRegistry _routineRegistry;
+    private readonly IRoutineLlmGateway _llmGateway;
+    private readonly IRoutineLogicGraphRunner _logicGraphRunner;
+    private readonly string _routineStatePath;
+    private readonly string _routinePromptDir;
+    private readonly CancellationTokenSource _routineSchedulerCts = new();
+    private readonly SemaphoreSlim _routineSchedulerDispatchGate = new(2, 2);
+    private Task? _routineSchedulerTask;
+    private string? _routineSchedulerLastError;
+
+    internal RoutineApplicationService(
+        ProviderOptions providers,
+        PathOptions paths,
+        ContextOptions context,
+        SecurityOptions security,
+        LlmRouter llmRouter,
+        GroqModelCatalog groqModelCatalog,
+        IConversationStore conversationStore,
+        IRunArtifactStore runArtifactStore,
+        UniversalCodeRunner codeRunner,
+        TelegramClient telegramClient,
+        SessionSpawnTool sessionSpawnTool,
+        RoutineRegistry routineRegistry,
+        IRoutineLlmGateway llmGateway,
+        IRoutineLogicGraphRunner logicGraphRunner
+    )
     {
-        _inner = inner;
-    }
+        _providers = providers;
+        _paths = paths;
+        _context = context;
+        _security = security;
+        _llmRouter = llmRouter;
+        _groqModelCatalog = groqModelCatalog;
+        _conversationStore = conversationStore;
+        _runArtifactStore = runArtifactStore;
+        _codeRunner = codeRunner;
+        _telegramClient = telegramClient;
+        _sessionSpawnTool = sessionSpawnTool;
+        _routineRegistry = routineRegistry;
+        _llmGateway = llmGateway;
+        _logicGraphRunner = logicGraphRunner;
+        _routineStatePath = _routineRegistry.StorePath;
+        _routinePromptDir = _paths.RoutinePromptDir;
 
-    public IReadOnlyList<RoutineSummary> ListRoutines() => _inner.ListRoutines();
-    public RoutineSchedulerStatus GetRoutineSchedulerStatus() => _inner.GetRoutineSchedulerStatus();
-    public RoutineExecutionPreviewResult PreviewRoutine(string request, string? executionMode, string? scheduleSourceMode, string? scheduleKind, string? scheduleTime, IReadOnlyList<int>? weekdays, int? dayOfMonth, string? timezoneId) => _inner.PreviewRoutine(request, executionMode, scheduleSourceMode, scheduleKind, scheduleTime, weekdays, dayOfMonth, timezoneId);
-    public Task<RoutineActionResult> CreateRoutineAsync(string request, string source, CancellationToken cancellationToken, Action<RoutineProgressUpdate>? progressCallback = null) => _inner.CreateRoutineAsync(request, source, cancellationToken, progressCallback);
-    public Task<RoutineActionResult> CreateRoutineAsync(string request, string? title, string? executionMode, string? agentProvider, string? agentModel, string? agentStartUrl, int? agentTimeoutSeconds, string? agentToolProfile, bool? agentUsePlaywright, string? scheduleSourceMode, int? maxRetries, int? retryDelaySeconds, string? notifyPolicy, bool? notifyTelegram, string? scheduleKind, string? scheduleTime, IReadOnlyList<int>? weekdays, int? dayOfMonth, string? timezoneId, bool runImmediately, string source, CancellationToken cancellationToken, Action<RoutineProgressUpdate>? progressCallback = null) => _inner.CreateRoutineAsync(request, title, executionMode, agentProvider, agentModel, agentStartUrl, agentTimeoutSeconds, agentToolProfile, agentUsePlaywright, scheduleSourceMode, maxRetries, retryDelaySeconds, notifyPolicy, notifyTelegram, scheduleKind, scheduleTime, weekdays, dayOfMonth, timezoneId, runImmediately, source, cancellationToken, progressCallback);
-    public Task<RoutineActionResult> UpdateRoutineAsync(string routineId, string request, string? title, string? executionMode, string? agentProvider, string? agentModel, string? agentStartUrl, int? agentTimeoutSeconds, string? agentToolProfile, bool? agentUsePlaywright, string? scheduleSourceMode, int? maxRetries, int? retryDelaySeconds, string? notifyPolicy, bool? notifyTelegram, string? scheduleKind, string? scheduleTime, IReadOnlyList<int>? weekdays, int? dayOfMonth, string? timezoneId, CancellationToken cancellationToken, Action<RoutineProgressUpdate>? progressCallback = null) => _inner.UpdateRoutineAsync(routineId, request, title, executionMode, agentProvider, agentModel, agentStartUrl, agentTimeoutSeconds, agentToolProfile, agentUsePlaywright, scheduleSourceMode, maxRetries, retryDelaySeconds, notifyPolicy, notifyTelegram, scheduleKind, scheduleTime, weekdays, dayOfMonth, timezoneId, cancellationToken, progressCallback);
-    public Task<RoutineActionResult> RunRoutineNowAsync(string routineId, string source, CancellationToken cancellationToken) => _inner.RunRoutineNowAsync(routineId, source, cancellationToken);
-    public RoutineRunDetailResult GetRoutineRunDetail(string routineId, long ts) => _inner.GetRoutineRunDetail(routineId, ts);
-    public Task<RoutineActionResult> ResendRoutineRunToTelegramAsync(string routineId, long ts, CancellationToken cancellationToken) => _inner.ResendRoutineRunToTelegramAsync(routineId, ts, cancellationToken);
-    public RoutineActionResult SetRoutineEnabled(string routineId, bool enabled) => _inner.SetRoutineEnabled(routineId, enabled);
-    public RoutineActionResult DeleteRoutine(string routineId) => _inner.DeleteRoutine(routineId);
+        EnsureRoutinePromptFiles();
+        _routineRegistry.Load();
+        _routineSchedulerTask = Task.Run(() => RoutineSchedulerLoopAsync(_routineSchedulerCts.Token));
+    }
 }

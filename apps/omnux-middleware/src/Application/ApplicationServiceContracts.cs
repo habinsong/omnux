@@ -447,15 +447,10 @@ public interface IGatewayApplicationService :
     ICommandExecutionService,
     ISettingsApplicationService,
     IConversationApplicationService,
-    IMemoryApplicationService,
     IToolApplicationService,
-    ITaskGraphApplicationService,
     ILogicApplicationService,
     IRefactorApplicationService,
     IContextApplicationService,
-    INotebookApplicationService,
-    IRoutineApplicationService,
-    IChatApplicationService,
-    ICodingApplicationService
+    IChatApplicationService
 {
 }
