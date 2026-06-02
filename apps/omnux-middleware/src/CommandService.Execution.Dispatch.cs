@@ -77,14 +77,6 @@ public sealed partial class CommandService
                    """;
         }
 
-        // 결함 4번 탈결합: 이관된 도메인 핸들러를 레거시 경로보다 먼저 consult한다.
-        // 소유 핸들러가 없으면 null → 아래 레거시 라우팅으로 fall-through(strangler-fig).
-        var slashRouterResult = await TryHandleViaSlashRouterAsync(text, source, cancellationToken);
-        if (slashRouterResult != null)
-        {
-            return slashRouterResult;
-        }
-
         var telegramDirectResult = await TryHandleTelegramDirectCommandsAsync(
             source,
             text,
@@ -96,6 +88,15 @@ public sealed partial class CommandService
         if (telegramDirectResult != null)
         {
             return telegramDirectResult;
+        }
+
+        // 결함 4번 탈결합: 텔레그램 direct(텔레그램 전용 동작 보존) 다음, 레거시 unified slash 앞에서 consult한다.
+        // 텔레그램은 위 direct 경로가 먼저 처리하므로 회귀가 없고, 웹 경로에서만 이관 핸들러가 적용된다.
+        // 소유 핸들러가 없으면 null → 아래 레거시 unified slash로 fall-through(strangler-fig).
+        var slashRouterResult = await TryHandleViaSlashRouterAsync(text, source, cancellationToken);
+        if (slashRouterResult != null)
+        {
+            return slashRouterResult;
         }
 
         var unifiedSlashResult = await TryHandleUnifiedSlashCommandAsync(text, source, cancellationToken);

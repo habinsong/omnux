@@ -15,6 +15,7 @@ public sealed partial class CommandService
             new PlanSlashCommandHandler(_planAppService),
             new TaskSlashCommandHandler(_taskGraphAppService),
             new MemorySlashCommandHandler(_memoryAppService),
+            new ChannelSettingsSlashCommandHandler(_llmSettingsAppService),
         });
 
     private Task<string?> TryHandleViaSlashRouterAsync(
