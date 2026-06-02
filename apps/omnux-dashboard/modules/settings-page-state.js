@@ -99,6 +99,50 @@
       setSelected(name);
       sendMessage({ type: "read_memory_note", noteName: name }, { queueIfClosed: true });
     }, [sendMessage]);
+    const deleteNote = useCallback((name) => {
+      const target = String(name || "").trim();
+      if (!target) return;
+      if (typeof window.confirm === "function" && !window.confirm(`메모리 노트 "${target}"를 삭제할까요?`)) return;
+      const sent = sendMessage({ type: "delete_memory_notes", memoryNotes: [target] }, { queueIfClosed: true });
+      if (!sent) {
+        toast("미들웨어 연결이 필요합니다.");
+        return;
+      }
+      if (selected === target) {
+        setSelected(null);
+        setPreview("");
+      }
+    }, [sendMessage, toast, selected]);
+    const renameNote = useCallback((name) => {
+      const target = String(name || "").trim();
+      if (!target) return;
+      const input = typeof window.prompt === "function"
+        ? window.prompt("새 메모리 노트 이름을 입력하세요.", target)
+        : null;
+      const newName = String(input || "").trim();
+      if (!newName || newName === target) return;
+      const sent = sendMessage({ type: "rename_memory_note", noteName: target, newName }, { queueIfClosed: true });
+      if (!sent) {
+        toast("미들웨어 연결이 필요합니다.");
+        return;
+      }
+      // 이름만 바뀌고 내용은 동일하므로 선택 상태만 새 이름으로 옮긴다.
+      if (selected === target) setSelected(newName);
+    }, [sendMessage, toast, selected]);
+    const clearMemory = useCallback((scope = "chat") => {
+      const normalized = String(scope || "chat").trim() || "chat";
+      if (typeof window.confirm === "function"
+        && !window.confirm(`'${normalized}' 범위의 대화와 메모리 노트를 모두 삭제합니다. 되돌릴 수 없습니다. 계속할까요?`)) {
+        return;
+      }
+      const sent = sendMessage({ type: "clear_memory", scope: normalized }, { queueIfClosed: true });
+      if (!sent) {
+        toast("미들웨어 연결이 필요합니다.");
+        return;
+      }
+      setSelected(null);
+      setPreview("");
+    }, [sendMessage, toast]);
     const requestBackupExport = useCallback(() => {
       if (backupSelectedScopes.length === 0) {
         toast("백업 범위를 하나 이상 선택하세요.");
@@ -226,6 +270,19 @@
           setPreview(msg.content || "");
           setSelected((current) => msg.name || current);
         }
+        if (msg.type === "memory_note_deleted") {
+          toast(msg.ok
+            ? (msg.message || `메모리 노트 ${Number(msg.removed) || 0}개를 삭제했습니다.`)
+            : (msg.message || "메모리 노트 삭제에 실패했습니다."));
+        }
+        if (msg.type === "memory_note_renamed") {
+          toast(msg.ok
+            ? (msg.message || "메모리 노트 이름을 변경했습니다.")
+            : (msg.message || "메모리 노트 이름 변경에 실패했습니다."));
+        }
+        if (msg.type === "memory_cleared") {
+          toast(msg.message ? `메모리를 비웠습니다 (${msg.message})` : "메모리를 비웠습니다.");
+        }
         if (msg.type === "backup_export_result") {
           setBackupPending((current) => ({ ...current, export: false }));
           setBackupExport({
@@ -303,6 +360,9 @@
       filtered,
       refresh,
       readNote,
+      deleteNote,
+      renameNote,
+      clearMemory,
       backup: {
         exportResult: backupExport,
         previewResult: backupPreview,
