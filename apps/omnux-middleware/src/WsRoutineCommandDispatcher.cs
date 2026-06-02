@@ -1,55 +1,15 @@
 using System.Net.WebSockets;
+using System.Text.Json;
 
 namespace Omnux.Middleware;
 
 internal sealed class WsRoutineCommandDispatcher
 {
-    internal delegate Task SendRoutinesDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        CancellationToken cancellationToken
-    );
-
-    internal delegate Task SendRoutineActionResultDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        RoutineActionResult result,
-        CancellationToken cancellationToken
-    );
-
-    internal delegate Task SendRoutineProgressDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        RoutineProgressUpdate update,
-        CancellationToken cancellationToken
-    );
-
-    internal delegate Task SendRoutineRunDetailDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        RoutineRunDetailResult result,
-        CancellationToken cancellationToken
-    );
-
     private readonly IRoutineApplicationService _routineService;
-    private readonly SendRoutinesDelegate _sendRoutinesAsync;
-    private readonly SendRoutineActionResultDelegate _sendRoutineActionResultAsync;
-    private readonly SendRoutineProgressDelegate _sendRoutineProgressAsync;
-    private readonly SendRoutineRunDetailDelegate _sendRoutineRunDetailAsync;
 
-    public WsRoutineCommandDispatcher(
-        IRoutineApplicationService routineService,
-        SendRoutinesDelegate sendRoutinesAsync,
-        SendRoutineActionResultDelegate sendRoutineActionResultAsync,
-        SendRoutineProgressDelegate sendRoutineProgressAsync,
-        SendRoutineRunDetailDelegate sendRoutineRunDetailAsync
-    )
+    public WsRoutineCommandDispatcher(IRoutineApplicationService routineService)
     {
         _routineService = routineService;
-        _sendRoutinesAsync = sendRoutinesAsync;
-        _sendRoutineActionResultAsync = sendRoutineActionResultAsync;
-        _sendRoutineProgressAsync = sendRoutineProgressAsync;
-        _sendRoutineRunDetailAsync = sendRoutineRunDetailAsync;
     }
 
     public async Task<bool> TryHandleAsync(
@@ -61,7 +21,7 @@ internal sealed class WsRoutineCommandDispatcher
     {
         if (message.Type == "get_routines")
         {
-            await _sendRoutinesAsync(socket, sendLock, cancellationToken);
+            await SendRoutinesAsync(socket, sendLock, cancellationToken);
             return true;
         }
 
@@ -119,10 +79,10 @@ internal sealed class WsRoutineCommandDispatcher
                 message.RunImmediately ?? true,
                 "web",
                 cancellationToken,
-                update => _ = _sendRoutineProgressAsync(socket, sendLock, update, cancellationToken)
+                update => _ = SendRoutineProgressAsync(socket, sendLock, update, cancellationToken)
             );
-            await _sendRoutineActionResultAsync(socket, sendLock, result, cancellationToken);
-            await _sendRoutinesAsync(socket, sendLock, cancellationToken);
+            await SendRoutineActionResultAsync(socket, sendLock, result, cancellationToken);
+            await SendRoutinesAsync(socket, sendLock, cancellationToken);
             return true;
         }
 
@@ -163,8 +123,8 @@ internal sealed class WsRoutineCommandDispatcher
                 message.TimezoneId,
                 cancellationToken
             );
-            await _sendRoutineActionResultAsync(socket, sendLock, result, cancellationToken);
-            await _sendRoutinesAsync(socket, sendLock, cancellationToken);
+            await SendRoutineActionResultAsync(socket, sendLock, result, cancellationToken);
+            await SendRoutinesAsync(socket, sendLock, cancellationToken);
             return true;
         }
 
@@ -177,8 +137,8 @@ internal sealed class WsRoutineCommandDispatcher
             }
 
             var result = await _routineService.RunRoutineNowAsync(message.RoutineId.Trim(), "web", cancellationToken);
-            await _sendRoutineActionResultAsync(socket, sendLock, result, cancellationToken);
-            await _sendRoutinesAsync(socket, sendLock, cancellationToken);
+            await SendRoutineActionResultAsync(socket, sendLock, result, cancellationToken);
+            await SendRoutinesAsync(socket, sendLock, cancellationToken);
             return true;
         }
 
@@ -191,8 +151,8 @@ internal sealed class WsRoutineCommandDispatcher
             }
 
             var result = await _routineService.RunRoutineNowAsync(message.RoutineId.Trim(), "telegram_test", cancellationToken);
-            await _sendRoutineActionResultAsync(socket, sendLock, result, cancellationToken);
-            await _sendRoutinesAsync(socket, sendLock, cancellationToken);
+            await SendRoutineActionResultAsync(socket, sendLock, result, cancellationToken);
+            await SendRoutinesAsync(socket, sendLock, cancellationToken);
             return true;
         }
 
@@ -205,8 +165,8 @@ internal sealed class WsRoutineCommandDispatcher
             }
 
             var result = await _routineService.RunRoutineNowAsync(message.RoutineId.Trim(), "browser_agent_test", cancellationToken);
-            await _sendRoutineActionResultAsync(socket, sendLock, result, cancellationToken);
-            await _sendRoutinesAsync(socket, sendLock, cancellationToken);
+            await SendRoutineActionResultAsync(socket, sendLock, result, cancellationToken);
+            await SendRoutinesAsync(socket, sendLock, cancellationToken);
             return true;
         }
 
@@ -219,7 +179,7 @@ internal sealed class WsRoutineCommandDispatcher
             }
 
             var detail = _routineService.GetRoutineRunDetail(message.RoutineId.Trim(), message.Timestamp.Value);
-            await _sendRoutineRunDetailAsync(socket, sendLock, detail, cancellationToken);
+            await SendRoutineRunDetailAsync(socket, sendLock, detail, cancellationToken);
             return true;
         }
 
@@ -236,8 +196,8 @@ internal sealed class WsRoutineCommandDispatcher
                 message.Timestamp.Value,
                 cancellationToken
             );
-            await _sendRoutineActionResultAsync(socket, sendLock, result, cancellationToken);
-            await _sendRoutinesAsync(socket, sendLock, cancellationToken);
+            await SendRoutineActionResultAsync(socket, sendLock, result, cancellationToken);
+            await SendRoutinesAsync(socket, sendLock, cancellationToken);
             return true;
         }
 
@@ -256,8 +216,8 @@ internal sealed class WsRoutineCommandDispatcher
             }
 
             var result = _routineService.SetRoutineEnabled(message.RoutineId.Trim(), message.Enabled.Value);
-            await _sendRoutineActionResultAsync(socket, sendLock, result, cancellationToken);
-            await _sendRoutinesAsync(socket, sendLock, cancellationToken);
+            await SendRoutineActionResultAsync(socket, sendLock, result, cancellationToken);
+            await SendRoutinesAsync(socket, sendLock, cancellationToken);
             return true;
         }
 
@@ -270,75 +230,106 @@ internal sealed class WsRoutineCommandDispatcher
             }
 
             var result = _routineService.DeleteRoutine(message.RoutineId.Trim());
-            await _sendRoutineActionResultAsync(socket, sendLock, result, cancellationToken);
-            await _sendRoutinesAsync(socket, sendLock, cancellationToken);
+            await SendRoutineActionResultAsync(socket, sendLock, result, cancellationToken);
+            await SendRoutinesAsync(socket, sendLock, cancellationToken);
             return true;
         }
 
         return false;
     }
 
+        private async Task SendRoutinesAsync(WebSocket socket, SemaphoreSlim sendLock, CancellationToken cancellationToken)
+    {
+        var items = _routineService.ListRoutines();
+        var response = new RoutinesStateWsResponse("routines_state", items);
+        var json = JsonSerializer.Serialize(response, WsRoutineJsonContext.Default.RoutinesStateWsResponse);
+        await WebSocketGateway.SendTextAsync(socket, sendLock, json, cancellationToken);
+    }
+
+    private async Task SendRoutineActionResultAsync(WebSocket socket, SemaphoreSlim sendLock, RoutineActionResult result, CancellationToken cancellationToken)
+    {
+        var response = new RoutineActionResultWsResponse("routine_result", result.Ok, result.Message, result.Routine);
+        var json = JsonSerializer.Serialize(response, WsRoutineJsonContext.Default.RoutineActionResultWsResponse);
+        await WebSocketGateway.SendTextAsync(socket, sendLock, json, cancellationToken);
+    }
+
+    private async Task SendRoutineProgressAsync(WebSocket socket, SemaphoreSlim sendLock, RoutineProgressUpdate update, CancellationToken cancellationToken)
+    {
+        var response = new RoutineProgressWsResponse(
+            "routine_progress",
+            update.Operation,
+            update.Message,
+            update.Percent,
+            update.Done,
+            update.Ok,
+            update.StageKey,
+            update.StageTitle,
+            update.StageDetail,
+            update.StageIndex
+        );
+        var json = JsonSerializer.Serialize(response, WsRoutineJsonContext.Default.RoutineProgressWsResponse);
+        await WebSocketGateway.SendTextAsync(socket, sendLock, json, cancellationToken);
+    }
+
+    private async Task SendRoutineRunDetailAsync(WebSocket socket, SemaphoreSlim sendLock, RoutineRunDetailResult result, CancellationToken cancellationToken)
+    {
+        var response = new RoutineRunDetailWsResponse(
+            "routine_run_detail",
+            result.Ok,
+            result.RoutineId,
+            result.Ts,
+            DateTimeOffset.FromUnixTimeMilliseconds(result.Ts).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"),
+            result.Title,
+            result.Status,
+            result.Source,
+            result.AttemptCount,
+            result.TelegramStatus,
+            result.ArtifactPath,
+            result.AgentSessionId,
+            result.AgentRunId,
+            result.AgentProvider,
+            result.AgentModel,
+            result.ToolProfile,
+            result.StartUrl,
+            result.FinalUrl,
+            result.PageTitle,
+            result.ScreenshotPath,
+            result.DownloadPaths ?? Array.Empty<string>(),
+            result.Error,
+            result.Content
+        );
+        var json = JsonSerializer.Serialize(response, WsRoutineJsonContext.Default.RoutineRunDetailWsResponse);
+        await WebSocketGateway.SendTextAsync(socket, sendLock, json, cancellationToken);
+    }
+
     private static string BuildRoutinePreviewJson(RoutineExecutionPreviewResult preview)
     {
-        return "{"
-            + "\"type\":\"routine_preview\","
-            + $"\"request\":\"{EscapeJson(preview.Request)}\","
-            + $"\"scheduleSourceMode\":\"{EscapeJson(preview.ScheduleSourceMode)}\","
-            + $"\"scheduleText\":\"{EscapeJson(preview.ScheduleText)}\","
-            + $"\"scheduleKind\":\"{EscapeJson(preview.ScheduleKind)}\","
-            + $"\"timezoneId\":\"{EscapeJson(preview.TimezoneId)}\","
-            + $"\"resolvedExecutionMode\":\"{EscapeJson(preview.ResolvedExecutionMode)}\","
-            + $"\"executionRoute\":\"{EscapeJson(preview.ExecutionRoute)}\","
-            + $"\"warnings\":{BuildStringArrayJson(preview.Warnings)}"
-            + "}";
+        var response = new RoutineExecutionPreviewWsResponse(
+            "routine_preview",
+            preview.Request,
+            preview.ScheduleSourceMode,
+            preview.ScheduleText,
+            preview.ScheduleKind,
+            preview.TimezoneId,
+            preview.ResolvedExecutionMode,
+            preview.ExecutionRoute,
+            preview.Warnings
+        );
+        return JsonSerializer.Serialize(response, WsRoutineJsonContext.Default.RoutineExecutionPreviewWsResponse);
     }
 
     private static string BuildRoutineSchedulerStatusJson(RoutineSchedulerStatus status)
     {
-        return "{"
-            + "\"type\":\"routine_scheduler_status\","
-            + $"\"enabled\":{(status.Enabled ? "true" : "false")},"
-            + $"\"totalRoutines\":{status.TotalRoutines},"
-            + $"\"enabledRoutines\":{status.EnabledRoutines},"
-            + $"\"runningRoutines\":{status.RunningRoutines},"
-            + $"\"dueRoutines\":{status.DueRoutines},"
-            + $"\"nextRunAtMs\":{(status.NextRunAtMs.HasValue ? status.NextRunAtMs.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "null")},"
-            + $"\"lastError\":{ToJsonStringOrNull(status.LastError)}"
-            + "}";
-    }
-
-    private static string BuildStringArrayJson(IReadOnlyList<string> values)
-    {
-        var builder = new System.Text.StringBuilder();
-        builder.Append("[");
-        for (var i = 0; i < values.Count; i += 1)
-        {
-            if (i > 0)
-            {
-                builder.Append(",");
-            }
-
-            builder.Append($"\"{EscapeJson(values[i])}\"");
-        }
-
-        builder.Append("]");
-        return builder.ToString();
-    }
-
-    private static string ToJsonStringOrNull(string? value)
-    {
-        return string.IsNullOrWhiteSpace(value)
-            ? "null"
-            : $"\"{EscapeJson(value)}\"";
-    }
-
-    private static string EscapeJson(string? value)
-    {
-        return (value ?? string.Empty)
-            .Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("\"", "\\\"", StringComparison.Ordinal)
-            .Replace("\r", "\\r", StringComparison.Ordinal)
-            .Replace("\n", "\\n", StringComparison.Ordinal)
-            .Replace("\t", "\\t", StringComparison.Ordinal);
+        var response = new RoutineSchedulerStatusWsResponse(
+            "routine_scheduler_status",
+            status.Enabled,
+            status.TotalRoutines,
+            status.EnabledRoutines,
+            status.RunningRoutines,
+            status.DueRoutines,
+            status.NextRunAtMs,
+            status.LastError
+        );
+        return JsonSerializer.Serialize(response, WsRoutineJsonContext.Default.RoutineSchedulerStatusWsResponse);
     }
 }

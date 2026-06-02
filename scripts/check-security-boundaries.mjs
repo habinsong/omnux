@@ -20,6 +20,11 @@ function assertNotIncludes(text, needle, label) {
   assert.ok(!text.includes(needle), `${label}: expected not to include ${needle}`);
 }
 
+function assertMissing(relativePath, label) {
+  assertionCount += 1;
+  assert.ok(!existsSync(path.join(repoRoot, relativePath)), `${label}: expected ${relativePath} to be absent`);
+}
+
 const socketLoop = read("apps/omnux-middleware/src/WebSocketGateway.SocketLoop.cs");
 assertIncludes(socketLoop, "IsAllowedWebSocketOrigin(context)", "websocket origin gate");
 assertIncludes(socketLoop, "return !IsRemoteDashboardClient(context);", "remote websocket without origin is rejected");
@@ -172,6 +177,7 @@ const telegramCodingSettingsApplicationServiceTests = read("apps/omnux-middlewar
 const commandServiceLlmSettings = read("apps/omnux-middleware/src/CommandService.LlmSettings.cs");
 const llmSettingsApplicationService = read("apps/omnux-middleware/src/Application/LlmSettingsApplicationService.cs");
 const llmSettingsApplicationServiceTests = read("apps/omnux-middleware-tests/LlmSettingsApplicationServiceTests.cs");
+const llmControlApplicationService = read("apps/omnux-middleware/src/Application/LlmControlApplicationService.cs");
 const commandServiceTelegramLlmReports = read("apps/omnux-middleware/src/CommandService.Telegram.LlmReports.cs");
 const commandServiceTelegramConversation = read("apps/omnux-middleware/src/CommandService.Telegram.Conversation.cs");
 const codingWorkerSelectionPolicy = read("apps/omnux-middleware/src/CodingWorkerSelectionPolicy.cs");
@@ -185,16 +191,17 @@ const localAssistantQuestionPolicy = read("apps/omnux-middleware/src/LocalAssist
 const commandServiceTelegramSkills = read("apps/omnux-middleware/src/CommandService.Telegram.Skills.cs");
 const commandServiceTelegramSkillRuntime = read("apps/omnux-middleware/src/CommandService.Telegram.SkillRuntime.cs");
 const commandServiceNaturalCommandExecution = read("apps/omnux-middleware/src/CommandService.NaturalCommandExecution.cs");
-const unifiedSlashCommandExecutionCore = read("apps/omnux-middleware/src/UnifiedSlashCommandExecution.Core.cs");
-const unifiedSlashCommandExecutionChannel = read("apps/omnux-middleware/src/UnifiedSlashCommandExecution.Channel.cs");
-const unifiedSlashCommandExecutionMemory = read("apps/omnux-middleware/src/UnifiedSlashCommandExecution.Memory.cs");
-const unifiedSlashCommandExecutionMemoryBoundary = read("apps/omnux-middleware/src/UnifiedSlashCommandExecution.MemoryBoundary.cs");
-const unifiedSlashCommandExecutionDoctor = read("apps/omnux-middleware/src/UnifiedSlashCommandExecution.Doctor.cs");
-const unifiedSlashCommandExecutionDoctorBoundary = read("apps/omnux-middleware/src/UnifiedSlashCommandExecution.DoctorBoundary.cs");
-const unifiedSlashCommandExecutionDomain = read("apps/omnux-middleware/src/UnifiedSlashCommandExecution.Domain.cs");
-const unifiedSlashCommandExecutionDomainBoundary = read("apps/omnux-middleware/src/UnifiedSlashCommandExecution.DomainBoundary.cs");
-const unifiedSlashCommandExecutionLlm = read("apps/omnux-middleware/src/UnifiedSlashCommandExecution.Llm.cs");
-const unifiedSlashCommandExecutionLlmBoundary = read("apps/omnux-middleware/src/UnifiedSlashCommandExecution.LlmBoundary.cs");
+const commandServiceSlashDispatch = read("apps/omnux-middleware/src/CommandService.SlashDispatch.cs");
+const slashCommandRouter = read("apps/omnux-middleware/src/CommandDispatch/SlashCommandRouter.cs");
+const staticSlashCommandHandler = read("apps/omnux-middleware/src/CommandDispatch/StaticSlashCommandHandler.cs");
+const doctorSlashCommandHandler = read("apps/omnux-middleware/src/CommandDispatch/DoctorSlashCommandHandler.cs");
+const notebookSlashCommandHandler = read("apps/omnux-middleware/src/CommandDispatch/NotebookSlashCommandHandler.cs");
+const handoffSlashCommandHandler = read("apps/omnux-middleware/src/CommandDispatch/HandoffSlashCommandHandler.cs");
+const planSlashCommandHandler = read("apps/omnux-middleware/src/CommandDispatch/PlanSlashCommandHandler.cs");
+const taskSlashCommandHandler = read("apps/omnux-middleware/src/CommandDispatch/TaskSlashCommandHandler.cs");
+const memorySlashCommandHandler = read("apps/omnux-middleware/src/CommandDispatch/MemorySlashCommandHandler.cs");
+const channelSettingsSlashCommandHandler = read("apps/omnux-middleware/src/CommandDispatch/ChannelSettingsSlashCommandHandler.cs");
+const llmControlSlashCommandHandler = read("apps/omnux-middleware/src/CommandDispatch/LlmControlSlashCommandHandler.cs");
 const routineSchedulePolicy = read("apps/omnux-middleware/src/RoutineSchedulePolicy.cs");
 const commandServiceRoutines = read("apps/omnux-middleware/src/CommandService.Routines.cs");
 const commandServiceRoutineGeneration = read("apps/omnux-middleware/src/CommandService.RoutineGeneration.cs");
@@ -267,6 +274,7 @@ const workspaceDoctorCheck = read("apps/omnux-middleware/src/Application/Doctor/
 const memoryIndexDocumentSync = read("apps/omnux-middleware/src/MemoryIndexDocumentSync.cs");
 const webSocketGatewayProtocol = read("apps/omnux-middleware/src/WebSocketGateway.Protocol.cs");
 const wsConversationMemoryDispatcher = read("apps/omnux-middleware/src/WsConversationMemoryDispatcher.cs");
+const wsConversationMemoryWsResponses = read("apps/omnux-middleware/src/WsConversationMemoryWsResponses.cs");
 const conversationApplicationService = read("apps/omnux-middleware/src/Application/ConversationApplicationService.cs");
 const conversationApplicationServiceBackupTests = read("apps/omnux-middleware-tests/ConversationApplicationServiceBackupTests.cs");
 const settingsPageState = read("apps/omnux-dashboard/modules/settings-page-state.js");
@@ -505,65 +513,46 @@ assertIncludes(commandServiceChat, "MultiComparisonPolicy.BuildComparisonAssista
 assertIncludes(commandServiceChat, "MultiComparisonPolicy.ParseMultiSummarySections", "command service chat delegates multi summary parsing");
 assertIncludes(commandExecution, "ExecuteNormalizedCommandRoutingAsync", "execute core delegates normalized command routing");
 assertIncludes(commandExecutionDispatch, "TryHandleTelegramDirectCommandsAsync", "normalized command routing handles telegram direct commands");
-assertIncludes(commandExecutionDispatch, "TryHandleUnifiedSlashCommandAsync", "normalized command routing handles unified slash commands");
+assertIncludes(commandExecutionDispatch, "TryHandleViaSlashRouterAsync", "normalized command routing handles slash commands through command dispatch router");
+assertNotIncludes(commandExecutionDispatch, "TryHandleUnifiedSlashCommandAsync", "normalized command routing no longer uses legacy unified slash executor");
 assertIncludes(commandExecutionDispatch, "ExecutePostUnifiedRoutingAsync", "normalized command routing falls through to post-unified routing");
 assertIncludes(commandServiceNaturalCommandExecution, "ExecuteNaturalCommandDispatchAsync", "natural command execution has an explicit dispatch boundary");
 assertIncludes(commandServiceNaturalCommandExecution, "NaturalCommandExecutionRequest", "natural command execution carries dispatch context explicitly");
 assertIncludes(commandServiceNaturalCommandExecution, "ExecuteNormalizedCommandRoutingAsync", "natural command dispatch uses normalized routing instead of public reentry");
 assertNotIncludes(commandServiceNaturalCommandExecution, "ExecuteAsync(", "natural command execution must not reenter public ExecuteAsync");
 assertNotIncludes(commandServiceNaturalCommandExecution, "ReenterNaturalCommandAsync", "natural command reentry helper must stay removed");
-assertIncludes(unifiedSlashCommandExecutionCore, "ExecuteUnifiedSlashChannelCommand(command, source)", "unified slash core delegates channel mutations");
-assertNotIncludes(unifiedSlashCommandExecutionCore, "ApplyChannelProfile(", "unified slash core no longer mutates channel profile directly");
-assertNotIncludes(unifiedSlashCommandExecutionCore, "SetChannelMode(", "unified slash core no longer mutates channel mode directly");
-assertNotIncludes(unifiedSlashCommandExecutionCore, "SetChannelProvider(", "unified slash core no longer mutates channel provider directly");
-assertNotIncludes(unifiedSlashCommandExecutionCore, "SetChannelModel(", "unified slash core no longer mutates channel model directly");
-assertNotIncludes(unifiedSlashCommandExecutionCore, "BuildChannelModelStatus(", "unified slash core no longer builds channel status directly");
-assertIncludes(unifiedSlashCommandExecutionChannel, "UnifiedSlashCommandKind.ApplyProfile", "unified slash channel execution owns profile mutation route");
-assertIncludes(unifiedSlashCommandExecutionChannel, "UnifiedSlashCommandKind.SetMode", "unified slash channel execution owns mode mutation route");
-assertIncludes(unifiedSlashCommandExecutionChannel, "UnifiedSlashCommandKind.SetProvider", "unified slash channel execution owns provider mutation route");
-assertIncludes(unifiedSlashCommandExecutionChannel, "UnifiedSlashCommandKind.SetModel", "unified slash channel execution owns model mutation route");
-assertIncludes(unifiedSlashCommandExecutionChannel, "UnifiedSlashCommandKind.BuildStatus", "unified slash channel execution owns status route");
-assertIncludes(unifiedSlashCommandExecutionMemory, "ExecuteUnifiedSlashMemoryCommandBoundaryAsync", "unified slash memory execution delegates memory command calls to boundary");
-assertNotIncludes(unifiedSlashCommandExecutionMemory, "ClearMemory(", "unified slash memory execution no longer clears memory directly");
-assertNotIncludes(unifiedSlashCommandExecutionMemory, "EnsureTelegramLinkedConversation(", "unified slash memory execution no longer links telegram conversation directly");
-assertNotIncludes(unifiedSlashCommandExecutionMemory, "CreateMemoryNoteAsync(", "unified slash memory execution no longer creates memory notes directly");
-assertNotIncludes(unifiedSlashCommandExecutionMemory, "CommandHelpTextPolicy.BuildMemoryCommandHelpText()", "unified slash memory execution no longer builds help text directly");
-assertIncludes(unifiedSlashCommandExecutionMemoryBoundary, "UnifiedSlashMemoryCommandRequest", "unified slash memory boundary carries explicit command request");
-assertIncludes(unifiedSlashCommandExecutionMemoryBoundary, "IsUnifiedSlashMemoryCommand", "unified slash memory boundary owns memory command kind guard");
-assertIncludes(unifiedSlashCommandExecutionMemoryBoundary, "ExecuteUnifiedSlashClearMemoryCommand", "unified slash memory boundary owns memory clear bridge");
-assertIncludes(unifiedSlashCommandExecutionMemoryBoundary, "ExecuteUnifiedSlashCreateMemoryNoteAsync", "unified slash memory boundary owns memory note bridge");
-assertIncludes(unifiedSlashCommandExecutionMemoryBoundary, "CommandHelpTextPolicy.BuildMemoryCommandHelpText()", "unified slash memory boundary owns memory help bridge");
-assertIncludes(unifiedSlashCommandExecutionDoctor, "ExecuteUnifiedSlashDoctorCommandBoundaryAsync", "unified slash doctor execution delegates doctor command calls to boundary");
-assertNotIncludes(unifiedSlashCommandExecutionDoctor, "ExecuteDoctorReportCommandAsync", "unified slash doctor execution no longer calls doctor report directly");
-assertIncludes(unifiedSlashCommandExecutionDoctorBoundary, "UnifiedSlashDoctorCommandRequest", "unified slash doctor boundary carries explicit command request");
-assertIncludes(unifiedSlashCommandExecutionDoctorBoundary, "IsUnifiedSlashDoctorCommand", "unified slash doctor boundary owns doctor command kind guard");
-assertIncludes(unifiedSlashCommandExecutionDoctorBoundary, "ExecuteDoctorReportCommandAsync", "unified slash doctor boundary owns doctor report bridge");
-assertIncludes(unifiedSlashCommandExecutionDomain, "ExecuteUnifiedSlashDomainCommandBoundaryAsync", "unified slash domain execution delegates domain command calls to boundary");
-assertNotIncludes(unifiedSlashCommandExecutionDomain, "ExecutePlanSlashCommandAsync", "unified slash domain execution no longer calls plan command directly");
-assertNotIncludes(unifiedSlashCommandExecutionDomain, "ExecuteTaskSlashCommandAsync", "unified slash domain execution no longer calls task command directly");
-assertNotIncludes(unifiedSlashCommandExecutionDomain, "ExecuteNotebookSlashCommandAsync", "unified slash domain execution no longer calls notebook command directly");
-assertNotIncludes(unifiedSlashCommandExecutionDomain, "ExecuteHandoffSlashCommandAsync", "unified slash domain execution no longer calls handoff command directly");
-assertIncludes(unifiedSlashCommandExecutionDomainBoundary, "UnifiedSlashDomainCommandRequest", "unified slash domain boundary carries explicit command request");
-assertIncludes(unifiedSlashCommandExecutionDomainBoundary, "IsUnifiedSlashDomainCommand", "unified slash domain boundary owns domain command kind guard");
-assertIncludes(unifiedSlashCommandExecutionDomainBoundary, "ExecutePlanSlashCommandAsync(request.Tokens", "unified slash domain boundary owns plan command bridge");
-assertIncludes(unifiedSlashCommandExecutionDomainBoundary, "ExecuteTaskSlashCommandAsync(request.Tokens", "unified slash domain boundary owns task command bridge");
-assertIncludes(unifiedSlashCommandExecutionDomainBoundary, "ExecuteNotebookSlashCommandAsync(request.Tokens", "unified slash domain boundary owns notebook command bridge");
-assertIncludes(unifiedSlashCommandExecutionDomainBoundary, "ExecuteHandoffSlashCommandAsync(request.Tokens", "unified slash domain boundary owns handoff command bridge");
-assertIncludes(unifiedSlashCommandExecutionLlm, "ExecuteUnifiedSlashLlmCommandBoundaryAsync", "unified slash llm execution delegates llm command calls to boundary");
-assertNotIncludes(unifiedSlashCommandExecutionLlm, "BuildTelegramUsageReportAsync", "unified slash llm execution no longer builds usage directly");
-assertNotIncludes(unifiedSlashCommandExecutionLlm, "BuildTelegramModelsReportAsync", "unified slash llm execution no longer builds model report directly");
-assertNotIncludes(unifiedSlashCommandExecutionLlm, "SetGroqModelForChannelAsync", "unified slash llm execution no longer sets groq model directly");
-assertNotIncludes(unifiedSlashCommandExecutionLlm, "SetCopilotModelForChannelAsync", "unified slash llm execution no longer sets copilot model directly");
-assertNotIncludes(unifiedSlashCommandExecutionLlm, "SetChannelModelForProviderAsync", "unified slash llm execution no longer sets provider model directly");
-assertNotIncludes(unifiedSlashCommandExecutionLlm, "CommandHelpTextPolicy.BuildUnifiedLlmHelpText", "unified slash llm execution no longer builds llm help directly");
-assertIncludes(unifiedSlashCommandExecutionLlmBoundary, "UnifiedSlashLlmCommandRequest", "unified slash llm boundary carries explicit command request");
-assertIncludes(unifiedSlashCommandExecutionLlmBoundary, "IsUnifiedSlashLlmCommand", "unified slash llm boundary owns llm command kind guard");
-assertIncludes(unifiedSlashCommandExecutionLlmBoundary, "CommandHelpTextPolicy.BuildUnifiedLlmHelpText(request.Source)", "unified slash llm boundary owns llm help bridge");
-assertIncludes(unifiedSlashCommandExecutionLlmBoundary, "BuildTelegramUsageReportAsync(cancellationToken)", "unified slash llm boundary owns usage bridge");
-assertIncludes(unifiedSlashCommandExecutionLlmBoundary, "BuildTelegramModelsReportAsync(request.Primary", "unified slash llm boundary owns model report bridge");
-assertIncludes(unifiedSlashCommandExecutionLlmBoundary, "SetGroqModelForChannelAsync(request.Source", "unified slash llm boundary owns groq model bridge");
-assertIncludes(unifiedSlashCommandExecutionLlmBoundary, "SetCopilotModelForChannelAsync(request.Source", "unified slash llm boundary owns copilot model bridge");
-assertIncludes(unifiedSlashCommandExecutionLlmBoundary, "SetChannelModelForProviderAsync(request.Source", "unified slash llm boundary owns provider model bridge");
+[
+  "UnifiedSlashCommandExecution.cs",
+  "UnifiedSlashCommandExecution.Core.cs",
+  "UnifiedSlashCommandExecution.Channel.cs",
+  "UnifiedSlashCommandExecution.Memory.cs",
+  "UnifiedSlashCommandExecution.MemoryBoundary.cs",
+  "UnifiedSlashCommandExecution.Doctor.cs",
+  "UnifiedSlashCommandExecution.DoctorBoundary.cs",
+  "UnifiedSlashCommandExecution.Domain.cs",
+  "UnifiedSlashCommandExecution.DomainBoundary.cs",
+  "UnifiedSlashCommandExecution.Llm.cs",
+  "UnifiedSlashCommandExecution.LlmBoundary.cs"
+].forEach((file) => assertMissing(`apps/omnux-middleware/src/${file}`, "legacy unified slash executor removed"));
+assertIncludes(slashCommandRouter, "ISlashCommandHandler", "slash command router dispatches handler boundary");
+assertIncludes(commandServiceSlashDispatch, "new StaticSlashCommandHandler()", "slash router owns static usage messages");
+assertIncludes(commandServiceSlashDispatch, "new DoctorSlashCommandHandler", "slash router owns doctor commands");
+assertIncludes(commandServiceSlashDispatch, "new NotebookSlashCommandHandler", "slash router owns notebook commands");
+assertIncludes(commandServiceSlashDispatch, "new HandoffSlashCommandHandler", "slash router owns handoff commands");
+assertIncludes(commandServiceSlashDispatch, "new PlanSlashCommandHandler", "slash router owns plan commands");
+assertIncludes(commandServiceSlashDispatch, "new TaskSlashCommandHandler", "slash router owns task commands");
+assertIncludes(commandServiceSlashDispatch, "new MemorySlashCommandHandler(_memoryAppService, _conversationAppService)", "slash router owns memory commands including telegram create");
+assertIncludes(commandServiceSlashDispatch, "new ChannelSettingsSlashCommandHandler", "slash router owns channel settings commands");
+assertIncludes(commandServiceSlashDispatch, "new LlmControlSlashCommandHandler", "slash router owns llm control commands");
+assertIncludes(staticSlashCommandHandler, "UnifiedSlashCommandKind.StaticMessage", "static slash handler owns parser usage messages");
+assertIncludes(doctorSlashCommandHandler, "IDoctorApplicationService", "doctor slash handler depends on doctor application service");
+assertIncludes(notebookSlashCommandHandler, "INotebookApplicationService", "notebook slash handler depends on notebook application service");
+assertIncludes(handoffSlashCommandHandler, "INotebookApplicationService", "handoff slash handler depends on notebook application service");
+assertIncludes(planSlashCommandHandler, "IPlanningApplicationService", "plan slash handler depends on planning application service");
+assertIncludes(taskSlashCommandHandler, "ITaskGraphApplicationService", "task slash handler depends on task graph application service");
+assertIncludes(memorySlashCommandHandler, "IConversationApplicationService", "memory slash handler gets telegram conversation through application service");
+assertIncludes(channelSettingsSlashCommandHandler, "ILlmSettingsApplicationService", "channel slash handler depends on llm settings application service");
+assertIncludes(llmControlSlashCommandHandler, "ILlmControlApplicationService", "llm control slash handler depends on llm control application service");
 assertIncludes(commandServiceRoutineGeneration, "GenerateSplitRoutineResultAsync", "routine generation orchestration delegates split generation");
 assertIncludes(commandServiceRoutineGeneration, "GenerateSingleRoutineResultAsync", "routine generation orchestration delegates single generation");
 assertIncludes(commandServiceRoutineGenerationExecution, "GeneratedCodeCandidatePolicy.ParseCodeCandidate", "routine generation execution delegates code candidate parsing");
@@ -853,10 +842,11 @@ assertNotIncludes(commandServiceTelegramLlmControl, "private async Task<string?>
 assertNotIncludes(commandServiceTelegramLlmControl, "ClearMemory(\"telegram\"", "telegram llm control no longer clears memory directly");
 assertNotIncludes(commandServiceTelegramLlmControl, "EnsureTelegramLinkedConversation()", "telegram llm control no longer links memory conversation directly");
 assertNotIncludes(commandServiceTelegramLlmControl, "CreateMemoryNoteAsync(", "telegram llm control no longer creates memory notes directly");
-assertIncludes(commandServiceTelegramMemoryCommand, "TryHandleTelegramMemoryCommandAsync", "telegram memory command partial owns memory command execution");
-assertIncludes(commandServiceTelegramMemoryCommand, "ClearMemory(\"telegram\", \"telegram\")", "telegram memory command partial owns memory clear bridge");
-assertIncludes(commandServiceTelegramMemoryCommand, "EnsureTelegramLinkedConversation()", "telegram memory command partial owns telegram conversation bridge");
-assertIncludes(commandServiceTelegramMemoryCommand, "CreateMemoryNoteAsync(", "telegram memory command partial owns memory note creation bridge");
+assertIncludes(commandServiceTelegramMemoryCommand, "TryHandleTelegramMemoryCommandAsync", "telegram memory command partial owns memory command entrypoint");
+assertIncludes(commandServiceTelegramMemoryCommand, "TryHandleViaSlashRouterAsync(text, \"telegram\", cancellationToken)", "telegram memory command partial delegates to slash router");
+assertNotIncludes(commandServiceTelegramMemoryCommand, "ClearMemory(\"telegram\", \"telegram\")", "telegram memory command partial no longer owns memory clear bridge");
+assertNotIncludes(commandServiceTelegramMemoryCommand, "EnsureTelegramLinkedConversation()", "telegram memory command partial no longer owns telegram conversation bridge");
+assertNotIncludes(commandServiceTelegramMemoryCommand, "CreateMemoryNoteAsync(", "telegram memory command partial no longer owns memory note creation bridge");
 assertIncludes(telegram, "ApplyTelegramProfileCommandMutation", "command service telegram delegates profile command mutation");
 assertIncludes(commandServiceTelegramLlmChannelMutation, "ApplyTelegramProfileCommandMutation", "telegram llm channel mutation owns profile command mutation bridge");
 assertNotIncludes(telegram, "private void ApplyTelegramTalkDefaults", "command service telegram no longer owns talk preset mutation helper");
@@ -977,10 +967,17 @@ assertIncludes(telegramCodingSettingsApplicationServiceTests, "SetAggregateModel
 assertIncludes(telegramCodingSettingsApplicationServiceTests, "GetSnapshotReturnsClone", "telegram coding settings application service tests snapshot clone");
 assertIncludes(program, "new TelegramCodingSettingsApplicationService", "program wires telegram coding settings application service");
 assertIncludes(commandServiceTelegramLlmReports, "BuildTelegramLlmStatusAsync", "telegram llm reports partial owns status report body");
-assertIncludes(commandServiceTelegramLlmReports, "BuildTelegramModelsReportAsync", "telegram llm reports partial owns model report body");
-assertIncludes(commandServiceTelegramLlmReports, "BuildTelegramUsageReportAsync", "telegram llm reports partial owns usage report body");
-assertIncludes(commandServiceTelegramLlmReports, "GetPremiumUsageSnapshotAsync", "telegram llm reports partial owns premium usage bridge");
-assertIncludes(commandServiceTelegramLlmReports, "GetGroqRateLimitSnapshot", "telegram llm reports partial owns groq rate-limit report bridge");
+assertIncludes(commandServiceTelegramLlmReports, "BuildTelegramModelsReportAsync", "telegram llm reports partial keeps model report compatibility wrapper");
+assertIncludes(commandServiceTelegramLlmReports, "BuildTelegramUsageReportAsync", "telegram llm reports partial keeps usage report compatibility wrapper");
+assertIncludes(commandServiceTelegramLlmReports, "LlmControlService.BuildModelsReportAsync", "telegram llm reports partial delegates model report body to llm control service");
+assertIncludes(commandServiceTelegramLlmReports, "LlmControlService.BuildUsageReportAsync", "telegram llm reports partial delegates usage report body to llm control service");
+assertNotIncludes(commandServiceTelegramLlmReports, "GetPremiumUsageSnapshotAsync", "telegram llm reports partial no longer owns premium usage bridge");
+assertNotIncludes(commandServiceTelegramLlmReports, "GetGroqRateLimitSnapshot", "telegram llm reports partial no longer owns groq rate-limit report bridge");
+assertIncludes(llmControlApplicationService, "interface ILlmControlApplicationService", "llm control application service exposes control boundary interface");
+assertIncludes(llmControlApplicationService, "BuildModelsReportAsync", "llm control application service owns model report body");
+assertIncludes(llmControlApplicationService, "BuildUsageReportAsync", "llm control application service owns usage report body");
+assertIncludes(llmControlApplicationService, "GetPremiumUsageSnapshotAsync", "llm control application service owns premium usage bridge");
+assertIncludes(llmControlApplicationService, "GetGroqRateLimitSnapshot", "llm control application service owns groq rate-limit report bridge");
 assertIncludes(codingExecution, "if (!IsDynamicCodeExecutionEnabled())", "workspace shell execution checks dynamic code flag");
 assertIncludes(codingExecution, "new ShellRunResult(126", "workspace shell execution returns blocked result");
 assertIncludes(codingExecution, "if (_execution.EnableAutoInstall)", "auto install pipeline checks explicit flag");
@@ -1044,8 +1041,9 @@ assertIncludes(memoryIndexDocumentSync, "MemoryDocuments", "memory index sync re
 assertIncludes(memoryIndexDocumentSync, "SessionDocuments", "memory index sync reports session source count");
 assertIncludes(memoryIndexDocumentSync, "ProjectDocuments", "memory index sync reports project source count");
 assertIncludes(memoryApplicationService, "elapsedMs=", "memory index rebuild audit includes elapsed time");
-assertIncludes(wsConversationMemoryDispatcher, "\\\"elapsedMs\\\"", "memory index rebuild websocket result includes elapsed time");
-assertIncludes(wsConversationMemoryDispatcher, "\\\"projectDocuments\\\"", "memory index rebuild websocket result includes project document count");
+assertIncludes(wsConversationMemoryDispatcher, "MemoryIndexRebuildWsResponse", "memory index rebuild websocket result uses typed response");
+assertIncludes(wsConversationMemoryWsResponses, "MemoryIndexSyncSnapshot? Snapshot", "memory index rebuild websocket response carries sync snapshot");
+assertIncludes(wsConversationMemoryWsResponses, "JsonKnownNamingPolicy.CamelCase", "memory index rebuild websocket response serializes elapsedMs/projectDocuments via camelCase source generation");
 assertIncludes(stateDoc, "## 상태 저장소 인벤토리", "state doc contains persistence inventory");
 assertIncludes(stateDoc, "`~/.omnux/routing-policy.json`", "state inventory documents routing policy state");
 assertIncludes(stateDoc, "`~/.omnux/guard_retry_timeline.json`", "state inventory documents guard retry timeline state");

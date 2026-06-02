@@ -4,12 +4,11 @@ namespace Omnux.Middleware;
 /// <c>/doctor</c> 텍스트 명령 핸들러. <see cref="IDoctorApplicationService"/>와 순수 정책
 /// (<see cref="DoctorJson"/>, <see cref="DoctorCli"/>, <see cref="TelegramCommandHandoffPolicy"/>)만
 /// 의존하며 CommandService private state에 의존하지 않는다.
-/// 결함 4번 God Object 탈결합의 첫 도메인 이관 — 기존
-/// <c>CommandService.ExecuteDoctorReportCommandAsync</c> 로직을 동일하게 재현한다.
+/// 결함 4번 God Object 탈결합의 첫 도메인 이관이다.
 /// </summary>
 internal sealed class DoctorSlashCommandHandler : ISlashCommandHandler
 {
-    // 텔레그램 Doctor JSON handoff 임계값 — 기존 ExecuteDoctorReportCommandAsync와 동일하게 유지.
+    // 텔레그램 Doctor JSON handoff 임계값.
     private const int DoctorJsonHeavyChars = 1200;
     private const int DoctorJsonHeavyLines = 24;
 

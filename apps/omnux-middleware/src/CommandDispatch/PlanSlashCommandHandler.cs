@@ -5,7 +5,6 @@ namespace Omnux.Middleware;
 /// <summary>
 /// <c>/plan</c> 텍스트 명령 핸들러. <see cref="IPlanningApplicationService"/>와 순수 파서/포맷터만
 /// 의존하며 CommandService private state에 의존하지 않는다(결함 4번 탈결합).
-/// 기존 <c>CommandService.ExecutePlanSlashCommandAsync</c> 동작을 동일하게 재현한다.
 /// </summary>
 internal sealed class PlanSlashCommandHandler : ISlashCommandHandler
 {

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Linq;
 using System.Net.WebSockets;
+using System.Text.Json;
 
 namespace Omnux.Middleware;
 
@@ -684,145 +685,76 @@ internal sealed class WsConversationMemoryDispatcher
 
     private static string BuildMemoryIndexRebuildResultJson(MemoryIndexRebuildResult result)
     {
-        var snapshot = result.Snapshot;
-        return "{"
-            + "\"type\":\"memory_index_rebuild_result\","
-            + $"\"ok\":{(result.Ok ? "true" : "false")},"
-            + $"\"message\":\"{WebSocketGateway.EscapeJson(result.Message)}\","
-            + $"\"error\":\"{WebSocketGateway.EscapeJson(result.Error ?? string.Empty)}\","
-            + "\"snapshot\":"
-            + (snapshot == null
-                ? "null"
-                : "{"
-                  + $"\"dbPath\":\"{WebSocketGateway.EscapeJson(snapshot.DbPath)}\","
-                  + $"\"scannedDocuments\":{snapshot.ScannedDocuments},"
-                  + $"\"indexedDocuments\":{snapshot.IndexedDocuments},"
-                  + $"\"skippedDocuments\":{snapshot.SkippedDocuments},"
-                  + $"\"removedDocuments\":{snapshot.RemovedDocuments},"
-                  + $"\"memoryDocuments\":{snapshot.MemoryDocuments},"
-                  + $"\"sessionDocuments\":{snapshot.SessionDocuments},"
-                  + $"\"projectDocuments\":{snapshot.ProjectDocuments},"
-                  + $"\"elapsedMs\":{snapshot.ElapsedMs},"
-                  + $"\"ftsAvailable\":{(snapshot.FtsAvailable ? "true" : "false")}"
-                  + "}")
-            + "}";
+        var response = new MemoryIndexRebuildWsResponse(
+            "memory_index_rebuild_result",
+            result.Ok,
+            result.Message,
+            result.Error,
+            result.Snapshot
+        );
+        return JsonSerializer.Serialize(response, WsConversationMemoryJsonContext.Default.MemoryIndexRebuildWsResponse);
     }
 
     private static string BuildConversationSearchResultJson(ConversationSearchResult result)
     {
-        var builder = new System.Text.StringBuilder();
-        builder.Append("{");
-        builder.Append("\"type\":\"conversation_search_result\",");
-        builder.Append($"\"query\":\"{WebSocketGateway.EscapeJson(result.Query)}\",");
-        builder.Append($"\"disabled\":{(result.Disabled ? "true" : "false")},");
-        builder.Append("\"results\":[");
-        for (var i = 0; i < result.Results.Count; i++)
-        {
-            var item = result.Results[i];
-            if (i > 0)
-            {
-                builder.Append(",");
-            }
-
-            builder.Append("{");
-            builder.Append($"\"conversationId\":\"{WebSocketGateway.EscapeJson(item.ConversationId)}\",");
-            builder.Append($"\"title\":\"{WebSocketGateway.EscapeJson(item.Title)}\",");
-            builder.Append($"\"scope\":\"{WebSocketGateway.EscapeJson(item.Scope)}\",");
-            builder.Append($"\"mode\":\"{WebSocketGateway.EscapeJson(item.Mode)}\",");
-            builder.Append($"\"role\":\"{WebSocketGateway.EscapeJson(item.Role)}\",");
-            builder.Append($"\"snippet\":\"{WebSocketGateway.EscapeJson(item.Snippet)}\",");
-            builder.Append($"\"updatedUtc\":\"{WebSocketGateway.EscapeJson(item.UpdatedUtc.ToString("O"))}\",");
-            builder.Append($"\"messageUtc\":\"{WebSocketGateway.EscapeJson(item.MessageUtc.ToString("O"))}\",");
-            builder.Append($"\"score\":{item.Score.ToString("0.####", CultureInfo.InvariantCulture)}");
-            builder.Append("}");
-        }
-
-        builder.Append("]");
-        if (!string.IsNullOrWhiteSpace(result.Error))
-        {
-            builder.Append($",\"error\":\"{WebSocketGateway.EscapeJson(result.Error)}\"");
-        }
-
-        builder.Append("}");
-        return builder.ToString();
+        var response = new ConversationSearchWsResponse(
+            "conversation_search_result",
+            result.Query,
+            result.Disabled,
+            result.Results,
+            result.Error
+        );
+        return JsonSerializer.Serialize(response, WsConversationMemoryJsonContext.Default.ConversationSearchWsResponse);
     }
 
     private static string BuildBackupExportResultJson(BackupExportResult result)
     {
-        var builder = new System.Text.StringBuilder();
-        builder.Append("{");
-        builder.Append("\"type\":\"backup_export_result\",");
-        builder.Append($"\"ok\":{(result.Ok ? "true" : "false")},");
-        builder.Append($"\"fileName\":\"{WebSocketGateway.EscapeJson(result.FileName)}\",");
-        builder.Append($"\"contentBase64\":\"{WebSocketGateway.EscapeJson(result.ContentBase64)}\",");
-        builder.Append($"\"sizeBytes\":{Math.Max(0, result.SizeBytes)},");
-        AppendStringArray(builder, "scope", result.Scope ?? Array.Empty<string>());
-        builder.Append(",");
-        AppendStringArray(builder, "included", result.Included);
-        builder.Append(",");
-        AppendStringArray(builder, "excluded", result.Excluded);
-        if (!string.IsNullOrWhiteSpace(result.Error))
-        {
-            builder.Append($",\"error\":\"{WebSocketGateway.EscapeJson(result.Error)}\"");
-        }
-
-        builder.Append("}");
-        return builder.ToString();
+        var response = new BackupExportWsResponse(
+            "backup_export_result",
+            result.Ok,
+            result.FileName,
+            result.ContentBase64,
+            result.SizeBytes,
+            result.Scope ?? Array.Empty<string>(),
+            result.Included,
+            result.Excluded,
+            result.Error
+        );
+        return JsonSerializer.Serialize(response, WsConversationMemoryJsonContext.Default.BackupExportWsResponse);
     }
 
     private static string BuildBackupImportPreviewResultJson(BackupImportPreviewResult result)
     {
-        var builder = new System.Text.StringBuilder();
-        builder.Append("{");
-        builder.Append("\"type\":\"backup_import_preview_result\",");
-        builder.Append($"\"ok\":{(result.Ok ? "true" : "false")},");
-        builder.Append($"\"previewId\":\"{WebSocketGateway.EscapeJson(result.PreviewId)}\",");
-        builder.Append($"\"fileName\":\"{WebSocketGateway.EscapeJson(result.FileName)}\",");
-        builder.Append($"\"conversationCount\":{Math.Max(0, result.ConversationCount)},");
-        builder.Append($"\"conversationConflictCount\":{Math.Max(0, result.ConversationConflictCount)},");
-        builder.Append($"\"fileConflictCount\":{Math.Max(0, result.FileConflictCount)},");
-        builder.Append($"\"fileCount\":{Math.Max(0, result.FileCount)},");
-        AppendStringArray(builder, "conflicts", result.Conflicts);
-        builder.Append(",");
-        AppendStringArray(builder, "fileConflicts", result.FileConflicts);
-        builder.Append($",\"syncMode\":\"{WebSocketGateway.EscapeJson(result.SyncMode)}\"");
-        builder.Append($",\"syncConflictPolicy\":\"{WebSocketGateway.EscapeJson(result.SyncConflictPolicy)}\"");
-        if (!string.IsNullOrWhiteSpace(result.Error))
-        {
-            builder.Append($",\"error\":\"{WebSocketGateway.EscapeJson(result.Error)}\"");
-        }
-
-        builder.Append("}");
-        return builder.ToString();
+        var response = new BackupImportPreviewWsResponse(
+            "backup_import_preview_result",
+            result.Ok,
+            result.PreviewId,
+            result.FileName,
+            result.ConversationCount,
+            result.ConversationConflictCount,
+            result.FileConflictCount,
+            result.FileCount,
+            result.Conflicts,
+            result.FileConflicts,
+            result.SyncMode,
+            result.SyncConflictPolicy,
+            result.Error
+        );
+        return JsonSerializer.Serialize(response, WsConversationMemoryJsonContext.Default.BackupImportPreviewWsResponse);
     }
 
     private static string BuildBackupImportApplyResultJson(BackupImportApplyResult result)
     {
-        return "{"
-            + "\"type\":\"backup_import_result\","
-            + $"\"ok\":{(result.Ok ? "true" : "false")},"
-            + $"\"importedConversations\":{Math.Max(0, result.ImportedConversations)},"
-            + $"\"skippedConversations\":{Math.Max(0, result.SkippedConversations)},"
-            + $"\"overwrittenConversations\":{Math.Max(0, result.OverwrittenConversations)},"
-            + $"\"importedFiles\":{Math.Max(0, result.ImportedFiles)},"
-            + $"\"skippedFiles\":{Math.Max(0, result.SkippedFiles)},"
-            + $"\"error\":\"{WebSocketGateway.EscapeJson(result.Error ?? string.Empty)}\""
-            + "}";
-    }
-
-    private static void AppendStringArray(System.Text.StringBuilder builder, string name, IReadOnlyList<string> values)
-    {
-        builder.Append($"\"{WebSocketGateway.EscapeJson(name)}\":[");
-        for (var i = 0; i < values.Count; i++)
-        {
-            if (i > 0)
-            {
-                builder.Append(",");
-            }
-
-            builder.Append($"\"{WebSocketGateway.EscapeJson(values[i])}\"");
-        }
-
-        builder.Append("]");
+        var response = new BackupImportApplyWsResponse(
+            "backup_import_result",
+            result.Ok,
+            result.ImportedConversations,
+            result.SkippedConversations,
+            result.OverwrittenConversations,
+            result.ImportedFiles,
+            result.SkippedFiles,
+            result.Error
+        );
+        return JsonSerializer.Serialize(response, WsConversationMemoryJsonContext.Default.BackupImportApplyWsResponse);
     }
 }

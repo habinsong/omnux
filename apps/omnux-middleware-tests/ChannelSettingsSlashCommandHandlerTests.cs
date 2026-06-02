@@ -20,7 +20,7 @@ public sealed class ChannelSettingsSlashCommandHandlerTests
         Assert.True(handler.CanHandle(new SlashCommandContext("/model groq", "web"))); // quick provider alias
         Assert.True(handler.CanHandle(new SlashCommandContext("/status model", "web")));
 
-        // 잘못된 형식은 StaticMessage(usage)로 파싱되어 핸들러가 소유하지 않는다 → 레거시 fall-through.
+        // 잘못된 형식은 StaticMessage(usage)로 파싱되어 StaticSlashCommandHandler가 소유한다.
         Assert.False(handler.CanHandle(new SlashCommandContext("/profile", "web")));
         Assert.False(handler.CanHandle(new SlashCommandContext("/mode", "web")));
         Assert.False(handler.CanHandle(new SlashCommandContext("/status", "web")));

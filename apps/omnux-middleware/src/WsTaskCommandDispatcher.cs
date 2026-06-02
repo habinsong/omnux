@@ -4,67 +4,14 @@ namespace Omnux.Middleware;
 
 internal sealed class WsTaskCommandDispatcher
 {
-    internal delegate Task SendTaskGraphActionResultDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        string action,
-        TaskGraphActionResult result,
-        CancellationToken cancellationToken
-    );
-
-    internal delegate Task SendTaskGraphListResultDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        TaskGraphListResult result,
-        CancellationToken cancellationToken
-    );
-
-    internal delegate Task SendTaskOutputResultDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        TaskOutputResult result,
-        CancellationToken cancellationToken
-    );
-
-    internal delegate Task SendTaskUpdatedDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        string graphId,
-        TaskNode task,
-        CancellationToken cancellationToken
-    );
-
-    internal delegate Task SendTaskLogDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        string graphId,
-        string taskId,
-        string line,
-        CancellationToken cancellationToken
-    );
 
     private readonly ITaskGraphApplicationService _taskGraphService;
-    private readonly SendTaskGraphActionResultDelegate _sendTaskGraphActionResultAsync;
-    private readonly SendTaskGraphListResultDelegate _sendTaskGraphListResultAsync;
-    private readonly SendTaskOutputResultDelegate _sendTaskOutputResultAsync;
-    private readonly SendTaskUpdatedDelegate _sendTaskUpdatedAsync;
-    private readonly SendTaskLogDelegate _sendTaskLogAsync;
 
     public WsTaskCommandDispatcher(
-        ITaskGraphApplicationService taskGraphService,
-        SendTaskGraphActionResultDelegate sendTaskGraphActionResultAsync,
-        SendTaskGraphListResultDelegate sendTaskGraphListResultAsync,
-        SendTaskOutputResultDelegate sendTaskOutputResultAsync,
-        SendTaskUpdatedDelegate sendTaskUpdatedAsync,
-        SendTaskLogDelegate sendTaskLogAsync
+        ITaskGraphApplicationService taskGraphService
     )
     {
         _taskGraphService = taskGraphService;
-        _sendTaskGraphActionResultAsync = sendTaskGraphActionResultAsync;
-        _sendTaskGraphListResultAsync = sendTaskGraphListResultAsync;
-        _sendTaskOutputResultAsync = sendTaskOutputResultAsync;
-        _sendTaskUpdatedAsync = sendTaskUpdatedAsync;
-        _sendTaskLogAsync = sendTaskLogAsync;
     }
 
     public async Task<bool> TryHandleAsync(
@@ -76,7 +23,7 @@ internal sealed class WsTaskCommandDispatcher
     {
         if (message.Type == "task_graph_list")
         {
-            await _sendTaskGraphListResultAsync(
+            await SendTaskGraphListResultAsync(
                 socket,
                 sendLock,
                 _taskGraphService.ListTaskGraphs(),
@@ -88,14 +35,14 @@ internal sealed class WsTaskCommandDispatcher
         if (message.Type == "task_graph_create")
         {
             var result = _taskGraphService.CreateTaskGraph(message.PlanId ?? string.Empty);
-            await _sendTaskGraphActionResultAsync(socket, sendLock, "create", result, cancellationToken);
+            await SendTaskGraphActionResultAsync(socket, sendLock, "create", result, cancellationToken);
             return true;
         }
 
         if (message.Type == "task_graph_update")
         {
             var result = _taskGraphService.UpdateTaskGraph(message.GraphId ?? string.Empty, message.RawJson);
-            await _sendTaskGraphActionResultAsync(socket, sendLock, "update", result, cancellationToken);
+            await SendTaskGraphActionResultAsync(socket, sendLock, "update", result, cancellationToken);
             return true;
         }
 
@@ -105,7 +52,7 @@ internal sealed class WsTaskCommandDispatcher
             var result = snapshot == null
                 ? new TaskGraphActionResult(false, "Task graph를 찾을 수 없습니다.", null)
                 : new TaskGraphActionResult(true, "Task graph를 불러왔습니다.", snapshot);
-            await _sendTaskGraphActionResultAsync(socket, sendLock, "get", result, cancellationToken);
+            await SendTaskGraphActionResultAsync(socket, sendLock, "get", result, cancellationToken);
             return true;
         }
 
@@ -114,9 +61,9 @@ internal sealed class WsTaskCommandDispatcher
             var sink = new TaskGraphEventSink
             {
                 OnTaskUpdatedAsync = (graphId, task, token) =>
-                    _sendTaskUpdatedAsync(socket, sendLock, graphId, task, token),
+                    SendTaskUpdatedAsync(socket, sendLock, graphId, task, token),
                 OnTaskLogAsync = (graphId, taskId, line, token) =>
-                    _sendTaskLogAsync(socket, sendLock, graphId, taskId, line, token)
+                    SendTaskLogAsync(socket, sendLock, graphId, taskId, line, token)
             };
             var result = await _taskGraphService.RunTaskGraphAsync(
                 message.GraphId ?? string.Empty,
@@ -124,7 +71,7 @@ internal sealed class WsTaskCommandDispatcher
                 sink,
                 cancellationToken
             );
-            await _sendTaskGraphActionResultAsync(socket, sendLock, "run", result, cancellationToken);
+            await SendTaskGraphActionResultAsync(socket, sendLock, "run", result, cancellationToken);
             return true;
         }
 
@@ -134,7 +81,7 @@ internal sealed class WsTaskCommandDispatcher
                 message.GraphId ?? string.Empty,
                 message.TaskId ?? string.Empty
             );
-            await _sendTaskGraphActionResultAsync(socket, sendLock, "cancel", result, cancellationToken);
+            await SendTaskGraphActionResultAsync(socket, sendLock, "cancel", result, cancellationToken);
             return true;
         }
 
@@ -143,9 +90,9 @@ internal sealed class WsTaskCommandDispatcher
             var sink = new TaskGraphEventSink
             {
                 OnTaskUpdatedAsync = (graphId, task, token) =>
-                    _sendTaskUpdatedAsync(socket, sendLock, graphId, task, token),
+                    SendTaskUpdatedAsync(socket, sendLock, graphId, task, token),
                 OnTaskLogAsync = (graphId, taskId, line, token) =>
-                    _sendTaskLogAsync(socket, sendLock, graphId, taskId, line, token)
+                    SendTaskLogAsync(socket, sendLock, graphId, taskId, line, token)
             };
             var result = await _taskGraphService.RetryTaskAsync(
                 message.GraphId ?? string.Empty,
@@ -154,7 +101,7 @@ internal sealed class WsTaskCommandDispatcher
                 sink,
                 cancellationToken
             );
-            await _sendTaskGraphActionResultAsync(socket, sendLock, "retry", result, cancellationToken);
+            await SendTaskGraphActionResultAsync(socket, sendLock, "retry", result, cancellationToken);
             return true;
         }
 
@@ -163,9 +110,9 @@ internal sealed class WsTaskCommandDispatcher
             var sink = new TaskGraphEventSink
             {
                 OnTaskUpdatedAsync = (graphId, task, token) =>
-                    _sendTaskUpdatedAsync(socket, sendLock, graphId, task, token),
+                    SendTaskUpdatedAsync(socket, sendLock, graphId, task, token),
                 OnTaskLogAsync = (graphId, taskId, line, token) =>
-                    _sendTaskLogAsync(socket, sendLock, graphId, taskId, line, token)
+                    SendTaskLogAsync(socket, sendLock, graphId, taskId, line, token)
             };
             var result = await _taskGraphService.ResumeTaskGraphAsync(
                 message.GraphId ?? string.Empty,
@@ -173,7 +120,7 @@ internal sealed class WsTaskCommandDispatcher
                 sink,
                 cancellationToken
             );
-            await _sendTaskGraphActionResultAsync(socket, sendLock, "resume", result, cancellationToken);
+            await SendTaskGraphActionResultAsync(socket, sendLock, "resume", result, cancellationToken);
             return true;
         }
 
@@ -186,11 +133,11 @@ internal sealed class WsTaskCommandDispatcher
             if (output == null)
             {
                 var fallback = new TaskGraphActionResult(false, "Task output을 찾을 수 없습니다.", null);
-                await _sendTaskGraphActionResultAsync(socket, sendLock, "output", fallback, cancellationToken);
+                await SendTaskGraphActionResultAsync(socket, sendLock, "output", fallback, cancellationToken);
             }
             else
             {
-                await _sendTaskOutputResultAsync(socket, sendLock, output, cancellationToken);
+                await SendTaskOutputResultAsync(socket, sendLock, output, cancellationToken);
             }
 
             return true;
@@ -198,4 +145,105 @@ internal sealed class WsTaskCommandDispatcher
 
         return false;
     }
+private static Task SendTaskGraphActionResultAsync(
+    WebSocket socket,
+    SemaphoreSlim sendLock,
+    string action,
+    TaskGraphActionResult result,
+    CancellationToken cancellationToken
+)
+{
+    var payload = TaskGraphJson.Serialize(result);
+    return WebSocketGateway.SendTextAsync(
+        socket,
+        sendLock,
+        "{"
+        + "\"type\":\"task_graph_result\","
+        + $"\"action\":\"{WebSocketGateway.EscapeJson(action)}\","
+        + $"\"payload\":{payload}"
+        + "}",
+        cancellationToken
+    );
+}
+
+private static Task SendTaskGraphListResultAsync(
+    WebSocket socket,
+    SemaphoreSlim sendLock,
+    TaskGraphListResult result,
+    CancellationToken cancellationToken
+)
+{
+    var payload = TaskGraphJson.Serialize(result);
+    return WebSocketGateway.SendTextAsync(
+        socket,
+        sendLock,
+        "{"
+        + "\"type\":\"task_graph_list_result\","
+        + $"\"payload\":{payload}"
+        + "}",
+        cancellationToken
+    );
+}
+
+private static Task SendTaskOutputResultAsync(
+    WebSocket socket,
+    SemaphoreSlim sendLock,
+    TaskOutputResult result,
+    CancellationToken cancellationToken
+)
+{
+    var payload = TaskGraphJson.Serialize(result);
+    return WebSocketGateway.SendTextAsync(
+        socket,
+        sendLock,
+        "{"
+        + "\"type\":\"task_output_result\","
+        + $"\"payload\":{payload}"
+        + "}",
+        cancellationToken
+    );
+}
+
+private static Task SendTaskUpdatedAsync(
+    WebSocket socket,
+    SemaphoreSlim sendLock,
+    string graphId,
+    TaskNode task,
+    CancellationToken cancellationToken
+)
+{
+    return WebSocketGateway.SendTextAsync(
+        socket,
+        sendLock,
+        "{"
+        + "\"type\":\"task_updated\","
+        + $"\"graphId\":\"{WebSocketGateway.EscapeJson(graphId)}\","
+        + $"\"task\":{TaskGraphJson.Serialize(task)}"
+        + "}",
+        cancellationToken
+    );
+}
+
+private static Task SendTaskLogAsync(
+    WebSocket socket,
+    SemaphoreSlim sendLock,
+    string graphId,
+    string taskId,
+    string line,
+    CancellationToken cancellationToken
+)
+{
+    return WebSocketGateway.SendTextAsync(
+        socket,
+        sendLock,
+        "{"
+        + "\"type\":\"task_log\","
+        + $"\"graphId\":\"{WebSocketGateway.EscapeJson(graphId)}\","
+        + $"\"taskId\":\"{WebSocketGateway.EscapeJson(taskId)}\","
+        + $"\"line\":\"{WebSocketGateway.EscapeJson(line)}\""
+        + "}",
+        cancellationToken
+    );
+}
+
 }

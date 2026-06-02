@@ -9,14 +9,12 @@ public sealed partial class CommandService
     {
         if (text.StartsWith("/notebook", StringComparison.OrdinalIgnoreCase))
         {
-            var tokens = text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            return await ExecuteNotebookSlashCommandAsync(tokens, "telegram", cancellationToken);
+            return await TryHandleViaSlashRouterAsync(text, "telegram", cancellationToken);
         }
 
         if (text.StartsWith("/handoff", StringComparison.OrdinalIgnoreCase))
         {
-            var tokens = text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            return await ExecuteHandoffSlashCommandAsync(tokens, "telegram", cancellationToken);
+            return await TryHandleViaSlashRouterAsync(text, "telegram", cancellationToken);
         }
 
         return null;

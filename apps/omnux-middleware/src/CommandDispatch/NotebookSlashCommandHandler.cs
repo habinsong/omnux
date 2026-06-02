@@ -5,7 +5,6 @@ namespace Omnux.Middleware;
 /// <summary>
 /// <c>/notebook</c> 텍스트 명령 핸들러. <see cref="INotebookApplicationService"/>와 순수 포맷터만
 /// 의존하며 CommandService private state에 의존하지 않는다(결함 4번 탈결합).
-/// 기존 <c>CommandService.ExecuteNotebookSlashCommandAsync</c> 동작을 동일하게 재현한다.
 /// </summary>
 internal sealed class NotebookSlashCommandHandler : ISlashCommandHandler
 {
@@ -74,7 +73,7 @@ internal sealed class NotebookSlashCommandHandler : ISlashCommandHandler
         return "알 수 없는 /notebook 명령입니다. /notebook help를 확인하세요.";
     }
 
-    private static string FormatNotebookActionResult(NotebookActionResult result)
+    internal static string FormatNotebookActionResult(NotebookActionResult result)
     {
         if (!result.Ok)
         {

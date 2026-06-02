@@ -84,6 +84,28 @@ public sealed class ConversationApplicationService : IConversationApplicationSer
     public ConversationThreadView? GetConversation(string conversationId)
         => _conversationStore.Get(conversationId);
 
+    public ConversationThreadView EnsureTelegramLinkedConversation()
+    {
+        var existing = _conversationStore
+            .List("chat", "single")
+            .FirstOrDefault(item => item.Tags.Any(tag =>
+                string.Equals(tag, "telegram-link", StringComparison.OrdinalIgnoreCase)));
+        if (existing != null)
+        {
+            return _conversationStore.Get(existing.Id)
+                   ?? _conversationStore.Ensure("chat", "single", existing.Id, null, null, null, null);
+        }
+
+        return _conversationStore.Create(
+            "chat",
+            "single",
+            "Telegram 연동 대화",
+            "Telegram",
+            "연동",
+            new[] { "telegram-link", "shared" }
+        );
+    }
+
     public bool DeleteConversation(string conversationId)
     {
         var targetConversationId = (conversationId ?? string.Empty).Trim();

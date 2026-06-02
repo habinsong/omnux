@@ -232,52 +232,30 @@ public sealed partial class WebSocketGateway
             SendWebFetchResultAsync
         );
         _routineCommandDispatcher = new WsRoutineCommandDispatcher(
-            routineService,
-            SendRoutinesAsync,
-            SendRoutineActionResultAsync,
-            SendRoutineProgressAsync,
-            SendRoutineRunDetailAsync
+            routineService
         );
         _logicCommandDispatcher = new WsLogicCommandDispatcher(
-            logicService,
-            SendLogicGraphListResultAsync,
-            SendLogicGraphActionResultAsync,
-            SendLogicPathBrowseResultAsync,
-            SendLogicRunActionResultAsync,
-            SendLogicRunEventAsync
+            logicService
         );
         _doctorCommandDispatcher = new WsDoctorCommandDispatcher(
-            doctorService,
-            SendDoctorResultAsync
+            doctorService
         );
         _planningCommandDispatcher = new WsPlanningCommandDispatcher(
-            planService,
-            SendPlanActionResultAsync,
-            SendPlanListResultAsync
+            planService
         );
         _taskCommandDispatcher = new WsTaskCommandDispatcher(
-            taskGraphService,
-            SendTaskGraphActionResultAsync,
-            SendTaskGraphListResultAsync,
-            SendTaskOutputResultAsync,
-            SendTaskUpdatedAsync,
-            SendTaskLogAsync
+            taskGraphService
         );
         _refactorCommandDispatcher = new WsRefactorCommandDispatcher(
-            refactorService,
-            SendRefactorActionResultAsync
+            refactorService
         );
         _contextCommandDispatcher = new WsContextCommandDispatcher(
             contextService,
             conversationService,
-            new SkillFileService(_paths),
-            SendProjectContextAsync,
-            SendSkillsListAsync,
-            SendCommandsListAsync
+            new SkillFileService(_paths)
         );
         _notebookCommandDispatcher = new WsNotebookCommandDispatcher(
-            notebookService,
-            SendNotebookResultAsync
+            notebookService
         );
         _aiCommandDispatcher = new WsAiCommandDispatcher(
             chatService,
@@ -285,142 +263,20 @@ public sealed partial class WebSocketGateway
             settingsService,
             commandExecutionService,
             AllowCommand,
-            SendGuardedErrorAsync,
-            SendChatResultAsync,
-            SendChatStreamChunkAsync,
-            SendCodingResultAsync,
-            SendCodingExecutionResultAsync,
-            SendCodingProgressAsync,
+            _guardRetryTimelineStore,
             SendConversationsAsync,
             SendGroqModelsAsync,
             SendCopilotModelsAsync,
             (socket, sendLock, token, forceRefresh) => SendUsageStatsAsync(socket, sendLock, token, forceRefresh),
-            SendMetricsAsync,
-            result => BuildMultiChatResultJson(result)
+            SendMetricsAsync
         );
     }
 
-    private Task SendDoctorResultAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        string action,
-        DoctorReport? report,
-        bool found,
-        CancellationToken cancellationToken
-    )
-    {
-        var reportJson = report == null ? "null" : DoctorJson.Serialize(report);
-        return SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"doctor_result\","
-            + $"\"action\":\"{EscapeJson(action)}\","
-            + $"\"found\":{(found ? "true" : "false")},"
-            + $"\"report\":{reportJson}"
-            + "}",
-            cancellationToken
-        );
-    }
 
-    private Task SendPlanActionResultAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        string action,
-        PlanActionResult result,
-        CancellationToken cancellationToken
-    )
-    {
-        var payload = PlanJson.Serialize(result);
-        return SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"plan_result\","
-            + $"\"action\":\"{EscapeJson(action)}\","
-            + $"\"payload\":{payload}"
-            + "}",
-            cancellationToken
-        );
-    }
 
-    private Task SendPlanListResultAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        PlanListResult result,
-        CancellationToken cancellationToken
-    )
-    {
-        var payload = PlanJson.Serialize(result);
-        return SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"plan_list_result\","
-            + $"\"payload\":{payload}"
-            + "}",
-            cancellationToken
-        );
-    }
 
-    private Task SendTaskGraphActionResultAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        string action,
-        TaskGraphActionResult result,
-        CancellationToken cancellationToken
-    )
-    {
-        var payload = TaskGraphJson.Serialize(result);
-        return SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"task_graph_result\","
-            + $"\"action\":\"{EscapeJson(action)}\","
-            + $"\"payload\":{payload}"
-            + "}",
-            cancellationToken
-        );
-    }
 
-    private Task SendTaskGraphListResultAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        TaskGraphListResult result,
-        CancellationToken cancellationToken
-    )
-    {
-        var payload = TaskGraphJson.Serialize(result);
-        return SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"task_graph_list_result\","
-            + $"\"payload\":{payload}"
-            + "}",
-            cancellationToken
-        );
-    }
 
-    private Task SendTaskOutputResultAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        TaskOutputResult result,
-        CancellationToken cancellationToken
-    )
-    {
-        var payload = TaskGraphJson.Serialize(result);
-        return SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"task_output_result\","
-            + $"\"payload\":{payload}"
-            + "}",
-            cancellationToken
-        );
-    }
 
     private Task SendRoutingPolicyResultAsync(
         WebSocket socket,
@@ -443,104 +299,10 @@ public sealed partial class WebSocketGateway
         );
     }
 
-    private Task SendRefactorActionResultAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        string action,
-        RefactorActionResult result,
-        CancellationToken cancellationToken
-    )
-    {
-        var payload = RefactorJson.Serialize(result);
-        return SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"refactor_result\","
-            + $"\"action\":\"{EscapeJson(action)}\","
-            + $"\"payload\":{payload}"
-            + "}",
-            cancellationToken
-        );
-    }
 
-    private Task SendProjectContextAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        ProjectContextSnapshot snapshot,
-        CancellationToken cancellationToken
-    )
-    {
-        var payload = ContextJson.Serialize(snapshot);
-        return SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"context_scan_result\","
-            + $"\"payload\":{payload}"
-            + "}",
-            cancellationToken
-        );
-    }
 
-    private Task SendSkillsListAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        SkillManifestListResult result,
-        CancellationToken cancellationToken
-    )
-    {
-        var payload = ContextJson.Serialize(result);
-        return SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"skills_list_result\","
-            + $"\"payload\":{payload}"
-            + "}",
-            cancellationToken
-        );
-    }
 
-    private Task SendCommandsListAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        CommandTemplateListResult result,
-        CancellationToken cancellationToken
-    )
-    {
-        var payload = ContextJson.Serialize(result);
-        return SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"commands_list_result\","
-            + $"\"payload\":{payload}"
-            + "}",
-            cancellationToken
-        );
-    }
 
-    private Task SendNotebookResultAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        string action,
-        NotebookActionResult result,
-        CancellationToken cancellationToken
-    )
-    {
-        var payload = NotebookJson.Serialize(result);
-        return SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"notebook_result\","
-            + $"\"action\":\"{EscapeJson(action)}\","
-            + $"\"payload\":{payload}"
-            + "}",
-            cancellationToken
-        );
-    }
 
     private Task SendRoutingDecisionAsync(
         WebSocket socket,
@@ -561,47 +323,7 @@ public sealed partial class WebSocketGateway
         );
     }
 
-    private Task SendTaskUpdatedAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        string graphId,
-        TaskNode task,
-        CancellationToken cancellationToken
-    )
-    {
-        return SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"task_updated\","
-            + $"\"graphId\":\"{EscapeJson(graphId)}\","
-            + $"\"task\":{TaskGraphJson.Serialize(task)}"
-            + "}",
-            cancellationToken
-        );
-    }
 
-    private Task SendTaskLogAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        string graphId,
-        string taskId,
-        string line,
-        CancellationToken cancellationToken
-    )
-    {
-        return SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"task_log\","
-            + $"\"graphId\":\"{EscapeJson(graphId)}\","
-            + $"\"taskId\":\"{EscapeJson(taskId)}\","
-            + $"\"line\":\"{EscapeJson(line)}\""
-            + "}",
-            cancellationToken
-        );
-    }
 
     private async Task SendSettingsStateAsync(
         WebSocket socket,
@@ -1526,7 +1248,7 @@ public sealed partial class WebSocketGateway
         await SendTextAsync(socket, sendLock, builder.ToString(), cancellationToken);
     }
 
-    private static string NormalizeWebSearchGuardCategory(SearchAnswerGuardFailure? failure)
+    internal static string NormalizeWebSearchGuardCategory(SearchAnswerGuardFailure? failure)
     {
         if (failure is null)
         {
@@ -1541,7 +1263,7 @@ public sealed partial class WebSocketGateway
         };
     }
 
-    private static string NormalizeWebSearchGuardReason(SearchAnswerGuardFailure? failure)
+    internal static string NormalizeWebSearchGuardReason(SearchAnswerGuardFailure? failure)
     {
         if (failure is null)
         {
@@ -1557,7 +1279,7 @@ public sealed partial class WebSocketGateway
         return Regex.Replace(normalized, @"\s+", "_");
     }
 
-    private static string NormalizeWebSearchGuardDetail(SearchAnswerGuardFailure? failure)
+    internal static string NormalizeWebSearchGuardDetail(SearchAnswerGuardFailure? failure)
     {
         if (failure is null)
         {
@@ -1578,7 +1300,7 @@ public sealed partial class WebSocketGateway
             : normalized[..180] + "...";
     }
 
-    private static string NormalizeWebSearchRetryStopReason(string? stopReason)
+    internal static string NormalizeWebSearchRetryStopReason(string? stopReason)
     {
         var normalized = (stopReason ?? string.Empty).Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(normalized))
@@ -1622,7 +1344,7 @@ public sealed partial class WebSocketGateway
         builder.Append($",\"retryReason\":\"{EscapeJson(retryDirective.RetryReason)}\"");
     }
 
-    private static (bool RetryRequired, string RetryAction, string RetryScope, string RetryReason) ResolveRetryDirective(
+    internal static (bool RetryRequired, string RetryAction, string RetryScope, string RetryReason) ResolveRetryDirective(
         SearchAnswerGuardFailure? failure
     )
     {
@@ -1653,7 +1375,7 @@ public sealed partial class WebSocketGateway
         );
     }
 
-    private static string NormalizeWebSearchCitationId(string? citationId, int fallbackIndex)
+    internal static string NormalizeWebSearchCitationId(string? citationId, int fallbackIndex)
     {
         var normalized = (citationId ?? string.Empty).Trim().ToLowerInvariant();
         if (normalized.Length == 0)
@@ -1664,7 +1386,7 @@ public sealed partial class WebSocketGateway
         return Regex.Replace(normalized, @"\s+", "_");
     }
 
-    private static SearchAnswerGuardFailure? TryParseGuardFailureFromMessage(string? message)
+    internal static SearchAnswerGuardFailure? TryParseGuardFailureFromMessage(string? message)
     {
         var normalized = (message ?? string.Empty).Trim();
         if (string.IsNullOrWhiteSpace(normalized))
@@ -1780,7 +1502,7 @@ public sealed partial class WebSocketGateway
         );
     }
 
-    private static string NormalizeGuardFailureToken(string? value, string fallback)
+    internal static string NormalizeGuardFailureToken(string? value, string fallback)
     {
         var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
         if (normalized.Length == 0)
@@ -1801,33 +1523,6 @@ public sealed partial class WebSocketGateway
         };
     }
 
-    private async Task SendGuardedErrorAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        string message,
-        CancellationToken cancellationToken,
-        SearchAnswerGuardFailure? guardFailure = null
-    )
-    {
-        var effectiveGuardFailure = guardFailure ?? TryParseGuardFailureFromMessage(message);
-        var retryDirective = ResolveRetryDirective(effectiveGuardFailure);
-        await SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"error\","
-            + $"\"message\":\"{EscapeJson(message)}\","
-            + $"\"guardCategory\":\"{EscapeJson(NormalizeWebSearchGuardCategory(effectiveGuardFailure))}\","
-            + $"\"guardReason\":\"{EscapeJson(NormalizeWebSearchGuardReason(effectiveGuardFailure))}\","
-            + $"\"guardDetail\":\"{EscapeJson(NormalizeWebSearchGuardDetail(effectiveGuardFailure))}\","
-            + $"\"retryRequired\":{(retryDirective.RetryRequired ? "true" : "false")},"
-            + $"\"retryAction\":\"{EscapeJson(retryDirective.RetryAction)}\","
-            + $"\"retryScope\":\"{EscapeJson(retryDirective.RetryScope)}\","
-            + $"\"retryReason\":\"{EscapeJson(retryDirective.RetryReason)}\""
-            + "}",
-            cancellationToken
-        );
-    }
 
     private async Task SendWebFetchResultAsync(
         WebSocket socket,
@@ -2754,299 +2449,31 @@ public sealed partial class WebSocketGateway
         builder.Append("}");
     }
 
-    private static string ToJsonLongOrNull(long? value)
+    internal static string ToJsonLongOrNull(long? value)
     {
         return value.HasValue
             ? value.Value.ToString(CultureInfo.InvariantCulture)
             : "null";
     }
 
-    private static string ToJsonStringOrNull(string? value)
+    internal static string ToJsonStringOrNull(string? value)
     {
         return string.IsNullOrWhiteSpace(value)
             ? "null"
             : $"\"{EscapeJson(value)}\"";
     }
 
-    private async Task SendRoutinesAsync(WebSocket socket, SemaphoreSlim sendLock, CancellationToken cancellationToken)
-    {
-        var items = _routineService.ListRoutines();
-        var builder = new StringBuilder();
-        builder.Append("{\"type\":\"routines_state\",\"items\":[");
-        for (var i = 0; i < items.Count; i++)
-        {
-            if (i > 0)
-            {
-                builder.Append(",");
-            }
 
-            builder.Append(BuildRoutineJson(items[i]));
-        }
 
-        builder.Append("]}");
-        await SendTextAsync(socket, sendLock, builder.ToString(), cancellationToken);
-    }
 
-    private async Task SendRoutineActionResultAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        RoutineActionResult result,
-        CancellationToken cancellationToken
-    )
-    {
-        await SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"routine_result\","
-            + $"\"ok\":{(result.Ok ? "true" : "false")},"
-            + $"\"message\":\"{EscapeJson(result.Message)}\","
-            + $"\"routine\":{(result.Routine == null ? "null" : BuildRoutineJson(result.Routine))}"
-            + "}",
-            cancellationToken
-        );
-    }
 
-    private async Task SendRoutineProgressAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        RoutineProgressUpdate update,
-        CancellationToken cancellationToken
-    )
-    {
-        try
-        {
-            await SendTextAsync(
-                socket,
-                sendLock,
-                "{"
-                + "\"type\":\"routine_progress\","
-                + $"\"operation\":\"{EscapeJson(update.Operation)}\","
-                + $"\"message\":\"{EscapeJson(update.Message)}\","
-                + $"\"percent\":{Math.Max(0, Math.Min(100, update.Percent))},"
-                + $"\"done\":{(update.Done ? "true" : "false")},"
-                + $"\"ok\":{(update.Ok.HasValue ? (update.Ok.Value ? "true" : "false") : "null")},"
-                + $"\"stageKey\":\"{EscapeJson(update.StageKey)}\","
-                + $"\"stageTitle\":\"{EscapeJson(update.StageTitle)}\","
-                + $"\"stageDetail\":\"{EscapeJson(update.StageDetail)}\","
-                + $"\"stageIndex\":{Math.Max(0, update.StageIndex)},"
-                + $"\"stageTotal\":{Math.Max(0, update.StageTotal)}"
-                + "}",
-                cancellationToken
-            );
-        }
-        catch
-        {
-        }
-    }
 
-    private Task SendLogicGraphListResultAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        LogicGraphListResult result,
-        CancellationToken cancellationToken
-    )
-    {
-        return SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"logic_graph_list_result\","
-            + $"\"items\":{LogicGraphJson.Serialize(result.Items)}"
-            + "}",
-            cancellationToken
-        );
-    }
 
-    private Task SendLogicGraphActionResultAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        LogicGraphActionResult result,
-        CancellationToken cancellationToken
-    )
-    {
-        return SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"logic_graph_result\","
-            + $"\"ok\":{(result.Ok ? "true" : "false")},"
-            + $"\"message\":\"{EscapeJson(result.Message)}\","
-            + $"\"summary\":{(result.Summary == null ? "null" : LogicGraphJson.Serialize(result.Summary))},"
-            + $"\"graph\":{(result.Graph == null ? "null" : LogicGraphJson.Serialize(result.Graph))}"
-            + "}",
-            cancellationToken
-        );
-    }
 
-    private Task SendLogicPathBrowseResultAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        LogicPathBrowseResult result,
-        CancellationToken cancellationToken
-    )
-    {
-        return SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"logic_path_list_result\","
-            + $"\"ok\":{(result.Ok ? "true" : "false")},"
-            + $"\"message\":\"{EscapeJson(result.Message)}\","
-            + $"\"scope\":\"{EscapeJson(result.Scope)}\","
-            + $"\"rootKey\":\"{EscapeJson(result.RootKey)}\","
-            + $"\"rootLabel\":\"{EscapeJson(result.RootLabel)}\","
-            + $"\"displayPath\":\"{EscapeJson(result.DisplayPath)}\","
-            + $"\"browsePath\":\"{EscapeJson(result.BrowsePath)}\","
-            + $"\"parentBrowsePath\":{ToJsonStringOrNull(result.ParentBrowsePath)},"
-            + $"\"directorySelectPath\":{ToJsonStringOrNull(result.DirectorySelectPath)},"
-            + $"\"roots\":{LogicGraphJson.Serialize(result.Roots)},"
-            + $"\"items\":{LogicGraphJson.Serialize(result.Items)}"
-            + "}",
-            cancellationToken
-        );
-    }
 
-    private Task SendLogicRunActionResultAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        LogicRunActionResult result,
-        CancellationToken cancellationToken
-    )
-    {
-        return SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"logic_graph_run_result\","
-            + $"\"ok\":{(result.Ok ? "true" : "false")},"
-            + $"\"message\":\"{EscapeJson(result.Message)}\","
-            + $"\"runId\":{ToJsonStringOrNull(result.RunId)},"
-            + $"\"snapshot\":{(result.Snapshot == null ? "null" : LogicGraphJson.Serialize(result.Snapshot))}"
-            + "}",
-            cancellationToken
-        );
-    }
 
-    private Task SendLogicRunEventAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        LogicRunEvent result,
-        CancellationToken cancellationToken
-    )
-    {
-        return SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"logic_graph_run_event\","
-            + $"\"runId\":\"{EscapeJson(result.RunId)}\","
-            + $"\"graphId\":\"{EscapeJson(result.GraphId)}\","
-            + $"\"kind\":\"{EscapeJson(result.Kind)}\","
-            + $"\"message\":\"{EscapeJson(result.Message)}\","
-            + $"\"nodeId\":{ToJsonStringOrNull(result.NodeId)},"
-            + $"\"snapshot\":{LogicGraphJson.Serialize(result.Snapshot)}"
-            + "}",
-            cancellationToken
-        );
-    }
 
-    private async Task SendChatResultAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        ConversationChatResult result,
-        CancellationToken cancellationToken
-    )
-    {
-        var retryDirective = ResolveRetryDirective(result.GuardFailure);
-        var normalizedRetryStopReason = NormalizeWebSearchRetryStopReason(result.RetryStopReason);
-        TrackGuardRetryTimelineEntry(
-            channel: "chat",
-            retryRequired: retryDirective.RetryRequired,
-            retryAttempt: result.RetryAttempt,
-            retryMaxAttempts: result.RetryMaxAttempts,
-            retryStopReason: normalizedRetryStopReason
-        );
-        var finalizeStopwatch = Stopwatch.StartNew();
-        await SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"llm_chat_result\","
-            + $"\"mode\":\"{EscapeJson(result.Mode)}\","
-            + $"\"conversationId\":\"{EscapeJson(result.ConversationId)}\","
-            + $"\"provider\":\"{EscapeJson(result.Provider)}\","
-            + $"\"model\":\"{EscapeJson(result.Model)}\","
-            + $"\"route\":\"{EscapeJson(result.Route)}\","
-            + $"\"requestId\":\"{EscapeJson(result.RequestId ?? string.Empty)}\","
-            + $"\"text\":\"{EscapeJson(result.Text)}\","
-            + $"\"conversation\":{BuildConversationJson(result.Conversation)},"
-            + $"\"autoMemoryNote\":{BuildMemoryNoteJson(result.AutoMemoryNote)},"
-            + $"\"citations\":{BuildSearchCitationArrayJson(result.Citations)},"
-            + $"\"citationMappings\":{BuildSearchCitationMappingArrayJson(result.CitationMappings)},"
-            + $"\"citationValidation\":{BuildSearchCitationValidationJson(result.CitationValidation)},"
-            + $"\"guardCategory\":\"{EscapeJson(NormalizeWebSearchGuardCategory(result.GuardFailure))}\","
-            + $"\"guardReason\":\"{EscapeJson(NormalizeWebSearchGuardReason(result.GuardFailure))}\","
-            + $"\"guardDetail\":\"{EscapeJson(NormalizeWebSearchGuardDetail(result.GuardFailure))}\","
-            + $"\"retryRequired\":{(retryDirective.RetryRequired ? "true" : "false")},"
-            + $"\"retryAction\":\"{EscapeJson(retryDirective.RetryAction)}\","
-            + $"\"retryScope\":\"{EscapeJson(retryDirective.RetryScope)}\","
-            + $"\"retryReason\":\"{EscapeJson(retryDirective.RetryReason)}\","
-            + $"\"retryAttempt\":{Math.Max(0, result.RetryAttempt)},"
-            + $"\"retryMaxAttempts\":{Math.Max(0, result.RetryMaxAttempts)},"
-            + $"\"retryStopReason\":\"{EscapeJson(normalizedRetryStopReason)}\","
-            + $"\"latency\":{BuildChatLatencyJson(result.Latency)}"
-            + "}",
-            cancellationToken
-        );
-        if (result.Latency != null
-            && (result.Route.Equals("gemini-web-single", StringComparison.OrdinalIgnoreCase)
-                || result.Route.Equals("gemini-url-single", StringComparison.OrdinalIgnoreCase)))
-        {
-            _auditLogger.Log(
-                "web",
-                "chat_single:web",
-                "ok",
-                $"decision_ms={result.Latency.DecisionMs.ToString(CultureInfo.InvariantCulture)} "
-                + $"prompt_build_ms={result.Latency.PromptBuildMs.ToString(CultureInfo.InvariantCulture)} "
-                + $"first_chunk_ms={result.Latency.FirstChunkMs.ToString(CultureInfo.InvariantCulture)} "
-                + $"full_response_ms={result.Latency.FullResponseMs.ToString(CultureInfo.InvariantCulture)} "
-                + $"sanitize_ms={result.Latency.SanitizeMs.ToString(CultureInfo.InvariantCulture)} "
-                + $"ws_finalize_ms={Math.Max(0L, finalizeStopwatch.ElapsedMilliseconds).ToString(CultureInfo.InvariantCulture)} "
-                + $"model={NormalizeAuditToken(result.Model, "-")} "
-                + $"route={NormalizeAuditToken(result.Route, "-")} "
-                + $"decision_path={NormalizeAuditToken(result.Latency.DecisionPath, "-")}"
-            );
-        }
-    }
-
-    private async Task SendChatStreamChunkAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        ChatStreamUpdate update,
-        CancellationToken cancellationToken
-    )
-    {
-        await SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"llm_chat_stream_chunk\","
-            + $"\"scope\":\"{EscapeJson(update.Scope)}\","
-            + $"\"mode\":\"{EscapeJson(update.Mode)}\","
-            + $"\"provider\":\"{EscapeJson(update.Provider)}\","
-            + $"\"model\":\"{EscapeJson(update.Model)}\","
-            + $"\"route\":\"{EscapeJson(update.Route)}\","
-            + $"\"requestId\":\"{EscapeJson(update.RequestId ?? string.Empty)}\","
-            + $"\"delta\":\"{EscapeJson(update.Delta)}\","
-            + $"\"conversationId\":\"{EscapeJson(update.ConversationId)}\","
-            + $"\"chunkIndex\":{Math.Max(0, update.ChunkIndex)}"
-            + "}",
-            cancellationToken
-        );
-    }
-
-    private static string NormalizeAuditToken(string? token, string fallback)
+    internal static string NormalizeAuditToken(string? token, string fallback)
     {
         if (string.IsNullOrWhiteSpace(token))
         {
@@ -3057,156 +2484,9 @@ public sealed partial class WebSocketGateway
         return normalized.Length == 0 ? fallback : normalized.Replace(' ', '_');
     }
 
-    private async Task SendCodingResultAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        CodingRunResult result,
-        CancellationToken cancellationToken
-    )
-    {
-        var retryDirective = ResolveRetryDirective(result.GuardFailure);
-        var normalizedRetryStopReason = NormalizeWebSearchRetryStopReason(result.RetryStopReason);
-        TrackGuardRetryTimelineEntry(
-            channel: "coding",
-            retryRequired: retryDirective.RetryRequired,
-            retryAttempt: result.RetryAttempt,
-            retryMaxAttempts: result.RetryMaxAttempts,
-            retryStopReason: normalizedRetryStopReason
-        );
-        await SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"coding_result\","
-            + $"\"mode\":\"{EscapeJson(result.Mode)}\","
-            + $"\"conversationId\":\"{EscapeJson(result.ConversationId)}\","
-            + $"\"provider\":\"{EscapeJson(result.Provider)}\","
-            + $"\"model\":\"{EscapeJson(result.Model)}\","
-            + $"\"language\":\"{EscapeJson(result.Language)}\","
-            + "\"code\":\"\","
-            + $"\"summary\":\"{EscapeJson(result.Summary)}\","
-            + $"\"commonSummary\":\"{EscapeJson(result.CommonSummary)}\","
-            + $"\"commonPoints\":\"{EscapeJson(result.CommonPoints)}\","
-            + $"\"differences\":\"{EscapeJson(result.Differences)}\","
-            + $"\"recommendation\":\"{EscapeJson(result.Recommendation)}\","
-            + $"\"execution\":{BuildExecutionJson(result.Execution)},"
-            + $"\"workers\":{BuildCodingWorkersJson(result.Workers)},"
-            + $"\"changedFiles\":{BuildStringArrayJson(result.ChangedFiles)},"
-            + $"\"evidence\":{BuildCodingEvidenceJson(result.Evidence)},"
-            + $"\"conversation\":{BuildConversationJson(result.Conversation)},"
-            + $"\"autoMemoryNote\":{BuildMemoryNoteJson(result.AutoMemoryNote)},"
-            + $"\"citations\":{BuildSearchCitationArrayJson(result.Citations)},"
-            + $"\"citationMappings\":{BuildSearchCitationMappingArrayJson(result.CitationMappings)},"
-            + $"\"citationValidation\":{BuildSearchCitationValidationJson(result.CitationValidation)},"
-            + $"\"guardCategory\":\"{EscapeJson(NormalizeWebSearchGuardCategory(result.GuardFailure))}\","
-            + $"\"guardReason\":\"{EscapeJson(NormalizeWebSearchGuardReason(result.GuardFailure))}\","
-            + $"\"guardDetail\":\"{EscapeJson(NormalizeWebSearchGuardDetail(result.GuardFailure))}\","
-            + $"\"retryRequired\":{(retryDirective.RetryRequired ? "true" : "false")},"
-            + $"\"retryAction\":\"{EscapeJson(retryDirective.RetryAction)}\","
-            + $"\"retryScope\":\"{EscapeJson(retryDirective.RetryScope)}\","
-            + $"\"retryReason\":\"{EscapeJson(retryDirective.RetryReason)}\","
-            + $"\"retryAttempt\":{Math.Max(0, result.RetryAttempt)},"
-            + $"\"retryMaxAttempts\":{Math.Max(0, result.RetryMaxAttempts)},"
-            + $"\"retryStopReason\":\"{EscapeJson(normalizedRetryStopReason)}\""
-            + "}",
-            cancellationToken
-        );
-    }
 
-    private async Task SendCodingExecutionResultAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        CodingResultExecutionResult result,
-        CancellationToken cancellationToken
-    )
-    {
-        await SendTextAsync(
-            socket,
-            sendLock,
-            BuildCodingExecutionResultJson(result),
-            cancellationToken
-        );
-    }
 
-    private async Task SendCodingProgressAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        string scope,
-        string mode,
-        CodingProgressUpdate update,
-        CancellationToken cancellationToken
-    )
-    {
-        try
-        {
-            var effectiveMode = string.IsNullOrWhiteSpace(update.Mode) ? mode : update.Mode;
-            await SendTextAsync(
-                socket,
-                sendLock,
-                "{"
-                + "\"type\":\"coding_progress\","
-                + $"\"scope\":\"{EscapeJson(scope)}\","
-                + $"\"mode\":\"{EscapeJson(effectiveMode)}\","
-                + $"\"provider\":\"{EscapeJson(update.Provider)}\","
-                + $"\"model\":\"{EscapeJson(update.Model)}\","
-                + $"\"phase\":\"{EscapeJson(update.Phase)}\","
-                + $"\"message\":\"{EscapeJson(update.Message)}\","
-                + $"\"iteration\":{update.Iteration},"
-                + $"\"maxIterations\":{update.MaxIterations},"
-                + $"\"percent\":{update.Percent},"
-                + $"\"done\":{(update.Done ? "true" : "false")},"
-                + $"\"stageKey\":\"{EscapeJson(update.StageKey)}\","
-                + $"\"stageTitle\":\"{EscapeJson(update.StageTitle)}\","
-                + $"\"stageDetail\":\"{EscapeJson(update.StageDetail)}\","
-                + $"\"stageIndex\":{update.StageIndex},"
-                + $"\"stageTotal\":{update.StageTotal}"
-                + "}",
-                cancellationToken
-            );
-        }
-        catch
-        {
-        }
-    }
 
-    private async Task SendRoutineRunDetailAsync(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        RoutineRunDetailResult result,
-        CancellationToken cancellationToken
-    )
-    {
-        await SendTextAsync(
-            socket,
-            sendLock,
-            "{"
-            + "\"type\":\"routine_run_detail\","
-            + $"\"ok\":{(result.Ok ? "true" : "false")},"
-            + $"\"routineId\":\"{EscapeJson(result.RoutineId)}\","
-            + $"\"ts\":{result.Ts.ToString(CultureInfo.InvariantCulture)},"
-            + $"\"runAtLocal\":\"{EscapeJson(DateTimeOffset.FromUnixTimeMilliseconds(result.Ts).ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"))}\","
-            + $"\"title\":\"{EscapeJson(result.Title)}\","
-            + $"\"status\":\"{EscapeJson(result.Status)}\","
-            + $"\"source\":\"{EscapeJson(result.Source)}\","
-            + $"\"attemptCount\":{result.AttemptCount.ToString(CultureInfo.InvariantCulture)},"
-            + $"\"telegramStatus\":{ToJsonStringOrNull(result.TelegramStatus)},"
-            + $"\"artifactPath\":{ToJsonStringOrNull(result.ArtifactPath)},"
-            + $"\"agentSessionId\":{ToJsonStringOrNull(result.AgentSessionId)},"
-            + $"\"agentRunId\":{ToJsonStringOrNull(result.AgentRunId)},"
-            + $"\"agentProvider\":{ToJsonStringOrNull(result.AgentProvider)},"
-            + $"\"agentModel\":{ToJsonStringOrNull(result.AgentModel)},"
-            + $"\"toolProfile\":{ToJsonStringOrNull(result.ToolProfile)},"
-            + $"\"startUrl\":{ToJsonStringOrNull(result.StartUrl)},"
-            + $"\"finalUrl\":{ToJsonStringOrNull(result.FinalUrl)},"
-            + $"\"pageTitle\":{ToJsonStringOrNull(result.PageTitle)},"
-            + $"\"screenshotPath\":{ToJsonStringOrNull(result.ScreenshotPath)},"
-            + $"\"downloadPaths\":{BuildStringArrayJson(result.DownloadPaths)},"
-            + $"\"error\":{ToJsonStringOrNull(result.Error)},"
-            + $"\"content\":\"{EscapeJson(result.Content)}\""
-            + "}",
-            cancellationToken
-        );
-    }
 
     private async Task SendMetricsAsync(WebSocket socket, SemaphoreSlim sendLock, string type, string metricsRaw, CancellationToken cancellationToken)
     {
