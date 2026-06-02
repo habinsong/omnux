@@ -16,6 +16,9 @@ public sealed partial class CommandService
             new TaskSlashCommandHandler(_taskGraphAppService),
             new MemorySlashCommandHandler(_memoryAppService),
             new ChannelSettingsSlashCommandHandler(_llmSettingsAppService),
+            new LlmControlSlashCommandHandler(
+                new LlmControlApplicationService(_groqModelCatalog, _copilotWrapper, _llmRouter, _llmSettingsAppService)
+            ),
         });
 
     private Task<string?> TryHandleViaSlashRouterAsync(
