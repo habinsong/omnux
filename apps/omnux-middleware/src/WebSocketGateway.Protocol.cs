@@ -384,6 +384,8 @@ public sealed partial class WebSocketGateway
         public string? RefactorEditsJson { get; set; }
         public string? ContentBase64 { get; set; }
         public string? FileName { get; set; }
+        public string? GistId { get; set; }
+        public string? GitHubToken { get; set; }
         public int? AuthTtlHours { get; set; }
         public int? TimeoutSeconds { get; set; }
         public int? RunTimeoutSeconds { get; set; }
@@ -414,6 +416,7 @@ public sealed partial class WebSocketGateway
         public IReadOnlyList<string> Tags { get; set; } = Array.Empty<string>();
         public IReadOnlyList<string> Constraints { get; set; } = Array.Empty<string>();
         public IReadOnlyList<string> Kinds { get; set; } = Array.Empty<string>();
+        public IReadOnlyList<string> IncludeScopes { get; set; } = Array.Empty<string>();
         public IReadOnlyList<int> Weekdays { get; set; } = Array.Empty<int>();
         public IReadOnlyList<string> MemoryNotes { get; set; } = Array.Empty<string>();
         public IReadOnlyList<InputAttachment> Attachments { get; set; } = Array.Empty<InputAttachment>();

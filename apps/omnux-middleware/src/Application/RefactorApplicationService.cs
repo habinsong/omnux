@@ -257,6 +257,18 @@ public sealed class RefactorApplicationService : IRefactorApplicationService
             var issues = new List<AnchorEditIssue>();
             foreach (var file in rollbackRecord.Files)
             {
+                var appliedExists = file.AppliedExists != false;
+                if (!appliedExists)
+                {
+                    if (File.Exists(file.Path))
+                    {
+                        var unexpectedText = await File.ReadAllTextAsync(file.Path, cancellationToken);
+                        issues.Add(BuildRollbackIssue(file, "파일이 rollback snapshot의 삭제 적용 상태와 달라 복원을 차단했습니다.", unexpectedText));
+                    }
+
+                    continue;
+                }
+
                 if (!File.Exists(file.Path))
                 {
                     issues.Add(BuildRollbackIssue(file, "복원 대상 파일을 찾을 수 없습니다.", string.Empty));
@@ -293,6 +305,18 @@ public sealed class RefactorApplicationService : IRefactorApplicationService
 
             foreach (var file in rollbackRecord.Files)
             {
+                var originalExists = file.OriginalExists != false;
+                if (!originalExists)
+                {
+                    if (File.Exists(file.Path))
+                    {
+                        File.Delete(file.Path);
+                    }
+
+                    continue;
+                }
+
+                Directory.CreateDirectory(Path.GetDirectoryName(file.Path) ?? _paths.WorkspaceRootDir);
                 await File.WriteAllTextAsync(
                     file.Path,
                     file.OriginalText,
@@ -470,7 +494,7 @@ public sealed class RefactorApplicationService : IRefactorApplicationService
             0,
             0,
             reason,
-            new[] { file.AppliedHash },
+            file.AppliedExists == false ? Array.Empty<string>() : new[] { file.AppliedHash },
             string.IsNullOrEmpty(actualHash) ? Array.Empty<string>() : new[] { actualHash },
             string.IsNullOrEmpty(currentText) ? string.Empty : BuildSnippet(currentText)
         );

@@ -273,6 +273,118 @@ public sealed class AgentSpawnQueueStoreTests
     }
 
     [Fact]
+    public void BreakerBlockedCommandRunRecordsWorkspaceRollbackRecoveryAction()
+    {
+        var stateDir = Path.Combine(Path.GetTempPath(), "omnux-agent-spawn-breaker-rollback-tests", Guid.NewGuid().ToString("N"));
+        var now = DateTimeOffset.Parse("2026-06-02T00:00:00Z");
+        Directory.CreateDirectory(stateDir);
+
+        try
+        {
+            var conversationStore = new ConversationStore(Path.Combine(stateDir, "conversations.json"));
+            var child = conversationStore.Create(
+                scope: "chat",
+                mode: "single",
+                title: "blocked codex",
+                project: "acp",
+                category: "session",
+                tags: new[] { "sessions_spawn", "acp", "session" }
+            );
+            var runtimeSettings = new RuntimeSettings(new AppConfig());
+            var adapter = new AcpSessionBindingAdapter(stateDir, "codex", runtimeSettings);
+            var admissionLimiter = new AgentSpawnAdmissionLimiter(
+                () => now,
+                tokenCapacity: 20_000,
+                refillTokensPerMinute: 20_000,
+                maxConcurrentSpawns: 3,
+                elevatedMaxConcurrentSpawns: 1
+            );
+            var dailyCostLedger = new AgentSpawnDailyCostLedger(
+                Path.Combine(stateDir, "agent_spawn_daily_cost_ledger.json"),
+                dailyTokenCap: 20_000,
+                utcNow: () => now
+            );
+            var queueStore = new FileAgentSpawnQueueStore(Path.Combine(stateDir, "agent_spawn_queue.json"));
+            var activeRunStore = new FileAgentSpawnActiveRunStore(Path.Combine(stateDir, "agent_spawn_active.json"));
+            var activeId = activeRunStore.Start(new AgentSpawnActiveRunEntry
+            {
+                RunId = "active-codex-run",
+                ChildSessionKey = child.Id,
+                Runtime = "acp",
+                Mode = "session",
+                Backend = "codex_exec",
+                BackendSessionId = "codex-exec-active",
+                RunTimeoutSeconds = 900,
+                StartedUtc = now.AddMinutes(-10),
+                LastHeartbeatUtc = now.AddMinutes(-1),
+                State = "session_active"
+            });
+            activeRunStore.MarkWorkspaceRollback(
+                activeId,
+                "rollback_agent_123",
+                Path.Combine(stateDir, ".runtime", "refactor-preview", "rollback_agent_123.rollback.json"),
+                changedFiles: 2,
+                partial: false,
+                nowUtc: now
+            );
+
+            var breakerPath = Path.Combine(stateDir, "agent_spawn_breaker.json");
+            File.WriteAllText(
+                breakerPath,
+                """
+                {
+                  "Enabled": true,
+                  "Reason": "manual_pause",
+                  "Message": "paused for operator intervention"
+                }
+                """
+            );
+            var tool = new SessionSpawnTool(
+                conversationStore,
+                adapter,
+                admissionLimiter,
+                dailyCostLedger,
+                queueStore,
+                new AgentSpawnRunBreaker(breakerPath, utcNow: () => now),
+                activeRunStore,
+                utcNow: () => now
+            );
+
+            var status = tool.GetQueueStatus();
+
+            Assert.True(status.BreakerBlocked);
+            var blockedThread = conversationStore.Get(child.Id);
+            Assert.NotNull(blockedThread);
+            Assert.Contains(
+                blockedThread!.Messages,
+                message => message.Meta == "sessions_spawn_breaker_blocked"
+                           && message.Text.Contains("recoveryAction=restore_workspace_rollback_snapshot", StringComparison.Ordinal)
+                           && message.Text.Contains("workspaceRollbackId=rollback_agent_123", StringComparison.Ordinal)
+            );
+            Assert.Contains(
+                blockedThread.Messages,
+                message => message.Meta == "sessions_spawn_breaker_closed"
+                           && message.Text.Contains("workspace_rollback_id=rollback_agent_123", StringComparison.Ordinal)
+                           && message.Text.Contains("workspace_rollback_files=2", StringComparison.Ordinal)
+            );
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(stateDir))
+                {
+                    Directory.Delete(stateDir, recursive: true);
+                }
+            }
+            catch
+            {
+                // best effort cleanup
+            }
+        }
+    }
+
+    [Fact]
     public void Spawn_QueuesAdmissionRejectedWorkAndFlushesWhenCapacityReturns()
     {
         var stateDir = Path.Combine(Path.GetTempPath(), "omnux-agent-spawn-queue-tests", Guid.NewGuid().ToString("N"));
@@ -342,6 +454,66 @@ public sealed class AgentSpawnQueueStoreTests
             var thread = conversationStore.Get(queued.ChildSessionKey);
             Assert.NotNull(thread);
             Assert.Contains(thread!.Messages, message => message.Meta == "sessions_spawn_queue_delivered");
+        }
+        finally
+        {
+            try
+            {
+                if (Directory.Exists(stateDir))
+                {
+                    Directory.Delete(stateDir, recursive: true);
+                }
+            }
+            catch
+            {
+                // best effort cleanup
+            }
+        }
+    }
+
+    [Fact]
+    public void ClaimReadyEntries_PreventsDuplicateClaimsAcrossStoreInstancesUntilLeaseExpires()
+    {
+        var stateDir = Path.Combine(Path.GetTempPath(), "omnux-agent-spawn-queue-claim-tests", Guid.NewGuid().ToString("N"));
+        var now = DateTimeOffset.Parse("2026-06-02T00:00:00Z");
+        Directory.CreateDirectory(stateDir);
+
+        try
+        {
+            var queuePath = Path.Combine(stateDir, "agent_spawn_queue.json");
+            var firstStore = new FileAgentSpawnQueueStore(queuePath);
+            var secondStore = new FileAgentSpawnQueueStore(queuePath);
+            var id = firstStore.Enqueue(new AgentSpawnQueueEntry
+            {
+                RunId = "run",
+                ChildSessionKey = "child",
+                Task = "queued task",
+                Runtime = "subagent",
+                Mode = "run",
+                RunTimeoutSeconds = 120,
+                EnqueuedUtc = now,
+                NextAttemptUtc = now
+            });
+
+            var firstClaim = firstStore.ClaimReadyEntries(now, maxCount: 4, leaseOwner: "owner-a");
+            var duplicateClaim = secondStore.ClaimReadyEntries(now.AddSeconds(1), maxCount: 4, leaseOwner: "owner-b");
+            var readOnlyReadyWhileLeased = secondStore.GetReadyEntries(now.AddSeconds(1), maxCount: 4);
+            var leasedSnapshot = secondStore.GetSnapshot(now.AddSeconds(1));
+            var reclaimed = secondStore.ClaimReadyEntries(now.AddMinutes(6), maxCount: 4, leaseOwner: "owner-b");
+
+            var claimed = Assert.Single(firstClaim);
+            Assert.Equal(id, claimed.Id);
+            Assert.Equal("owner-a", claimed.LeaseOwner);
+            Assert.True(claimed.LeasedUntilUtc > now);
+            Assert.Empty(duplicateClaim);
+            Assert.Empty(readOnlyReadyWhileLeased);
+            Assert.Equal(1, leasedSnapshot.Total);
+            Assert.Equal(0, leasedSnapshot.Ready);
+            Assert.Null(leasedSnapshot.NextEntryId);
+            Assert.True(leasedSnapshot.NextAttemptUtc >= now.AddMinutes(5));
+            var reclaimedEntry = Assert.Single(reclaimed);
+            Assert.Equal(id, reclaimedEntry.Id);
+            Assert.Equal("owner-b", reclaimedEntry.LeaseOwner);
         }
         finally
         {

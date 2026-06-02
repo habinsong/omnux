@@ -13,12 +13,28 @@ public sealed class ConversationApplicationService : IConversationApplicationSer
     private const string BackupManifestEntryName = "omnux-package.json";
     private const int ConversationSearchDefaultMaxResults = 12;
     private const int ConversationSearchMaxResults = 40;
+    private static readonly string[] BackupAllScopes =
+    {
+        "conversations",
+        "routines",
+        "routing-policy",
+        "memory-notes",
+        "plans",
+        "tasks",
+        "notebooks",
+        "skills/global",
+        "commands/global",
+        "skills/project",
+        "commands/project"
+    };
+    private static readonly HashSet<string> BackupAllScopeSet = BackupAllScopes.ToHashSet(StringComparer.Ordinal);
 
     private readonly IConversationStore _conversationStore;
     private readonly IMemoryNoteStore _memoryNoteStore;
     private readonly AuditLogger _auditLogger;
     private readonly PathOptions _paths;
     private readonly MemorySearchTool _memorySearchTool;
+    private readonly ISyncConfigurationStore _syncConfigStore;
 
     private readonly object _indexSyncLock = new();
     private DateTimeOffset _lastIndexSyncUtc = DateTimeOffset.MinValue;
@@ -36,7 +52,8 @@ public sealed class ConversationApplicationService : IConversationApplicationSer
         IMemoryNoteStore memoryNoteStore,
         AuditLogger auditLogger,
         PathOptions paths,
-        MemorySearchTool memorySearchTool
+        MemorySearchTool memorySearchTool,
+        ISyncConfigurationStore syncConfigStore
     )
     {
         _conversationStore = conversationStore;
@@ -44,6 +61,7 @@ public sealed class ConversationApplicationService : IConversationApplicationSer
         _auditLogger = auditLogger;
         _paths = paths;
         _memorySearchTool = memorySearchTool;
+        _syncConfigStore = syncConfigStore;
     }
 
     public void ConfigureClearActiveSkillDelegate(Func<string?, bool> @delegate)
@@ -198,7 +216,7 @@ public sealed class ConversationApplicationService : IConversationApplicationSer
         );
     }
 
-    public BackupExportResult ExportBackup()
+    public BackupExportResult ExportBackup(BackupExportOptions? options = null)
     {
         var included = new List<string>();
         var excluded = new List<string>
@@ -211,25 +229,64 @@ public sealed class ConversationApplicationService : IConversationApplicationSer
             "runtime logs",
             "outbox"
         };
+        IReadOnlyList<string> selectedScopes = BackupAllScopes;
 
         try
         {
+            selectedScopes = NormalizeBackupExportScopes(options?.IncludeScopes);
             using var memory = new MemoryStream();
             var fileSha256ByEntry = new Dictionary<string, string>(StringComparer.Ordinal);
             using (var archive = new ZipArchive(memory, ZipArchiveMode.Create, leaveOpen: true))
             {
-                AddFileToBackup(archive, _paths.ConversationStatePath, "conversations.json", included, fileSha256ByEntry);
-                AddFileToBackup(archive, _paths.RoutineStatePath, "routines.json", included, fileSha256ByEntry);
-                AddFileToBackup(archive, ResolveStateFilePath("routing-policy.json"), "routing-policy.json", included, fileSha256ByEntry);
-                AddDirectoryToBackup(archive, _paths.MemoryNotesRootDir, "memory-notes", included, fileSha256ByEntry);
-                AddDirectoryToBackup(archive, ResolveStateDirectoryPath("plans"), "plans", included, fileSha256ByEntry);
-                AddDirectoryToBackup(archive, ResolveStateDirectoryPath("tasks"), "tasks", included, fileSha256ByEntry);
-                AddDirectoryToBackup(archive, ResolveStateDirectoryPath("notebooks"), "notebooks", included, fileSha256ByEntry);
-                AddDirectoryToBackup(archive, ResolveStateDirectoryPath("skills"), "skills/global", included, fileSha256ByEntry);
-                AddDirectoryToBackup(archive, ResolveStateDirectoryPath("commands"), "commands/global", included, fileSha256ByEntry);
-                AddDirectoryToBackup(archive, Path.Combine(_paths.WorkspaceRootDir, ".omni", "skills"), "skills/project", included, fileSha256ByEntry);
-                AddDirectoryToBackup(archive, Path.Combine(_paths.WorkspaceRootDir, ".omni", "commands"), "commands/project", included, fileSha256ByEntry);
-                AddBackupManifest(archive, included, excluded, fileSha256ByEntry);
+                if (IsBackupScopeIncluded(selectedScopes, "conversations"))
+                {
+                    AddFileToBackup(archive, _paths.ConversationStatePath, "conversations.json", included, fileSha256ByEntry);
+                }
+                if (IsBackupScopeIncluded(selectedScopes, "routines"))
+                {
+                    AddFileToBackup(archive, _paths.RoutineStatePath, "routines.json", included, fileSha256ByEntry);
+                }
+                if (IsBackupScopeIncluded(selectedScopes, "routing-policy"))
+                {
+                    AddFileToBackup(archive, ResolveStateFilePath("routing-policy.json"), "routing-policy.json", included, fileSha256ByEntry);
+                }
+                if (IsBackupScopeIncluded(selectedScopes, "memory-notes"))
+                {
+                    AddDirectoryToBackup(archive, _paths.MemoryNotesRootDir, "memory-notes", included, fileSha256ByEntry);
+                }
+                if (IsBackupScopeIncluded(selectedScopes, "plans"))
+                {
+                    AddDirectoryToBackup(archive, ResolveStateDirectoryPath("plans"), "plans", included, fileSha256ByEntry);
+                }
+                if (IsBackupScopeIncluded(selectedScopes, "tasks"))
+                {
+                    AddDirectoryToBackup(archive, ResolveStateDirectoryPath("tasks"), "tasks", included, fileSha256ByEntry);
+                }
+                if (IsBackupScopeIncluded(selectedScopes, "notebooks"))
+                {
+                    AddDirectoryToBackup(archive, ResolveStateDirectoryPath("notebooks"), "notebooks", included, fileSha256ByEntry);
+                }
+                if (IsBackupScopeIncluded(selectedScopes, "skills/global"))
+                {
+                    AddDirectoryToBackup(archive, ResolveStateDirectoryPath("skills"), "skills/global", included, fileSha256ByEntry);
+                }
+                if (IsBackupScopeIncluded(selectedScopes, "commands/global"))
+                {
+                    AddDirectoryToBackup(archive, ResolveStateDirectoryPath("commands"), "commands/global", included, fileSha256ByEntry);
+                }
+                if (IsBackupScopeIncluded(selectedScopes, "skills/project"))
+                {
+                    AddDirectoryToBackup(archive, Path.Combine(_paths.WorkspaceRootDir, ".omni", "skills"), "skills/project", included, fileSha256ByEntry);
+                }
+                if (IsBackupScopeIncluded(selectedScopes, "commands/project"))
+                {
+                    AddDirectoryToBackup(archive, Path.Combine(_paths.WorkspaceRootDir, ".omni", "commands"), "commands/project", included, fileSha256ByEntry);
+                }
+                if (fileSha256ByEntry.Count == 0)
+                {
+                    throw new InvalidOperationException("선택된 백업 범위에 내보낼 파일이 없습니다.");
+                }
+                AddBackupManifest(archive, included, excluded, fileSha256ByEntry, selectedScopes);
             }
 
             var bytes = memory.ToArray();
@@ -240,12 +297,13 @@ public sealed class ConversationApplicationService : IConversationApplicationSer
                 Convert.ToBase64String(bytes),
                 bytes.Length,
                 included,
-                excluded
+                excluded,
+                Scope: selectedScopes
             );
         }
         catch (Exception ex)
         {
-            return new BackupExportResult(false, string.Empty, string.Empty, 0, included, excluded, ex.Message);
+            return new BackupExportResult(false, string.Empty, string.Empty, 0, included, excluded, ex.Message, selectedScopes);
         }
     }
 
@@ -264,6 +322,8 @@ public sealed class ConversationApplicationService : IConversationApplicationSer
                 .Select(item => item.Id)
                 .OrderBy(item => item, StringComparer.Ordinal)
                 .ToArray();
+            var fileConflicts = BuildBackupFileConflicts(bytes);
+            var manifest = ReadBackupManifest(bytes);
             var fileCount = CountBackupFiles(bytes);
             var previewId = Guid.NewGuid().ToString("N");
             _backupImportPreviews[previewId] = new BackupImportPackage(
@@ -279,13 +339,30 @@ public sealed class ConversationApplicationService : IConversationApplicationSer
                 string.IsNullOrWhiteSpace(fileName) ? "backup.zip" : Path.GetFileName(fileName.Trim()),
                 conversations.Count,
                 conflicts.Length,
+                fileConflicts.Length,
                 fileCount,
-                conflicts
+                conflicts,
+                fileConflicts,
+                ResolveBackupSyncMode(manifest),
+                ResolveBackupConflictPolicy(manifest)
             );
         }
         catch (Exception ex)
         {
-            return new BackupImportPreviewResult(false, string.Empty, fileName ?? string.Empty, 0, 0, 0, Array.Empty<string>(), ex.Message);
+            return new BackupImportPreviewResult(
+                false,
+                string.Empty,
+                fileName ?? string.Empty,
+                0,
+                0,
+                0,
+                0,
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                "unknown",
+                "unknown",
+                ex.Message
+            );
         }
     }
 
@@ -844,6 +921,27 @@ public sealed class ConversationApplicationService : IConversationApplicationSer
         return new BackupFileImportResult(imported, skipped);
     }
 
+    private string[] BuildBackupFileConflicts(byte[] zipBytes)
+    {
+        using var memory = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(memory, ZipArchiveMode.Read, leaveOpen: false);
+        return archive.Entries
+            .Where(entry => !string.IsNullOrWhiteSpace(entry.Name))
+            .Where(entry => !IsBackupMetadataEntry(entry.FullName))
+            .Where(entry => !entry.FullName.Equals("conversations.json", StringComparison.OrdinalIgnoreCase))
+            .Select(entry => new
+            {
+                EntryName = NormalizeBackupEntryName(entry.FullName),
+                TargetPath = ResolveBackupImportTargetPath(entry.FullName)
+            })
+            .Where(item => !string.IsNullOrWhiteSpace(item.TargetPath) && File.Exists(item.TargetPath))
+            .Select(item => item.EntryName)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(item => item, StringComparer.Ordinal)
+            .Take(50)
+            .ToArray();
+    }
+
     private string? ResolveBackupImportTargetPath(string entryName)
     {
         var normalized = entryName.Replace('\\', '/').Trim('/');
@@ -884,7 +982,8 @@ public sealed class ConversationApplicationService : IConversationApplicationSer
         ZipArchive archive,
         List<string> included,
         IReadOnlyList<string> excluded,
-        IReadOnlyDictionary<string, string> fileSha256ByEntry
+        IReadOnlyDictionary<string, string> fileSha256ByEntry,
+        IReadOnlyList<string> selectedScopes
     )
     {
         var manifest = new BackupPackageManifest(
@@ -893,30 +992,86 @@ public sealed class ConversationApplicationService : IConversationApplicationSer
             ExportedUtc: DateTimeOffset.UtcNow,
             StateRoot: "~/.omnux",
             WorkspaceRoot: "workspace/",
-            Includes: new[]
-            {
-                "conversations.json",
-                "routines.json",
-                "routing-policy.json",
-                "memory-notes/",
-                "plans/",
-                "tasks/",
-                "notebooks/",
-                "skills/global/",
-                "commands/global/",
-                "skills/project/",
-                "commands/project/"
-            },
+            Includes: BuildBackupManifestIncludes(selectedScopes),
             Excludes: excluded.ToArray(),
             FileSha256: fileSha256ByEntry
                 .OrderBy(item => item.Key, StringComparer.Ordinal)
-                .ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal)
+                .ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal),
+            SyncPolicy: BuildBackupSyncPolicy(selectedScopes)
         );
         var json = JsonSerializer.Serialize(manifest, OmniJsonContext.Default.BackupPackageManifest);
         var entry = archive.CreateEntry(BackupManifestEntryName, CompressionLevel.Fastest);
         using var writer = new StreamWriter(entry.Open(), Encoding.UTF8);
         writer.Write(json);
         included.Add(BackupManifestEntryName);
+    }
+
+    private static IReadOnlyList<string> NormalizeBackupExportScopes(IReadOnlyList<string>? includeScopes)
+    {
+        if (includeScopes == null || includeScopes.Count == 0)
+        {
+            return BackupAllScopes;
+        }
+
+        var normalized = new List<string>();
+        foreach (var raw in includeScopes)
+        {
+            var scope = NormalizeBackupScope(raw);
+            if (string.IsNullOrWhiteSpace(scope))
+            {
+                continue;
+            }
+
+            if (string.Equals(scope, "all", StringComparison.Ordinal))
+            {
+                return BackupAllScopes;
+            }
+
+            if (!BackupAllScopeSet.Contains(scope))
+            {
+                throw new InvalidOperationException($"알 수 없는 백업 내보내기 범위입니다: {raw}");
+            }
+
+            if (!normalized.Contains(scope, StringComparer.Ordinal))
+            {
+                normalized.Add(scope);
+            }
+        }
+
+        if (normalized.Count == 0)
+        {
+            throw new InvalidOperationException("백업 내보내기 범위를 하나 이상 선택하세요.");
+        }
+
+        return normalized.ToArray();
+    }
+
+    private static string NormalizeBackupScope(string? raw)
+    {
+        return (raw ?? string.Empty)
+            .Trim()
+            .Replace('_', '-')
+            .ToLowerInvariant();
+    }
+
+    private static bool IsBackupScopeIncluded(IReadOnlyList<string> selectedScopes, string scope)
+        => selectedScopes.Contains(scope, StringComparer.Ordinal);
+
+    private static IReadOnlyList<string> BuildBackupManifestIncludes(IReadOnlyList<string> selectedScopes)
+    {
+        var includes = new List<string>();
+        if (IsBackupScopeIncluded(selectedScopes, "conversations")) includes.Add("conversations.json");
+        if (IsBackupScopeIncluded(selectedScopes, "routines")) includes.Add("routines.json");
+        if (IsBackupScopeIncluded(selectedScopes, "routing-policy")) includes.Add("routing-policy.json");
+        if (IsBackupScopeIncluded(selectedScopes, "memory-notes")) includes.Add("memory-notes/");
+        if (IsBackupScopeIncluded(selectedScopes, "plans")) includes.Add("plans/");
+        if (IsBackupScopeIncluded(selectedScopes, "tasks")) includes.Add("tasks/");
+        if (IsBackupScopeIncluded(selectedScopes, "notebooks")) includes.Add("notebooks/");
+        if (IsBackupScopeIncluded(selectedScopes, "skills/global")) includes.Add("skills/global/");
+        if (IsBackupScopeIncluded(selectedScopes, "commands/global")) includes.Add("commands/global/");
+        if (IsBackupScopeIncluded(selectedScopes, "skills/project")) includes.Add("skills/project/");
+        if (IsBackupScopeIncluded(selectedScopes, "commands/project")) includes.Add("commands/project/");
+        return includes;
     }
 
     private void AddFileToBackup(
@@ -1061,6 +1216,42 @@ public sealed class ConversationApplicationService : IConversationApplicationSer
         return JsonSerializer.Deserialize(stream, OmniJsonContext.Default.BackupPackageManifest);
     }
 
+    private static BackupPackageManifest? ReadBackupManifest(byte[] zipBytes)
+    {
+        using var memory = new MemoryStream(zipBytes);
+        using var archive = new ZipArchive(memory, ZipArchiveMode.Read, leaveOpen: false);
+        return ReadBackupManifest(archive);
+    }
+
+    private BackupSyncPolicy BuildBackupSyncPolicy(IReadOnlyList<string> selectedScopes)
+    {
+        var config = _syncConfigStore.Read();
+        var cloudBridge = !string.IsNullOrWhiteSpace(config.GistId)
+            ? "enabled_via_github_gist"
+            : "not_enabled_until_explicit_sync_provider_is_configured";
+        return new BackupSyncPolicy(
+            Mode: "portable-package-only",
+            ConflictPolicy: "preview_conflicts_then_skip_without_overwrite_or_replace_with_overwrite",
+            Scope: selectedScopes.ToArray(),
+            CloudBridge: cloudBridge,
+            SecretsPolicy: "never_export_api_keys_telegram_tokens_auth_sessions_or_runtime_logs"
+        );
+    }
+
+    private static string ResolveBackupSyncMode(BackupPackageManifest? manifest)
+    {
+        return string.IsNullOrWhiteSpace(manifest?.SyncPolicy?.Mode)
+            ? "portable-package-only"
+            : manifest!.SyncPolicy!.Mode.Trim();
+    }
+
+    private static string ResolveBackupConflictPolicy(BackupPackageManifest? manifest)
+    {
+        return string.IsNullOrWhiteSpace(manifest?.SyncPolicy?.ConflictPolicy)
+            ? "preview_conflicts_then_skip_without_overwrite_or_replace_with_overwrite"
+            : manifest!.SyncPolicy!.ConflictPolicy.Trim();
+    }
+
     private static string CopyToAndComputeSha256Hex(Stream input, Stream output)
     {
         using var sha256 = SHA256.Create();
@@ -1194,5 +1385,14 @@ public sealed record BackupPackageManifest(
     string WorkspaceRoot,
     IReadOnlyList<string> Includes,
     IReadOnlyList<string> Excludes,
-    Dictionary<string, string> FileSha256
+    Dictionary<string, string> FileSha256,
+    BackupSyncPolicy? SyncPolicy
+);
+
+public sealed record BackupSyncPolicy(
+    string Mode,
+    string ConflictPolicy,
+    IReadOnlyList<string> Scope,
+    string CloudBridge,
+    string SecretsPolicy
 );

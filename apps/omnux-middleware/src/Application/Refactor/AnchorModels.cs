@@ -102,7 +102,9 @@ public sealed record RefactorRollbackFile(
     string OriginalText,
     string AppliedText,
     string OriginalHash,
-    string AppliedHash
+    string AppliedHash,
+    bool? OriginalExists = null,
+    bool? AppliedExists = null
 );
 
 public sealed record RefactorRollbackRecord(

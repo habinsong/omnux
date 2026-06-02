@@ -5,17 +5,30 @@ namespace Omnux.Middleware;
 
 public sealed partial class CommandService
 {
-    private Task<string> ReenterNaturalCommandAsync(
-        string command,
-        string source,
-        CancellationToken cancellationToken,
-        IReadOnlyList<InputAttachment>? attachments,
-        IReadOnlyList<string>? webUrls,
-        bool webSearchEnabled
-    )
+    private Task<string> ExecuteNaturalCommandDispatchAsync(NaturalCommandExecutionRequest request)
     {
-        // 자연어 결과가 다시 슬래시 명령으로 재진입하는 경계.
-        return ExecuteAsync(command, source, cancellationToken, attachments, webUrls, webSearchEnabled);
+        var command = request.Command.Trim();
+        if (string.IsNullOrWhiteSpace(command) || !command.StartsWith("/", StringComparison.Ordinal))
+        {
+            _auditLogger.Log(request.Source, "natural_command_dispatch", "fail", "invalid_slash_command");
+            return Task.FromResult("invalid natural command dispatch");
+        }
+
+        _auditLogger.Log(
+            request.Source,
+            "natural_command_dispatch",
+            "ok",
+            $"cmd={NormalizeAuditToken(command, "-")}"
+        );
+
+        return ExecuteNormalizedCommandRoutingAsync(
+            command,
+            request.Source,
+            request.CancellationToken,
+            InputAttachmentPolicy.Normalize(request.Attachments),
+            request.WebUrls,
+            request.WebSearchEnabled
+        );
     }
 
     private async Task<string> ExecuteNaturalCompoundCommandsAsync(
@@ -37,7 +50,14 @@ public sealed partial class CommandService
         var combined = new StringBuilder();
         foreach (var cmd in compoundCommands)
         {
-            var partial = await ReenterNaturalCommandAsync(cmd, source, cancellationToken, attachments, webUrls, webSearchEnabled);
+            var partial = await ExecuteNaturalCommandDispatchAsync(new NaturalCommandExecutionRequest(
+                cmd,
+                source,
+                cancellationToken,
+                attachments,
+                webUrls,
+                webSearchEnabled
+            ));
             if (combined.Length > 0)
             {
                 combined.Append("\n\n");
@@ -64,7 +84,14 @@ public sealed partial class CommandService
             "ok",
             $"cmd={NormalizeAuditToken(deterministicCommand, "-")}"
         );
-        return await ReenterNaturalCommandAsync(deterministicCommand, source, cancellationToken, attachments, webUrls, webSearchEnabled);
+        return await ExecuteNaturalCommandDispatchAsync(new NaturalCommandExecutionRequest(
+            deterministicCommand,
+            source,
+            cancellationToken,
+            attachments,
+            webUrls,
+            webSearchEnabled
+        ));
     }
 
     private async Task<string> ExecuteNaturalResolvedCommandAsync(
@@ -84,6 +111,22 @@ public sealed partial class CommandService
             "ok",
             $"cmd={NormalizeAuditToken(resolvedSlashCommand, "-")} confidence={interpretation.Confidence.ToString("0.00", CultureInfo.InvariantCulture)}"
         );
-        return await ReenterNaturalCommandAsync(resolvedSlashCommand, source, cancellationToken, attachments, webUrls, webSearchEnabled);
+        return await ExecuteNaturalCommandDispatchAsync(new NaturalCommandExecutionRequest(
+            resolvedSlashCommand,
+            source,
+            cancellationToken,
+            attachments,
+            webUrls,
+            webSearchEnabled
+        ));
     }
+
+    private sealed record NaturalCommandExecutionRequest(
+        string Command,
+        string Source,
+        CancellationToken CancellationToken,
+        IReadOnlyList<InputAttachment>? Attachments,
+        IReadOnlyList<string>? WebUrls,
+        bool WebSearchEnabled
+    );
 }

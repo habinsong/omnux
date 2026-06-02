@@ -126,6 +126,169 @@ public sealed class RefactorRollbackSnapshotTests
     }
 
     [Fact]
+    public async Task RestoreRollbackDeletesCreatedFileAndRestoresDeletedFile()
+    {
+        var root = CreateTempDirectory();
+        var workspace = Path.Combine(root, "workspace");
+        Directory.CreateDirectory(workspace);
+        var created = Path.Combine(workspace, "created.txt");
+        var deleted = Path.Combine(workspace, "deleted.txt");
+        await File.WriteAllTextAsync(created, "new file");
+        var store = BuildStore(root);
+        store.SaveRollback(new RefactorRollbackRecord(
+            "rollback_create_delete",
+            "preview_create_delete",
+            "2026-06-01T00:00:00.0000000Z",
+            new[]
+            {
+                new RefactorRollbackFile(
+                    created,
+                    string.Empty,
+                    "new file",
+                    string.Empty,
+                    DiffPreviewService.ComputeTextHash("new file"),
+                    OriginalExists: false,
+                    AppliedExists: true
+                ),
+                new RefactorRollbackFile(
+                    deleted,
+                    "old file",
+                    string.Empty,
+                    DiffPreviewService.ComputeTextHash("old file"),
+                    string.Empty,
+                    OriginalExists: true,
+                    AppliedExists: false
+                )
+            }
+        ));
+        var service = BuildService(root, store);
+
+        var result = await service.RestoreRollbackAsync("rollback_create_delete", CancellationToken.None);
+
+        Assert.True(result.Ok);
+        Assert.False(File.Exists(created));
+        Assert.Equal("old file", await File.ReadAllTextAsync(deleted));
+        Assert.Null(store.TryLoadRollback("rollback_create_delete"));
+    }
+
+    [Fact]
+    public async Task AgentSpawnWorkspaceRollbackPolicyCapturesModifiedCreatedAndDeletedFiles()
+    {
+        var root = CreateTempDirectory();
+        var workspace = Path.Combine(root, "workspace");
+        Directory.CreateDirectory(workspace);
+        var modified = Path.Combine(workspace, "modified.txt");
+        var deleted = Path.Combine(workspace, "deleted.txt");
+        var created = Path.Combine(workspace, "created.txt");
+        await File.WriteAllTextAsync(modified, "before");
+        await File.WriteAllTextAsync(deleted, "remove me");
+        var store = BuildStore(root);
+        var paths = BuildPaths(root);
+        var policy = new AgentSpawnWorkspaceRollbackPolicy(
+            paths,
+            new DiffPreviewService(paths, store),
+            utcNow: () => DateTimeOffset.Parse("2026-06-02T00:00:00Z")
+        );
+
+        var baseline = policy.CaptureBaseline();
+        await File.WriteAllTextAsync(modified, "after");
+        await File.WriteAllTextAsync(created, "created");
+        File.Delete(deleted);
+        var snapshot = policy.SaveRollbackIfChanged(baseline, "run-1", "child-1");
+
+        Assert.NotNull(snapshot);
+        Assert.Equal(3, snapshot!.ChangedFiles);
+        Assert.Equal(1, snapshot.ModifiedFiles);
+        Assert.Equal(1, snapshot.CreatedFiles);
+        Assert.Equal(1, snapshot.DeletedFiles);
+        var rollback = store.TryLoadRollback(snapshot.RollbackId);
+        Assert.NotNull(rollback);
+        Assert.Contains(rollback!.Files, file => file.Path == modified && file.OriginalExists != false && file.AppliedExists != false);
+        Assert.Contains(rollback.Files, file => file.Path == created && file.OriginalExists == false && file.AppliedExists != false);
+        Assert.Contains(rollback.Files, file => file.Path == deleted && file.OriginalExists != false && file.AppliedExists == false);
+
+        var service = BuildService(root, store);
+        var restore = await service.RestoreRollbackAsync(snapshot.RollbackId, CancellationToken.None);
+
+        Assert.True(restore.Ok);
+        Assert.Equal("before", await File.ReadAllTextAsync(modified));
+        Assert.False(File.Exists(created));
+        Assert.Equal("remove me", await File.ReadAllTextAsync(deleted));
+    }
+
+    [Fact]
+    public async Task AgentSpawnWorkspaceRollbackPolicyIgnoresExcludedWorkspaceDirectories()
+    {
+        var root = CreateTempDirectory();
+        var workspace = Path.Combine(root, "workspace");
+        var nodeModules = Path.Combine(workspace, "node_modules", "pkg");
+        Directory.CreateDirectory(nodeModules);
+        var tracked = Path.Combine(workspace, "tracked.txt");
+        var ignored = Path.Combine(nodeModules, "ignored.txt");
+        var ignoredNew = Path.Combine(nodeModules, "new.txt");
+        await File.WriteAllTextAsync(tracked, "before");
+        await File.WriteAllTextAsync(ignored, "ignored before");
+        var store = BuildStore(root);
+        var paths = BuildPaths(root);
+        var policy = new AgentSpawnWorkspaceRollbackPolicy(
+            paths,
+            new DiffPreviewService(paths, store),
+            utcNow: () => DateTimeOffset.Parse("2026-06-02T00:00:00Z")
+        );
+
+        var baseline = policy.CaptureBaseline();
+        await File.WriteAllTextAsync(tracked, "after");
+        await File.WriteAllTextAsync(ignored, "ignored after");
+        await File.WriteAllTextAsync(ignoredNew, "ignored new");
+        var snapshot = policy.SaveRollbackIfChanged(baseline, "run-1", "child-1");
+
+        Assert.NotNull(snapshot);
+        Assert.Equal(1, snapshot!.ChangedFiles);
+        var rollback = store.TryLoadRollback(snapshot.RollbackId);
+        Assert.NotNull(rollback);
+        Assert.Collection(rollback!.Files, file => Assert.Equal(tracked, file.Path));
+    }
+
+    [Fact]
+    public async Task AgentSpawnWorkspaceRollbackPolicyCapsRollbackFileCount()
+    {
+        var root = CreateTempDirectory();
+        var workspace = Path.Combine(root, "workspace");
+        Directory.CreateDirectory(workspace);
+        for (var index = 0; index < 405; index++)
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine(workspace, $"file-{index:D3}.txt"),
+                "before"
+            );
+        }
+        var store = BuildStore(root);
+        var paths = BuildPaths(root);
+        var policy = new AgentSpawnWorkspaceRollbackPolicy(
+            paths,
+            new DiffPreviewService(paths, store),
+            utcNow: () => DateTimeOffset.Parse("2026-06-02T00:00:00Z")
+        );
+
+        var baseline = policy.CaptureBaseline();
+        for (var index = 0; index < 405; index++)
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine(workspace, $"file-{index:D3}.txt"),
+                "after"
+            );
+        }
+        var snapshot = policy.SaveRollbackIfChanged(baseline, "run-1", "child-1");
+
+        Assert.NotNull(snapshot);
+        Assert.Equal(400, snapshot!.ChangedFiles);
+        Assert.True(snapshot.Partial);
+        var rollback = store.TryLoadRollback(snapshot.RollbackId);
+        Assert.NotNull(rollback);
+        Assert.Equal(400, rollback!.Files.Count);
+    }
+
+    [Fact]
     public async Task ApplyThenRestoreRollbackRestoresOriginalTextUsingGeneratedRollbackId()
     {
         var root = CreateTempDirectory();
@@ -209,25 +372,7 @@ public sealed class RefactorRollbackSnapshotTests
 
     private static RefactorApplicationService BuildService(string root, FileRefactorPreviewStore store)
     {
-        var paths = new PathOptions(
-            Path.Combine(root, "index.html"),
-            Path.Combine(root, ".state", "llm_usage.json"),
-            Path.Combine(root, ".state", "copilot_usage.json"),
-            Path.Combine(root, ".state", "conversations.json"),
-            Path.Combine(root, ".state", "auth_sessions.json"),
-            Path.Combine(root, ".state", "memory-notes"),
-            Path.Combine(root, ".state", "code-runs"),
-            Path.Combine(root, "workspace", "routines"),
-            Path.Combine(root, "workspace"),
-            Path.Combine(root, ".state", "routines.json"),
-            Path.Combine(root, "workspace", "_routine_prompts"),
-            Path.Combine(root, ".state", "audit.log"),
-            Path.Combine(root, ".state", "guard_retry_timeline.json"),
-            Path.Combine(root, ".state", "gateway_health.json"),
-            Path.Combine(root, ".state", "gateway_startup_probe.json"),
-            Path.Combine(root, ".state", "dashboard_access.json"),
-            Path.Combine(root, "sandbox.py")
-        );
+        var paths = BuildPaths(root);
         var anchorRead = new AnchorReadService(paths);
         var diffPreview = new DiffPreviewService(paths, store);
         return new RefactorApplicationService(
@@ -261,6 +406,29 @@ public sealed class RefactorRollbackSnapshotTests
             ),
             new AuditLogger(Path.Combine(root, "audit.log")),
             paths
+        );
+    }
+
+    private static PathOptions BuildPaths(string root)
+    {
+        return new PathOptions(
+            Path.Combine(root, "index.html"),
+            Path.Combine(root, ".state", "llm_usage.json"),
+            Path.Combine(root, ".state", "copilot_usage.json"),
+            Path.Combine(root, ".state", "conversations.json"),
+            Path.Combine(root, ".state", "auth_sessions.json"),
+            Path.Combine(root, ".state", "memory-notes"),
+            Path.Combine(root, ".state", "code-runs"),
+            Path.Combine(root, "workspace", "routines"),
+            Path.Combine(root, "workspace"),
+            Path.Combine(root, ".state", "routines.json"),
+            Path.Combine(root, "workspace", "_routine_prompts"),
+            Path.Combine(root, ".state", "audit.log"),
+            Path.Combine(root, ".state", "guard_retry_timeline.json"),
+            Path.Combine(root, ".state", "gateway_health.json"),
+            Path.Combine(root, ".state", "gateway_startup_probe.json"),
+            Path.Combine(root, ".state", "dashboard_access.json"),
+            Path.Combine(root, "sandbox.py")
         );
     }
 

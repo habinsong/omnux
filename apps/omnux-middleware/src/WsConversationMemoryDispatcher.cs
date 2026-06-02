@@ -14,10 +14,14 @@ internal sealed class WsConversationMemoryDispatcher
     private readonly Func<WebSocket, SemaphoreSlim, string, MemorySearchToolResult, CancellationToken, Task> _sendMemorySearchResultAsync;
     private readonly Func<WebSocket, SemaphoreSlim, string, int?, int?, MemoryGetToolResult, CancellationToken, Task> _sendMemoryGetResultAsync;
     private readonly Func<MemoryNoteSaveResult?, string> _buildMemoryNoteJson;
+    private readonly ISyncConfigurationStore _syncConfigStore;
+    private readonly IGistSyncApplicationService _gistSyncService;
 
     public WsConversationMemoryDispatcher(
         IConversationApplicationService conversationService,
         IMemoryApplicationService memoryService,
+        ISyncConfigurationStore syncConfigStore,
+        IGistSyncApplicationService gistSyncService,
         Func<WebSocket, SemaphoreSlim, string, string, CancellationToken, Task> sendConversationsAsync,
         Func<WebSocket, SemaphoreSlim, string, ConversationThreadView, CancellationToken, Task> sendConversationDetailAsync,
         Func<WebSocket, SemaphoreSlim, CancellationToken, Task> sendMemoryNotesAsync,
@@ -28,6 +32,8 @@ internal sealed class WsConversationMemoryDispatcher
     {
         _conversationService = conversationService;
         _memoryService = memoryService;
+        _syncConfigStore = syncConfigStore;
+        _gistSyncService = gistSyncService;
         _sendConversationsAsync = sendConversationsAsync;
         _sendConversationDetailAsync = sendConversationDetailAsync;
         _sendMemoryNotesAsync = sendMemoryNotesAsync;
@@ -339,7 +345,10 @@ internal sealed class WsConversationMemoryDispatcher
 
         if (message.Type == "backup_export_prepare")
         {
-            var result = _conversationService.ExportBackup();
+            var options = message.IncludeScopes.Count > 0
+                ? new BackupExportOptions(message.IncludeScopes)
+                : null;
+            var result = _conversationService.ExportBackup(options);
             await WebSocketGateway.SendTextAsync(
                 socket,
                 sendLock,
@@ -516,6 +525,133 @@ internal sealed class WsConversationMemoryDispatcher
             return true;
         }
 
+        if (message.Type == "sync_config_read")
+        {
+            var config = _syncConfigStore.Read();
+            await WebSocketGateway.SendTextAsync(
+                socket,
+                sendLock,
+                "{"
+                + "\"type\":\"sync_config_state\","
+                + $"\"gistId\":\"{WebSocketGateway.EscapeJson(config.GistId ?? string.Empty)}\","
+                + $"\"gitHubTokenSet\":{(!string.IsNullOrWhiteSpace(config.GitHubToken) ? "true" : "false")},"
+                + $"\"lastSyncUtc\":\"{WebSocketGateway.EscapeJson(config.LastSyncUtc?.ToString("O") ?? string.Empty)}\""
+                + "}",
+                cancellationToken
+            );
+            return true;
+        }
+
+        if (message.Type == "sync_config_write")
+        {
+            var existing = _syncConfigStore.Read();
+            var newGistId = string.IsNullOrWhiteSpace(message.GistId) ? existing.GistId : message.GistId.Trim();
+            var newToken = string.IsNullOrWhiteSpace(message.GitHubToken) ? existing.GitHubToken : message.GitHubToken.Trim();
+
+            if (message.GistId == "") newGistId = null;
+            if (message.GitHubToken == "") newToken = null;
+
+            _syncConfigStore.Write(new SyncConfiguration(newGistId, newToken, existing.LastSyncUtc));
+            var updated = _syncConfigStore.Read();
+            await WebSocketGateway.SendTextAsync(
+                socket,
+                sendLock,
+                "{"
+                + "\"type\":\"sync_config_state\","
+                + $"\"gistId\":\"{WebSocketGateway.EscapeJson(updated.GistId ?? string.Empty)}\","
+                + $"\"gitHubTokenSet\":{(!string.IsNullOrWhiteSpace(updated.GitHubToken) ? "true" : "false")},"
+                + $"\"lastSyncUtc\":\"{WebSocketGateway.EscapeJson(updated.LastSyncUtc?.ToString("O") ?? string.Empty)}\""
+                + "}",
+                cancellationToken
+            );
+            return true;
+        }
+
+        if (message.Type == "cloud_sync_upload")
+        {
+            var config = _syncConfigStore.Read();
+            if (string.IsNullOrWhiteSpace(config.GitHubToken))
+            {
+                await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"GitHub Token is required for Cloud Sync.\"}", cancellationToken);
+                return true;
+            }
+
+            try
+            {
+                var options = message.IncludeScopes?.Count > 0
+                    ? new BackupExportOptions(message.IncludeScopes)
+                    : null;
+                var exportResult = _conversationService.ExportBackup(options);
+                if (!exportResult.Ok || string.IsNullOrWhiteSpace(exportResult.ContentBase64))
+                {
+                    await WebSocketGateway.SendTextAsync(socket, sendLock, $"{{\"type\":\"error\",\"message\":\"{WebSocketGateway.EscapeJson(exportResult.Error ?? "Export failed")}\"}}", cancellationToken);
+                    return true;
+                }
+
+                var zipBytes = Convert.FromBase64String(exportResult.ContentBase64);
+                var newGistId = await _gistSyncService.UploadBackupToGistAsync(zipBytes, config.GitHubToken, config.GistId);
+
+                _syncConfigStore.Write(new SyncConfiguration(newGistId, config.GitHubToken, DateTimeOffset.UtcNow));
+                var updated = _syncConfigStore.Read();
+
+                await WebSocketGateway.SendTextAsync(
+                    socket,
+                    sendLock,
+                    "{"
+                    + "\"type\":\"cloud_sync_upload_result\","
+                    + "\"ok\":true,"
+                    + $"\"gistId\":\"{WebSocketGateway.EscapeJson(newGistId)}\","
+                    + $"\"lastSyncUtc\":\"{WebSocketGateway.EscapeJson(updated.LastSyncUtc?.ToString("O") ?? string.Empty)}\""
+                    + "}",
+                    cancellationToken
+                );
+            }
+            catch (Exception ex)
+            {
+                await WebSocketGateway.SendTextAsync(socket, sendLock, $"{{\"type\":\"error\",\"message\":\"{WebSocketGateway.EscapeJson(ex.Message)}\"}}", cancellationToken);
+            }
+            return true;
+        }
+
+        if (message.Type == "cloud_sync_download")
+        {
+            var config = _syncConfigStore.Read();
+            var targetGistId = string.IsNullOrWhiteSpace(message.GistId) ? config.GistId : message.GistId.Trim();
+
+            if (string.IsNullOrWhiteSpace(config.GitHubToken))
+            {
+                await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"GitHub Token is required for Cloud Sync.\"}", cancellationToken);
+                return true;
+            }
+            if (string.IsNullOrWhiteSpace(targetGistId))
+            {
+                await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"Gist ID is required to download.\"}", cancellationToken);
+                return true;
+            }
+
+            try
+            {
+                var zipBytes = await _gistSyncService.DownloadBackupFromGistAsync(targetGistId, config.GitHubToken);
+                var contentBase64 = Convert.ToBase64String(zipBytes);
+
+                var previewResult = _conversationService.PreviewBackupImport("omnux-portable-backup.zip", contentBase64);
+
+                _syncConfigStore.Write(new SyncConfiguration(targetGistId, config.GitHubToken, DateTimeOffset.UtcNow));
+
+                await WebSocketGateway.SendTextAsync(
+                    socket,
+                    sendLock,
+                    BuildBackupImportPreviewResultJson(previewResult),
+                    cancellationToken
+                );
+            }
+            catch (Exception ex)
+            {
+                await WebSocketGateway.SendTextAsync(socket, sendLock, $"{{\"type\":\"error\",\"message\":\"{WebSocketGateway.EscapeJson(ex.Message)}\"}}", cancellationToken);
+            }
+            return true;
+        }
+
         return false;
     }
 
@@ -539,7 +675,11 @@ internal sealed class WsConversationMemoryDispatcher
             or "memory_get"
             or "memory_index_rebuild"
             or "update_conversation_meta"
-            or "read_workspace_file";
+            or "read_workspace_file"
+            or "sync_config_read"
+            or "sync_config_write"
+            or "cloud_sync_upload"
+            or "cloud_sync_download";
     }
 
     private static string BuildMemoryIndexRebuildResultJson(MemoryIndexRebuildResult result)
@@ -616,6 +756,8 @@ internal sealed class WsConversationMemoryDispatcher
         builder.Append($"\"fileName\":\"{WebSocketGateway.EscapeJson(result.FileName)}\",");
         builder.Append($"\"contentBase64\":\"{WebSocketGateway.EscapeJson(result.ContentBase64)}\",");
         builder.Append($"\"sizeBytes\":{Math.Max(0, result.SizeBytes)},");
+        AppendStringArray(builder, "scope", result.Scope ?? Array.Empty<string>());
+        builder.Append(",");
         AppendStringArray(builder, "included", result.Included);
         builder.Append(",");
         AppendStringArray(builder, "excluded", result.Excluded);
@@ -638,8 +780,13 @@ internal sealed class WsConversationMemoryDispatcher
         builder.Append($"\"fileName\":\"{WebSocketGateway.EscapeJson(result.FileName)}\",");
         builder.Append($"\"conversationCount\":{Math.Max(0, result.ConversationCount)},");
         builder.Append($"\"conversationConflictCount\":{Math.Max(0, result.ConversationConflictCount)},");
+        builder.Append($"\"fileConflictCount\":{Math.Max(0, result.FileConflictCount)},");
         builder.Append($"\"fileCount\":{Math.Max(0, result.FileCount)},");
         AppendStringArray(builder, "conflicts", result.Conflicts);
+        builder.Append(",");
+        AppendStringArray(builder, "fileConflicts", result.FileConflicts);
+        builder.Append($",\"syncMode\":\"{WebSocketGateway.EscapeJson(result.SyncMode)}\"");
+        builder.Append($",\"syncConflictPolicy\":\"{WebSocketGateway.EscapeJson(result.SyncConflictPolicy)}\"");
         if (!string.IsNullOrWhiteSpace(result.Error))
         {
             builder.Append($",\"error\":\"{WebSocketGateway.EscapeJson(result.Error)}\"");

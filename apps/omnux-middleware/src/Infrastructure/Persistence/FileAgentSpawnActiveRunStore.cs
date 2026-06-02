@@ -70,6 +70,24 @@ public sealed class FileAgentSpawnActiveRunStore
         return MutateActive(id, nowUtc, entry => entry.State = NormalizeToken(state, "active"));
     }
 
+    public bool MarkWorkspaceRollback(
+        string? id,
+        string? rollbackId,
+        string? rollbackPath,
+        int changedFiles,
+        bool partial,
+        DateTimeOffset nowUtc
+    )
+    {
+        return Mutate(id, nowUtc, entry =>
+        {
+            entry.WorkspaceRollbackId = NormalizeOptional(rollbackId);
+            entry.WorkspaceRollbackPath = NormalizeOptional(rollbackPath);
+            entry.WorkspaceRollbackChangedFiles = Math.Max(0, changedFiles);
+            entry.WorkspaceRollbackPartial = partial;
+        });
+    }
+
     public bool Complete(string? id, string state, DateTimeOffset nowUtc)
     {
         return Mutate(id, nowUtc, entry =>
@@ -113,7 +131,11 @@ public sealed class FileAgentSpawnActiveRunStore
                     entry.Mode,
                     entry.Backend,
                     normalizedReason,
-                    normalizedMessage
+                    normalizedMessage,
+                    entry.WorkspaceRollbackId,
+                    entry.WorkspaceRollbackPath,
+                    entry.WorkspaceRollbackChangedFiles,
+                    entry.WorkspaceRollbackPartial
                 ))
                 .ToArray();
             foreach (var entry in active)
@@ -296,7 +318,11 @@ public sealed class FileAgentSpawnActiveRunStore
             LastHeartbeatUtc = entry.LastHeartbeatUtc,
             CompletedUtc = entry.CompletedUtc,
             State = NormalizeToken(entry.State, "active"),
-            LastError = NormalizeOptional(entry.LastError)
+            LastError = NormalizeOptional(entry.LastError),
+            WorkspaceRollbackId = NormalizeOptional(entry.WorkspaceRollbackId),
+            WorkspaceRollbackPath = NormalizeOptional(entry.WorkspaceRollbackPath),
+            WorkspaceRollbackChangedFiles = Math.Max(0, entry.WorkspaceRollbackChangedFiles),
+            WorkspaceRollbackPartial = entry.WorkspaceRollbackPartial
         };
     }
 
@@ -372,6 +398,10 @@ public sealed class AgentSpawnActiveRunEntry
     public DateTimeOffset? CompletedUtc { get; set; }
     public string State { get; set; } = "active";
     public string? LastError { get; set; }
+    public string? WorkspaceRollbackId { get; set; }
+    public string? WorkspaceRollbackPath { get; set; }
+    public int WorkspaceRollbackChangedFiles { get; set; }
+    public bool WorkspaceRollbackPartial { get; set; }
 }
 
 public sealed record AgentSpawnActiveSnapshot(
@@ -392,7 +422,11 @@ public sealed record AgentSpawnBlockedActiveRun(
     string Mode,
     string Backend,
     string Reason,
-    string Message
+    string Message,
+    string? WorkspaceRollbackId = null,
+    string? WorkspaceRollbackPath = null,
+    int WorkspaceRollbackChangedFiles = 0,
+    bool WorkspaceRollbackPartial = false
 );
 
 internal sealed class AgentSpawnActiveRunState

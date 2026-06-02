@@ -185,7 +185,7 @@ public interface IConversationApplicationService
     ConversationThreadView? GetConversation(string conversationId);
     bool DeleteConversation(string conversationId);
     ConversationSearchResult SearchConversations(string query, int? maxResults = null);
-    BackupExportResult ExportBackup();
+    BackupExportResult ExportBackup(BackupExportOptions? options = null);
     BackupImportPreviewResult PreviewBackupImport(string fileName, string contentBase64);
     BackupImportApplyResult ApplyBackupImport(string previewId, bool overwrite);
     ConversationThreadView UpdateConversationMetadata(

@@ -8,6 +8,8 @@ public sealed class FileAgentSpawnQueueStore
     private const string StoreLeaseSuffix = ".queue.lease";
     private const int StoreLeaseRetryCount = 50;
     private const int StoreLeaseRetryDelayMs = 50;
+    private const int MinClaimLeaseSeconds = 300;
+    private const int MaxClaimLeaseSeconds = 7_200;
 
     private readonly string _storePath;
     private readonly object _lock = new();
@@ -69,7 +71,9 @@ public sealed class FileAgentSpawnQueueStore
         {
             var state = LoadUnsafe();
             return state.Entries
-                .Where(entry => entry.NextAttemptUtc <= nowUtc && !string.IsNullOrWhiteSpace(entry.Task))
+                .Where(entry => entry.NextAttemptUtc <= nowUtc
+                                && IsClaimLeaseAvailable(entry, nowUtc)
+                                && !string.IsNullOrWhiteSpace(entry.Task))
                 .OrderBy(entry => entry.NextAttemptUtc)
                 .ThenBy(entry => entry.EnqueuedUtc)
                 .Take(safeMaxCount)
@@ -78,25 +82,68 @@ public sealed class FileAgentSpawnQueueStore
         }
     }
 
+    public IReadOnlyList<AgentSpawnQueueEntry> ClaimReadyEntries(DateTimeOffset nowUtc, int maxCount, string leaseOwner)
+    {
+        var safeMaxCount = Math.Max(1, maxCount);
+        var safeLeaseOwner = NormalizeToken(leaseOwner, $"pid:{Environment.ProcessId}");
+        using var lease = AcquireStoreLease();
+        lock (_lock)
+        {
+            var state = LoadUnsafe();
+            var ready = state.Entries
+                .Where(entry => entry.NextAttemptUtc <= nowUtc
+                                && IsClaimLeaseAvailable(entry, nowUtc)
+                                && !string.IsNullOrWhiteSpace(entry.Task))
+                .OrderBy(entry => entry.NextAttemptUtc)
+                .ThenBy(entry => entry.EnqueuedUtc)
+                .Take(safeMaxCount)
+                .ToArray();
+            if (ready.Length == 0)
+            {
+                return Array.Empty<AgentSpawnQueueEntry>();
+            }
+
+            var claimed = new List<AgentSpawnQueueEntry>(ready.Length);
+            foreach (var entry in ready)
+            {
+                entry.LeaseOwner = safeLeaseOwner;
+                entry.LeasedUntilUtc = nowUtc + ComputeClaimLeaseDuration(entry);
+                claimed.Add(CloneEntry(entry));
+            }
+
+            return SaveUnsafe(state) ? claimed : Array.Empty<AgentSpawnQueueEntry>();
+        }
+    }
+
     public AgentSpawnQueueSnapshot GetSnapshot()
+        => GetSnapshot(DateTimeOffset.UtcNow);
+
+    public AgentSpawnQueueSnapshot GetSnapshot(DateTimeOffset nowUtc)
     {
         using var lease = AcquireStoreLease();
         lock (_lock)
         {
             var state = LoadUnsafe();
-            var now = DateTimeOffset.UtcNow;
             var entries = state.Entries
                 .Where(entry => entry != null && !string.IsNullOrWhiteSpace(entry.Task))
                 .OrderBy(entry => entry.NextAttemptUtc)
                 .ThenBy(entry => entry.EnqueuedUtc)
                 .ThenBy(entry => entry.AttemptCount)
                 .ToArray();
-            var nextEntry = entries.FirstOrDefault();
+            var availableEntries = entries
+                .Where(entry => IsClaimLeaseAvailable(entry, nowUtc))
+                .ToArray();
+            var nextEntry = availableEntries.FirstOrDefault();
+            var nextAttemptUtc = nextEntry?.NextAttemptUtc
+                ?? entries
+                    .Where(entry => entry.LeasedUntilUtc.HasValue)
+                    .Select(entry => entry.LeasedUntilUtc)
+                    .Min();
             var retryWindow = entries.Count(entry => entry.AttemptCount >= MaxRetryAttempts - 2);
             return new AgentSpawnQueueSnapshot(
                 entries.Length,
-                entries.Count(entry => entry.NextAttemptUtc <= now),
-                entries.Length == 0 ? null : entries.Min(entry => entry.NextAttemptUtc),
+                availableEntries.Count(entry => entry.NextAttemptUtc <= nowUtc),
+                nextAttemptUtc,
                 nextEntry?.Id,
                 nextEntry?.Reason,
                 nextEntry?.LastError,
@@ -141,6 +188,8 @@ public sealed class FileAgentSpawnQueueStore
 
             entry.AttemptCount = Math.Max(0, entry.AttemptCount) + 1;
             entry.LastError = TrimForStorage(error, 500);
+            entry.LeaseOwner = null;
+            entry.LeasedUntilUtc = null;
             if (entry.AttemptCount >= MaxRetryAttempts)
             {
                 state.Entries.Remove(entry);
@@ -291,6 +340,18 @@ public sealed class FileAgentSpawnQueueStore
         return TimeSpan.FromSeconds(seconds);
     }
 
+    private static TimeSpan ComputeClaimLeaseDuration(AgentSpawnQueueEntry entry)
+    {
+        var timeoutSeconds = Math.Max(0, entry.RunTimeoutSeconds);
+        var leaseSeconds = Math.Clamp(timeoutSeconds + 60, MinClaimLeaseSeconds, MaxClaimLeaseSeconds);
+        return TimeSpan.FromSeconds(leaseSeconds);
+    }
+
+    private static bool IsClaimLeaseAvailable(AgentSpawnQueueEntry entry, DateTimeOffset nowUtc)
+    {
+        return !entry.LeasedUntilUtc.HasValue || entry.LeasedUntilUtc.Value <= nowUtc;
+    }
+
     private static AgentSpawnQueueEntry CloneEntry(AgentSpawnQueueEntry entry)
     {
         return new AgentSpawnQueueEntry
@@ -316,7 +377,9 @@ public sealed class FileAgentSpawnQueueStore
             EnqueuedUtc = entry.EnqueuedUtc,
             NextAttemptUtc = entry.NextAttemptUtc,
             AttemptCount = Math.Max(0, entry.AttemptCount),
-            LastError = entry.LastError ?? string.Empty
+            LastError = entry.LastError ?? string.Empty,
+            LeaseOwner = NormalizeOptional(entry.LeaseOwner),
+            LeasedUntilUtc = entry.LeasedUntilUtc
         };
     }
 
@@ -368,6 +431,8 @@ public sealed class AgentSpawnQueueEntry
     public DateTimeOffset NextAttemptUtc { get; set; }
     public int AttemptCount { get; set; }
     public string LastError { get; set; } = string.Empty;
+    public string? LeaseOwner { get; set; }
+    public DateTimeOffset? LeasedUntilUtc { get; set; }
 }
 
 public sealed record AgentSpawnQueueSnapshot(

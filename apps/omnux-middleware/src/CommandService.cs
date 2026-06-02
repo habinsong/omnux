@@ -115,6 +115,9 @@ public sealed partial class CommandService :
     private readonly IPlanningApplicationService _planAppService;
     private readonly IConversationApplicationService _conversationAppService;
     private readonly IToolApplicationService _toolAppService;
+    private readonly ILlmSettingsApplicationService _llmSettingsAppService;
+    private readonly ITelegramLlmMutationApplicationService _telegramLlmMutationAppService;
+    private readonly ITelegramCodingSettingsApplicationService _telegramCodingSettingsAppService;
     private readonly LlmPreferenceContext _llmPreferenceContext;
     private readonly ExecutionContext _executionContext;
     private readonly RoutineRegistry _routineRegistry;
@@ -193,6 +196,9 @@ public sealed partial class CommandService :
         IPlanningApplicationService planAppService,
         IConversationApplicationService conversationAppService,
         IToolApplicationService toolAppService,
+        ILlmSettingsApplicationService llmSettingsAppService,
+        ITelegramLlmMutationApplicationService telegramLlmMutationAppService,
+        ITelegramCodingSettingsApplicationService telegramCodingSettingsAppService,
         LlmPreferenceContext llmPreferenceContext,
         ExecutionContext executionContext,
         RoutineRegistry routineRegistry
@@ -255,6 +261,9 @@ public sealed partial class CommandService :
         _planAppService = planAppService;
         _conversationAppService = conversationAppService;
         _toolAppService = toolAppService;
+        _llmSettingsAppService = llmSettingsAppService;
+        _telegramLlmMutationAppService = telegramLlmMutationAppService;
+        _telegramCodingSettingsAppService = telegramCodingSettingsAppService;
         _llmPreferenceContext = llmPreferenceContext;
         _executionContext = executionContext;
         _routineRegistry = routineRegistry;
@@ -281,10 +290,8 @@ public sealed partial class CommandService :
 
     private object _telegramLlmLock => _llmPreferenceContext.TelegramLlmLock;
     private object _webLlmLock => _llmPreferenceContext.WebLlmLock;
-    private object _telegramCodingLock => _llmPreferenceContext.TelegramCodingLock;
     private object _telegramRefactorLock => _llmPreferenceContext.TelegramRefactorLock;
     private TelegramLlmPreferences _telegramLlmPreferences => _llmPreferenceContext.TelegramLlmPreferences;
-    private TelegramCodingPreferences _telegramCodingPreferences => _llmPreferenceContext.TelegramCodingPreferences;
     private TelegramRefactorSession _telegramRefactorSession => _llmPreferenceContext.TelegramRefactorSession;
     private WebLlmPreferences _webLlmPreferences => _llmPreferenceContext.WebLlmPreferences;
 

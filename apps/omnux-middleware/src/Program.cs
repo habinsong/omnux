@@ -72,7 +72,7 @@ internal static class Program
             projectContextServices.Loader
         );
         var refactorServices = ConfigureRefactorServices(config, pathResolver);
-        var toolServices = ConfigureToolServices(config, runtimeSettings, persistence.ConversationStore);
+        var toolServices = ConfigureToolServices(config, runtimeSettings, persistence.ConversationStore, refactorServices.DiffPreview);
         if (IsMemoryIndexBootstrapEnabled())
         {
             BootstrapMemoryIndex(paths);
@@ -118,6 +118,20 @@ internal static class Program
             toolServices.Nodes
         );
         var llmPreferenceContext = new LlmPreferenceContext(config, copilotWrapper.GetSelectedModel());
+        var telegramLlmMutationApplicationService = new TelegramLlmMutationApplicationService(
+            config.Providers,
+            llmPreferenceContext,
+            llmRouter.GetSelectedGroqModel,
+            llmRouter.TrySetSelectedGroqModel,
+            copilotWrapper.TrySetSelectedModel
+        );
+        var llmSettingsApplicationService = new LlmSettingsApplicationService(
+            config.Providers,
+            llmPreferenceContext,
+            telegramLlmMutationApplicationService,
+            llmRouter.GetSelectedGroqModel
+        );
+        var telegramCodingSettingsApplicationService = new TelegramCodingSettingsApplicationService(llmPreferenceContext);
         var executionContext = new ExecutionContext();
         var routineRegistry = new RoutineRegistry(persistence.RoutineStore);
         var commandService = new CommandService(
@@ -174,6 +188,9 @@ internal static class Program
             appServices.Plan,
             appServices.Conversation,
             appServices.Tool,
+            llmSettingsApplicationService,
+            telegramLlmMutationApplicationService,
+            telegramCodingSettingsApplicationService,
             llmPreferenceContext,
             executionContext,
             routineRegistry
@@ -449,7 +466,8 @@ internal static class Program
     private static ToolServices ConfigureToolServices(
         AppConfig config,
         RuntimeSettings runtimeSettings,
-        ConversationStore conversationStore
+        ConversationStore conversationStore,
+        DiffPreviewService diffPreviewService
     )
     {
         var paths = config.Paths;
@@ -472,6 +490,10 @@ internal static class Program
         var sessionSpawnQueueStore = new FileAgentSpawnQueueStore(DefaultStatePathResolver.CreateDefault());
         var sessionSpawnActiveRunStore = new FileAgentSpawnActiveRunStore(DefaultStatePathResolver.CreateDefault());
         var sessionSpawnRunBreaker = new AgentSpawnRunBreaker(DefaultStatePathResolver.CreateDefault());
+        var sessionSpawnWorkspaceRollbackPolicy = new AgentSpawnWorkspaceRollbackPolicy(
+            paths,
+            diffPreviewService
+        );
         var sessionSpawnTool = new SessionSpawnTool(
             conversationStore,
             acpSessionBindingAdapter,
@@ -479,7 +501,8 @@ internal static class Program
             sessionSpawnDailyCostLedger,
             sessionSpawnQueueStore,
             sessionSpawnRunBreaker,
-            sessionSpawnActiveRunStore
+            sessionSpawnActiveRunStore,
+            sessionSpawnWorkspaceRollbackPolicy
         );
         var browserTool = new BrowserTool(config);
         var canvasTool = new CanvasTool(config);
@@ -630,6 +653,8 @@ internal static class Program
     )
     {
         var paths = config.Paths;
+        var syncConfigStore = new SyncConfigurationStore(paths);
+        var gistSyncService = new GistSyncApplicationService(new HttpClient());
         var cleanupService = new CleanupService(paths);
         var doctorApplicationService = new DoctorApplicationService(doctorService, paths);
         var notebookApplicationService = new NotebookApplicationService(notebookService);
@@ -677,7 +702,8 @@ internal static class Program
             memoryNoteStore,
             auditLogger,
             paths,
-            memorySearchTool
+            memorySearchTool,
+            syncConfigStore
         );
         var toolApplicationService = new ToolApplicationService(
             sessionListTool,
@@ -702,7 +728,9 @@ internal static class Program
             memoryApplicationService,
             planApplicationService,
             conversationApplicationService,
-            toolApplicationService
+            toolApplicationService,
+            syncConfigStore,
+            gistSyncService
         );
     }
 
@@ -755,7 +783,9 @@ internal static class Program
                 groqModelCatalog,
                 cerebrasModelCatalog,
                 new GuardRetryTimelineStore(config.GuardRetryTimelineStatePath),
-                auditLogger
+                auditLogger,
+                appServices.SyncConfigStore,
+                appServices.GistSyncService
             ),
             new TelegramUpdateLoop(
                 telegramClient,
@@ -782,7 +812,9 @@ internal static class Program
         MemoryApplicationService Memory,
         PlanApplicationService Plan,
         ConversationApplicationService Conversation,
-        ToolApplicationService Tool
+        ToolApplicationService Tool,
+        ISyncConfigurationStore SyncConfigStore,
+        IGistSyncApplicationService GistSyncService
     );
 
     private sealed record RuntimeServices(

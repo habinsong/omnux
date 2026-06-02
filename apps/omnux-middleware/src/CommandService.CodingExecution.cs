@@ -484,10 +484,10 @@ public sealed partial class CommandService
     {
         if (OperatingSystem.IsWindows())
         {
-            return $"if exist .venv\\Scripts\\python.exe (.venv\\Scripts\\python.exe -m pip install --disable-pip-version-check -r {EscapeShellArg(requirementsPath)}) else (echo workspace .venv missing; refusing host pip install 1>&2 && exit /b 126)";
+            return $"if not exist .venv\\Scripts\\python.exe (python -m venv .venv && .venv\\Scripts\\python.exe -m pip install --disable-pip-version-check --upgrade pip setuptools wheel) & if exist .venv\\Scripts\\python.exe (.venv\\Scripts\\python.exe -m pip install --disable-pip-version-check -r {EscapeShellArg(requirementsPath)}) else (echo workspace .venv missing; refusing host pip install 1>&2 && exit /b 126)";
         }
 
-        return $"if [ -x .venv/bin/python ]; then .venv/bin/python -m pip install --disable-pip-version-check -r {EscapeShellArg(requirementsPath)}; else printf '%s\\n' 'workspace .venv missing; refusing host pip install' >&2; exit 126; fi";
+        return $"if [ ! -x .venv/bin/python ]; then python3 -m venv .venv && .venv/bin/python -m pip install --disable-pip-version-check --upgrade pip setuptools wheel; fi; if [ -x .venv/bin/python ]; then .venv/bin/python -m pip install --disable-pip-version-check -r {EscapeShellArg(requirementsPath)}; else printf '%s\\n' 'workspace .venv missing; refusing host pip install' >&2; exit 126; fi";
     }
 
     private static string BuildPipPackageInstallCommand(IEnumerable<string> packages)
@@ -495,10 +495,10 @@ public sealed partial class CommandService
         var packageArgs = string.Join(" ", packages.Select(EscapeShellArg));
         if (OperatingSystem.IsWindows())
         {
-            return $"if exist .venv\\Scripts\\python.exe (.venv\\Scripts\\python.exe -m pip install --disable-pip-version-check {packageArgs}) else (echo workspace .venv missing; refusing host pip install 1>&2 && exit /b 126)";
+            return $"if not exist .venv\\Scripts\\python.exe (python -m venv .venv && .venv\\Scripts\\python.exe -m pip install --disable-pip-version-check --upgrade pip setuptools wheel) & if exist .venv\\Scripts\\python.exe (.venv\\Scripts\\python.exe -m pip install --disable-pip-version-check {packageArgs}) else (echo workspace .venv missing; refusing host pip install 1>&2 && exit /b 126)";
         }
 
-        return $"if [ -x .venv/bin/python ]; then .venv/bin/python -m pip install --disable-pip-version-check {packageArgs}; else printf '%s\\n' 'workspace .venv missing; refusing host pip install' >&2; exit 126; fi";
+        return $"if [ ! -x .venv/bin/python ]; then python3 -m venv .venv && .venv/bin/python -m pip install --disable-pip-version-check --upgrade pip setuptools wheel; fi; if [ -x .venv/bin/python ]; then .venv/bin/python -m pip install --disable-pip-version-check {packageArgs}; else printf '%s\\n' 'workspace .venv missing; refusing host pip install' >&2; exit 126; fi";
     }
 
     private static bool IsPythonSystemModule(string? moduleName)

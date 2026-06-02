@@ -55,8 +55,26 @@
     const previewResult = backup && backup.previewResult;
     const importResult = backup && backup.importResult;
     const pending = backup && backup.pending ? backup.pending : { export: false, preview: false, apply: false };
+    const scopeOptions = backup && Array.isArray(backup.scopeOptions) ? backup.scopeOptions : [];
+    const selectedBackupScopes = backup && Array.isArray(backup.selectedScopes) ? backup.selectedScopes : [];
+    const toggleBackupScope = backup && typeof backup.toggleScope === "function" ? backup.toggleScope : () => {};
+    const selectAllBackupScopes = backup && typeof backup.selectAllScopes === "function" ? backup.selectAllScopes : () => {};
     const previewId = previewResult && previewResult.previewId ? previewResult.previewId : "";
     const conflicts = previewResult && Array.isArray(previewResult.conflicts) ? previewResult.conflicts : [];
+    const exportScopes = exportResult && Array.isArray(exportResult.scope) && exportResult.scope.length > 0
+      ? exportResult.scope
+      : selectedBackupScopes;
+    const { syncConfig, saveSyncConfig, requestCloudSyncUpload, requestCloudSyncDownload } = ctx.memory;
+    const [localGistId, setLocalGistId] = React.useState("");
+    const [localToken, setLocalToken] = React.useState("");
+    const [isEditingSync, setIsEditingSync] = React.useState(false);
+
+    React.useEffect(() => {
+      if (syncConfig) {
+        setLocalGistId(syncConfig.gistId || "");
+        setLocalToken(syncConfig.gitHubTokenSet ? "********" : "");
+      }
+    }, [syncConfig]);
 
     return React.createElement("div", null,
       React.createElement("div", { className: "between", style: { marginBottom: 4 } },
@@ -98,9 +116,30 @@
       React.createElement("div", { className: "card card-pad mt16" },
         React.createElement("div", { className: "card-title", style: { marginBottom: 10 } }, "Portable backup package"),
         React.createElement("div", { className: "muted", style: { fontSize: 13, lineHeight: 1.6, marginBottom: 12 } },
-          "대화, 루틴, 라우팅 정책, 메모리, 계획, task, notebook, skill, command template를 포함합니다. API 키, Telegram token, auth session, runtime log는 제외됩니다."),
+          "대화, 루틴, 라우팅 정책, 메모리, 계획, task, notebook, skill, command template를 포함합니다. API 키, Telegram token, auth session, runtime log는 제외됩니다. 동기화 브릿지는 현재 portable package 전용이며 충돌은 preview에서 확인한 뒤 overwrite=false면 건너뛰고 overwrite=true면 교체합니다."),
+        React.createElement("div", { className: "between", style: { alignItems: "flex-start", gap: 12, marginBottom: 8 } },
+          React.createElement("div", null,
+            React.createElement("div", { className: "eyebrow", style: { marginBottom: 6 } }, "포함 범위"),
+            React.createElement("div", { className: "muted", style: { fontSize: 12, lineHeight: 1.5 } },
+              "선택한 범위만 ZIP과 manifest sync scope에 기록됩니다.")),
+          React.createElement("button", { className: "btn sm", onClick: selectAllBackupScopes }, "전체 선택")),
+        React.createElement("div", { className: "items-center gap8", style: { flexWrap: "wrap", marginBottom: 12 } },
+          scopeOptions.map((option) =>
+            React.createElement("label", {
+              key: option.id,
+              className: "chip",
+              style: { display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 12 }
+            },
+              React.createElement("input", {
+                type: "checkbox",
+                checked: selectedBackupScopes.includes(option.id),
+                onChange: () => toggleBackupScope(option.id)
+              }),
+              option.label || option.id
+            )
+          )),
         React.createElement("div", { className: "items-center gap8", style: { flexWrap: "wrap" } },
-          React.createElement("button", { className: "btn", onClick: requestBackupExport, disabled: pending.export }, pending.export ? React.createElement(React.Fragment, null, React.createElement("span", { className: "spin" }, I.refresh({ size: 14 })), "내보내는 중…") : React.createElement(React.Fragment, null, I.download({ size: 14 }), "백업 내보내기")),
+          React.createElement("button", { className: "btn", onClick: requestBackupExport, disabled: pending.export || selectedBackupScopes.length === 0 }, pending.export ? React.createElement(React.Fragment, null, React.createElement("span", { className: "spin" }, I.refresh({ size: 14 })), "내보내는 중…") : React.createElement(React.Fragment, null, I.download({ size: 14 }), "백업 내보내기")),
           React.createElement("button", {
             className: "btn",
             onClick: async () => {
@@ -117,6 +156,44 @@
             disabled: pending.preview
           }, pending.preview ? React.createElement(React.Fragment, null, React.createElement("span", { className: "spin" }, I.refresh({ size: 14 })), "미리보기 중…") : React.createElement(React.Fragment, null, I.upload ? I.upload({ size: 14 }) : I.attach({ size: 14 }), "백업 미리보기"))
         ),
+        React.createElement("div", { className: "card card-pad mt16", style: { background: "var(--surface-2)" } },
+          React.createElement("div", { className: "card-title", style: { marginBottom: 10 } }, "Cloud Sync (GitHub Gist)"),
+          React.createElement("div", { className: "muted", style: { fontSize: 13, lineHeight: 1.6, marginBottom: 12 } },
+            "동기화 데이터를 클라우드 Gist와 연동합니다. GitHub 토큰이 필요합니다."),
+          React.createElement(Row, { label: "Gist ID", sub: "비워두면 새 Gist 생성됨." },
+            React.createElement("input", {
+              className: "field",
+              value: localGistId,
+              disabled: !isEditingSync,
+              onChange: (e) => setLocalGistId(e.target.value),
+              placeholder: "ex) a1b2c3d4..."
+            })),
+          React.createElement(Row, { label: "GitHub Token", sub: "Gist를 생성하고 수정할 권한 (repo or gist)" },
+            React.createElement("input", {
+              type: "password",
+              className: "field",
+              value: localToken,
+              disabled: !isEditingSync,
+              onChange: (e) => setLocalToken(e.target.value),
+              placeholder: syncConfig?.gitHubTokenSet ? "******** (설정됨)" : "ghp_..."
+            })),
+          React.createElement("div", { className: "items-center gap8 mt12", style: { flexWrap: "wrap", padding: "0 16px 16px" } },
+            !isEditingSync ? React.createElement("button", { className: "btn", onClick: () => setIsEditingSync(true) }, "설정 변경") : React.createElement(React.Fragment, null,
+              React.createElement("button", { className: "btn primary", onClick: () => {
+                saveSyncConfig(localGistId, localToken === "********" ? "" : localToken);
+                setIsEditingSync(false);
+              }}, "저장"),
+              React.createElement("button", { className: "btn", onClick: () => {
+                setIsEditingSync(false);
+                setLocalGistId(syncConfig?.gistId || "");
+                setLocalToken(syncConfig?.gitHubTokenSet ? "********" : "");
+              }}, "취소")
+            ),
+            React.createElement("button", { className: "btn", disabled: !syncConfig?.gitHubTokenSet || pending.cloudSync, onClick: requestCloudSyncUpload }, pending.cloudSync ? "업로드 중..." : "클라우드 업로드"),
+            React.createElement("button", { className: "btn", disabled: !syncConfig?.gitHubTokenSet || !syncConfig?.gistId || pending.cloudSync, onClick: () => requestCloudSyncDownload(syncConfig?.gistId) }, pending.cloudSync ? "다운로드 중..." : "클라우드 다운로드")
+          ),
+          syncConfig?.lastSyncUtc ? React.createElement("div", { className: "muted mt12", style: { padding: "0 16px 16px", fontSize: 12 } }, "마지막 동기화: ", new Date(syncConfig.lastSyncUtc).toLocaleString()) : null
+        ),
         exportResult ? React.createElement("div", { className: "card card-pad mt16", style: { background: "var(--surface-2)" } },
           React.createElement("div", { className: "between", style: { marginBottom: 8 } },
             React.createElement("div", { className: "card-title" }, exportResult.ok ? "내보내기 완료" : "내보내기 실패"),
@@ -124,8 +201,11 @@
           React.createElement("div", { className: "muted", style: { fontSize: 13, lineHeight: 1.6 } }, exportResult.fileName ? exportResult.fileName : "파일명이 없습니다."),
           React.createElement("div", { className: "items-center gap8 mt12", style: { flexWrap: "wrap" } },
             React.createElement("span", { className: "chip mono", style: { fontSize: 12 } }, "size " + String(exportResult.sizeBytes || 0)),
+            React.createElement("span", { className: "chip", style: { fontSize: 12 } }, "scope " + String(exportScopes.length || 0)),
             React.createElement("span", { className: "chip", style: { fontSize: 12 } }, "included " + String((exportResult.included || []).length)),
             React.createElement("span", { className: "chip", style: { fontSize: 12 } }, "excluded " + String((exportResult.excluded || []).length))),
+          exportScopes.length > 0 ? React.createElement("div", { className: "mt12", style: { display: "flex", flexWrap: "wrap", gap: 8 } },
+            exportScopes.slice(0, 12).map((item) => React.createElement("span", { key: item, className: "chip", style: { fontSize: 12 } }, item))) : null,
           exportResult.error ? React.createElement("div", { className: "mt12", style: { color: "var(--red-text)", fontSize: 13, lineHeight: 1.6 } }, exportResult.error) : null,
         ) : null,
         previewResult ? React.createElement("div", { className: "card card-pad mt16", style: { background: "var(--surface-2)" } },
@@ -137,9 +217,14 @@
             React.createElement("span", { className: "chip mono", style: { fontSize: 12 } }, "preview " + (previewId || "-")),
             React.createElement("span", { className: "chip", style: { fontSize: 12 } }, "conversations " + String(previewResult.conversationCount || 0)),
             React.createElement("span", { className: "chip", style: { fontSize: 12 } }, "conflicts " + String(previewResult.conflictCount || 0)),
+            React.createElement("span", { className: "chip", style: { fontSize: 12 } }, "file conflicts " + String(previewResult.fileConflictCount || 0)),
             React.createElement("span", { className: "chip", style: { fontSize: 12 } }, "files " + String(previewResult.fileCount || 0))),
+          React.createElement("div", { className: "muted mt12", style: { fontSize: 12, lineHeight: 1.6 } },
+            "sync=" + (previewResult.syncMode || "unknown") + " · conflict=" + (previewResult.syncConflictPolicy || "unknown")),
           conflicts.length > 0 ? React.createElement("div", { className: "mt12", style: { display: "flex", flexWrap: "wrap", gap: 8 } },
             conflicts.slice(0, 8).map((item) => React.createElement("span", { key: item, className: "chip", style: { fontSize: 12 } }, item))) : null,
+          (previewResult.fileConflicts || []).length > 0 ? React.createElement("div", { className: "mt12", style: { display: "flex", flexWrap: "wrap", gap: 8 } },
+            (previewResult.fileConflicts || []).slice(0, 8).map((item) => React.createElement("span", { key: item, className: "chip", style: { fontSize: 12 } }, item))) : null,
           previewResult.error ? React.createElement("div", { className: "mt12", style: { color: "var(--red-text)", fontSize: 13, lineHeight: 1.6 } }, previewResult.error) : null,
           previewId ? React.createElement("div", { className: "items-center gap8 mt12", style: { flexWrap: "wrap" } },
             React.createElement("button", { className: "btn", onClick: () => applyBackupImport(previewId, false), disabled: pending.apply || !previewResult.ok }, pending.apply ? React.createElement(React.Fragment, null, React.createElement("span", { className: "spin" }, I.refresh({ size: 14 })), "적용 중…") : React.createElement(React.Fragment, null, I.check({ size: 14 }), "적용")),
