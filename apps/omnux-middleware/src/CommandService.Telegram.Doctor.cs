@@ -21,6 +21,6 @@ public sealed partial class CommandService
         var latestOnly = tokens.Skip(1).Any(token => token.Equals("last", StringComparison.OrdinalIgnoreCase));
         var json = tokens.Skip(1).Any(token => token.Equals("json", StringComparison.OrdinalIgnoreCase));
 
-        return await ExecuteDoctorReportCommandAsync(json, latestOnly, cancellationToken);
+        return await ExecuteDoctorReportCommandAsync(json, latestOnly, cancellationToken, "telegram");
     }
 }

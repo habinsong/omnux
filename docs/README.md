@@ -22,6 +22,7 @@
 | Safe Refactor | [열기](./SAFE_REFACTORING.md) | [Open](./en/safe-refactoring.md) |
 | Doctor | [열기](./DOCTOR.md) | [Open](./en/doctor.md) |
 | 도구 통합 패널 | [열기](./도구_통합_패널_사용_가이드.md) | [Open](./en/tool-integration-panel.md) |
+| 텔레그램 봇 | [열기](./텔레그램_봇_가이드.md) | 한국어 문서 |
 | 노트북과 이어보기 | [열기](./NOTEBOOKS_AND_HANDOFF.md) | [Open](./en/notebooks-and-handoff.md) |
 | 계획과 Task Graph | [열기](./PLANNING_AND_TASKS.md) | [Open](./en/planning-and-tasks.md) |
 | 정리 기준 | [열기](./CLEANUP.md) | [Open](./en/cleanup.md) |

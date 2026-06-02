@@ -492,18 +492,13 @@ public sealed partial class CommandService
         try
         {
             var bytes = await File.ReadAllBytesAsync(path, cancellationToken);
-            // 안전 상한 (텔레그램 sendDocument: 50MB. 여기서는 8MB 까지만).
-            const int maxBytes = 8 * 1024 * 1024;
-            if (bytes.Length > maxBytes)
+            // 텔레그램 sendDocument는 더 크지만 모바일 UX와 로컬 비용을 위해 8MB로 제한한다.
+            if (!TelegramCodingDownloadPolicy.IsAllowedDocumentSize(bytes.Length))
             {
                 return $"파일이 너무 큽니다 ({bytes.Length / 1024}KB > 8MB). 대시보드에서 확인하세요.";
             }
 
-            var safeName = Path.GetFileName(displayPath);
-            if (string.IsNullOrWhiteSpace(safeName))
-            {
-                safeName = $"coding-file-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}.txt";
-            }
+            var safeName = TelegramCodingDownloadPolicy.BuildSafeDocumentName(displayPath, DateTimeOffset.UtcNow);
             var caption = $"📎 {displayPath}\n대화: {latest.Title}\n크기: {bytes.Length:N0} bytes";
             var ok = await _telegramClient.SendDocumentAsync(bytes, safeName, caption, cancellationToken);
             if (ok)
@@ -541,6 +536,24 @@ public sealed partial class CommandService
         }
 
         var content = File.ReadAllText(path);
+        if (TelegramCommandHandoffPolicy.ShouldUseCommandHandoff(content))
+        {
+            var downloadAction = string.IsNullOrWhiteSpace(query)
+                ? "/coding download <번호|경로>"
+                : $"/coding download {query.Trim()}";
+            return TelegramCommandHandoffPolicy.BuildCommandHandoffText(
+                "코딩 파일 프리뷰",
+                displayPath,
+                content,
+                new[]
+                {
+                    downloadAction,
+                    "/coding files",
+                    "/handoff"
+                }
+            );
+        }
+
         var preview = TrimTelegramCodePreview(content, 2600);
         return $"""
                 [코딩 파일 프리뷰]
@@ -785,22 +798,7 @@ public sealed partial class CommandService
     }
 
     private static string ToTelegramRelativePath(string? runDirectory, string path)
-    {
-        var fullPath = (path ?? string.Empty).Trim();
-        var root = (runDirectory ?? string.Empty).Trim();
-        if (fullPath.Length == 0)
-        {
-            return "(none)";
-        }
-
-        if (root.Length > 0 && fullPath.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-        {
-            var relative = fullPath[root.Length..].TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-            return relative.Length == 0 ? Path.GetFileName(fullPath) : relative;
-        }
-
-        return fullPath;
-    }
+        => TelegramCodingDownloadPolicy.ToRelativePath(runDirectory, path);
 
     private static string ExtractCommandTail(string text, string prefix)
     {
@@ -848,42 +846,5 @@ public sealed partial class CommandService
         out string path,
         out string displayPath
     )
-    {
-        path = string.Empty;
-        displayPath = string.Empty;
-        var files = result.ChangedFiles?.Where(item => !string.IsNullOrWhiteSpace(item)).ToArray() ?? Array.Empty<string>();
-        if (files.Length == 0)
-        {
-            return false;
-        }
-
-        var normalizedQuery = (query ?? string.Empty).Trim();
-        if (int.TryParse(normalizedQuery, out var parsedIndex) && parsedIndex >= 1 && parsedIndex <= files.Length)
-        {
-            path = files[parsedIndex - 1];
-            displayPath = ToTelegramRelativePath(result.Execution.RunDirectory, path);
-            return true;
-        }
-
-        if (normalizedQuery.Length == 0)
-        {
-            path = files[0];
-            displayPath = ToTelegramRelativePath(result.Execution.RunDirectory, path);
-            return true;
-        }
-
-        var matched = files.FirstOrDefault(item =>
-            item.Equals(normalizedQuery, StringComparison.OrdinalIgnoreCase)
-            || ToTelegramRelativePath(result.Execution.RunDirectory, item).Equals(normalizedQuery, StringComparison.OrdinalIgnoreCase)
-            || item.EndsWith(normalizedQuery, StringComparison.OrdinalIgnoreCase)
-            || ToTelegramRelativePath(result.Execution.RunDirectory, item).EndsWith(normalizedQuery, StringComparison.OrdinalIgnoreCase));
-        if (matched == null)
-        {
-            return false;
-        }
-
-        path = matched;
-        displayPath = ToTelegramRelativePath(result.Execution.RunDirectory, matched);
-        return true;
-    }
+        => TelegramCodingDownloadPolicy.TryResolveChangedFile(result, query, out path, out displayPath);
 }

@@ -36,3 +36,6 @@
 - [ ] 루틴 이미지 프리뷰가 루틴 자산 경로 밖 파일을 열지 않는지 확인
 - [ ] `/healthz`, `/readyz`, `doctor --json`
 - [ ] 텔레그램 자연어 명령과 일반 대화
+- [ ] 미들웨어 Telegram polling 루프를 잠시 멈춘 뒤 `node scripts/telegram-mobile-live-qa.mjs --timeout-sec 180` 실행
+- [ ] live QA 결과에서 `outboundMessageOk`, `outboundDocumentOk`, `inboundTextAckOk`, `inboundDocumentEchoOk`가 모두 `true`
+- [ ] 모바일에서 받은 `.txt` 첨부 파일을 다시 업로드했고, echo-back 문서 본문 `QA-ID` 확인으로 파일 첨부 수신이 판정되는지 확인

@@ -50,7 +50,7 @@ public sealed partial class CommandService
         CancellationToken cancellationToken
     )
     {
-        _ = source;
+        var isTelegram = string.Equals(source, "telegram", StringComparison.OrdinalIgnoreCase);
         if (tokens.Count == 1 || tokens[1].Equals("help", StringComparison.OrdinalIgnoreCase))
         {
             return """
@@ -132,7 +132,7 @@ public sealed partial class CommandService
             var output = GetTaskOutput(tokens[2], tokens[3]);
             return output == null
                 ? "Task output을 찾을 수 없습니다."
-                : FormatTaskOutput(output);
+                : FormatTaskOutput(output, isTelegram);
         }
 
         return "알 수 없는 /task 명령입니다. /task help를 확인하세요.";
@@ -196,8 +196,27 @@ public sealed partial class CommandService
         return builder.ToString().TrimEnd();
     }
 
-    private static string FormatTaskOutput(TaskOutputResult output)
+    private static string FormatTaskOutput(TaskOutputResult output, bool mobileHandoff = false)
     {
+        if (mobileHandoff)
+        {
+            var rawOutput = BuildRawTaskOutputText(output);
+            if (TelegramCommandHandoffPolicy.ShouldUseCommandHandoff(rawOutput))
+            {
+                return TelegramCommandHandoffPolicy.BuildCommandHandoffText(
+                    "작업 출력",
+                    $"graph={output.GraphId} task={output.TaskId}",
+                    rawOutput,
+                    new[]
+                    {
+                        $"/task status {output.GraphId}",
+                        $"/task output {output.GraphId} {output.TaskId}",
+                        "/handoff"
+                    }
+                );
+            }
+        }
+
         var builder = new StringBuilder();
         builder.AppendLine($"graph={output.GraphId} task={output.TaskId}");
         if (output.Execution != null)
@@ -223,6 +242,38 @@ public sealed partial class CommandService
         {
             builder.AppendLine("[result]");
             builder.AppendLine(TrimPlanText(output.ResultJson, 1200));
+        }
+
+        return builder.ToString().TrimEnd();
+    }
+
+    private static string BuildRawTaskOutputText(TaskOutputResult output)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine($"graph={output.GraphId} task={output.TaskId}");
+        if (output.Execution != null)
+        {
+            builder.AppendLine(
+                $"status={output.Execution.Status} executor={output.Execution.ExecutorKind} started={output.Execution.StartedAtUtc:O}"
+            );
+        }
+
+        if (!string.IsNullOrWhiteSpace(output.StdOut))
+        {
+            builder.AppendLine("[stdout]");
+            builder.AppendLine(output.StdOut.Trim());
+        }
+
+        if (!string.IsNullOrWhiteSpace(output.StdErr))
+        {
+            builder.AppendLine("[stderr]");
+            builder.AppendLine(output.StdErr.Trim());
+        }
+
+        if (!string.IsNullOrWhiteSpace(output.ResultJson))
+        {
+            builder.AppendLine("[result]");
+            builder.AppendLine(output.ResultJson.Trim());
         }
 
         return builder.ToString().TrimEnd();

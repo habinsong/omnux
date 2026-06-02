@@ -17,7 +17,8 @@ public sealed partial class CommandService
     private async Task<string> ExecuteDoctorReportCommandAsync(
         bool json,
         bool latestOnly,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string source = "web"
     )
     {
         var report = latestOnly
@@ -26,7 +27,28 @@ public sealed partial class CommandService
 
         if (json)
         {
-            return report == null ? "null" : DoctorJson.Serialize(report, indented: true);
+            if (report == null)
+            {
+                return "null";
+            }
+
+            var jsonText = DoctorJson.Serialize(report, indented: true);
+            if (string.Equals(source, "telegram", StringComparison.OrdinalIgnoreCase)
+                && TelegramCommandHandoffPolicy.ShouldUseCommandHandoff(jsonText, heavyChars: 1200, heavyLines: 24))
+            {
+                return TelegramCommandHandoffPolicy.BuildCommandHandoffText(
+                    "Doctor JSON",
+                    $"report={report.ReportId} ok={report.OkCount} warn={report.WarnCount} fail={report.FailCount} skip={report.SkipCount}",
+                    jsonText,
+                    new[]
+                    {
+                        latestOnly ? "/doctor last" : "/doctor",
+                        "/handoff"
+                    }
+                );
+            }
+
+            return jsonText;
         }
 
         return DoctorCli.RenderText(report);
