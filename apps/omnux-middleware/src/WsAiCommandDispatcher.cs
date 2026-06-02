@@ -1,54 +1,11 @@
 using System.Net.WebSockets;
+using System.Text.Json;
+using System.Diagnostics;
 
 namespace Omnux.Middleware;
 
 internal sealed class WsAiCommandDispatcher
 {
-    internal delegate Task SendGuardedErrorDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        string message,
-        CancellationToken cancellationToken,
-        SearchAnswerGuardFailure? guardFailure = null
-    );
-
-    internal delegate Task SendChatResultDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        ConversationChatResult result,
-        CancellationToken cancellationToken
-    );
-
-    internal delegate Task SendChatStreamChunkDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        ChatStreamUpdate update,
-        CancellationToken cancellationToken
-    );
-
-    internal delegate Task SendCodingResultDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        CodingRunResult result,
-        CancellationToken cancellationToken
-    );
-
-    internal delegate Task SendCodingExecutionResultDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        CodingResultExecutionResult result,
-        CancellationToken cancellationToken
-    );
-
-    internal delegate Task SendCodingProgressDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        string scope,
-        string mode,
-        CodingProgressUpdate update,
-        CancellationToken cancellationToken
-    );
-
     internal delegate Task SendConversationsDelegate(
         WebSocket socket,
         SemaphoreSlim sendLock,
@@ -83,18 +40,13 @@ internal sealed class WsAiCommandDispatcher
     private readonly ISettingsApplicationService _settingsService;
     private readonly ICommandExecutionService _commandExecutionService;
     private readonly Func<string, bool> _allowCommand;
-    private readonly SendGuardedErrorDelegate _sendGuardedErrorAsync;
-    private readonly SendChatResultDelegate _sendChatResultAsync;
-    private readonly SendChatStreamChunkDelegate _sendChatStreamChunkAsync;
-    private readonly SendCodingResultDelegate _sendCodingResultAsync;
-    private readonly SendCodingExecutionResultDelegate _sendCodingExecutionResultAsync;
-    private readonly SendCodingProgressDelegate _sendCodingProgressAsync;
     private readonly SendConversationsDelegate _sendConversationsAsync;
     private readonly SendModelsDelegate _sendGroqModelsAsync;
     private readonly SendModelsDelegate _sendCopilotModelsAsync;
     private readonly SendUsageStatsDelegate _sendUsageStatsAsync;
     private readonly SendMetricsDelegate _sendMetricsAsync;
-    private readonly Func<ConversationMultiResult, string> _buildMultiChatResultJson;
+
+    private readonly GuardRetryTimelineStore _guardRetryTimelineStore;
 
     public WsAiCommandDispatcher(
         IChatApplicationService chatService,
@@ -102,18 +54,12 @@ internal sealed class WsAiCommandDispatcher
         ISettingsApplicationService settingsService,
         ICommandExecutionService commandExecutionService,
         Func<string, bool> allowCommand,
-        SendGuardedErrorDelegate sendGuardedErrorAsync,
-        SendChatResultDelegate sendChatResultAsync,
-        SendChatStreamChunkDelegate sendChatStreamChunkAsync,
-        SendCodingResultDelegate sendCodingResultAsync,
-        SendCodingExecutionResultDelegate sendCodingExecutionResultAsync,
-        SendCodingProgressDelegate sendCodingProgressAsync,
+        GuardRetryTimelineStore guardRetryTimelineStore,
         SendConversationsDelegate sendConversationsAsync,
         SendModelsDelegate sendGroqModelsAsync,
         SendModelsDelegate sendCopilotModelsAsync,
         SendUsageStatsDelegate sendUsageStatsAsync,
-        SendMetricsDelegate sendMetricsAsync,
-        Func<ConversationMultiResult, string> buildMultiChatResultJson
+        SendMetricsDelegate sendMetricsAsync
     )
     {
         _chatService = chatService;
@@ -121,18 +67,12 @@ internal sealed class WsAiCommandDispatcher
         _settingsService = settingsService;
         _commandExecutionService = commandExecutionService;
         _allowCommand = allowCommand;
-        _sendGuardedErrorAsync = sendGuardedErrorAsync;
-        _sendChatResultAsync = sendChatResultAsync;
-        _sendChatStreamChunkAsync = sendChatStreamChunkAsync;
-        _sendCodingResultAsync = sendCodingResultAsync;
-        _sendCodingExecutionResultAsync = sendCodingExecutionResultAsync;
-        _sendCodingProgressAsync = sendCodingProgressAsync;
+        _guardRetryTimelineStore = guardRetryTimelineStore;
         _sendConversationsAsync = sendConversationsAsync;
         _sendGroqModelsAsync = sendGroqModelsAsync;
         _sendCopilotModelsAsync = sendCopilotModelsAsync;
         _sendUsageStatsAsync = sendUsageStatsAsync;
         _sendMetricsAsync = sendMetricsAsync;
-        _buildMultiChatResultJson = buildMultiChatResultJson;
     }
 
     private static async Task FlushCodingProgressAsync(Task progressPipeline)
@@ -158,7 +98,7 @@ internal sealed class WsAiCommandDispatcher
         {
             if (string.IsNullOrWhiteSpace(message.Text))
             {
-                await _sendGuardedErrorAsync(
+                await SendGuardedErrorAsync(
                     socket,
                     sendLock,
                     "empty message",
@@ -175,7 +115,7 @@ internal sealed class WsAiCommandDispatcher
                 {
                     try
                     {
-                        _sendChatStreamChunkAsync(socket, sendLock, update, cancellationToken).GetAwaiter().GetResult();
+                        SendChatStreamChunkAsync(socket, sendLock, update, cancellationToken).GetAwaiter().GetResult();
                     }
                     catch
                     {
@@ -209,7 +149,7 @@ internal sealed class WsAiCommandDispatcher
                     stream
                 );
 
-                await _sendChatResultAsync(socket, sendLock, result, cancellationToken);
+                await SendChatResultAsync(socket, sendLock, result, cancellationToken);
                 await _sendGroqModelsAsync(socket, sendLock, cancellationToken);
                 await _sendCopilotModelsAsync(socket, sendLock, cancellationToken);
                 await _sendUsageStatsAsync(socket, sendLock, cancellationToken);
@@ -217,7 +157,7 @@ internal sealed class WsAiCommandDispatcher
             }
             catch (Exception ex)
             {
-                await _sendGuardedErrorAsync(
+                await SendGuardedErrorAsync(
                     socket,
                     sendLock,
                     "chat_single failed: " + ex.Message,
@@ -232,7 +172,7 @@ internal sealed class WsAiCommandDispatcher
         {
             if (string.IsNullOrWhiteSpace(message.Text))
             {
-                await _sendGuardedErrorAsync(
+                await SendGuardedErrorAsync(
                     socket,
                     sendLock,
                     "empty message",
@@ -274,13 +214,13 @@ internal sealed class WsAiCommandDispatcher
                     ),
                     cancellationToken
                 );
-                await _sendChatResultAsync(socket, sendLock, result, cancellationToken);
+                await SendChatResultAsync(socket, sendLock, result, cancellationToken);
                 await _sendUsageStatsAsync(socket, sendLock, cancellationToken);
                 await _sendConversationsAsync(socket, sendLock, scopeValue, modeValue, cancellationToken);
             }
             catch (Exception ex)
             {
-                await _sendGuardedErrorAsync(
+                await SendGuardedErrorAsync(
                     socket,
                     sendLock,
                     "chat_orchestration failed: " + ex.Message,
@@ -295,7 +235,7 @@ internal sealed class WsAiCommandDispatcher
         {
             if (string.IsNullOrWhiteSpace(message.Text))
             {
-                await _sendGuardedErrorAsync(
+                await SendGuardedErrorAsync(
                     socket,
                     sendLock,
                     "empty message",
@@ -337,10 +277,46 @@ internal sealed class WsAiCommandDispatcher
                     cancellationToken
                 );
 
+                var retryDirective = WebSocketGateway.ResolveRetryDirective(result.GuardFailure);
+                var multiResponse = new ChatMultiResultWsResponse(
+                    "llm_chat_multi_result",
+                    result.ConversationId,
+                    result.GroqText,
+                    result.GeminiText,
+                    result.CerebrasText,
+                    result.NvidiaText,
+                    result.CopilotText,
+                    result.CodexText,
+                    result.Summary,
+                    result.Summary,
+                    result.CommonCore,
+                    result.Differences,
+                    result.GroqModel,
+                    result.GeminiModel,
+                    result.CerebrasModel,
+                    result.NvidiaModel,
+                    result.CopilotModel,
+                    result.CodexModel,
+                    result.RequestedSummaryProvider,
+                    result.ResolvedSummaryProvider,
+                    result.Conversation,
+                    result.AutoMemoryNote,
+                    result.Citations,
+                    result.CitationMappings,
+                    result.CitationValidation,
+                    WebSocketGateway.NormalizeWebSearchGuardCategory(result.GuardFailure),
+                    WebSocketGateway.NormalizeWebSearchGuardReason(result.GuardFailure),
+                    WebSocketGateway.NormalizeWebSearchGuardDetail(result.GuardFailure),
+                    retryDirective.RetryRequired,
+                    retryDirective.RetryAction,
+                    retryDirective.RetryScope,
+                    retryDirective.RetryReason
+                );
+                var multiJson = JsonSerializer.Serialize(multiResponse, WsAiJsonContext.Default.ChatMultiResultWsResponse);
                 await WebSocketGateway.SendTextAsync(
                     socket,
                     sendLock,
-                    _buildMultiChatResultJson(result),
+                    multiJson,
                     cancellationToken
                 );
                 await _sendGroqModelsAsync(socket, sendLock, cancellationToken);
@@ -350,7 +326,7 @@ internal sealed class WsAiCommandDispatcher
             }
             catch (Exception ex)
             {
-                await _sendGuardedErrorAsync(
+                await SendGuardedErrorAsync(
                     socket,
                     sendLock,
                     "chat_multi failed: " + ex.Message,
@@ -365,7 +341,7 @@ internal sealed class WsAiCommandDispatcher
         {
             if (string.IsNullOrWhiteSpace(message.Text))
             {
-                await _sendGuardedErrorAsync(
+                await SendGuardedErrorAsync(
                     socket,
                     sendLock,
                     "empty coding input",
@@ -382,7 +358,7 @@ internal sealed class WsAiCommandDispatcher
                 Action<CodingProgressUpdate> progress = update =>
                 {
                     progressPipeline = progressPipeline.ContinueWith(
-                        _ => _sendCodingProgressAsync(socket, sendLock, scopeValue, modeValue, update, cancellationToken),
+                        _ => SendCodingProgressAsync(socket, sendLock, scopeValue, modeValue, update, cancellationToken),
                         cancellationToken,
                         TaskContinuationOptions.None,
                         TaskScheduler.Default
@@ -415,12 +391,12 @@ internal sealed class WsAiCommandDispatcher
                     progress
                 );
                 await FlushCodingProgressAsync(progressPipeline);
-                await _sendCodingResultAsync(socket, sendLock, result, cancellationToken);
+                await SendCodingResultAsync(socket, sendLock, result, cancellationToken);
                 await _sendConversationsAsync(socket, sendLock, scopeValue, modeValue, cancellationToken);
             }
             catch (Exception ex)
             {
-                await _sendGuardedErrorAsync(
+                await SendGuardedErrorAsync(
                     socket,
                     sendLock,
                     "coding_single failed: " + ex.Message,
@@ -441,7 +417,7 @@ internal sealed class WsAiCommandDispatcher
                 Action<CodingProgressUpdate> progress = update =>
                 {
                     progressPipeline = progressPipeline.ContinueWith(
-                        _ => _sendCodingProgressAsync(socket, sendLock, scopeValue, modeValue, update, cancellationToken),
+                        _ => SendCodingProgressAsync(socket, sendLock, scopeValue, modeValue, update, cancellationToken),
                         cancellationToken,
                         TaskContinuationOptions.None,
                         TaskScheduler.Default
@@ -479,12 +455,12 @@ internal sealed class WsAiCommandDispatcher
                     progress
                 );
                 await FlushCodingProgressAsync(progressPipeline);
-                await _sendCodingResultAsync(socket, sendLock, result, cancellationToken);
+                await SendCodingResultAsync(socket, sendLock, result, cancellationToken);
                 await _sendConversationsAsync(socket, sendLock, scopeValue, modeValue, cancellationToken);
             }
             catch (Exception ex)
             {
-                await _sendGuardedErrorAsync(
+                await SendGuardedErrorAsync(
                     socket,
                     sendLock,
                     "coding_orchestration failed: " + ex.Message,
@@ -499,7 +475,7 @@ internal sealed class WsAiCommandDispatcher
         {
             if (string.IsNullOrWhiteSpace(message.Text))
             {
-                await _sendGuardedErrorAsync(
+                await SendGuardedErrorAsync(
                     socket,
                     sendLock,
                     "empty coding input",
@@ -516,7 +492,7 @@ internal sealed class WsAiCommandDispatcher
                 Action<CodingProgressUpdate> progress = update =>
                 {
                     progressPipeline = progressPipeline.ContinueWith(
-                        _ => _sendCodingProgressAsync(socket, sendLock, scopeValue, modeValue, update, cancellationToken),
+                        _ => SendCodingProgressAsync(socket, sendLock, scopeValue, modeValue, update, cancellationToken),
                         cancellationToken,
                         TaskContinuationOptions.None,
                         TaskScheduler.Default
@@ -554,12 +530,12 @@ internal sealed class WsAiCommandDispatcher
                     progress
                 );
                 await FlushCodingProgressAsync(progressPipeline);
-                await _sendCodingResultAsync(socket, sendLock, result, cancellationToken);
+                await SendCodingResultAsync(socket, sendLock, result, cancellationToken);
                 await _sendConversationsAsync(socket, sendLock, scopeValue, modeValue, cancellationToken);
             }
             catch (Exception ex)
             {
-                await _sendGuardedErrorAsync(
+                await SendGuardedErrorAsync(
                     socket,
                     sendLock,
                     "coding_multi failed: " + ex.Message,
@@ -590,7 +566,7 @@ internal sealed class WsAiCommandDispatcher
                     message.StandardInput,
                     cancellationToken
                 );
-                await _sendCodingExecutionResultAsync(socket, sendLock, executionResult, cancellationToken);
+                await SendCodingExecutionResultAsync(socket, sendLock, executionResult, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -649,5 +625,190 @@ internal sealed class WsAiCommandDispatcher
         }
 
         return false;
+    }
+
+    private void TrackGuardRetryTimelineEntry(
+        string channel,
+        bool retryRequired,
+        int retryAttempt,
+        int retryMaxAttempts,
+        string? retryStopReason
+    )
+    {
+        try
+        {
+            _guardRetryTimelineStore.Add(
+                channel: channel,
+                retryRequired: retryRequired,
+                retryAttempt: retryAttempt,
+                retryMaxAttempts: retryMaxAttempts,
+                retryStopReason: retryStopReason
+            );
+        }
+        catch
+        {
+            // Ignore
+        }
+    }
+
+    private async Task SendGuardedErrorAsync(WebSocket socket, SemaphoreSlim sendLock, string message, CancellationToken cancellationToken, SearchAnswerGuardFailure? guardFailure = null)
+    {
+        var effectiveGuardFailure = guardFailure ?? WebSocketGateway.TryParseGuardFailureFromMessage(message);
+        var retryDirective = WebSocketGateway.ResolveRetryDirective(effectiveGuardFailure);
+        var response = new GuardedErrorWsResponse(
+            "error",
+            message,
+            WebSocketGateway.NormalizeWebSearchGuardCategory(effectiveGuardFailure),
+            WebSocketGateway.NormalizeWebSearchGuardReason(effectiveGuardFailure),
+            WebSocketGateway.NormalizeWebSearchGuardDetail(effectiveGuardFailure),
+            retryDirective.RetryRequired,
+            retryDirective.RetryAction,
+            retryDirective.RetryScope,
+            retryDirective.RetryReason
+        );
+        var json = JsonSerializer.Serialize(response, WsAiJsonContext.Default.GuardedErrorWsResponse);
+        await WebSocketGateway.SendTextAsync(socket, sendLock, json, cancellationToken);
+    }
+
+    private async Task SendChatResultAsync(WebSocket socket, SemaphoreSlim sendLock, ConversationChatResult result, CancellationToken cancellationToken)
+    {
+        var retryDirective = WebSocketGateway.ResolveRetryDirective(result.GuardFailure);
+        var normalizedRetryStopReason = WebSocketGateway.NormalizeWebSearchRetryStopReason(result.RetryStopReason);
+        TrackGuardRetryTimelineEntry("chat", retryDirective.RetryRequired, result.RetryAttempt, result.RetryMaxAttempts, normalizedRetryStopReason);
+
+        var response = new ChatResultWsResponse(
+            "llm_chat_result",
+            result.Mode,
+            result.ConversationId,
+            result.Provider,
+            result.Model,
+            result.Route,
+            result.RequestId ?? string.Empty,
+            result.Text,
+            result.Conversation,
+            result.AutoMemoryNote,
+            result.Citations,
+            result.CitationMappings,
+            result.CitationValidation,
+            WebSocketGateway.NormalizeWebSearchGuardCategory(result.GuardFailure),
+            WebSocketGateway.NormalizeWebSearchGuardReason(result.GuardFailure),
+            WebSocketGateway.NormalizeWebSearchGuardDetail(result.GuardFailure),
+            retryDirective.RetryRequired,
+            retryDirective.RetryAction,
+            retryDirective.RetryScope,
+            retryDirective.RetryReason,
+            Math.Max(0, result.RetryAttempt),
+            Math.Max(0, result.RetryMaxAttempts),
+            normalizedRetryStopReason,
+            result.Latency
+        );
+        var json = JsonSerializer.Serialize(response, WsAiJsonContext.Default.ChatResultWsResponse);
+        await WebSocketGateway.SendTextAsync(socket, sendLock, json, cancellationToken);
+    }
+
+    private async Task SendChatStreamChunkAsync(WebSocket socket, SemaphoreSlim sendLock, ChatStreamUpdate update, CancellationToken cancellationToken)
+    {
+        var response = new ChatStreamChunkWsResponse(
+            "llm_chat_stream",
+            update.Scope,
+            update.Mode,
+            update.Provider,
+            update.Model,
+            update.Route,
+            update.RequestId ?? string.Empty,
+            update.Delta,
+            update.ConversationId,
+            Math.Max(0, update.ChunkIndex)
+        );
+        var json = JsonSerializer.Serialize(response, WsAiJsonContext.Default.ChatStreamChunkWsResponse);
+        await WebSocketGateway.SendTextAsync(socket, sendLock, json, cancellationToken);
+    }
+
+    private async Task SendCodingResultAsync(WebSocket socket, SemaphoreSlim sendLock, CodingRunResult result, CancellationToken cancellationToken)
+    {
+        var retryDirective = WebSocketGateway.ResolveRetryDirective(result.GuardFailure);
+        var normalizedRetryStopReason = WebSocketGateway.NormalizeWebSearchRetryStopReason(result.RetryStopReason);
+        TrackGuardRetryTimelineEntry("coding", retryDirective.RetryRequired, result.RetryAttempt, result.RetryMaxAttempts, normalizedRetryStopReason);
+
+        var response = new CodingResultWsResponse(
+            "coding_result",
+            result.Mode,
+            result.ConversationId,
+            result.Provider,
+            result.Model,
+            result.Language,
+            result.Code,
+            result.Execution,
+            result.Workers,
+            result.ChangedFiles,
+            result.Summary,
+            result.Conversation,
+            result.AutoMemoryNote,
+            result.Citations,
+            result.CitationMappings,
+            result.CitationValidation,
+            WebSocketGateway.NormalizeWebSearchGuardCategory(result.GuardFailure),
+            WebSocketGateway.NormalizeWebSearchGuardReason(result.GuardFailure),
+            WebSocketGateway.NormalizeWebSearchGuardDetail(result.GuardFailure),
+            retryDirective.RetryRequired,
+            retryDirective.RetryAction,
+            retryDirective.RetryScope,
+            retryDirective.RetryReason,
+            Math.Max(0, result.RetryAttempt),
+            Math.Max(0, result.RetryMaxAttempts),
+            normalizedRetryStopReason,
+            result.CommonSummary,
+            result.CommonPoints,
+            result.Differences,
+            result.Recommendation,
+            result.Evidence
+        );
+        var json = JsonSerializer.Serialize(response, WsAiJsonContext.Default.CodingResultWsResponse);
+        await WebSocketGateway.SendTextAsync(socket, sendLock, json, cancellationToken);
+    }
+
+    private async Task SendCodingExecutionResultAsync(WebSocket socket, SemaphoreSlim sendLock, CodingResultExecutionResult result, CancellationToken cancellationToken)
+    {
+        var response = new CodingExecutionResultWsResponse(
+            "coding_execute_result",
+            result.Ok,
+            result.ConversationId,
+            result.Language,
+            result.RunMode,
+            result.Message,
+            result.TargetProvider,
+            result.TargetModel,
+            result.PreviewUrl,
+            result.PreviewEntry,
+            result.Execution,
+            result.Evidence
+        );
+        var json = JsonSerializer.Serialize(response, WsAiJsonContext.Default.CodingExecutionResultWsResponse);
+        await WebSocketGateway.SendTextAsync(socket, sendLock, json, cancellationToken);
+    }
+
+    private async Task SendCodingProgressAsync(WebSocket socket, SemaphoreSlim sendLock, string scope, string mode, CodingProgressUpdate update, CancellationToken cancellationToken)
+    {
+        var effectiveMode = string.IsNullOrWhiteSpace(update.Mode) ? mode : update.Mode;
+        var response = new CodingProgressWsResponse(
+            "coding_progress",
+            scope,
+            effectiveMode,
+            update.Provider,
+            update.Model,
+            update.Phase,
+            update.Message,
+            update.Iteration,
+            update.MaxIterations,
+            update.Percent,
+            update.Done,
+            update.StageKey,
+            update.StageTitle,
+            update.StageDetail,
+            update.StageIndex,
+            update.StageTotal
+        );
+        var json = JsonSerializer.Serialize(response, WsAiJsonContext.Default.CodingProgressWsResponse);
+        await WebSocketGateway.SendTextAsync(socket, sendLock, json, cancellationToken);
     }
 }

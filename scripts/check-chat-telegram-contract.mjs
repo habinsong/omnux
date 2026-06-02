@@ -20,9 +20,9 @@ const telegramCoding = read("apps/omnux-middleware/src/CommandService.Telegram.C
 const telegramConversation = read("apps/omnux-middleware/src/CommandService.Telegram.Conversation.cs");
 const telegramRefactor = read("apps/omnux-middleware/src/CommandService.Telegram.Refactor.cs");
 const telegramDoctor = read("apps/omnux-middleware/src/CommandService.Telegram.Doctor.cs");
-const commandServiceDoctor = read("apps/omnux-middleware/src/CommandService.Doctor.cs");
-const commandServiceTasks = read("apps/omnux-middleware/src/CommandService.Tasks.cs");
-const commandServiceNotebooks = read("apps/omnux-middleware/src/CommandService.Notebooks.cs");
+const taskSlashCommandHandler = read("apps/omnux-middleware/src/CommandDispatch/TaskSlashCommandHandler.cs");
+const doctorSlashCommandHandler = read("apps/omnux-middleware/src/CommandDispatch/DoctorSlashCommandHandler.cs");
+const handoffSlashCommandHandler = read("apps/omnux-middleware/src/CommandDispatch/HandoffSlashCommandHandler.cs");
 const updateLoop = read("apps/omnux-middleware/src/TelegramUpdateLoop.cs");
 const execution = read("apps/omnux-middleware/src/CommandService.Execution.cs");
 const executionContext = read("apps/omnux-middleware/src/Application/ExecutionContext.cs");
@@ -171,14 +171,14 @@ assert(
     telegramCommandHandoffPolicy.includes("BuildCommandHandoffText") &&
     telegramCoding.includes("TelegramCommandHandoffPolicy.ShouldUseCommandHandoff(content)") &&
     telegramRefactor.includes("TelegramCommandHandoffPolicy.ShouldUseCommandHandoff") &&
-    commandServiceTasks.includes("FormatTaskOutput(output, isTelegram)") &&
-    commandServiceTasks.includes("BuildRawTaskOutputText") &&
-    commandServiceDoctor.includes("TelegramCommandHandoffPolicy.ShouldUseCommandHandoff(jsonText") &&
-    telegramDoctor.includes("\"telegram\""),
+    taskSlashCommandHandler.includes("FormatTaskOutput(output, isTelegram)") &&
+    taskSlashCommandHandler.includes("BuildRawTaskOutputText") &&
+    doctorSlashCommandHandler.includes("TelegramCommandHandoffPolicy.ShouldUseCommandHandoff(jsonText") &&
+    telegramDoctor.includes("TryHandleViaSlashRouterAsync(text, \"telegram\", cancellationToken)"),
   "텔레그램 명령별 대형 파일/diff/task output/doctor JSON은 본문 직접 출력 대신 요약+handoff 정책을 거쳐야 합니다."
 );
 assert(
-  commandServiceNotebooks.includes("TelegramHandoffPresentationPolicy.BuildTelegramHandoffResult") &&
+  handoffSlashCommandHandler.includes("TelegramHandoffPresentationPolicy.BuildTelegramHandoffResult") &&
     telegramHandoffPresentationPolicy.includes("handoffPath=") &&
     telegramHandoffPresentationPolicy.includes("Notebooks 화면의 Handoff 패널") &&
     telegramHandoffPresentationPolicy.includes("텔레그램에서는 요약과 트리거만 확인") &&

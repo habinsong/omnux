@@ -99,12 +99,6 @@ public sealed partial class CommandService
             return slashRouterResult;
         }
 
-        var unifiedSlashResult = await TryHandleUnifiedSlashCommandAsync(text, source, cancellationToken);
-        if (unifiedSlashResult != null)
-        {
-            return unifiedSlashResult;
-        }
-
         return await ExecutePostUnifiedRoutingAsync(
             source,
             text,

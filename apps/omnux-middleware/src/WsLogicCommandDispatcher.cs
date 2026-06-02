@@ -4,63 +4,14 @@ namespace Omnux.Middleware;
 
 internal sealed class WsLogicCommandDispatcher
 {
-    internal delegate Task SendLogicGraphListResultDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        LogicGraphListResult result,
-        CancellationToken cancellationToken
-    );
-
-    internal delegate Task SendLogicGraphActionResultDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        LogicGraphActionResult result,
-        CancellationToken cancellationToken
-    );
-
-    internal delegate Task SendLogicPathBrowseResultDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        LogicPathBrowseResult result,
-        CancellationToken cancellationToken
-    );
-
-    internal delegate Task SendLogicRunActionResultDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        LogicRunActionResult result,
-        CancellationToken cancellationToken
-    );
-
-    internal delegate Task SendLogicRunEventDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        LogicRunEvent result,
-        CancellationToken cancellationToken
-    );
 
     private readonly ILogicApplicationService _logicService;
-    private readonly SendLogicGraphListResultDelegate _sendLogicGraphListResultAsync;
-    private readonly SendLogicGraphActionResultDelegate _sendLogicGraphActionResultAsync;
-    private readonly SendLogicPathBrowseResultDelegate _sendLogicPathBrowseResultAsync;
-    private readonly SendLogicRunActionResultDelegate _sendLogicRunActionResultAsync;
-    private readonly SendLogicRunEventDelegate _sendLogicRunEventAsync;
 
     public WsLogicCommandDispatcher(
-        ILogicApplicationService logicService,
-        SendLogicGraphListResultDelegate sendLogicGraphListResultAsync,
-        SendLogicGraphActionResultDelegate sendLogicGraphActionResultAsync,
-        SendLogicPathBrowseResultDelegate sendLogicPathBrowseResultAsync,
-        SendLogicRunActionResultDelegate sendLogicRunActionResultAsync,
-        SendLogicRunEventDelegate sendLogicRunEventAsync
+        ILogicApplicationService logicService
     )
     {
         _logicService = logicService;
-        _sendLogicGraphListResultAsync = sendLogicGraphListResultAsync;
-        _sendLogicGraphActionResultAsync = sendLogicGraphActionResultAsync;
-        _sendLogicPathBrowseResultAsync = sendLogicPathBrowseResultAsync;
-        _sendLogicRunActionResultAsync = sendLogicRunActionResultAsync;
-        _sendLogicRunEventAsync = sendLogicRunEventAsync;
     }
 
     public async Task<bool> TryHandleAsync(
@@ -73,7 +24,7 @@ internal sealed class WsLogicCommandDispatcher
     {
         if (message.Type == "logic_graph_list")
         {
-            await _sendLogicGraphListResultAsync(
+            await SendLogicGraphListResultAsync(
                 socket,
                 sendLock,
                 _logicService.ListLogicGraphs(),
@@ -90,7 +41,7 @@ internal sealed class WsLogicCommandDispatcher
                 return true;
             }
 
-            await _sendLogicGraphActionResultAsync(
+            await SendLogicGraphActionResultAsync(
                 socket,
                 sendLock,
                 _logicService.GetLogicGraph(message.GraphId.Trim()),
@@ -105,7 +56,7 @@ internal sealed class WsLogicCommandDispatcher
                 ? "workspace"
                 : message.Scope.Trim();
             var result = _logicService.BrowseLogicPath(scope, message.Target, message.FilePath);
-            await _sendLogicPathBrowseResultAsync(socket, sendLock, result, cancellationToken);
+            await SendLogicPathBrowseResultAsync(socket, sendLock, result, cancellationToken);
             return true;
         }
 
@@ -123,8 +74,8 @@ internal sealed class WsLogicCommandDispatcher
                 "web",
                 cancellationToken
             );
-            await _sendLogicGraphActionResultAsync(socket, sendLock, result, cancellationToken);
-            await _sendLogicGraphListResultAsync(socket, sendLock, _logicService.ListLogicGraphs(), cancellationToken);
+            await SendLogicGraphActionResultAsync(socket, sendLock, result, cancellationToken);
+            await SendLogicGraphListResultAsync(socket, sendLock, _logicService.ListLogicGraphs(), cancellationToken);
             return true;
         }
 
@@ -137,8 +88,8 @@ internal sealed class WsLogicCommandDispatcher
             }
 
             var result = _logicService.DeleteLogicGraph(message.GraphId.Trim());
-            await _sendLogicGraphActionResultAsync(socket, sendLock, result, cancellationToken);
-            await _sendLogicGraphListResultAsync(socket, sendLock, _logicService.ListLogicGraphs(), cancellationToken);
+            await SendLogicGraphActionResultAsync(socket, sendLock, result, cancellationToken);
+            await SendLogicGraphListResultAsync(socket, sendLock, _logicService.ListLogicGraphs(), cancellationToken);
             return true;
         }
 
@@ -153,8 +104,8 @@ internal sealed class WsLogicCommandDispatcher
                     "web",
                     cancellationToken
                 );
-                await _sendLogicGraphActionResultAsync(socket, sendLock, saveResult, cancellationToken);
-                await _sendLogicGraphListResultAsync(socket, sendLock, _logicService.ListLogicGraphs(), cancellationToken);
+                await SendLogicGraphActionResultAsync(socket, sendLock, saveResult, cancellationToken);
+                await SendLogicGraphListResultAsync(socket, sendLock, _logicService.ListLogicGraphs(), cancellationToken);
                 if (!saveResult.Ok)
                 {
                     return true;
@@ -175,11 +126,11 @@ internal sealed class WsLogicCommandDispatcher
                 targetGraphId.Trim(),
                 "web",
                 string.IsNullOrWhiteSpace(message.LogicRunInput) ? null : message.LogicRunInput.Trim(),
-                evt => _ = _sendLogicRunEventAsync(socket, sendLock, evt, cancellationToken),
+                evt => _ = SendLogicRunEventAsync(socket, sendLock, evt, cancellationToken),
                 cancellationToken
             );
-            await _sendLogicRunActionResultAsync(socket, sendLock, result, cancellationToken);
-            await _sendLogicGraphListResultAsync(socket, sendLock, _logicService.ListLogicGraphs(), cancellationToken);
+            await SendLogicRunActionResultAsync(socket, sendLock, result, cancellationToken);
+            await SendLogicGraphListResultAsync(socket, sendLock, _logicService.ListLogicGraphs(), cancellationToken);
             return true;
         }
 
@@ -192,7 +143,7 @@ internal sealed class WsLogicCommandDispatcher
             }
 
             var result = _logicService.CancelLogicGraphRun(message.LogicRunId.Trim());
-            await _sendLogicRunActionResultAsync(socket, sendLock, result, cancellationToken);
+            await SendLogicRunActionResultAsync(socket, sendLock, result, cancellationToken);
             return true;
         }
 
@@ -208,10 +159,121 @@ internal sealed class WsLogicCommandDispatcher
             var result = snapshot == null
                 ? new LogicRunActionResult(false, "실행 기록을 찾을 수 없습니다.", message.LogicRunId.Trim(), null)
                 : new LogicRunActionResult(true, "실행 기록을 불러왔습니다.", message.LogicRunId.Trim(), snapshot);
-            await _sendLogicRunActionResultAsync(socket, sendLock, result, cancellationToken);
+            await SendLogicRunActionResultAsync(socket, sendLock, result, cancellationToken);
             return true;
         }
 
         return false;
     }
+private static Task SendLogicGraphListResultAsync(
+    WebSocket socket,
+    SemaphoreSlim sendLock,
+    LogicGraphListResult result,
+    CancellationToken cancellationToken
+)
+{
+    return WebSocketGateway.SendTextAsync(
+        socket,
+        sendLock,
+        "{"
+        + "\"type\":\"logic_graph_list_result\","
+        + $"\"items\":{LogicGraphJson.Serialize(result.Items)}"
+        + "}",
+        cancellationToken
+    );
+}
+
+private static Task SendLogicGraphActionResultAsync(
+    WebSocket socket,
+    SemaphoreSlim sendLock,
+    LogicGraphActionResult result,
+    CancellationToken cancellationToken
+)
+{
+    return WebSocketGateway.SendTextAsync(
+        socket,
+        sendLock,
+        "{"
+        + "\"type\":\"logic_graph_result\","
+        + $"\"ok\":{(result.Ok ? "true" : "false")},"
+        + $"\"message\":\"{WebSocketGateway.EscapeJson(result.Message)}\","
+        + $"\"summary\":{(result.Summary == null ? "null" : LogicGraphJson.Serialize(result.Summary))},"
+        + $"\"graph\":{(result.Graph == null ? "null" : LogicGraphJson.Serialize(result.Graph))}"
+        + "}",
+        cancellationToken
+    );
+}
+
+private static Task SendLogicPathBrowseResultAsync(
+    WebSocket socket,
+    SemaphoreSlim sendLock,
+    LogicPathBrowseResult result,
+    CancellationToken cancellationToken
+)
+{
+    return WebSocketGateway.SendTextAsync(
+        socket,
+        sendLock,
+        "{"
+        + "\"type\":\"logic_path_list_result\","
+        + $"\"ok\":{(result.Ok ? "true" : "false")},"
+        + $"\"message\":\"{WebSocketGateway.EscapeJson(result.Message)}\","
+        + $"\"scope\":\"{WebSocketGateway.EscapeJson(result.Scope)}\","
+        + $"\"rootKey\":\"{WebSocketGateway.EscapeJson(result.RootKey)}\","
+        + $"\"rootLabel\":\"{WebSocketGateway.EscapeJson(result.RootLabel)}\","
+        + $"\"displayPath\":\"{WebSocketGateway.EscapeJson(result.DisplayPath)}\","
+        + $"\"browsePath\":\"{WebSocketGateway.EscapeJson(result.BrowsePath)}\","
+        + $"\"parentBrowsePath\":{WebSocketGateway.ToJsonStringOrNull(result.ParentBrowsePath)},"
+        + $"\"directorySelectPath\":{WebSocketGateway.ToJsonStringOrNull(result.DirectorySelectPath)},"
+        + $"\"roots\":{LogicGraphJson.Serialize(result.Roots)},"
+        + $"\"items\":{LogicGraphJson.Serialize(result.Items)}"
+        + "}",
+        cancellationToken
+    );
+}
+
+private static Task SendLogicRunActionResultAsync(
+    WebSocket socket,
+    SemaphoreSlim sendLock,
+    LogicRunActionResult result,
+    CancellationToken cancellationToken
+)
+{
+    return WebSocketGateway.SendTextAsync(
+        socket,
+        sendLock,
+        "{"
+        + "\"type\":\"logic_graph_run_result\","
+        + $"\"ok\":{(result.Ok ? "true" : "false")},"
+        + $"\"message\":\"{WebSocketGateway.EscapeJson(result.Message)}\","
+        + $"\"runId\":{WebSocketGateway.ToJsonStringOrNull(result.RunId)},"
+        + $"\"snapshot\":{(result.Snapshot == null ? "null" : LogicGraphJson.Serialize(result.Snapshot))}"
+        + "}",
+        cancellationToken
+    );
+}
+
+private static Task SendLogicRunEventAsync(
+    WebSocket socket,
+    SemaphoreSlim sendLock,
+    LogicRunEvent result,
+    CancellationToken cancellationToken
+)
+{
+    return WebSocketGateway.SendTextAsync(
+        socket,
+        sendLock,
+        "{"
+        + "\"type\":\"logic_graph_run_event\","
+        + $"\"runId\":\"{WebSocketGateway.EscapeJson(result.RunId)}\","
+        + $"\"graphId\":\"{WebSocketGateway.EscapeJson(result.GraphId)}\","
+        + $"\"kind\":\"{WebSocketGateway.EscapeJson(result.Kind)}\","
+        + $"\"message\":\"{WebSocketGateway.EscapeJson(result.Message)}\","
+        + $"\"nodeId\":{WebSocketGateway.ToJsonStringOrNull(result.NodeId)},"
+        + $"\"snapshot\":{LogicGraphJson.Serialize(result.Snapshot)}"
+        + "}",
+        cancellationToken
+    );
+}
+
 }

@@ -5,24 +5,14 @@ namespace Omnux.Middleware;
 
 internal sealed class WsRefactorCommandDispatcher
 {
-    internal delegate Task SendRefactorActionResultDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        string action,
-        RefactorActionResult result,
-        CancellationToken cancellationToken
-    );
 
     private readonly IRefactorApplicationService _refactorService;
-    private readonly SendRefactorActionResultDelegate _sendRefactorActionResultAsync;
 
     public WsRefactorCommandDispatcher(
-        IRefactorApplicationService refactorService,
-        SendRefactorActionResultDelegate sendRefactorActionResultAsync
+        IRefactorApplicationService refactorService
     )
     {
         _refactorService = refactorService;
-        _sendRefactorActionResultAsync = sendRefactorActionResultAsync;
     }
 
     public async Task<bool> TryHandleAsync(
@@ -42,7 +32,7 @@ internal sealed class WsRefactorCommandDispatcher
             }
 
             var result = await _refactorService.ReadWithAnchorsAsync(path, cancellationToken);
-            await _sendRefactorActionResultAsync(socket, sendLock, "read", result, cancellationToken);
+            await SendRefactorActionResultAsync(socket, sendLock, "read", result, cancellationToken);
             return true;
         }
 
@@ -72,7 +62,7 @@ internal sealed class WsRefactorCommandDispatcher
             }
 
             var result = await _refactorService.PreviewRefactorAsync(path, edits, cancellationToken);
-            await _sendRefactorActionResultAsync(socket, sendLock, "preview", result, cancellationToken);
+            await SendRefactorActionResultAsync(socket, sendLock, "preview", result, cancellationToken);
             return true;
         }
 
@@ -86,7 +76,7 @@ internal sealed class WsRefactorCommandDispatcher
             }
 
             var result = await _refactorService.ApplyRefactorAsync(previewId, cancellationToken);
-            await _sendRefactorActionResultAsync(socket, sendLock, "apply", result, cancellationToken);
+            await SendRefactorActionResultAsync(socket, sendLock, "apply", result, cancellationToken);
             return true;
         }
 
@@ -100,7 +90,7 @@ internal sealed class WsRefactorCommandDispatcher
             }
 
             var result = await _refactorService.RestoreRollbackAsync(rollbackId, cancellationToken);
-            await _sendRefactorActionResultAsync(socket, sendLock, "restore", result, cancellationToken);
+            await SendRefactorActionResultAsync(socket, sendLock, "restore", result, cancellationToken);
             return true;
         }
 
@@ -119,7 +109,7 @@ internal sealed class WsRefactorCommandDispatcher
                 message.NewName ?? string.Empty,
                 cancellationToken
             );
-            await _sendRefactorActionResultAsync(socket, sendLock, "lsp_rename", result, cancellationToken);
+            await SendRefactorActionResultAsync(socket, sendLock, "lsp_rename", result, cancellationToken);
             return true;
         }
 
@@ -138,7 +128,7 @@ internal sealed class WsRefactorCommandDispatcher
                 message.Replacement ?? string.Empty,
                 cancellationToken
             );
-            await _sendRefactorActionResultAsync(socket, sendLock, "ast_replace", result, cancellationToken);
+            await SendRefactorActionResultAsync(socket, sendLock, "ast_replace", result, cancellationToken);
             return true;
         }
 
@@ -159,4 +149,25 @@ internal sealed class WsRefactorCommandDispatcher
             cancellationToken
         );
     }
+private static Task SendRefactorActionResultAsync(
+    WebSocket socket,
+    SemaphoreSlim sendLock,
+    string action,
+    RefactorActionResult result,
+    CancellationToken cancellationToken
+)
+{
+    var payload = RefactorJson.Serialize(result);
+    return WebSocketGateway.SendTextAsync(
+        socket,
+        sendLock,
+        "{"
+        + "\"type\":\"refactor_result\","
+        + $"\"action\":\"{WebSocketGateway.EscapeJson(action)}\","
+        + $"\"payload\":{payload}"
+        + "}",
+        cancellationToken
+    );
+}
+
 }

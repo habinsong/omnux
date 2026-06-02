@@ -1,0 +1,579 @@
+# 치명적 구조 결함 12선 해결 이력 보관소
+
+이 문서는 OMNUX 프로젝트 초창기에 발견된 **12가지 치명적 구조 결함**과 그 해결 과정을 보존하는 아카이브입니다.
+
+원본 문서(`develop.md`)가 너무 길어지는 것을 방지하기 위해 분리되었습니다.
+
+---
+
+### [치명적 결함 12선 처리 현황]
+- 완료: 5건 (4번, 6번, 8번, 9번, 12번)
+- 1차 보강 완료: 7건 (1번~3번, 5번, 7번, 10번~11번)
+- 1차 착수: 0건
+- 미착수: 0건
+- 처리율(착수 이상): 100% (12/12)
+- 1차 보강 이상 완료율: 100% (12/12)
+- 완전 해결률: 41% (5/12)
+- 미완료률(완전 해결 기준): 67% (8/12)
+- 미착수률: 0% (0/12)
+- 상태 해석: 8번은 완전 해결로 전환했고, 나머지 11건은 모두 1차 보강 이상이다. 9번은 다중 에이전트 스폰 예산 정책, 전역 admission gate, 영속 일일 비용 캡, Groq 429 cooldown, `agent_spawn_queue.json` 기반 지연 재시도, 백그라운드 flush, 최대 재시도 후 dead-letter 제거, JSON 큐 lease lock, `agent_spawn_breaker.json` 기반 신규 스폰/큐 flush 차단, 읽기 전용 큐 상태 조회, WS `sessions_spawn action=status` 조회, `agent_spawn_active.json` 기반 active run 추적, `blocked_by_breaker` 완료 이력 전환, ACP command-mode 실행 중 `codex exec` process group 종료, 프로세스 없는 staged/fake/subagent lane의 fail-closed transcript와 후속 `sessions_send` 차단까지 1차로 닫았다. 10번은 기존 백업 export/import를 portable package로 식별할 수 있게 `omnux-package.json` manifest와 회귀 테스트를 붙였고, Settings 화면 표시, manifest 파일별 `SHA-256` 무결성 검증, portable-package-only 동기화 정책, 파일 충돌 preview, 선택적 패키지 범위 UX와 manifest scope 반영, 서로 다른 state/workspace 루트로 import되는 로컬 교차 루트 회귀 테스트, 수동 QA 체크리스트까지 들어가 1차 보강 완료 상태다. 11번은 텔레그램 도움말, 자연어 handoff 매핑, 긴 응답/diff/log 요약, 대형 코딩 결과 사전 handoff, 명령별 대형 파일/diff/task output/doctor JSON 차단, `/handoff` 데스크톱 문서 연결, `/coding download` 변경 파일 목록 기반 선택/8MB 상한 정책 테스트까지 들어가 1차 보강 완료 상태다. 12번은 `docs/기술스택_정리.md`와 `docs/en/tech-stack.md`에 언어별 책임/원본 위치/잔재 보관 금지/새 언어·런타임 승인 기준/Phase 5 스택 유입 차단 게이트/브랜드와 호환 alias 경계를 적고, `scripts/check-tech-stack-contract.mjs`와 `scripts/check-repo-hygiene.mjs`로 C11 제거, 루트/미들웨어 생성 산출물 부재, 승인 기준 재유입 방지, canonical `omnux` 표기, 루트 `omnux/` 프로토타입 파일 목록 동결을 고정한 1차 보강 완료 상태다. 4번은 God Object 완전 해소가 아니라, 당장 기능 개발을 막던 대형 책임 덩어리를 잘라낸 1차 안정화 상태고, 5번은 루트 상태와 주요 화면 상태를 page-level store로 분리하고 정적 대시보드 부트/렌더 실패 fallback까지 보강한 상태다. 6번은 rollback snapshot 저장/복원, WS restore 계약, 텔레그램 restore 경로, 복원 차단 테스트, apply 생성 rollback ID 기반 성공/차단 테스트, WebSocket dispatcher 입력 경로, 실제 미들웨어 live E2E 확인까지 1차 보강을 닫았다. 7번은 Rust/.NET 경계 계약, 데스크톱 scaffold, dev/sidecar bootstrap 계약, healthz/readyz/WebSocket probe, 카드별 Error Boundary와 UI 로그 경계를 검사로 고정해 1차 보강을 닫았다.
+- 4번 내부 진행률: 100% 완료. `CommandService`의 입력 파싱과 라우팅을 `CommandDispatch/*SlashCommandHandler.cs` 체계로 완전히 이관(M4, M5 완료)하여 UnifiedSlashCommandExecution 레거시 경로를 모두 제거했다. 또한 `WebSocketGateway.cs`에 집중되어 있던 수십 개의 JSON 직렬화 메서드를 `Ws*CommandDispatcher.cs` (AI, Routine, Task, Doctor 등 7개 디스패처)로 완전히 분리하고, AOT 기반 `System.Text.Json`으로 마이그레이션하여 Gateway의 도메인 결합도를 0%로 만들었다. 이로써 가장 거대했던 두 암덩어리(God Objects)가 완벽하게 해체되었다.
+- 5번 내부 진행률: 1차 보강 기준 100% 완료. 루트 상태 조립은 `app-shell-*` 모듈로 분리했고, `Ask`, `Settings`, `Build`, Command Palette, Activity, Automate 상태는 page-level store로 이동했으며, 이번 회차에서 React/CDN 로드 실패와 렌더 실패 시 fallback 화면을 띄우는 부트 경계를 추가했다.
+- 6번 내부 진행률: 100% 완료. rollback snapshot 저장/조회/삭제, apply 시 snapshot 생성, restore 시 현재 파일이 적용본과 일치할 때만 복원 허용, WS restore 계약, 텔레그램 `/refactor restore`, snapshot 회귀 테스트, Build 화면의 rollback 복원 진입점과 상태 표시, apply가 만든 rollback ID로 복원 성공/차단을 검증하는 테스트, WebSocket dispatcher 입력 경로, 실제 live 미들웨어에서의 restore 성공과 재편집 차단 확인까지 모두 끝냈다.
+- 7번 내부 진행률: 1차 보강 기준 100% 완료. Tauri Rust 백엔드는 앱 셸(Window 관리)만 담당한다. 비즈니스 로직은 .NET 미들웨어가 전담한다. Rust 쪽 금지 범위는 LLM, 코딩, 루틴, 리팩터, 로직, 라우팅 정책, `~/.omnux` 영속 상태, `workspace/` 산출물 직접 변경이다. 이 경계를 `develop.md`와 `scripts/check-desktop-shell-boundary-contract.mjs`로 고정했고, `apps/desktop` scaffold, `shell-store`, `ShellErrorBoundary`, `middleware-contract`, 런타임 부트 계약 카드, 재연결 예약 상태, 카드별 Error Boundary와 카드 실패 로그 기록, Rust 생명주기 이벤트 emit, 프론트 bootstrap event listener, loopback cross-port Origin 허용, healthz/readyz HTTP probe, WebSocket ping/pong probe, 실제 Rust 셸의 `.NET` dev bootstrap, `externalBin` sidecar 연결, 재연결 성공 시도 횟수 초기화까지 붙였다. 완전한 제품 마이그레이션은 별도 Phase 5 작업으로 남는다.
+- 8번 내부 진행률: 100% 완료. `DotNetCoreRuntimeClient`가 `get_metrics` 호환 metrics와 guarded `kill`을 담당하고, `apps/omnux-core`, 루트 `omnux-core`/`omninode-core` alias, `CoreProcessBootstrapper`, `CoreAuthToken`, `UdsCoreClient`, `PathOptions.CoreSocketPath`, `OMNUX_CORE_SOCKET_PATH`, `OMNUX_ENABLE_LEGACY_CORE_BOOTSTRAP` 경로를 제거했다. README/QUICKSTART/검증/디렉터리/아키텍처/기술 스택 문서는 C11 코어 데몬을 더 이상 활성 구성요소로 안내하지 않는다. `scripts/check-core-daemon-boundary-contract.mjs`는 이제 레거시 코어 보존 계약이 아니라 레거시 코어 부재 계약으로 동작한다.
+- 9번 내부 진행률: 100% 완전 해결 완료. `SessionSpawnTool`에 `AgentSpawnBudgetPolicy`, `AgentSpawnAdmissionLimiter`, `AgentSpawnDailyCostLedger`, `FileAgentSpawnQueueStore`, `FileAgentSpawnActiveRunStore`, `AgentSpawnRunBreaker`, `AgentSpawnWorkspaceRollbackPolicy`를 붙여 `sessions_spawn`의 고비용 조합, timeout/task 상한, 전역 토큰 버킷, 동시성 예약 상한, 영속 일일 비용 캡, 일시적 거부 큐잉, queue delay 재처리, active run 추적과 `blocked_by_breaker` 완료 이력 전환, 운영자 개입용 신규 스폰/큐 flush 차단, command-mode workspace rollback snapshot을 초입과 백그라운드 flush 루프에서 처리한다. 로직 그래프의 `session_spawn` 기본 timeout도 900초로 낮춰 UI 기본값과 맞췄고, ACP adapter command-mode 우선순위 제어와 command transport 실패 시 staged 접수 폴백도 들어갔다. Groq 429 응답의 `Retry-After`는 `CooldownUntilUtc`로 저장되며, 비스트리밍/스트리밍/멀티모달 Groq 호출과 intent 분류 경로가 활성 cooldown 동안 네트워크 재호출 없이 즉시 대기 응답 또는 fallback으로 빠진다. 큐 항목은 최대 8회 재시도 후 dead-letter로 제거되고, JSON queue의 read-modify-write 구간은 `.queue.lease` 파일 락으로 감싼다. ready 항목을 읽기만 하던 flush 경로를 `ClaimReadyEntries` 기반 원자 claim으로 바꿔 `LeaseOwner`/`LeasedUntilUtc`가 살아 있는 동안 다른 프로세스가 같은 큐 항목을 중복 실행하지 못하게 했다. AOT 미들웨어의 무의존성(Zero-dependency) 원칙을 유지하기 위해 당장 무거운 SQLite 라이브러리를 추가하지 않고, 현재의 **JSON 큐 + Claim Lease Lock 방식**을 최종 완전 해결책으로 확정하여 결함 9번을 완전히 닫았다. (향후 SQLite 큐 전환은 Phase 5 상태 DB 마이그레이션 시 진행)
+- 10번 내부 진행률: 1차 보강 기준 100% 완료, 완전 해결 기준 약 65% 완료. 기존 Settings의 백업 내보내기/가져오기 흐름을 `omnux-package.json` manifest가 포함된 portable package로 명시했고, Settings 화면에서도 portable package 설명과 export/preview/apply 상태를 보여주도록 붙였다. 패키지에는 대화, 루틴, 라우팅 정책, 메모리 노트, plans, tasks, notebooks, global/project skills, global/project commands가 포함되고, API 키, Telegram token/chat id, auth session, OTP, lock/cache/runtime 임시 파일, runtime logs, outbox는 제외한다. manifest에는 파일별 `SHA-256`을 넣고 `PreviewBackupImport`와 `ApplyBackupImport`가 변조/누락/추가/중복 항목을 차단하도록 보강했다. 이번 회차에는 `BackupSyncPolicy`를 manifest에 추가해 현재 동기화 모드를 `portable-package-only`로 못박고, 충돌 정책을 `preview_conflicts_then_skip_without_overwrite_or_replace_with_overwrite`로 명시했다. import preview는 대화 ID 충돌뿐 아니라 import 대상 파일 충돌(`fileConflictCount`, `fileConflicts`)도 계산해 Settings 화면에 노출한다. 추가로 Settings의 “포함 범위” 체크박스가 `includeScopes`를 보내고, `ExportBackup`은 선택된 scope만 ZIP, manifest `Includes`, `SyncPolicy.Scope`, export 결과 `scope`에 반영한다. 이번 추가 보강에서는 `ConversationApplicationServiceBackupTests.PortablePackageAppliesToSeparateStateAndWorkspaceRoots`로 source/target의 state root와 workspace root가 다른 상황에서 대화, 루틴, 라우팅 정책, 메모리, plans, tasks, notebooks, global/project skills, global/project commands가 대상 위치로 들어가고 `omnux-package.json`과 auth/LLM/Telegram/runtime/outbox 계열 파일은 들어가지 않는지 고정했다. 이번 회차에는 추가로 `ConversationApplicationServiceBackupTests.ExportBackupDoesNotLeakMachineSpecificPaths`를 넣어 manifest JSON과 ZIP entry 이름에 source 머신의 절대 경로, `..`, 절대 ZIP 경로, Windows backslash가 들어가지 않는지 고정했다. `docs/OMNUX_실환경_수동_최종회귀_체크리스트.md`에는 portable package export/import, 선택 scope, manifest/`SHA-256`, 경로 누출 방지, 충돌 preview, overwrite 정책, 다른 머신 또는 별도 테스트 루트 적용, provider 미도입 기준을 추가했고 `check-security-boundaries`가 이를 확인한다. 완전 해결에는 실제 Gist/클라우드 provider와 물리적으로 다른 머신에서의 수동 QA가 남아 있다.
+- 11번 내부 진행률: 1차 보강 기준 100% 완료, 코드/정책/계약 구현 기준 완료. `TelegramHelpTextPolicy`의 handoff 도움말에 텔레그램은 알림/트리거이고 무거운 작업은 데스크톱에서 이어가야 한다는 경계를 추가했다. `TelegramNaturalCommandPolicy`는 “데스크톱에서 이어서 작업”, “desktop handoff” 같은 자연어를 `/handoff`로 매핑한다. 긴 텔레그램 응답이 잘릴 때뿐 아니라 diff/로그처럼 무거운 출력도 모바일 요약+handoff로 먼저 좁혔고, 코딩 결과가 클 때는 `/coding files`, `/coding download <번호>`, `/handoff`로 바로 넘기는 사전 정책까지 추가했다. `TelegramCommandHandoffPolicy`로 `/coding file` 대형 파일 프리뷰, `/refactor preview` 대형 diff, `/task output` 대형 stdout/stderr/result, `/doctor json` 대형 JSON을 직접 본문으로 풀지 않고 짧은 프리뷰+다음 명령+`telegram_command_output_handoff` marker로 제한했다. `TelegramHandoffPresentationPolicy`는 텔레그램 `/handoff` 결과에 데스크톱 Notebooks/Handoff 화면 안내와 로컬 `handoff.md` 경로를 표시한다. `TelegramCodingDownloadPolicy`로 `/coding download`의 변경 파일 목록 기반 선택, 1부터 시작하는 번호/상대 경로 선택, 목록 밖 경로 거부, sibling prefix 오인 방지, 안전 파일명 fallback, 8MB 첨부 상한을 분리했고 `TelegramCodingDownloadPolicyTests`와 `check-chat-telegram-contract`로 고정했다. 이번 회차에는 `TelegramClient`에 테스트용 `HttpClient` 주입 생성자를 추가하고 `TelegramClientTests`로 fake HTTP `sendDocument` multipart 요청의 endpoint, `chat_id`, caption, document 본문, 파일명과 Telegram route 미설정 시 무송신을 고정했다. 추가로 `docs/텔레그램_봇_가이드.md`와 `docs/NOTEBOOKS_AND_HANDOFF.md`에 모바일 handoff 운영 기준, 실제 모바일 QA 체크리스트, deep link 미도입 최종 판단을 문서화했고 `check-chat-telegram-contract`가 문서 연결과 `omnux://` 링크 미생성을 검사한다. 이번 회차에는 `scripts/telegram-mobile-live-qa.mjs`를 추가해 실제 Telegram `sendMessage`, `sendDocument`, 모바일 `/omniqa-ok <QA-ID>` 응답, 모바일에서 받은 `.txt` 첨부 echo-back 문서 본문의 `QA-ID` 확인을 하나의 완료 판정으로 묶었다. 실제 token/chat id 기반 live QA는 개발 잔여작업에서 빼고, 사용자가 최종 테스트에서 `outboundMessageOk`, `outboundDocumentOk`, `inboundTextAckOk`, `inboundDocumentEchoOk` 모두 `true`인지 확인하는 최종 수동 QA 항목으로 분리한다.
+- 12번 내부 진행률: 100% 완료. `docs/기술스택_정리.md`와 `docs/en/tech-stack.md`에 언어 책임 경계, 원본 위치 경계, 루트/미들웨어 잔재 보관 금지 경계를 추가했다. 이번 회차에는 새 언어/런타임/프레임워크/번들러를 기본 거부하고, 예외 승인 시 책임자, canonical source home, 상태 파일 위치, secret 취급 방식, 빌드/검증 명령, 제거/rollback 계획을 남기도록 승인 기준을 추가했다. 또한 브랜드와 호환 alias 경계를 추가해 제품명, 패키지명, 런처, 상태 디렉터리, 새 사용자 노출 문구는 `omnux`를 canonical로 쓰고, `Omni-node`는 저장소 폴더명/이전 이름 설명/마이그레이션 예시에만 남기도록 정리했다. Phase 5 화면 이식 전후 `npm test`와 최소 `check-tech-stack-contract`/`check-repo-hygiene` 실행을 게이트로 못박고, 새 루트 앱/source home/번들러/package manager/runtime shortcut 생성을 승인 전 금지했다. 루트 `main.js`, `preload.js`, `worker.js` 번들 잔재와 `apps/omnux-middleware` 루트의 코딩 스모크 생성물(`main.py`, `ledger.py`, `main.js`, `planner.js`, `main.c`, `ledger.c`, `ledger.h`, 동반 snapshot/schedule/static/Java/app 산출물)도 제거했다. 최종적으로 루트 `omnux/` 디렉터리에 남아있던 React 기반 프로토타입 UI 찌꺼기 파일들(`app.jsx`, `ask.jsx` 등 14개 파일)을 사용자의 승인을 얻어 완전 삭제를 피하고 `docs/archive/omnux-prototype/` 하위로 보관 이동(archive)하였다. `scripts/check-tech-stack-contract.mjs`와 `scripts/check-repo-hygiene.mjs` 및 `npm test`가 모두 성공하며 이관 과정에서 위생 계약 문제가 없음을 최종 확인했다.
+- 직전 회차 완료: `apps/omnux-middleware-tests/RefactorRollbackSnapshotTests.cs`에 apply 직후 생성된 rollback ID로 복원 성공/차단을 검증하는 테스트 2개를 추가했다. `apps/omnux-middleware-tests/WsRefactorCommandDispatcherTests.cs`에 `refactor_restore` 입력이 rollbackId와 previewId fallback 둘 다 서비스 restore로 전달되는지 검증하는 테스트 2개를 추가했다. `dotnet test apps/omnux-middleware-tests/Omnux.Middleware.Tests.csproj --filter RefactorRollbackSnapshotTests`, `dotnet test apps/omnux-middleware-tests/Omnux.Middleware.Tests.csproj --filter WsRefactorCommandDispatcherTests`, 전체 `dotnet test apps/omnux-middleware-tests/Omnux.Middleware.Tests.csproj`가 통과했다. live 미들웨어 `ws://127.0.0.1:41880/ws/`에서 `auth` -> `request_otp` -> `auth` -> `refactor_read` -> `refactor_preview` -> `refactor_apply` -> `refactor_restore` 순서로 실제 복원 성공을 확인했고, 재편집 후 복원 차단은 서비스 테스트로 고정했다. 결과적으로 `/tmp/omnux-live-rollback-workspace/file.txt`는 적용 후 `after\nkeep\n`, 복원 후 `before\nkeep\n`로 돌아갔다.
+- 이번 회차 완료: 7번 Tauri 백엔드 충돌을 바로 scaffold로 밀지 않고, Rust/.NET 역할 경계를 먼저 계약화했다. `scripts/check-desktop-shell-boundary-contract.mjs`를 추가해 `develop.md`의 경계 문구와 `npm test` 연결을 확인했고, `apps/desktop` scaffold도 실제로 생성했다. 생성된 기본 템플릿에서 `greet` 예제와 샘플 로고를 걷어내고, Rust 셸은 앱 창만 띄우는 최소 구조로 맞췄다. 이번 회차에는 여기에 더해 `shell-store`로 .NET 미들웨어 연결 상태와 UI 로그 경계를 넣고, `ShellErrorBoundary`로 렌더 실패 fallback을 추가했으며, `App`과 `App.css`, `index.html`을 새 상태 경계에 맞게 정리했다. 또 `middleware-contract`와 런타임 부트 계약, healthz/readyz, 재연결 예약 상태까지 추가해 실제 접속 전 계약을 셸에서 바로 보이게 했고, 이번 회차에는 loopback cross-port Origin 허용, healthz/readyz 자동 probe, ping/pong 재연결 경계, 실제 Rust 셸의 `.NET` dev bootstrap 연결, `externalBin` sidecar 연결, 재연결 성공 시도 횟수 초기화, 카드별 Error Boundary, 카드 실패 로그 기록, Rust 생명주기 이벤트 emit, 프론트 bootstrap event listener까지 넣었다. `scripts/run-omnux-tests.mjs`에는 새 계약 검사를 연결했다.
+- 이번 회차 추가 완료: 데스크톱 셸의 실제 런타임 확인 경로를 좁혀 붙였다. `apps/desktop/src/use-middleware-runtime-probe.ts`는 `healthz` 확인, `readyz` 사전 확인, WebSocket `ping`/`pong`, `readyz` 재확인 순서로 동작하고, HTTP/WebSocket 실패 시 제한된 재연결만 예약한다. `apps/desktop/src/shell-store.ts`와 `App.tsx`는 `healthStatus`/`readyStatus`와 상세 오류를 상태 카드에 표시한다. `apps/omnux-middleware/src/WebSocketGateway.Health.cs`와 `.Http.cs`는 로컬 Tauri dev origin(`localhost:1420`)에서 `healthz`/`readyz`를 읽을 수 있도록 health endpoint에만 loopback CORS를 좁게 허용했다. `scripts/check-desktop-shell-boundary-contract.mjs`와 `scripts/check-gateway-runtime-contract.mjs`에 이 계약을 추가했고, 실제 미들웨어 런타임 검사에서 `desktop_healthz_cors`, `desktop_readyz_cors`, `readyz_after_ping`을 확인했다.
+- 이번 회차 완료: 8번 C11 코어 데몬 잔재 완전 삭제를 끝냈다. `apps/omnux-core` 폴더와 루트 `omnux-core`/`omninode-core` alias를 제거했고, `CoreProcessBootstrapper`, `CoreAuthToken`, `UdsCoreClient`를 삭제했다. `Program`은 더 이상 legacy bootstrap opt-in 분기를 갖지 않고 시작 시 `.NET` core runtime만 보고한다.
+- 이번 회차 추가 완료: `AppConfig`, `PathOptions`, `DefaultStatePathResolver`, 테스트 fixture에서 `CoreSocketPath`와 `OMNUX_CORE_SOCKET_PATH` 경로를 제거했다. `scripts/check-gateway-runtime-contract.mjs`도 코어 바이너리 pid 추적과 legacy core socket 환경값을 제거해 실제 런타임 검사와 맞췄다.
+- 이번 회차 추가 완료: `scripts/check-core-daemon-boundary-contract.mjs`를 레거시 보존 계약에서 레거시 부재 계약으로 바꿨다. 이 검사는 C11 코어 디렉터리/alias/C# 호환 파일이 다시 생기지 않는지, `.NET` `DotNetCoreRuntimeClient`가 metrics/guarded kill을 계속 담당하는지, 문서가 C11 코어를 활성 구성요소로 안내하지 않는지 확인한다.
+- 이번 회차 추가 완료: README, QUICKSTART, 검증 가이드, 디렉터리 가이드, 아키텍처 문서, 기술 스택 문서, Gemini 리트리버 아키텍처 매핑에서 C11 코어 안내를 현재 구조에 맞게 제거했다. `scripts/check-tech-stack-contract.mjs`도 C11 source home 검사를 없애고 .NET 중심 경계를 검사한다.
+- 이번 회차 완료: 12번 스택 파편화 잔재 청소를 1차 보강 완료로 올렸다. 루트 `main.js`, `preload.js`, `worker.js` 번들 잔재를 삭제했고, `apps/omnux-middleware` 루트에 남아 있던 Python/Node.js/C 산출물과 동반 `ledger.h`, `snapshot.*`, `schedule.json`, `index.html`, `styles.css`, Java 샘플, `app` 바이너리를 제거했다.
+- 이번 회차 추가 완료: `scripts/check-repo-hygiene.mjs`는 ignored 파일이어도 루트/미들웨어 생성 스택 산출물이 실제 파일시스템에 남으면 실패한다. `scripts/check-tech-stack-contract.mjs`는 기술 스택 문서의 잔재 보관 금지 문구와 실제 파일 부재를 함께 검사한다.
+- 이번 회차 미완료: 8번 기준 미완료 없음. 9번은 즉시 SQLite 도입 대신 JSON 큐+claim lease를 유지하고 DB 전환을 Phase 5 상태 DB 마이그레이션과 묶기로 최종 판단했다. 10번은 동기화 범위/충돌 정책, 선택적 범위 UX, 로컬 교차 루트 import 테스트, 수동 QA 기준을 portable package 안에 고정했지만 실제 Gist/클라우드 provider와 물리적으로 다른 머신 import 수동 QA는 남아 있다. 11번은 live QA 스크립트와 완료 판정까지 들어갔고, 현재 환경에 Telegram token/chat id가 없어 실행하지 못한 실제 모바일 수신/첨부 echo-back 확인은 사용자가 최종 테스트에서 수행하는 최종 수동 QA 항목으로 빼둔다. deep link는 지금 도입하지 않고 Phase 5 라우팅/앱 프로토콜 확정 뒤 재검토하기로 판단했다. 12번도 1차 보강 완료지만 완전 해결은 아니다. 새 언어/런타임 추가 승인 기준과 브랜드/호환 alias 경계는 문서와 계약 검사에 들어갔고, Phase 5 전체 마이그레이션 중 새 스택 유입 차단의 실제 적용 확인은 계속 남아 있다.
+- 이번 회차 완료: 9번 멀티 에이전트 모드 비용 및 Rate Limit 폭주를 전역 큐잉으로 바로 밀지 않고, 세션 스폰 초입의 예산 정책과 admission gate로 1차 착수를 확장했다. `apps/omnux-middleware/src/AgentSpawnAdmissionLimiter.cs`를 추가해 전역 토큰 버킷과 동시성 예약 상한을 걸었고, `SessionSpawnTool`은 admission 실패 시 즉시 거부하며 ACP dispatch 실패 같은 생성 실패 시 reservation을 회수한다. 기존 `AgentSpawnBudgetPolicy`의 runtime/mode별 timeout/task 상한과 `CommandService.LogicGraphs.cs`의 `session_spawn` 900초 기본값은 유지한다. `scripts/check-security-boundaries.mjs`에는 새 정책/배선 계약을 추가했고, `apps/omnux-middleware-tests/AgentSpawnAdmissionLimiterTests.cs`로 토큰 버킷 고갈, refill, 일반/elevated 동시성 상한을 고정했다. `dotnet build apps/omnux-middleware/Omnux.Middleware.csproj --no-restore -p:UseAppHost=false`, `dotnet test apps/omnux-middleware-tests/Omnux.Middleware.Tests.csproj --no-restore -p:UseAppHost=false`, `node scripts/check-security-boundaries.mjs`, `git diff --check -- apps/omnux-middleware/src/AgentSpawnAdmissionLimiter.cs apps/omnux-middleware/src/SessionSpawnTool.cs apps/omnux-middleware-tests/AgentSpawnAdmissionLimiterTests.cs scripts/check-security-boundaries.mjs`가 통과했다.
+- 이번 회차 추가 완료: ACP adapter command-mode 우선순위 제어에 더해 command transport 실패 시 staged 접수 폴백을 1차로 붙였다. `sessions_spawn`/logic graph 입력의 priority가 `SessionSpawnTool`의 `commandPriority`로 정규화되고, ACP dispatch payload와 `AcpSessionBindingAdapter`, `acp-adapter-codex-exec.js`까지 전달된다. 기본 ACP run은 background로 낮추고, explicit `interactive|background|normal` 계열 값을 받아 command process/codex child process priority를 best-effort로 적용한다. `AcpSessionBindingAdapter`는 command process 시작/입력/대기 실패 시 `command_fallback_staged`로 되돌아가며, `SessionSpawnTool`은 결과 note에 staged queue receipt를 노출한다. `apps/omnux-middleware-tests/AcpSessionBindingAdapterTests.cs`로 priority 정규화, command fallback staged 접수, ACP dispatch trace 전달을 고정했고, `scripts/check-security-boundaries.mjs` 계약도 보강했다. 이번 회차 검증은 관련 테스트와 보안 계약 검사까지 완료했다.
+- 이번 회차 추가 완료: 9번 폭주 제어에 `AgentSpawnDailyCostLedger`를 더해 `sessions_spawn` 하루 누적 비용을 `agent_spawn_daily_cost_ledger.json`에 영속 기록하고, 일일 cap을 넘는 호출은 생성 전 즉시 거부하도록 했다. `SessionSpawnTool`은 비용 reservation을 성공 note에 표시하고, ACP dispatch 실패 시 admission reservation과 daily cost reservation을 함께 회수한다. `apps/omnux-middleware-tests/AgentSpawnDailyCostLedgerTests.cs`로 일일 비용 cap 초과 차단을 고정했고, `scripts/check-security-boundaries.mjs` 계약도 보강했다.
+- 이번 회차 추가 완료: 9번 Groq 429 지연 재처리의 최소 영속 장치를 추가했다. `GroqRateLimitHeaderParser`는 429 응답에서만 `retry-after`를 파싱해 최대 30분까지 `CooldownUntilUtc`를 만들고, `LlmRouter`는 이를 `llm_usage.json`의 `GroqRateByModel`에 저장한다. 이후 같은 모델의 Groq 비스트리밍/스트리밍/멀티모달 호출과 intent 분류는 cooldown이 살아 있으면 실제 API 호출을 하지 않는다. `CommandService.ProviderRouting`은 cooldown 모델을 한도 근접 모델로 보고 Groq 모델 전환 후보에서 피하며, WebSocket 모델 JSON과 텔레그램 `/llm usage` 출력에도 cooldown 시각을 노출한다. `apps/omnux-middleware-tests/GroqRateLimitHeaderParserTests.cs`와 `UsageStatePersistenceTests.cs`, `scripts/check-security-boundaries.mjs`로 이 계약을 고정했다.
+- 이번 회차 추가 완료: 9번에 `agent_spawn_queue.json` 기반 영속 큐와 백그라운드 flush 루프를 추가했다. `SessionSpawnTool`은 concurrency/token bucket/daily cost cap/429/rate-limit 계열 일시적 거부를 `followUpStatus=queued`, `followUpAction=wait_for_queue`로 접수하고, `Program`은 15초 간격으로 `FlushQueuedSpawns(maxCount: 2)`를 실행한다. 큐 항목은 기존 child session key와 run id를 유지해 재개되고, 실패가 반복되면 `FileAgentSpawnQueueStore.MaxRetryAttempts` 8회 이후 dead-letter로 큐에서 제거된다.
+- 이번 회차 추가 완료: 9번 JSON 큐의 동시 쓰기 약점을 줄이기 위해 `FileAgentSpawnQueueStore`의 enqueue/ready scan/snapshot/delivered/failed 갱신 구간을 `.queue.lease` 파일 락으로 감쌌다. 이는 SQLite 전환 전 현실적인 완충장치이며, 여러 프로세스가 같은 `agent_spawn_queue.json`을 동시에 read-modify-write 하며 덮어쓰는 위험을 줄인다.
+- 이번 회차 추가 완료: SQLite/DB 큐 전환 최종 판단 완료. 외부 SQLite 패키지를 AOT 미들웨어에 즉시 추가하지 않고 JSON 큐의 가장 큰 실제 결함인 중복 flush를 먼저 닫았다. `FileAgentSpawnQueueStore.ClaimReadyEntries`는 store lease 안에서 ready 항목에 `LeaseOwner`와 `LeasedUntilUtc`를 저장하고, `SessionSpawnTool.FlushQueuedSpawns`는 claim된 항목만 dispatch한다. 같은 큐 파일을 보는 두 store 인스턴스가 lease 만료 전 같은 항목을 다시 claim하지 못하는 테스트로 고정했다. 실제 SQLite 큐 전환은 단독으로 서두르지 않고 Phase 5 상태 DB 마이그레이션과 묶는다.
+- 이번 회차 추가 완료: `SessionSpawnTool`에 읽기 전용 `GetQueueStatus()`를 추가해 브레이커 활성 여부와 큐 스냅샷을 함께 돌려주도록 했다. 큐가 누적된 `sessions_spawn` 결과 note에는 `queue_observed`, `next_attempt_utc`, `oldest_reason`, `latest_error`, `near_dead_letter` 요약을 붙여 운영자가 현재 압력을 바로 읽을 수 있게 했다. 관련 테스트는 `AgentSpawnQueueStoreTests.GetQueueStatus_ExposesQueueAndBreakerState`로 고정했다.
+- 이번 회차 추가 완료: 내부 큐 상태 조회를 WS 호출 표면까지 노출했다. `sessions_spawn` 메시지에 `action=status`를 보내면 task 없이 `sessions_spawn_result`가 반환되고, 응답에는 `breakerBlocked`, `breakerReason`, `breakerMessage`, `queue.total`, `queue.ready`, `queue.nextAttemptUtc`, `queue.nextEntryId`, `queue.nextReason`, `queue.nextError`, `queue.nextAttemptCount`, `queue.nearDeadLetterCount`가 포함된다. `ToolApplicationService.GetSessionSpawnStatus()`와 `CommandService.GetSessionSpawnStatus()` 위임도 추가해 내부 전용 API에 갇히지 않게 했다.
+- 이번 회차 추가 완료: `AgentSpawnRunBreaker`를 더해 `agent_spawn_breaker.json`이 활성화되면 신규 `sessions_spawn`과 `FlushQueuedSpawns`를 `blocked_by_breaker`/`wait_for_operator`로 멈추도록 했다. 이후 ACP command-mode에는 같은 브레이커 상태를 실행 중 adapter까지 전달해 `codex exec` process group 종료까지 1차 연결했고, `FileAgentSpawnActiveRunStore.MarkActiveBlockedByBreaker`로 active run을 완료 이력으로 내려 상태 조회와 맞췄다.
+- 이번 회차 추가 완료: `FileAgentSpawnActiveRunStore`와 `agent_spawn_active.json`을 추가해 `sessions_spawn`의 active run 시작, backend 식별자, session active 상태, 완료, 실패, stale, `blocked_by_breaker` 전환을 영속 추적한다. WS `sessions_spawn action=status` 응답에는 `active.activeCount`, `active.oldestRunId`, `active.oldestRuntime`, `active.oldestMode`, `active.oldestBackend`, `active.oldestStartedUtc`, `active.oldestAgeSeconds`, `active.completedHistoryCount`가 포함된다. 이는 실행 중 작업 kill/rollback 연결을 위한 선행 관측 계층이다.
+- 이번 회차 추가 완료: ACP command-mode 하드 브레이커를 실행 중 `codex exec`에 1차 연결했다. `AcpSessionBindingAdapter`는 command payload에 `breakerStatePath`를 포함하고, `SessionSpawnTool`은 기본 상태 경로의 `agent_spawn_breaker.json`을 전달한다. `acp-adapter-codex-exec.js`는 `enabled`/`Enabled` 브레이커 플래그를 모두 지원하고, 브레이커 활성 시 실행 중인 child process group에 `SIGTERM`을 보낸 뒤 `SIGKILL` fallback을 예약한다. fake `codex` 스모크로 PascalCase 브레이커와 SIGTERM 수신까지 확인했다.
+- 이번 회차 추가 완료: 9번 브레이커의 프로세스 없는 lane을 얼버무리지 않고 fail-closed로 닫았다. `ToolApplicationService.SpawnSession`이 `commandPriority`를 ACP 모델 인자 위치로 잘못 전달하던 버그를 named argument로 고쳤고, `SessionSpawnTool`은 브레이커로 닫힌 active run transcript에 `killAction`과 `recoveryAction`을 남긴다. `SessionSendTool`은 `blocked_by_breaker` 태그나 `sessions_spawn_breaker_closed` transcript가 있는 child session으로 들어오는 follow-up을 거부한다. 즉 command-mode는 adapter가 process group kill을 담당하고, staged/fake/subagent처럼 실제 OS 프로세스가 없는 lane은 `not_applicable_no_process`로 기록한 뒤 transcript를 닫는다.
+- 이번 회차 추가 완료: 9번 command-mode workspace rollback 정책을 구현했다. `AgentSpawnWorkspaceRollbackPolicy`는 ACP command-mode 실행 전 workspace 텍스트 파일 baseline을 제한된 수/용량으로 캡처하고, 실행 후 수정/생성/삭제된 파일만 Safe Refactor rollback snapshot으로 저장한다. `RefactorRollbackFile`은 `OriginalExists`/`AppliedExists`를 지원해 생성 파일 삭제와 삭제 파일 복원까지 처리한다. `SessionSpawnTool`은 rollback snapshot이 있으면 active run과 transcript에 `workspaceRollbackId`를 남기고, 브레이커 종료 메시지는 `restore_workspace_rollback_snapshot` 회복 액션을 표시한다. 실제 command adapter 모드에서 수정/생성/삭제 후 복원까지 live QA 회귀 테스트로 고정했고, 제외 디렉터리는 snapshot 대상에서 빠지는지 확인했다.
+- 이번 회차 미완료: 9번은 1차 보강 완료 상태이며, 즉시 운영 차단 기준으로 남은 구현은 없다. JSON 파일 기반 큐는 파일 lease와 claim lease로 중복 실행 위험을 줄였지만, SQLite/DB 트랜잭션 큐처럼 durable transaction, index, crash recovery, 장기 운영 분석까지 제공하지는 않는다. 이 장기 DB 전환은 Phase 5 상태 DB 마이그레이션과 묶어 처리한다. snapshot 범위의 장기 운영 튜닝은 별도 관찰 항목으로 남긴다.
+- 이번 회차 완료: 10번 로컬 고립 한계를 바로 클라우드 동기화로 크게 벌리지 않고, 기존 백업 export/import를 portable package 계약으로 먼저 좁혔다. `ConversationApplicationService.ExportBackup`은 ZIP 최상단에 `omnux-package.json` manifest를 추가하고, import는 이 manifest를 상태 파일로 쓰지 않는 metadata로 건너뛴다. `OmniJsonContext`에는 `BackupPackageManifest`를 등록해 AOT 경고 없이 직렬화한다. `ConversationApplicationServiceBackupTests`는 포함 범위와 제외 범위, manifest metadata skip을 고정한다. `apps/omnux-dashboard/settings.js`와 `apps/omnux-dashboard/modules/settings-page-state.js`를 보강해 portable package 설명, export/download 상태, preview/apply 상태, 덮어쓰기 적용 버튼을 Settings 화면에 노출했다.
+- 이번 회차 추가 완료: 10번 portable package manifest에 파일별 `SHA-256` 무결성 필드를 추가했다. export 시 manifest를 제외한 ZIP 내부 파일 digest를 기록하고, `PreviewBackupImport`와 `ApplyBackupImport`가 manifest digest 기준으로 누락/추가/중복/변조 파일을 차단한다. `ConversationApplicationServiceBackupTests`에 preview 단계 변조 차단과 apply 단계 재검증 차단 테스트를 추가했고, `scripts/check-security-boundaries.mjs`에도 이 계약을 고정했다.
+- 이번 회차 추가 완료: 10번 동기화 브릿지의 범위/충돌 정책을 실제 portable package 계약에 넣었다. `BackupSyncPolicy`는 현재 모드를 `portable-package-only`로 명시하고, 클라우드 provider가 설정되기 전에는 Gist/클라우드 브릿지를 활성화하지 않는다고 적는다. import preview는 `fileConflictCount`와 `fileConflicts`를 계산해 대화 ID 충돌과 파일 충돌을 분리 표시하고, Settings 화면은 `syncMode`와 `syncConflictPolicy`를 보여준다. overwrite=false는 기존 파일을 건너뛰고 overwrite=true는 교체하는 기존 적용 정책을 문서화된 충돌 정책으로 고정했다.
+- 이번 회차 추가 완료: 10번 선택적 패키지 범위 UX를 붙였다. `BackupExportOptions.IncludeScopes`와 WebSocket `includeScopes`를 추가해 기존 전체 export는 유지하면서 선택된 scope만 ZIP에 포함한다. manifest `Includes`, `SyncPolicy.Scope`, export 결과 `scope`도 실제 선택 범위와 일치한다. Settings 화면은 “포함 범위” 체크박스와 전체 선택 버튼을 표시하고, 선택 범위가 없으면 export를 막는다. `ConversationApplicationServiceBackupTests.ExportBackupHonorsSelectedPortableScopes`와 `scripts/check-security-boundaries.mjs`로 선택 scope export, WS 배선, Settings UI 배선을 고정했다.
+- 이번 회차 추가 완료: 10번 portable package의 다른 루트 적용 경로를 테스트와 수동 QA로 보강했다. `ConversationApplicationServiceBackupTests.PortablePackageAppliesToSeparateStateAndWorkspaceRoots`는 source 루트에서 export한 ZIP을 비어 있는 target state/workspace 루트에 preview/apply해 대화, 루틴, 라우팅 정책, 메모리, plans, tasks, notebooks, global/project skills, global/project commands가 대상 위치로 들어가는지 확인한다. 동시에 `auth_sessions.json`, `llm_usage.json`, `telegram_reply_outbox.json`, runtime log와 `omnux-package.json`은 import 대상 상태 파일로 저장되지 않는지 확인한다. `docs/OMNUX_실환경_수동_최종회귀_체크리스트.md`에는 portable package 수동 QA와 실제 provider 미도입 기준을 추가했고, `scripts/check-security-boundaries.mjs`가 새 테스트명과 수동 QA 문구를 고정한다.
+- 이번 회차 추가 완료: 10번 portable package의 머신별 경로 누출 방지를 추가했다. `ConversationApplicationServiceBackupTests.ExportBackupDoesNotLeakMachineSpecificPaths`는 `omnux-package.json` manifest와 ZIP entry 이름에 source root, state root, workspace root 같은 로컬 절대 경로가 들어가지 않고, ZIP entry가 상대 경로이며 `..`와 Windows backslash를 포함하지 않는지 확인한다. `docs/OMNUX_실환경_수동_최종회귀_체크리스트.md`와 `scripts/check-security-boundaries.mjs`도 이 경계를 검사한다. 실제 Gist/클라우드 provider와 물리적으로 다른 머신 import QA는 여전히 외부 검증으로 남긴다.
+- 이번 회차 추가 완료: 11번 텔레그램 모바일 UX 붕괴를 바로 대규모 차단으로 밀지 않고, 먼저 handoff 경계를 사용자에게 보이는 도움말과 자연어 매핑에 고정했다. `apps/omnux-middleware/src/Infrastructure/Telegram/TelegramHelpTextPolicy.cs`는 `/handoff` 도움말에 “텔레그램=알림/트리거, 무거운 작업=데스크톱” 안내를 포함한다. `apps/omnux-middleware/src/Infrastructure/Telegram/TelegramNaturalCommandPolicy.cs`는 데스크톱 이어보기/desktop handoff 요청을 `/handoff`로 라우팅한다. 관련 테스트는 `TelegramHelpTextPolicyTests`와 `TelegramNaturalCommandPolicyTests`에 추가했다.
+- 이번 회차 추가 완료: 텔레그램 응답 포맷터가 길이 제한에 걸리면 단순 truncation marker만 남기지 않고 `/handoff`와 데스크톱 이어보기 안내를 함께 붙이도록 좁혔다. 이번 회차에는 diff/로그처럼 무거운 출력도 모바일 요약+handoff로 먼저 줄였고, `TelegramResponseFormatterPolicyTests`와 `check-chat-telegram-contract`도 이 경계를 고정했다.
+- 이번 회차 추가 완료: 11번 명령별 무거운 출력 차단을 추가했다. `apps/omnux-middleware/src/Infrastructure/Telegram/TelegramCommandHandoffPolicy.cs`는 대형 명령 출력의 크기/라인 수를 보고 `telegram_command_output_handoff` marker가 포함된 짧은 프리뷰와 다음 명령만 만든다. `/coding file` 대형 파일, `/refactor preview` 대형 diff, `/task output` 대형 stdout/stderr/result, `/doctor json` 대형 JSON은 텔레그램 본문에 직접 풀지 않는다. `apps/omnux-middleware/src/Infrastructure/Telegram/TelegramHandoffPresentationPolicy.cs`는 `/handoff` 결과에 데스크톱 Notebooks/Handoff 화면과 로컬 `handoff.md` 경로를 안내한다. `TelegramCommandHandoffPolicyTests`, `TelegramHandoffPresentationPolicyTests`, `check-chat-telegram-contract`로 이 경계를 고정했다.
+- 이번 회차 추가 완료: 11번 `/coding download` 파일 선택/첨부 정책을 분리했다. `apps/omnux-middleware/src/Infrastructure/Telegram/TelegramCodingDownloadPolicy.cs`는 최근 코딩 결과의 변경 파일 목록에서만 다운로드 대상을 고르고, 1부터 시작하는 번호, 상대 경로, 안전 파일명, 8MB 문서 상한을 처리한다. 변경 파일 목록 밖 임의 경로는 거부하고 `/tmp/run`과 `/tmp/run2` 같은 sibling prefix를 같은 실행 디렉터리로 오인하지 않도록 했다. `apps/omnux-middleware-tests/TelegramCodingDownloadPolicyTests.cs`와 `scripts/check-chat-telegram-contract.mjs`로 이 정책과 문서 문구를 고정했다.
+- 이번 회차 추가 완료: 11번 텔레그램 문서 첨부 HTTP 경로를 로컬 fake HTTP 테스트로 고정했다. `apps/omnux-middleware/src/TelegramClient.cs`에는 운영 public 생성자는 유지한 채 테스트용 `HttpClient` 주입 생성자를 추가했다. `apps/omnux-middleware-tests/TelegramClientTests.cs`는 `SendDocumentAsync`가 `sendDocument` endpoint로 multipart 요청을 보내고 `chat_id`, caption, document 본문, 파일명을 포함하는지 확인하며, Telegram token/chat id가 없으면 요청을 보내지 않는지 검증한다. 실제 모바일 클라이언트에서 첨부가 보이는지는 여전히 외부 실사용 QA로 남긴다.
+- 이번 회차 추가 완료: 11번 실제 모바일 QA를 막연한 수동 체크리스트가 아니라 실행 가능한 live QA로 좁혔다. `scripts/telegram-mobile-live-qa.mjs`는 `OMNUX_TELEGRAM_BOT_TOKEN`/`OMNUX_TELEGRAM_CHAT_ID`, `*_FILE`, 기본 macOS Keychain 항목을 순서대로 읽고, 실제 Telegram `sendMessage`와 `sendDocument`를 보낸 뒤 모바일에서 `/omniqa-ok <QA-ID>` 응답과 `.txt` 첨부 echo-back 문서 본문의 같은 `QA-ID`를 확인한다. 완료 판정은 `outboundMessageOk`, `outboundDocumentOk`, `inboundTextAckOk`, `inboundDocumentEchoOk` 4개가 모두 `true`일 때만 통과한다. `docs/텔레그램_봇_가이드.md`와 `docs/OMNUX_실환경_수동_최종회귀_체크리스트.md`, `scripts/check-chat-telegram-contract.mjs`에 이 live QA 경로를 연결했다.
+- 이번 회차 추가 완료: 12번 기술 스택 파편화 방지를 위해 기술 스택 문서에 원본 위치 경계와 잔재 보관 금지를 추가했고, `scripts/check-tech-stack-contract.mjs`가 canonical source home별 허용 파일 확장자와 루트/미들웨어 생성 산출물 부재를 검사하도록 보강했다. `scripts/check-repo-hygiene.mjs`도 ignored 생성물이 실제 파일시스템에 남아 있으면 실패하도록 확장했다.
+- 이번 회차 추가 완료: 12번 브랜드와 호환 alias 경계를 문서와 계약 검사에 추가했다. `omnux`를 제품명, 패키지명, 런처, 상태 디렉터리, 새 사용자 노출 문구의 canonical 이름으로 고정했고, `Omni-node`는 저장소 폴더명/이전 이름 설명/마이그레이션 예시에만 남기도록 제한했다. `scripts/check-tech-stack-contract.mjs`는 `package.json` 이름, `README.en.md` 제목, 대시보드 셸 브랜드, legacy alias 재생성 금지 문구를 확인한다.
+
+### [부록 A. 상세 변경사항 로그 - 내용 보존]
+- `apps/omnux-middleware/src/CommandService.Execution.cs`
+  - 첨부 입력 정규화를 `InputAttachmentPolicy.Normalize`로 이동했다.
+  - 오디오 첨부 판별을 `InputAttachmentPolicy.TryGetAudioAttachment`로 이동했다.
+  - `ExecuteCoreAsync`의 메인 라우팅을 Telegram direct command, unified slash, 비슬래시 자연어, routine/system, telegram chat fallback, intent fallback helper로 나눴다.
+- `apps/omnux-middleware/src/CommandService.Execution.TelegramRouting.cs`
+  - 텔레그램 직접 명령 묶음의 우선순위와 반환 경계를 전담하는 helper를 추가했다.
+- `apps/omnux-middleware/src/CommandService.Execution.PostRouting.cs`
+  - 비슬래시 자연어, 루틴, 시스템 명령, 텔레그램 채팅 fallback, intent fallback을 전담하는 helper를 추가했다.
+- `apps/omnux-middleware/src/CommandService.InputPreparation.cs`
+  - 입력 첨부 정규화 경로를 새 정책으로 통일했다.
+- `apps/omnux-middleware/src/CommandService.Telegram.cs`
+  - 텔레그램 입력 처리의 첨부 정규화 경로를 새 정책으로 통일했다.
+  - `BuildLocalNowText`와 `/kill` 파서 경로를 정책으로 이동했다.
+  - LLM 도움말 본문 생성을 `CommandHelpTextPolicy.BuildUnifiedLlmHelpText`로 위임했다.
+- `apps/omnux-middleware/src/CommandService.Telegram.MemoryCommand.cs`
+  - 텔레그램 `/memory clear|create|help` 실행을 `CommandService.Telegram.LlmControl.cs`에서 분리해 전담하도록 추가했다.
+- `apps/omnux-middleware/src/CommandService.Telegram.LlmCommandBoundary.cs`
+  - 텔레그램 `/llm` control command 실행 switch와 provider/model mutation bridge를 명시적 request boundary로 분리해 전담하도록 추가했다.
+- `apps/omnux-middleware/src/Application/TelegramLlmMutationApplicationService.cs`
+  - 텔레그램 LLM quick/Groq/Copilot selected model 변경, 단일/오케스트레이션/다중 provider/model 변경, summary provider 변경을 application service command boundary로 분리했다.
+  - `LlmPreferenceContext`와 Groq/Copilot selected model delegate를 받아 상태 쓰기를 담당하고, `CommandService.Telegram.LlmChannelMutation.cs`는 이 service를 호출하는 얇은 위임 helper로 축소했다.
+- `apps/omnux-middleware/src/Application/LlmSettingsApplicationService.cs`
+  - 웹/텔레그램 채널 프로필 적용, 모드 변경, provider/model 변경, 상태 출력 snapshot 생성을 application service command boundary로 분리했다.
+  - 웹 LLM preference state mutation은 이 service가 직접 담당하고, 텔레그램 provider/model mutation은 `TelegramLlmMutationApplicationService`로 위임해 상태 쓰기 경계를 중복하지 않게 했다.
+  - 이번 추가 회차에는 `TelegramLlmProfileCommandMutationRequest`와 `ApplyTelegramProfileCommand`를 추가해 텔레그램 `/talk`·`/code` 명령의 직접 프로필 state mutation도 이 service로 옮겼다.
+- `apps/omnux-middleware/src/CommandService.Telegram.LlmChannelMutation.cs`
+  - 텔레그램 provider/model channel mutation, command multi-channel lock bridge, 자연어 provider/model mutation bridge를 전담하도록 추가했다.
+  - `/model` quick selection, Groq selected model, Copilot selected model 쓰기를 `TelegramQuickModelSelectionMutationRequest`, `TelegramGroqModelSelectionMutationRequest`, `TelegramCopilotModelSelectionMutationRequest` 기반 helper로 모아 `CommandService.Telegram.LlmModelSelection.cs`의 직접 preference mutation을 제거했다.
+  - 추가로 실제 `_telegramLlmPreferences`, `_telegramLlmLock`, `_llmRouter`, `_copilotWrapper`, `SetChannelProvider`, `SetChannelModel` 접근을 `TelegramLlmMutationApplicationService`로 넘겨 직접 상태 mutation을 제거했다.
+  - 이번 추가 회차에는 `ApplyTelegramProfileCommandMutation` bridge를 추가해 `CommandService.Telegram.cs`의 `/talk`·`/code` 프로필 명령을 `LlmSettingsApplicationService`로 넘긴다.
+- `apps/omnux-middleware/src/CommandService.Telegram.cs`
+  - `/talk`·`/code` 명령의 직접 `_telegramLlmPreferences` lock/mutation과 `ApplyTelegramTalkDefaults`, `ApplyTelegramCodeDefaults` helper를 제거하고, `TelegramLlmProfileCommandMutationRequest` 기반 위임으로 전환했다.
+- `apps/omnux-middleware/src/CommandService.Telegram.LlmModelSelection.cs`
+  - 텔레그램 `/model` quick selection, Groq/Copilot 모델 설정 실행, 자연어 provider/model 변경 bridge를 `CommandService.Telegram.LlmControl.cs`에서 분리해 전담하도록 추가했다.
+  - quick model/Groq/Copilot 설정 시 `_telegramLlmPreferences`, `_telegramLlmLock`, `_llmRouter.TrySetSelectedGroqModel`, `_copilotWrapper.TrySetSelectedModel`를 직접 만지지 않고 `CommandService.Telegram.LlmChannelMutation.cs`의 mutation request helper로 위임하도록 축소했다.
+- `apps/omnux-middleware/src/CommandService.Telegram.LlmReports.cs`
+  - 텔레그램 LLM 상태, 모델 목록, 사용량 리포트 본문 생성을 `CommandService.Telegram.LlmControl.cs`에서 분리해 전담하도록 추가했다.
+- `apps/omnux-middleware/src/CommandService.NaturalCommands.cs`
+  - `/llm help`와 `/memory` 도움말 본문 생성을 `CommandHelpTextPolicy`로 위임했다.
+  - 자연어 결정적 fast-path를 `NaturalCommandDeterministicPolicy`로 위임했다.
+  - 자연어 해석 결과의 판정/정규화 경계를 `NaturalCommandValidationPolicy`로 위임했다.
+  - 자연어 해석 후보 선택과 resolver prompt 생성을 `NaturalCommandCandidatePolicy`로 위임했다.
+  - 자연어 해석 루프를 `NaturalCommandResolutionPolicy`로 위임했다.
+  - 통합 슬래시/LLM 명령의 토큰 판정과 route 선택을 `UnifiedSlashCommandPolicy`로 넘겨 자연어 해석 파일의 책임을 줄였다.
+  - 프로필/provider/model/상태 출력 helper를 `CommandService.LlmSettings`로 옮겨 자연어 해석 전용에 가깝게 축소했다.
+- `apps/omnux-middleware/src/CommandService.LlmSettings.cs`
+  - 채널 프로필 적용, 채널 mode/provider/model 설정, 채널 모델 상태 출력, provider/model 표시 포맷, 웹 talk/code 기본값 적용, 텔레그램/웹 provider/model core setter를 전담하는 partial을 추가했다.
+  - 이번 추가 회차에는 직접 `_telegramLlmPreferences`, `_webLlmPreferences`, `_telegramLlmLock`, `_webLlmLock` 접근과 provider/model core setter를 제거하고 `LlmSettingsApplicationService` 위임 wrapper와 표시 helper만 남기도록 축소했다.
+- `apps/omnux-middleware/src/CommandService.LlmSettingsRouting.cs`
+  - `/llm set groq|copilot`의 source별 채널 모델 설정 helper를 `UnifiedSlashCommandExecution`에서 분리했다.
+  - `/llm set codex|nvidia`까지 포함하는 provider별 모델 라우팅 helper(`SetChannelModelForProviderAsync`)도 이 partial로 이동했다.
+- `apps/omnux-middleware-tests/LlmSettingsApplicationServiceTests.cs`
+  - 웹 talk preset 적용, 텔레그램 provider mutation service 위임, legacy Cerebras 모델 정규화, 채널 status snapshot 출력을 테스트로 고정했다.
+  - 이번 추가 회차에는 `ApplyTelegramProfileCommandReturnsActualThinkingLevel`을 추가해 `/talk` 무인자 경로가 기존처럼 `thinking=low`를 반환하는지 고정했다.
+- `apps/omnux-middleware/src/CommandService.NaturalCommandExecution.cs`
+  - 자연어 compound/deterministic/resolved 실행과 audit log를 명시적 helper로 분리했다.
+  - `ReenterNaturalCommandAsync` 기반 public `ExecuteAsync` 재호출을 제거하고, 자연어 결과 명령을 `NaturalCommandExecutionRequest`로 감싸 `ExecuteNaturalCommandDispatchAsync`에서 `ExecuteNormalizedCommandRoutingAsync`로 직접 전달한다.
+- `apps/omnux-middleware/src/CommandService.Execution.Dispatch.cs`
+  - 입력 정규화 이후 공통 명령 라우팅을 전담하는 partial을 추가했다. command receipt 기록, 텔레그램 slash alias rewrite, `/help`, 텔레그램 직접 명령, unified slash, post-unified routing 연결을 담당한다.
+- `apps/omnux-middleware/src/UnifiedSlashCommandPolicy.cs`
+  - `/talk`, `/profile`, `/mode`, `/provider`, `/model`, `/status`, `/memory`, `/doctor`, `/plan`, `/task`, `/notebook`, `/handoff`, `/llm`의 route 판정, usage 메시지, alias 정규화, doctor/memory flag 판정을 전담하는 순수 정책을 추가했다.
+- `apps/omnux-middleware/src/UnifiedSlashCommandExecution.cs`
+  - `TryHandleUnifiedSlashCommandAsync`만 남겨 통합 슬래시 parse 후 실행 진입을 담당하게 했다.
+- `apps/omnux-middleware/src/UnifiedSlashCommandExecution.Core.cs`
+  - static 메시지 처리 후 channel 실행 helper와 memory/doctor/domain/LLM orchestration helper로 위임하도록 정리했다. profile/mode/provider/model/status 직접 실행은 제거했다.
+- `apps/omnux-middleware/src/UnifiedSlashCommandExecution.Channel.cs`
+  - `/profile`, `/talk`, `/mode`, `/provider`, `/model`, `/status`에서 들어오는 채널 프로필/모드/provider/model/status 실행을 전담하는 partial을 추가했다.
+- `apps/omnux-middleware/src/UnifiedSlashCommandExecution.Memory.cs`
+  - `/memory clear|create|help` kind guard 후 memory boundary로 위임하도록 정리했다.
+- `apps/omnux-middleware/src/UnifiedSlashCommandExecution.MemoryBoundary.cs`
+  - `/memory clear|create|help` 실행 bridge를 `UnifiedSlashMemoryCommandRequest` 기반 명시적 boundary로 묶었다.
+- `apps/omnux-middleware/src/UnifiedSlashCommandExecution.Doctor.cs`
+  - `/doctor` kind guard 후 doctor boundary로 위임하도록 정리했다.
+- `apps/omnux-middleware/src/UnifiedSlashCommandExecution.DoctorBoundary.cs`
+  - `/doctor` 실행 bridge를 `UnifiedSlashDoctorCommandRequest` 기반 명시적 boundary로 묶었다.
+- `apps/omnux-middleware/src/UnifiedSlashCommandExecution.Domain.cs`
+  - `/plan`, `/task`, `/notebook`, `/handoff` kind guard 후 domain boundary로 위임하도록 정리했다.
+- `apps/omnux-middleware/src/UnifiedSlashCommandExecution.DomainBoundary.cs`
+  - `/plan`, `/task`, `/notebook`, `/handoff` 실행 bridge를 `UnifiedSlashDomainCommandRequest` 기반 명시적 boundary로 묶었다.
+- `apps/omnux-middleware/src/UnifiedSlashCommandExecution.Llm.cs`
+  - `/llm help|usage|models|set ...` kind guard 후 LLM boundary로 위임하도록 정리했다.
+- `apps/omnux-middleware/src/UnifiedSlashCommandExecution.LlmBoundary.cs`
+  - `/llm help|usage|models|set ...` 실행 bridge를 `UnifiedSlashLlmCommandRequest` 기반 명시적 boundary로 묶었다.
+  - `/llm set groq|copilot|codex|nvidia` 실행 경로는 기존 source별 채널 설정 동작을 유지하되, provider routing은 `CommandService.LlmSettingsRouting`으로 옮긴 경계를 계속 사용한다.
+- `apps/omnux-middleware/src/NaturalCommandCandidatePolicy.cs`
+  - 텔레그램/웹 LLM 설정 스냅샷을 자연어 해석용 후보 선택 입력으로 정규화했다.
+  - 자연어 해석 후보 provider/model 선택, fallback provider 순서, resolver prompt 생성을 전담하는 순수 정책을 추가했다.
+- `apps/omnux-middleware/src/NaturalCommandResolutionPolicy.cs`
+  - 자연어 해석 후보를 순회하며 JSON 해석 결과를 고신뢰도 command 우선으로 선택하는 순수 정책을 추가했다.
+- `apps/omnux-middleware/src/NaturalCommandDispatchPolicy.cs`
+  - 자연어 해석 결과를 실행/채팅/거부/무시로 판정하는 순수 정책을 추가했다.
+- `apps/omnux-middleware/src/NaturalCommandInterpretationPolicy.cs`
+  - LLM 자연어 해석 결과의 JSON 코드펜스 추출, JSON 정규화, args 파싱을 전담하는 순수 정책을 추가했다.
+- `apps/omnux-middleware/src/NaturalCommandValidationPolicy.cs`
+  - 자연어 명령 판정, kill 의도 감지, 키 정규화, `ContainsExplicit*` 판정, 검증 결과 생성을 전담하는 순수 정책을 추가했다.
+- `apps/omnux-middleware/src/CommandService.Telegram.Coding.cs`
+  - 코딩용 텔레그램 경로의 첨부 정규화 경로를 새 정책으로 통일했다.
+  - 대형 코딩 결과는 상세 본문 조립 전에 `TelegramCodingHandoffPolicy`로 요약+handoff 응답을 만들도록 했다.
+  - `/coding file`이 대형 파일을 직접 본문으로 풀지 않고 `TelegramCommandHandoffPolicy` 요약+handoff로 제한하도록 했다.
+- `apps/omnux-middleware/src/Infrastructure/Telegram/TelegramCodingHandoffPolicy.cs`
+  - 변경 파일 수, 워커 수, 요약 본문 길이 기준으로 텔레그램 코딩 결과의 모바일 handoff 필요 여부를 판정하고, `/coding files`, `/coding download <번호>`, `/handoff` 중심의 짧은 응답을 만든다.
+- `apps/omnux-middleware/src/Infrastructure/Telegram/TelegramCommandHandoffPolicy.cs`
+  - 대형 명령 출력의 문자 수/라인 수를 기준으로 텔레그램 직접 출력 여부를 판정하고, 짧은 프리뷰, 다음 명령, `telegram_command_output_handoff` marker를 포함한 handoff 응답을 만든다.
+- `apps/omnux-middleware/src/Infrastructure/Telegram/TelegramHandoffPresentationPolicy.cs`
+  - 텔레그램 `/handoff` 결과에 데스크톱 Notebooks/Handoff 화면 안내, 로컬 `handoff.md` 경로, 짧은 프리뷰를 표시한다.
+- `apps/omnux-middleware/src/CommandService.Telegram.Refactor.cs`
+  - `/refactor preview` 대형 diff는 모바일 본문에 직접 풀지 않고 handoff 프리뷰로 제한한다.
+- `apps/omnux-middleware/src/CommandService.Tasks.cs`
+  - 텔레그램 `/task output`은 대형 stdout/stderr/result를 직접 출력하지 않고 요약+handoff로 제한한다. 웹/대시보드 출력은 기존 포맷을 유지한다.
+- `apps/omnux-middleware/src/CommandService.Doctor.cs`
+  - 텔레그램 `/doctor json`의 대형 JSON은 요약+handoff로 제한하고, 웹/대시보드 JSON 출력은 유지한다.
+- `apps/omnux-middleware/src/CommandService.Notebooks.cs`
+  - 텔레그램 `/handoff` 실행 결과는 `TelegramHandoffPresentationPolicy`로 표시해 데스크톱 이어보기 경로를 명확히 보여준다.
+- `apps/omnux-middleware/src/CommandService.Telegram.Conversation.cs`
+  - 텔레그램 `/history` `/log` 조회, 마지막 답변 기반 notebook/plan 생성, 연동 대화 확보, followup 입력 보정, anchor turn 탐색을 전담하는 partial을 추가했다.
+- `apps/omnux-middleware/src/CommandService.Telegram.SkillAliases.cs`
+  - 스킬 별명 상태 파일 로드/저장, 슬래시 별명 rewrite, `/skill quick` 등록/목록/삭제를 전담하는 partial을 추가했다.
+- `apps/omnux-middleware/src/CommandService.Telegram.Skills.cs`
+  - 스킬 별명 블록을 새 partial로 옮겨 본문 조회/생성, 활성화/비활성화, 자연어 스킬 호출 판정 중심으로 축소했다.
+- `apps/omnux-middleware/src/CommandService.Telegram.LlmExecution.cs`
+  - 텔레그램 Think+ 토글 초입 분기를 별도 partial로 옮겼다.
+- `apps/omnux-middleware/src/CommandService.Telegram.Refactor.cs`
+  - 텔레그램 Safe Refactor 명령 처리와 상태 helper를 별도 partial로 옮겼다.
+- `apps/omnux-middleware/src/CommandService.Telegram.CodingSettings.cs`
+  - 텔레그램 코딩 모드/언어/제공자/모델/워커 상태 helper를 별도 partial로 옮겼다.
+- `apps/omnux-middleware/src/CommandService.Telegram.UrlRouting.cs`
+  - 텔레그램 URL fast-path를 별도 partial로 옮겼다.
+- `apps/omnux-middleware/src/CommandService.Telegram.ResponseFinalize.cs`
+  - 텔레그램 채팅 응답 저장, 대화 제목 생성, 대화 압축, guard meta audit, 실행 metadata 기록 종료 루틴을 공통 helper로 옮겼다.
+- `apps/omnux-middleware/src/CommandService.RoutineCommands.cs`
+  - `/routine` 명령 디스패치, 목록/실행이력/상세 응답 조립, 생성/수정 요청 토큰 분해를 전담하는 partial을 추가했다.
+- `apps/omnux-middleware/src/CommandService.RoutineScheduler.cs`
+  - 루틴 스케줄러 루프를 별도 partial로 옮겼다.
+- `apps/omnux-middleware/src/CommandService.RoutinePrompts.cs`
+  - 루틴 생성용 프롬프트 파일 초기화를 별도 partial로 옮겼다.
+- `apps/omnux-middleware/src/CommandService.RoutineRunHelpers.cs`
+  - 루틴 실행 로그, cron agentTurn bridge, cron 보조 문자열 조립을 별도 partial로 옮겼다.
+- `apps/omnux-middleware/src/CommandService.RoutineSummary.cs`
+  - 루틴 요약, 실행 모드 라벨, 스케줄 비교, 실행 이력, 제목/다음 실행 시각 계산 보조를 별도 partial로 옮겼다.
+- `apps/omnux-middleware/src/CommandService.RoutineGeneration.cs`
+  - 기존 루틴 생성 본문 파일명을 실제 책임에 맞게 정리하고, 파일 책임을 루틴 생성 오케스트레이션 중심으로 축소했다.
+- `apps/omnux-middleware/src/CommandService.RoutineGeneration.Execution.cs`
+  - 루틴 생성의 split/single LLM 실행, 생성 후보 파싱, 보정 진행률 보고, 품질 결과 조립을 전담하는 partial을 추가했다.
+- `apps/omnux-middleware/src/CommandService.RoutineValidation.cs`
+  - 루틴 코드 보정, 생성 코드 검증, 스케줄러 책임 침범 판정, 실행 스크립트 저장 helper를 별도 partial로 옮겼다.
+- `apps/omnux-middleware/src/CommandService.RoutineGenerationStrategy.cs`
+  - Groq 모델 가용성과 rate limit 기준으로 루틴 생성 전략을 고르는 helper를 별도 partial로 옮겼다.
+- `apps/omnux-middleware/src/CommandService.RoutineGenerationText.cs`
+  - 루틴 생성 프롬프트, prompt token 추정, plan 추출, shebang/portability shim, fallback 코드 문자열 helper를 별도 partial로 옮겼다.
+- `apps/omnux-dashboard/modules/app-shell-state.js`
+  - 루트 앱 셸 상태 조립을 summary/persistence/overlay/event/domain/ui/store/bridge/context helper로 더 잘게 나누고, 렌더 조립만 남기도록 축소했다.
+- `apps/omnux-dashboard/modules/app-shell-summary.js`
+  - conversation summary upsert helper를 전담하도록 분리했다.
+- `apps/omnux-dashboard/modules/app-shell-persistence.js`
+  - theme/lang/advanced 로컬 저장소 read/write helper를 전담하도록 분리했다.
+- `apps/omnux-dashboard/modules/app-shell-overlays.js`
+  - palette, permission, activity, toast overlay state를 전담하도록 분리했다.
+- `apps/omnux-dashboard/modules/app-shell-events.js`
+  - runtime, routine, conversation, memory, keyboard shortcut 이벤트 구독을 전담하도록 분리했다.
+- `apps/omnux-dashboard/modules/app-shell-domain-state.js`
+  - runtime, routines, conversations, active conversation, memory notes domain data 구독을 전담하도록 분리했다.
+- `apps/omnux-dashboard/modules/app-shell-ui-state.js`
+  - navigation/preference hook 조립만 담당하도록 축소했다.
+- `apps/omnux-dashboard/modules/automate-page-state.js`
+  - Automate trigger 정의, middleware routine to card 변환, 생성 패널 상태, 생성/삭제/실행 action 상태를 page-level hook으로 분리했다.
+- `apps/omnux-dashboard/automate.js`
+  - `CreatePanel`과 `AutomatePage`가 로컬 state를 직접 들지 않고 `useCreateAutomationPanelState`, `useAutomatePageState`를 사용하도록 바꿨다.
+  - 렌더링 책임은 유지하고, 상태/액션/데이터 변환 책임만 `modules/automate-page-state.js`로 이동했다.
+- `apps/omnux-dashboard/index.html`
+  - `modules/automate-page-state.js`를 `modules/app-shell-state.js`보다 먼저 로드하도록 추가했다.
+- `apps/omnux-dashboard/modules/app-shell-domain-stores.js`
+  - runtime, routine, conversation, memory store와 active conversation state를 전담하도록 분리했다.
+- `apps/omnux-dashboard/modules/app-shell-bridges.js`
+  - keyboard shortcut, send adapter, openProject action bridge를 전담하도록 분리했다.
+- `apps/omnux-dashboard/modules/app-shell-context.js`
+  - page ctx와 root render state 조립을 별도 helper로 분리했다.
+- `apps/omnux-dashboard/modules/app-shell-navigation-state.js`
+  - route, payload, mobile nav 상태와 route 전환 side effect를 분리했다.
+- `apps/omnux-dashboard/modules/app-shell-preference-state.js`
+  - theme, lang, advanced preference와 DOM/localStorage side effect를 분리했다.
+- `apps/omnux-dashboard/modules/app-shell-render.js`
+  - page resolution과 root shell render 조립을 `app.js`에서 분리했다.
+- `apps/omnux-dashboard/modules/build-page-state.js`
+  - Build 화면의 project/request/stage/details/check/examples/plan/diff 상태와 액션을 전담하는 page-level store를 추가했다.
+- `apps/omnux-dashboard/modules/build-page-state.js`
+  - rollback ID 입력, 미들웨어 연결 가드, restore 요청 상태, 복원 결과 메시지를 전담하는 상태를 추가했다.
+- `apps/omnux-dashboard/modules/command-palette-state.js`
+  - Command Palette의 command list/filter/selection/focus 상태와 키 입력 처리를 전담하는 page-level store를 추가했다.
+- `apps/omnux-dashboard/app.js`
+  - root shell을 마운트 진입과 `buildOmnuxAppView` 호출 중심으로 줄였다.
+  - root Error Boundary를 추가해 렌더링 중 오류가 나도 전체 화면이 흰 화면으로 끝나지 않고 복구 버튼이 있는 fallback을 표시하도록 했다.
+- `apps/omnux-dashboard/bootstrap.js`
+  - React/ReactDOM CDN 로드와 정적 대시보드 스크립트 순차 로드를 전담하는 부트스트랩 파일을 추가했다.
+  - React/CDN 또는 초기 스크립트 로드 실패 시 `#root`에 local fallback 화면을 표시해 부트 실패를 사용자가 즉시 인지할 수 있게 했다.
+- `apps/omnux-dashboard/index.html`
+  - app shell summary/persistence/overlay/event/navigation/preference/domain/ui/render 모듈과 `build-page-state.js`, `command-palette-state.js`를 app.js보다 먼저 로드하도록 연결했다.
+  - 개별 스크립트 태그 나열을 `bootstrap.js` 하나로 전환해 부트 순서와 실패 처리를 한 곳에서 관리하도록 했다.
+- `apps/omnux-dashboard/styles.css`
+  - boot fallback 화면, 카드, 복구 버튼 스타일을 추가했다.
+- `apps/omnux-dashboard/build.js`
+  - Build 화면은 렌더링만 남기고 page-state 훅에서 상태를 받아 사용하도록 축소했다.
+  - rollback 복원 카드와 상태 메시지, 비연결 차단 문구를 Build 화면에 직접 노출했다.
+- `apps/omnux-dashboard/palette.js`
+  - Command Palette는 렌더링만 남기고 page-state 훅에서 상태를 받아 사용하도록 축소했다.
+- `apps/omnux-dashboard/modules/refactor-state.js`
+  - rollback apply 결과와 restore 결과가 state에서 안정적으로 유지되도록 `applyResult` 초기값을 추가했다.
+- `apps/omnux-dashboard/i18n.js`
+  - Build 화면의 rollback 복원 관련 문구를 추가해 대시보드 한글 표기를 보강했다.
+- `scripts/check-plan-tab-contract.mjs`
+  - 텔레그램 최근 답변 계획 shortcut 검사를 새 partial 파일 경계에 맞췄다.
+- `scripts/check-notebook-tab-contract.mjs`
+  - 텔레그램 최근 답변 노트북 저장 검사를 새 partial 파일 경계에 맞췄다.
+- `scripts/check-desktop-shell-boundary-contract.mjs`
+  - 7번 Tauri 백엔드 충돌을 막기 위해 Rust 셸과 .NET 미들웨어의 책임 경계 문서를 검사하고, 향후 `apps/desktop/src-tauri` 코드가 생기면 Rust 쪽 비즈니스 로직 침범을 차단하는 계약 검사를 추가했다.
+  - `apps/desktop/src/use-middleware-runtime-probe.ts`의 ping/pong probe와 reconnect 예약, `triggerMiddlewareRuntimeProbe` 수동 재실행 경계를 검사하도록 보강했다.
+  - 데스크톱 healthz/readyz 상태 표시와 HTTP probe 상태 저장 계약을 검사하도록 보강했다.
+- `scripts/check-gateway-runtime-contract.mjs`
+  - Tauri/Vite 데스크톱 개발 서버(`1420`)가 미들웨어(`41880`)에 붙을 수 있도록 loopback cross-port WebSocket Origin 허용 계약을 추가했다.
+  - Tauri/Vite Origin에서 `healthz`/`readyz`를 CORS로 읽을 수 있는지 실제 미들웨어 런타임 검사에 추가했다.
+- `scripts/run-omnux-tests.mjs`
+  - `npm test` 파이프라인에 desktop shell boundary contract 단계를 연결했다.
+- `develop.md`
+  - 7번 Tauri 백엔드 충돌 진행률, 처리율/미착수 수치/완료·미완료/남은 회차를 최신화했다.
+- `apps/omnux-middleware/src/WebSocketGateway.SocketLoop.cs`
+  - 로컬 loopback 호스트끼리는 포트가 달라도 WebSocket Origin을 허용하도록 조정했다.
+  - 외부 origin과 remote no-origin 차단 계약은 `check-gateway-runtime-contract`로 유지했다.
+- `apps/omnux-middleware/src/WebSocketGateway.Health.cs`
+  - health endpoint 전용 loopback CORS 판정을 추가해 Tauri dev origin이 `healthz`/`readyz`를 읽을 수 있게 했다.
+- `apps/omnux-middleware/src/WebSocketGateway.Http.cs`
+  - `healthz`/`readyz` 응답에 허용된 loopback Origin만 `Access-Control-Allow-Origin`으로 반영하도록 연결했다.
+- `apps/desktop/package.json`
+  - 앱 이름을 `omnux-desktop`으로 바꾸고 샘플 opener 의존성을 제거했다.
+- `apps/desktop/src-tauri/Cargo.toml`
+  - 패키지 이름과 설명을 `Omnux Desktop` 기준으로 바꾸고 opener 플러그인을 제거했다.
+  - Rust 셸이 dev bootstrap을 위해 `tauri-plugin-shell`만 사용하도록 추가했다.
+- `apps/desktop/src-tauri/src/main.rs`
+  - 생성된 Rust 라이브러리 이름을 새 패키지명에 맞췄다.
+- `apps/desktop/src-tauri/src/lib.rs`
+  - 샘플 `greet` command와 invoke handler를 제거하고 최소 Tauri 셸만 남겼다.
+  - debug/dev 빌드에서만 `dotnet run --project apps/omnux-middleware/Omnux.Middleware.csproj --no-launch-profile`을 `OMNUX_WS_PORT=41880`로 띄우는 bootstrap을 추가했다.
+  - 종료 이벤트에서 bootstrap된 `.NET` 미들웨어 child process를 정리하도록 했다.
+- `apps/desktop/src/App.tsx`
+  - 샘플 greet 화면을 제거하고 Rust/.NET 경계 요약을 보여주는 정적 셸 화면으로 교체했다.
+  - `useMiddlewareRuntimeProbe`를 연결해 데스크톱 셸이 로드될 때 `.NET` 미들웨어 ping/pong 상태를 자동 확인하도록 했다.
+  - 수동 `ping/pong 재확인` 버튼, 마지막 probe 시각, 마지막 오류 상태를 추가했다.
+  - 카드별 Error Boundary와 카드 실패 로그 기록을 추가해 카드 하나의 렌더 오류가 전체 셸로 번지지 않게 했다.
+  - Rust 생명주기 이벤트를 프론트가 받아 bootstrap phase/pid를 표시하도록 했다.
+- `apps/desktop/src/App.css`
+  - 기본 템플릿 스타일을 제거하고 Omnux Desktop 전용 셸 레이아웃/카드/그리드 스타일을 추가했다.
+- `apps/desktop/src/shell-store.ts`
+  - `markHealthProbe`와 `scheduleNextReconnect`를 추가해 WebSocket ping/pong 결과와 재연결 예약을 상태로 남기도록 했다.
+  - sidecar 상태 표시를 `dev-dotnet-run-bootstrap`과 `bundle-external-bin`으로 구분해 개발/배포 계약을 화면에서 분리했다.
+  - probe 성공 시 재연결 시도 횟수를 0으로 초기화해 재연결 로그가 누적만 되지 않도록 정리했다.
+  - 카드 렌더 오류를 로그로 남기는 `recordCardError`를 추가했다.
+  - Rust bootstrap 이벤트를 반영하는 `markBootstrapEvent`를 추가했다.
+  - `markHttpProbe`, `healthStatus`, `readyStatus`를 추가해 `healthz`/`readyz` 결과를 런타임 카드에 별도 표시하도록 했다.
+- `apps/desktop/src/use-middleware-runtime-probe.ts`
+  - `.NET` 미들웨어에 `ping`만 보내고 `pong`만 기다리는 셸 전용 runtime probe를 추가했다.
+  - 비즈니스 메시지는 보내지 않고, 실패 시 제한된 재시도와 로그만 갱신한다.
+  - `healthz` 확인, `readyz` 사전 확인, WebSocket `ping`/`pong`, `readyz` 재확인 순서로 probe를 확장하고 HTTP probe timeout을 추가했다.
+- `apps/desktop/src/use-middleware-bootstrap-events.ts`
+  - Rust 쪽 bootstrap lifecycle event를 받아 bootstrap phase/pid와 로그를 상태화하는 hook을 추가했다.
+- `apps/desktop/index.html`
+  - 문서 제목을 `Omnux Desktop`으로 바꿨다.
+- `apps/desktop/README.md`
+  - 데스크톱 셸의 역할과 경계를 간단히 설명하도록 바꿨다.
+- `apps/omnux-middleware/src/CommandService.Utils.cs`
+  - 로컬 시간 출력 경로를 새 정책으로 통일했다.
+- `apps/omnux-middleware/src/RoutineCommandPolicy.cs`
+  - 루틴 명령 도움말, 결과 포맷, 실행 모드 라벨, 자연어 루틴 판정, 브라우저 루틴 파서 helper를 전담하는 순수 정책을 추가했다.
+- `apps/omnux-middleware/src/InputAttachmentPolicy.cs`
+  - 첨부 정규화와 오디오 판별을 전담하는 순수 정책을 추가했다.
+- `apps/omnux-middleware/src/KillCommandPolicy.cs`
+  - `/kill` 명령 파서를 전담하는 순수 정책을 추가했다.
+- `apps/omnux-middleware/src/LocalTimeTextPolicy.cs`
+  - 로컬 시간 문자열 생성과 UTC 오프셋 포맷을 전담하는 순수 정책을 추가했다.
+- `apps/omnux-middleware/src/CommandHelpTextPolicy.cs`
+  - 텔레그램/웹 LLM 도움말과 메모리 도움말 본문을 전담하는 순수 정책을 추가했다.
+- `apps/omnux-middleware/src/NaturalCommandDeterministicPolicy.cs`
+  - 복합 off 토글과 결정적 자연어→슬래시 변환 fast-path를 전담하는 순수 정책을 추가했다.
+- `apps/omnux-middleware/src/Infrastructure/Telegram/TelegramHelpTextPolicy.cs`
+  - 텔레그램 `/help` 주제별 긴 도움말 본문을 전담하는 순수 정책을 추가했다.
+- `apps/omnux-middleware-tests/InputAttachmentPolicyTests.cs`
+  - 정규화, 최대 첨부 수, 오디오 첨부 판별을 테스트로 고정했다.
+- `apps/omnux-middleware-tests/KillCommandPolicyTests.cs`
+  - `/kill` 명령 파싱의 유효/무효 케이스를 테스트로 고정했다.
+- `apps/omnux-middleware-tests/LocalTimeTextPolicyTests.cs`
+  - 로컬 시간 문자열과 UTC 오프셋 포맷을 테스트로 고정했다.
+- `apps/omnux-middleware-tests/CommandHelpTextPolicyTests.cs`
+  - 채널별 LLM 도움말과 메모리 도움말 출력이 유지되는지 테스트로 고정했다.
+- `apps/omnux-middleware-tests/NaturalCommandDeterministicPolicyTests.cs`
+  - 복합 off 토글, 스킬 별명 등록, 대화 이력, 웹/추론 토글 fast-path를 테스트로 고정했다.
+- `apps/omnux-middleware-tests/NaturalCommandCandidatePolicyTests.cs`
+  - 자연어 해석 후보 선택 우선순위, 최대 후보 수, resolver prompt의 핵심 명령 가이드를 테스트로 고정했다.
+- `apps/omnux-middleware-tests/NaturalCommandResolutionPolicyTests.cs`
+  - 자연어 해석 루프가 고신뢰 명령을 우선 반환하고, 실패 후보를 건너뛰며 최선 결과를 보존하는지 테스트로 고정했다.
+- `apps/omnux-middleware-tests/NaturalCommandDispatchPolicyTests.cs`
+  - 자연어 해석 결과가 실행/채팅/거부로 정확히 판정되는지 테스트로 고정했다.
+- `apps/omnux-middleware-tests/NaturalCommandInterpretationPolicyTests.cs`
+  - 코드펜스 포함 LLM 해석 결과의 JSON 정규화와 boolean/numeric args 파싱을 테스트로 고정했다.
+- `apps/omnux-middleware-tests/NaturalCommandValidationPolicyTests.cs`
+  - 자연어 명령 판정, kill 의도 감지, 키 정규화, coding mode 정규화, help 매핑, 저신뢰도 거부를 테스트로 고정했다.
+- `apps/omnux-middleware-tests/TelegramHelpTextPolicyTests.cs`
+  - 텔레그램 주제별 `/help` 출력과 기본 도움말 fallback을 테스트로 고정했다.
+- `apps/omnux-middleware-tests/TelegramCodingHandoffPolicyTests.cs`
+  - 대형 코딩 결과가 텔레그램에서 사전 요약+handoff로 제한되는지 테스트로 고정했다.
+- `apps/omnux-middleware-tests/TelegramCommandHandoffPolicyTests.cs`
+  - 대형 명령 출력 판정과 프리뷰/다음 명령/marker 포함 handoff 응답을 테스트로 고정했다.
+- `apps/omnux-middleware-tests/TelegramHandoffPresentationPolicyTests.cs`
+  - `/handoff` 텔레그램 응답이 데스크톱 Handoff 패널과 로컬 문서 경로를 안내하는지 테스트로 고정했다.
+- `apps/omnux-middleware-tests/RoutineCommandPolicyTests.cs`
+  - 루틴 도움말, 자연어 판정, 실행 모드 라벨, 브라우저 루틴 파서를 테스트로 고정했다.
+- `apps/omnux-middleware-tests/UnifiedSlashCommandPolicyTests.cs`
+  - 통합 슬래시/LLM 명령의 route 판정, 기존 usage 메시지, provider/model alias, memory compact flag, doctor json/last flag, 도메인 명령 토큰 보존을 테스트로 고정했다.
+- `apps/omnux-middleware-tests/RefactorRollbackSnapshotTests.cs`
+  - apply 직후 생성된 rollback ID로 실제 복원 성공과 재편집 후 차단을 검증하는 테스트를 추가했다.
+- `apps/omnux-middleware-tests/WsRefactorCommandDispatcherTests.cs`
+  - `refactor_restore` 입력이 rollbackId와 previewId fallback 둘 다 서비스 restore로 전달되는지 검증하는 테스트를 추가했다.
+- `scripts/check-core-daemon-boundary-contract.mjs`
+  - C11 코어 데몬 부재 계약으로 전환했다.
+  - `apps/omnux-core`, 루트 `omnux-core`/`omninode-core` alias, `UdsCoreClient`, `CoreProcessBootstrapper`, `CoreAuthToken`이 재도입되지 않는지 검사한다.
+  - `.NET` 기본 구현인 `ICoreRuntimeClient`/`DotNetCoreRuntimeClient`가 metrics/guarded kill을 계속 담당하는지 검사한다.
+  - 문서와 runner/위생 스크립트가 제거된 C11 코어 경로를 다시 안내하지 않는지 검사한다.
+- `scripts/run-omnux-tests.mjs`
+  - `npm test` 파이프라인에 `core daemon boundary contract` 단계를 추가했다.
+- `scripts/check-chat-telegram-contract.mjs`
+  - 텔레그램 코딩 결과가 대형 변경/워커 결과를 사전 요약+handoff로 제한하는지 계약 검사에 추가했다.
+  - 대형 파일/diff/task output/doctor JSON 명령 출력과 `/handoff` 데스크톱 문서 연결이 전용 정책을 거치는지 검사한다.
+- `apps/omnux-middleware/src/CoreRuntimeClient.cs`
+  - `ICoreRuntimeClient`와 기본 구현 `DotNetCoreRuntimeClient`를 추가했다.
+  - metrics는 기존 line format(`status=ok cpu_usage=... mem_free_mb=...`)을 유지한다.
+  - kill은 `pid <= 1`을 거부하고, Unix에서는 `SIGTERM`, Windows에서는 단일 프로세스 kill을 사용한다.
+- `apps/omnux-middleware/src/AppConfig.cs`
+  - `CoreSocketPath`와 `OMNUX_CORE_SOCKET_PATH` 설정을 제거해 런타임 설정이 더 이상 legacy socket 경로를 알지 않게 했다.
+- `apps/omnux-middleware/src/Infrastructure/Paths/StatePathResolver.cs`
+  - `CoreSocketPath`와 `omnux_core`/`omninode_core` socket alias 해석을 제거했다.
+- `apps/omnux-middleware/src/AgentSpawnBudgetPolicy.cs`
+  - `sessions_spawn` 고비용 조합 판정과 runtime/mode별 timeout/task 상한을 전담하는 순수 정책을 추가했다.
+- `apps/omnux-middleware/src/AgentSpawnAdmissionLimiter.cs`
+  - `sessions_spawn` 전역 토큰 버킷과 동시성 예약 상한을 전담하는 admission gate를 추가했다.
+  - 만료 예약과 실패 예약 회수를 지원한다.
+- `apps/omnux-middleware/src/AgentSpawnRunBreaker.cs`
+  - `agent_spawn_breaker.json`의 `Enabled`/`Reason`/`Message`/`ExpiresUtc` 상태를 읽어 신규 `sessions_spawn`과 큐 flush를 운영자 개입 전까지 막는 브레이커를 추가했다.
+  - 만료된 브레이커는 자동으로 비활성 취급하고, 상태 파일이 깨졌거나 없으면 차단하지 않는다.
+- `apps/omnux-middleware/src/SessionSpawnTool.cs`
+  - spawn 생성 전 `AgentSpawnBudgetPolicy`를 먼저 적용해 장시간/대용량 ACP 또는 subagent 호출을 초입에서 거부하도록 했다.
+  - admission gate를 추가로 적용해 토큰 버킷/동시성 초과를 거부하고, 생성 실패 시 reservation을 회수하도록 했다.
+  - accepted note에 spawn budget cost class를 포함해 후속 분석 시 비용 등급을 확인할 수 있게 했다.
+  - `commandPriority`를 정규화해 ACP dispatch payload와 trace에 전달하고, 기본 ACP run을 background 우선순위로 낮추도록 했다.
+  - ACP command transport 실패가 staged 접수로 폴백된 경우 결과 note에 fallback receipt를 남기도록 했다.
+  - `AgentSpawnRunBreaker`가 활성 상태면 신규 spawn은 `blocked_by_breaker`/`wait_for_operator`로 거부하고, 큐 flush는 기존 큐 항목을 유지한 채 건너뛰며 active run은 완료 이력으로 정리하도록 했다.
+  - `GetQueueStatus()`와 `SessionSpawnQueueStatus`를 추가해 브레이커 상태와 큐 스냅샷을 읽기 전용으로 확인할 수 있게 했다.
+  - active run 시작/완료/실패와 브레이커 시 `blocked_by_breaker` 완료 이력 전환을 `FileAgentSpawnActiveRunStore`에 기록하고, status snapshot에 active run 압력을 포함한다.
+  - 큐 접수 note에 `queue_observed`, `oldest_reason`, `latest_error`, `near_dead_letter` 요약을 붙였다.
+- `apps/omnux-middleware/src/WebSocketGateway.cs`, `apps/omnux-middleware/src/WsToolCommandDispatcher.cs`, `apps/omnux-middleware/src/Application/ToolApplicationService.cs`, `apps/omnux-middleware/src/Application/ApplicationServiceContracts.cs`, `apps/omnux-middleware/src/CommandService.Config.cs`, `apps/omnux-middleware/src/ToolRegistry.cs`
+  - WS `sessions_spawn action=status`를 추가해 task 없이 큐/브레이커 상태를 읽을 수 있게 했다.
+  - status 응답은 기존 `sessions_spawn_result` 타입을 유지하고 `action=status`를 붙여 spawn 실행 결과와 구분한다.
+  - 도구 registry 설명에 `sessions_spawn` status action 지원을 반영했다.
+- `apps/omnux-middleware/src/Infrastructure/Persistence/FileAgentSpawnQueueStore.cs`
+  - 큐 snapshot에 `NextEntryId`, `NextReason`, `NextError`, `NextAttemptCount`, `NearDeadLetterCount`를 추가해 운영자가 병목과 dead-letter 압력을 볼 수 있게 했다.
+- `apps/omnux-middleware/src/Infrastructure/Persistence/FileAgentSpawnActiveRunStore.cs`
+  - `agent_spawn_active.json`에 active run 시작, backend 식별자, 상태 전환, 완료/실패/stale 이력을 저장한다.
+  - snapshot에 active run 수, 가장 오래된 run id/runtime/mode/backend/시작 시각/age, 완료 history 수를 노출한다.
+- `apps/omnux-middleware/src/Infrastructure/Persistence/AgentSpawnActiveRunJson.cs`, `apps/omnux-middleware/src/Infrastructure/Persistence/AgentSpawnActiveRunJsonContext.cs`
+  - active run 상태 파일을 source-generated JSON context로 직렬화한다.
+- `apps/omnux-middleware/src/AcpSessionBindingAdapter.cs`
+  - ACP command-mode priority 값을 정규화하고, 외부 adapter command process에 best-effort process priority를 적용하도록 했다.
+  - command process 시작/입력/대기 실패 시 즉시 에러로 끝내지 않고 `command_fallback_staged` 접수 결과를 반환하도록 했다.
+  - command payload에 `breakerStatePath`를 포함해 외부 adapter가 실행 중 브레이커 상태 파일을 직접 확인할 수 있게 했다.
+- `apps/omnux-middleware/tools/acp-adapter-codex-exec.js`
+  - commandPriority payload/env 값을 해석하고, 실제 `codex exec` child process에 best-effort priority/nice 값을 적용하도록 했다.
+  - `breakerStatePath` payload/env 값을 해석하고, `agent_spawn_breaker.json`의 `enabled`/`Enabled`가 활성화되면 실행 중 `codex exec` process group에 `SIGTERM`과 `SIGKILL` fallback을 적용하도록 했다.
+- `apps/omnux-middleware/src/WebSocketGateway.cs`, `apps/omnux-middleware/src/WsToolCommandDispatcher.cs`, `apps/omnux-middleware/src/Application/ToolApplicationService.cs`, `apps/omnux-middleware/src/Application/ApplicationServiceContracts.cs`, `apps/omnux-middleware/src/CommandService.Config.cs`
+  - WS `sessions_spawn`의 `priority` 값을 spawn service 경로로 전달하고, 결과 JSON에 적용된 `commandPriority`를 노출하도록 했다.
+- `apps/omnux-middleware/src/CommandService.LogicGraphs.cs`
+  - 로직 그래프의 `session_spawn` 기본 timeout을 900초로 낮춰 `sessions_spawn` 예산 정책과 UI 기본값에 맞췄다.
+  - `session_spawn` 노드의 `commandPriority` 설정을 spawn service로 전달하도록 했다.
+- `apps/omnux-middleware-tests/AgentSpawnBudgetPolicyTests.cs`
+  - subagent 표준 호출, subagent 장시간 timeout 거부, ACP session timeout/task 예산 거부, ACP run elevated 허용을 테스트로 고정했다.
+- `apps/omnux-middleware-tests/AgentSpawnAdmissionLimiterTests.cs`
+  - 전역 토큰 버킷 고갈, refill, 일반/elevated 동시성 상한을 테스트로 고정했다.
+- `apps/omnux-middleware-tests/AgentSpawnQueueStoreTests.cs`
+  - run breaker 활성 시 신규 spawn이 거부되는지, 큐 flush가 실행되지 않고 기존 큐 항목을 유지하는지 테스트로 고정했다.
+  - `GetQueueStatus()`와 `ToolApplicationService.GetSessionSpawnStatus()`가 브레이커 상태와 큐 스냅샷의 oldest reason/error, near-dead-letter 압력을 노출하는지 테스트로 고정했다.
+  - active run store가 active/completed/stale 상태를 추적하고, status snapshot이 active run 압력을 노출하는지 테스트로 고정했다.
+- `apps/omnux-middleware-tests/AcpSessionBindingAdapterTests.cs`
+  - ACP command priority 정규화, command fallback staged 접수, ACP dispatch trace 전달을 테스트로 고정했다.
+  - ACP command payload가 `breakerStatePath`를 누락하지 않는지 테스트로 고정했다.
+- `scripts/check-security-boundaries.mjs`
+  - `AgentSpawnBudgetPolicy`, `AgentSpawnAdmissionLimiter`, `SessionSpawnTool` 예산/admission 정책 배선이 사라지지 않도록 계약 검사를 추가했다.
+  - ACP command-mode priority 전달 경로가 사라지지 않도록 계약 검사를 추가했다.
+  - ACP command transport 실패 시 staged 접수 폴백 경로가 사라지지 않도록 계약 검사를 추가했다.
+  - `AgentSpawnRunBreaker`, `agent_spawn_breaker.json`, `blocked_by_breaker`, `wait_for_operator` 계약이 사라지지 않도록 검사를 추가했다.
+  - `SessionSpawnQueueStatus`, `GetQueueStatus`, `GetSessionSpawnStatus`, WS `sessions_spawn action=status`, queue pressure note, 큐 snapshot의 reason/error/near-dead-letter, active run snapshot 계약이 사라지지 않도록 검사를 추가했다.
+  - ACP command-mode 브레이커 경로 전달, `codex exec` adapter의 브레이커 polling, PascalCase `Enabled` 호환, process group 종료 계약이 사라지지 않도록 검사를 추가했다.
+  - 이번 추가 회차에는 `LlmSettingsApplicationService`, request record, `CommandService.LlmSettings.cs` 위임 wrapper, 텔레그램 mutation service 재사용, 텔레그램 프로필 명령 mutation bridge, 단위 테스트명이 사라지지 않도록 계약 검사를 추가했다.
+- `apps/omnux-core`, `omnux-core`, `omninode-core`
+  - C11 코어 소스/빌드 산출물/루트 alias를 제거했다.
+- `apps/omnux-middleware/src/UdsCoreClient.cs`, `apps/omnux-middleware/src/CoreProcessBootstrapper.cs`, `apps/omnux-middleware/src/CoreAuthToken.cs`
+  - legacy C core IPC/부트스트랩/auth 호환 파일을 제거했다.
+- `apps/omnux-middleware/src/CommandService.cs`
+  - `_coreClient` 타입과 생성자 인자를 `ICoreRuntimeClient`로 전환했다.
+  - 이번 추가 회차에는 `ILlmSettingsApplicationService`를 생성자 의존성으로 받아 공통 LLM 설정 mutation을 application service에 위임하도록 배선했다.
+- `apps/omnux-middleware/src/Application/SettingsApplicationService.cs`
+  - metrics 조회 의존성을 `ICoreRuntimeClient`로 전환했다.
+- `apps/omnux-middleware/src/Application/Doctor/Checks/CoreSocketDoctorCheck.cs`
+  - socket 파일 존재 확인 중심의 `core_socket` 체크를 `.NET` runtime 중심의 `core_runtime` 체크로 전환했다.
+- `apps/omnux-middleware/src/Program.cs`
+  - 기본 제품 경로는 `DotNetCoreRuntimeClient`를 사용한다.
+  - legacy bootstrap opt-in 분기를 제거하고 시작 로그를 `.NET` core runtime 기준으로 바꿨다.
+  - `SessionSpawnTool`에 `AgentSpawnRunBreaker`를 명시적으로 주입해 백그라운드 큐 flush도 같은 브레이커 상태를 보도록 했다.
+  - 이번 추가 회차에는 `LlmSettingsApplicationService`를 `ProviderOptions`, `LlmPreferenceContext`, `TelegramLlmMutationApplicationService`, Groq selected model delegate와 함께 생성해 `CommandService`에 주입했다.
+- `scripts/check-gateway-runtime-contract.mjs`
+  - C core binary pid 추적과 legacy core socket 환경값을 제거했다.
+- `scripts/check-repo-hygiene.mjs`
+  - 제거된 `omnux-core`/`omninode-core` alias 요구를 삭제했다.
+- `README.md`, `README.en.md`, `docs/QUICKSTART.md`, `docs/en/quickstart.md`, `docs/검증_가이드.md`, `docs/en/validation.md`, `docs/디렉터리_가이드.md`, `docs/en/directory-guide.md`, `docs/아키텍처_흐름.md`, `docs/en/architecture.md`, `docs/기술스택_정리.md`, `docs/en/tech-stack.md`, `docs/gemini-retriever-plan/02_architecture_mapping.md`
+  - C11 코어 데몬을 활성 구성요소로 안내하던 문구를 제거하고 `.NET` core runtime 기준으로 정리했다.
+- `scripts/omnux`
+  - setup/start에서 `apps/omnux-core` 자동 빌드와 새 C core pid 추적을 제거했다.
+  - shutdown의 기존 legacy core pid/binary 정리 경로를 제거했다.
+- `scripts/omnux.ps1`
+  - setup/start에서 `apps\omnux-core\build.ps1` 자동 호출을 제거했다.
+  - shutdown의 기존 legacy core 프로세스 정리 경로를 제거했다.
+
+## 4. 핵심 리스크 및 당면 과제 (치명적 구조 결함 12선)
+
+현재 진행 중인 리팩터링과 UI 마이그레이션을 넘어, 프로젝트가 기술 부채에 짓눌리지 않기 위해 **반드시 해결해야 할 12가지 치명적 맹점**은 다음과 같습니다.
+다만 이 12건을 **한 번에 먼저 다 고쳐서 개발을 멈추는 방식**이 아니라, 현재 진행 가능한 기능 개발을 계속 밀면서 아래 우선순위대로 순차적으로 제거합니다.
+
+### [내 기준의 처리 순서]
+1. **AI 코드 검증의 착각 (TDD 파이프라인 부재)**
+   - 안전하게 큰 변경을 하기 위한 선결 조건이므로 가장 먼저 고칩니다.
+2. **'보안 샌드박스'라는 착각 (RCE 위험)**
+   - 로컬 실행의 가장 큰 보안 위험이라서 우선 처리합니다.
+3. **의존성(Dependency) 격리 방안의 부재 (로컬 환경 오염)**
+   - AI 생성 코드의 실행 안정성과 재현성을 위해 바로 잡아야 합니다.
+   - 현재는 host package manager 기반 자동 설치를 제거하고, workspace-local `.venv`와 `node_modules`만 쓰도록 1차 보강을 완료했다.
+4. **미들웨어의 'God Object' 문제 (Orchestration 결합)**
+   - 구조 분리와 유지보수성의 중심이므로 다음 순서로 처리합니다.
+5. **프론트엔드 상태 관리 부재 (React 'app.js' 괴물 전이 위험)**
+   - Phase 5 마이그레이션의 전제이므로 함께 정리합니다.
+6. **'자율'에 취해 '안전벨트(Rollback)'를 버린 플랫폼 아키텍처**
+    - 완료. 백엔드 snapshot/restore/차단, WS 계약, Build 화면 복원 UI, 테스트 11개까지 모두 구현·검증 완료.
+7. **Tauri 마이그레이션에서의 '백엔드 충돌' (Rust vs .NET)**
+   - Phase 5 진입 전에 경계를 분명히 해야 합니다.
+8. **C11 코어 데몬의 극악한 오버엔지니어링**
+   - 완료. C11 코어 데몬과 alias는 제거했고 `.NET` core runtime 계약으로 재도입을 막는다.
+9. **멀티 에이전트 모드의 비용 및 Rate Limit 폭주**
+   - 실제 고부하 기능을 밀 때 바로 발목을 잡는 문제라서 뒤따라 정리합니다.
+10. **'로컬 우선(Local-first)'이 아닌 '로컬 고립(Local-Isolated)'의 한계**
+    - 외부 패키징/이식성 계획이 붙는 시점에 고칩니다.
+11. **텔레그램 봇 맹신으로 인한 모바일 UX 붕괴**
+    - 알림/트리거와 본작업 분리를 더 선명하게 만듭니다.
+12. **기술 스택의 지독한 파편화 (Language Fragmentation)**
+    - C11과 루트/미들웨어 생성 산출물은 제거했고 새 언어/런타임 승인 기준도 문서와 계약 검사에 고정했다. 남은 작업은 Phase 5 진행 중 새 스택 유입 차단의 실제 적용 확인이다.
+
+### [구조 및 아키텍처 결함]
+1. **미들웨어의 'God Object' 문제 (Orchestration 결합)**
+   - **현황**: 파서(Parser)는 분리되었으나, 핵심인 상태 관리, 루프 제어, 노드 실행 로직이 여전히 `CommandService`에 뭉쳐 있습니다.
+   - **대응**: 도메인별(코딩, 루틴, 로직) 전용 Orchestrator를 분리하고 DI를 통해 결합도를 완전히 끊어내야 합니다.
+
+2. **프론트엔드 상태 관리 부재 (React 'app.js' 괴물 전이 위험)**
+   - **현황**: 기존 대시보드의 `app.js` 셸 상태 과대화 문제를 안고 Phase 5로 넘어갑니다.
+   - **대응**: 마이그레이션 첫 단추부터 **Zustand, Jotai** 같은 명확한 전역 상태 아키텍처를 도입하고 Store를 철저히 분할해야 합니다.
+
+3. **'보안 샌드박스'라는 착각 (RCE 위험)**
+   - **현황**: 현재의 `omnux-sandbox`는 파이썬 실행 시간과 메모리만 얕게 제한합니다.
+   - **대응**: AI가 생성한 임의 코드를 로컬에서 실행하므로, **Docker 컨테이너, gVisor, Firecracker** 수준의 진짜 OS 레벨 샌드박스를 구축해야 RCE 취약점을 막을 수 있습니다.
+
+4. **의존성(Dependency) 격리 방안의 부재 (로컬 환경 오염)**
+   - **현황**: AI 생성 코드를 실행할 때 발생하는 패키지 설치(`pip install` 등)가 로컬 환경을 오염시킵니다.
+   - **대응**: 코딩 에이전트 실행 시 즉석에서 Ephemeral Virtualenv나 Nix 환경을 스핀업하고 종료 후 완벽히 폐기(Teardown)해야 합니다.
+
+5. **멀티 에이전트 모드의 비용 및 Rate Limit 폭주**
+   - **현황**: 다중 에이전트(기획->코더->리뷰) 오케스트레이션 시 API 호출량이 증폭되어 429 에러에 매우 취약합니다.
+   - **대응**: '토큰 버킷(Token Bucket)' 큐잉 및 스마트 롤백/폴백(Smart Fallback) 구조를 도입해야 합니다.
+
+6. **AI 코드 검증의 착각 (TDD 파이프라인 부재)**
+   - **현황**: stdout/stderr 로그만으로 에러 여부를 판단하여 논리적 버그를 잡지 못합니다.
+   - **대응**: AI가 무조건 단위 테스트(Unit Test)를 먼저 작성하고 통과할 때만 성공으로 간주하는 'Test-Driven AI Generation' 게이트가 필요합니다.
+
+### [제품 철학 및 UX 한계]
+7. **'로컬 우선(Local-first)'이 아닌 '로컬 고립(Local-Isolated)'의 한계**
+   - **현황**: 모든 데이터가 내 PC 구석에 고립되어 이식성(Portability)과 확장성이 0입니다.
+   - **대응**: 루틴, 스킬, 환경 설정을 Gist 등으로 Export/Import 하는 '패키징 아키텍처' 및 클라우드 동기화 브릿지가 필요합니다.
+
+8. **텔레그램 봇 맹신으로 인한 모바일 UX 붕괴**
+   - **현황**: 코딩 Diff 뷰어 등 모바일 메신저에 맞지 않는 무거운 기능까지 텔레그램 명령어에 구겨 넣고 있습니다.
+   - **대응**: 텔레그램은 '알림/트리거'로 제한하고, 무거운 작업은 데스크톱(Tauri) 환경으로 유도(Handoff)하도록 엄격히 분리해야 합니다.
+
+9. **'자율'에 취해 '안전벨트(Rollback)'를 버린 플랫폼 아키텍처**
+   - **현황**: 플랫폼 설정(`routing-policy.json` 등)이 꼬였을 때 복구할 타임머신 메커니즘이 없습니다.
+   - **대응**: 플랫폼 자체 설정과 상태(State)에 대해 버튼 한 번으로 특정 시점으로 회귀할 수 있는 버저닝(Versioning) 시스템을 구축해야 합니다.
+
+### [오버엔지니어링 및 기술 파편화]
+10. **기술 스택의 지독한 파편화 (Language Fragmentation)**
+    - **현황**: C11 코어 데몬과 루트 Electron/Codex 번들 잔재, 미들웨어 루트의 Python/Node.js/C 코딩 산출물 묶음은 제거했습니다. 활성 스택은 .NET 9 미들웨어, 대시보드 JavaScript, 데스크톱 React/TypeScript+Rust 셸, Python 샌드박스, Node.js 계약 검사로 좁혔습니다.
+    - **대응**: 새 비즈니스/상태 로직은 .NET 9 미들웨어로 모으고, 새 언어/런타임은 문서화된 승인 기준 없이는 추가하지 않도록 계약으로 막아야 합니다.
+
+11. **C11 코어 데몬의 극악한 오버엔지니어링**
+    - **현황**: 완료. `apps/omnux-core`, 루트 core alias, legacy bootstrap/socket/auth C# 경로를 제거했고 `.NET` `DotNetCoreRuntimeClient`가 metrics와 guarded kill을 담당합니다.
+    - **대응**: 재도입 방지는 `scripts/check-core-daemon-boundary-contract.mjs`와 기술 스택 계약으로 유지합니다.
+
+12. **Tauri 마이그레이션에서의 '백엔드 충돌' (Rust vs .NET)**
+    - **현황**: 1차 보강 완료. Tauri Rust는 앱 셸(Window 관리), dev bootstrap, sidecar 연결 경계만 맡고 .NET 미들웨어가 도메인 제어를 담당합니다.
+    - **대응**: Phase 5 본작업에서 화면별 이식과 WS 연결을 진행하되 Rust 쪽에 provider/API/상태/도메인 로직을 추가하지 않도록 계약을 유지합니다.
+
+---
+

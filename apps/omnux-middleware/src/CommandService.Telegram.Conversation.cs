@@ -77,26 +77,9 @@ public sealed partial class CommandService
         return safe[..maxChars] + "…";
     }
 
-    private ConversationThreadView EnsureTelegramLinkedConversation()
+    public ConversationThreadView EnsureTelegramLinkedConversation()
     {
-        var existing = _conversationStore
-            .List("chat", "single")
-            .FirstOrDefault(item => item.Tags.Any(tag =>
-                string.Equals(tag, "telegram-link", StringComparison.OrdinalIgnoreCase)));
-        if (existing != null)
-        {
-            return _conversationStore.Get(existing.Id)
-                   ?? _conversationStore.Ensure("chat", "single", existing.Id, null, null, null, null);
-        }
-
-        return _conversationStore.Create(
-            "chat",
-            "single",
-            "Telegram 연동 대화",
-            "Telegram",
-            "연동",
-            new[] { "telegram-link", "shared" }
-        );
+        return _conversationAppService.EnsureTelegramLinkedConversation();
     }
 
     private string? TryBuildLastTelegramAssistantNotebookAppend()

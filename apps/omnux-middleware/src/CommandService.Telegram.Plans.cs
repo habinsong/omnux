@@ -12,7 +12,6 @@ public sealed partial class CommandService
             return null;
         }
 
-        var tokens = text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return await ExecutePlanSlashCommandAsync(tokens, "telegram", cancellationToken);
+        return await TryHandleViaSlashRouterAsync(text, "telegram", cancellationToken);
     }
 }

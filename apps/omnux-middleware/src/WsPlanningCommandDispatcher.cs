@@ -4,34 +4,14 @@ namespace Omnux.Middleware;
 
 internal sealed class WsPlanningCommandDispatcher
 {
-    internal delegate Task SendPlanActionResultDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        string action,
-        PlanActionResult result,
-        CancellationToken cancellationToken
-    );
-
-    internal delegate Task SendPlanListResultDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        PlanListResult result,
-        CancellationToken cancellationToken
-    );
 
     private readonly IPlanningApplicationService _planService;
-    private readonly SendPlanActionResultDelegate _sendPlanActionResultAsync;
-    private readonly SendPlanListResultDelegate _sendPlanListResultAsync;
 
     public WsPlanningCommandDispatcher(
-        IPlanningApplicationService planService,
-        SendPlanActionResultDelegate sendPlanActionResultAsync,
-        SendPlanListResultDelegate sendPlanListResultAsync
+        IPlanningApplicationService planService
     )
     {
         _planService = planService;
-        _sendPlanActionResultAsync = sendPlanActionResultAsync;
-        _sendPlanListResultAsync = sendPlanListResultAsync;
     }
 
     public async Task<bool> TryHandleAsync(
@@ -50,34 +30,34 @@ internal sealed class WsPlanningCommandDispatcher
                 message.ConversationId,
                 cancellationToken
             );
-            await _sendPlanActionResultAsync(socket, sendLock, "create", result, cancellationToken);
+            await SendPlanActionResultAsync(socket, sendLock, "create", result, cancellationToken);
             return true;
         }
 
         if (message.Type == "plan_review")
         {
             var result = await _planService.ReviewPlanAsync(message.PlanId ?? string.Empty, cancellationToken);
-            await _sendPlanActionResultAsync(socket, sendLock, "review", result, cancellationToken);
+            await SendPlanActionResultAsync(socket, sendLock, "review", result, cancellationToken);
             return true;
         }
 
         if (message.Type == "plan_approve")
         {
             var result = _planService.ApprovePlan(message.PlanId ?? string.Empty);
-            await _sendPlanActionResultAsync(socket, sendLock, "approve", result, cancellationToken);
+            await SendPlanActionResultAsync(socket, sendLock, "approve", result, cancellationToken);
             return true;
         }
 
         if (message.Type == "plan_update")
         {
             var result = _planService.UpdatePlan(message.PlanId ?? string.Empty, message.RawJson);
-            await _sendPlanActionResultAsync(socket, sendLock, "update", result, cancellationToken);
+            await SendPlanActionResultAsync(socket, sendLock, "update", result, cancellationToken);
             return true;
         }
 
         if (message.Type == "plan_list")
         {
-            await _sendPlanListResultAsync(socket, sendLock, _planService.ListPlans(), cancellationToken);
+            await SendPlanListResultAsync(socket, sendLock, _planService.ListPlans(), cancellationToken);
             return true;
         }
 
@@ -87,17 +67,57 @@ internal sealed class WsPlanningCommandDispatcher
             var result = snapshot == null
                 ? new PlanActionResult(false, "계획을 찾을 수 없습니다.", null)
                 : new PlanActionResult(true, "계획을 불러왔습니다.", snapshot);
-            await _sendPlanActionResultAsync(socket, sendLock, "get", result, cancellationToken);
+            await SendPlanActionResultAsync(socket, sendLock, "get", result, cancellationToken);
             return true;
         }
 
         if (message.Type == "plan_run")
         {
             var result = await _planService.RunPlanAsync(message.PlanId ?? string.Empty, "web", cancellationToken);
-            await _sendPlanActionResultAsync(socket, sendLock, "run", result, cancellationToken);
+            await SendPlanActionResultAsync(socket, sendLock, "run", result, cancellationToken);
             return true;
         }
 
         return false;
     }
+private static Task SendPlanActionResultAsync(
+    WebSocket socket,
+    SemaphoreSlim sendLock,
+    string action,
+    PlanActionResult result,
+    CancellationToken cancellationToken
+)
+{
+    var payload = PlanJson.Serialize(result);
+    return WebSocketGateway.SendTextAsync(
+        socket,
+        sendLock,
+        "{"
+        + "\"type\":\"plan_result\","
+        + $"\"action\":\"{WebSocketGateway.EscapeJson(action)}\","
+        + $"\"payload\":{payload}"
+        + "}",
+        cancellationToken
+    );
+}
+
+private static Task SendPlanListResultAsync(
+    WebSocket socket,
+    SemaphoreSlim sendLock,
+    PlanListResult result,
+    CancellationToken cancellationToken
+)
+{
+    var payload = PlanJson.Serialize(result);
+    return WebSocketGateway.SendTextAsync(
+        socket,
+        sendLock,
+        "{"
+        + "\"type\":\"plan_list_result\","
+        + $"\"payload\":{payload}"
+        + "}",
+        cancellationToken
+    );
+}
+
 }

@@ -5,49 +5,20 @@ namespace Omnux.Middleware;
 
 internal sealed class WsContextCommandDispatcher
 {
-    internal delegate Task SendProjectContextDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        ProjectContextSnapshot snapshot,
-        CancellationToken cancellationToken
-    );
-
-    internal delegate Task SendSkillsListDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        SkillManifestListResult result,
-        CancellationToken cancellationToken
-    );
-
-    internal delegate Task SendCommandsListDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        CommandTemplateListResult result,
-        CancellationToken cancellationToken
-    );
 
     private readonly IContextApplicationService _contextService;
     private readonly IConversationApplicationService _conversationService;
     private readonly SkillFileService _skillFileService;
-    private readonly SendProjectContextDelegate _sendProjectContextAsync;
-    private readonly SendSkillsListDelegate _sendSkillsListAsync;
-    private readonly SendCommandsListDelegate _sendCommandsListAsync;
 
     public WsContextCommandDispatcher(
         IContextApplicationService contextService,
         IConversationApplicationService conversationService,
-        SkillFileService skillFileService,
-        SendProjectContextDelegate sendProjectContextAsync,
-        SendSkillsListDelegate sendSkillsListAsync,
-        SendCommandsListDelegate sendCommandsListAsync
+        SkillFileService skillFileService
     )
     {
         _contextService = contextService;
         _conversationService = conversationService;
         _skillFileService = skillFileService;
-        _sendProjectContextAsync = sendProjectContextAsync;
-        _sendSkillsListAsync = sendSkillsListAsync;
-        _sendCommandsListAsync = sendCommandsListAsync;
     }
 
     public async Task<bool> TryHandleAsync(
@@ -59,7 +30,7 @@ internal sealed class WsContextCommandDispatcher
     {
         if (message.Type == "context_scan")
         {
-            await _sendProjectContextAsync(
+            await SendProjectContextAsync(
                 socket,
                 sendLock,
                 await _contextService.ScanProjectContextAsync(cancellationToken),
@@ -70,7 +41,7 @@ internal sealed class WsContextCommandDispatcher
 
         if (message.Type == "skills_list")
         {
-            await _sendSkillsListAsync(
+            await SendSkillsListAsync(
                 socket,
                 sendLock,
                 await _contextService.ListSkillsAsync(cancellationToken),
@@ -81,7 +52,7 @@ internal sealed class WsContextCommandDispatcher
 
         if (message.Type == "commands_list")
         {
-            await _sendCommandsListAsync(
+            await SendCommandsListAsync(
                 socket,
                 sendLock,
                 await _contextService.ListCommandsAsync(cancellationToken),
@@ -220,4 +191,61 @@ internal sealed class WsContextCommandDispatcher
         var json = $"{{\"type\":\"{type}\",\"payload\":{payloadJson}}}";
         await WebSocketGateway.SendTextAsync(socket, sendLock, json, cancellationToken);
     }
+private static Task SendProjectContextAsync(
+    WebSocket socket,
+    SemaphoreSlim sendLock,
+    ProjectContextSnapshot snapshot,
+    CancellationToken cancellationToken
+)
+{
+    var payload = ContextJson.Serialize(snapshot);
+    return WebSocketGateway.SendTextAsync(
+        socket,
+        sendLock,
+        "{"
+        + "\"type\":\"context_scan_result\","
+        + $"\"payload\":{payload}"
+        + "}",
+        cancellationToken
+    );
+}
+
+private static Task SendSkillsListAsync(
+    WebSocket socket,
+    SemaphoreSlim sendLock,
+    SkillManifestListResult result,
+    CancellationToken cancellationToken
+)
+{
+    var payload = ContextJson.Serialize(result);
+    return WebSocketGateway.SendTextAsync(
+        socket,
+        sendLock,
+        "{"
+        + "\"type\":\"skills_list_result\","
+        + $"\"payload\":{payload}"
+        + "}",
+        cancellationToken
+    );
+}
+
+private static Task SendCommandsListAsync(
+    WebSocket socket,
+    SemaphoreSlim sendLock,
+    CommandTemplateListResult result,
+    CancellationToken cancellationToken
+)
+{
+    var payload = ContextJson.Serialize(result);
+    return WebSocketGateway.SendTextAsync(
+        socket,
+        sendLock,
+        "{"
+        + "\"type\":\"commands_list_result\","
+        + $"\"payload\":{payload}"
+        + "}",
+        cancellationToken
+    );
+}
+
 }

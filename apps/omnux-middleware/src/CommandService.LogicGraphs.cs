@@ -1297,7 +1297,7 @@ public sealed partial class CommandService
         );
         var text = result.Results.Count == 0
             ? "메모리 검색 결과가 없습니다."
-            : string.Join("\n", result.Results.Select(item => $"{item.Path}:{item.StartLine}-{item.EndLine} {TrimPlanText(item.Snippet, 160)}"));
+            : string.Join("\n", result.Results.Select(item => $"{item.Path}:{item.StartLine}-{item.EndLine} {SlashCommandTextFormat.Trim(item.Snippet, 160)}"));
         return new LogicNodeExecutionOutcome(BuildLogicEnvelope(
             ok: !result.Disabled && string.IsNullOrWhiteSpace(result.Error),
             type: node.Type,

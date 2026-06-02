@@ -4,24 +4,14 @@ namespace Omnux.Middleware;
 
 internal sealed class WsNotebookCommandDispatcher
 {
-    internal delegate Task SendNotebookResultDelegate(
-        WebSocket socket,
-        SemaphoreSlim sendLock,
-        string action,
-        NotebookActionResult result,
-        CancellationToken cancellationToken
-    );
 
     private readonly INotebookApplicationService _notebookService;
-    private readonly SendNotebookResultDelegate _sendNotebookResultAsync;
 
     public WsNotebookCommandDispatcher(
-        INotebookApplicationService notebookService,
-        SendNotebookResultDelegate sendNotebookResultAsync
+        INotebookApplicationService notebookService
     )
     {
         _notebookService = notebookService;
-        _sendNotebookResultAsync = sendNotebookResultAsync;
     }
 
     public async Task<bool> TryHandleAsync(
@@ -33,7 +23,7 @@ internal sealed class WsNotebookCommandDispatcher
     {
         if (message.Type == "notebook_get")
         {
-            await _sendNotebookResultAsync(
+            await SendNotebookResultAsync(
                 socket,
                 sendLock,
                 "get",
@@ -63,13 +53,13 @@ internal sealed class WsNotebookCommandDispatcher
                 "verification" => await _notebookService.AppendVerificationAsync(message.ProjectKey, content, cancellationToken),
                 _ => new NotebookActionResult(false, "kind는 learning, decision, verification 중 하나여야 합니다.", null)
             };
-            await _sendNotebookResultAsync(socket, sendLock, "append", result, cancellationToken);
+            await SendNotebookResultAsync(socket, sendLock, "append", result, cancellationToken);
             return true;
         }
 
         if (message.Type == "handoff_create")
         {
-            await _sendNotebookResultAsync(
+            await SendNotebookResultAsync(
                 socket,
                 sendLock,
                 "handoff",
@@ -114,4 +104,25 @@ internal sealed class WsNotebookCommandDispatcher
 
         lines.Add($"- {label}: {normalized}");
     }
+private static Task SendNotebookResultAsync(
+    WebSocket socket,
+    SemaphoreSlim sendLock,
+    string action,
+    NotebookActionResult result,
+    CancellationToken cancellationToken
+)
+{
+    var payload = NotebookJson.Serialize(result);
+    return WebSocketGateway.SendTextAsync(
+        socket,
+        sendLock,
+        "{"
+        + "\"type\":\"notebook_result\","
+        + $"\"action\":\"{WebSocketGateway.EscapeJson(action)}\","
+        + $"\"payload\":{payload}"
+        + "}",
+        cancellationToken
+    );
+}
+
 }
