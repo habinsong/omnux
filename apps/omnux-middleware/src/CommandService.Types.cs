@@ -273,6 +273,9 @@ public sealed record ConversationImportResult(
     int Skipped,
     int Overwritten
 );
+public sealed record BackupExportOptions(
+    IReadOnlyList<string>? IncludeScopes = null
+);
 public sealed record BackupExportResult(
     bool Ok,
     string FileName,
@@ -280,7 +283,8 @@ public sealed record BackupExportResult(
     long SizeBytes,
     IReadOnlyList<string> Included,
     IReadOnlyList<string> Excluded,
-    string? Error = null
+    string? Error = null,
+    IReadOnlyList<string>? Scope = null
 );
 public sealed record BackupImportPreviewResult(
     bool Ok,
@@ -288,8 +292,12 @@ public sealed record BackupImportPreviewResult(
     string FileName,
     int ConversationCount,
     int ConversationConflictCount,
+    int FileConflictCount,
     int FileCount,
     IReadOnlyList<string> Conflicts,
+    IReadOnlyList<string> FileConflicts,
+    string SyncMode,
+    string SyncConflictPolicy,
     string? Error = null
 );
 public sealed record BackupImportApplyResult(

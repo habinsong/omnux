@@ -59,6 +59,7 @@ public sealed class SessionSpawnTool
     private readonly FileAgentSpawnQueueStore? _queueStore;
     private readonly FileAgentSpawnActiveRunStore? _activeRunStore;
     private readonly AgentSpawnRunBreaker _runBreaker;
+    private readonly AgentSpawnWorkspaceRollbackPolicy? _workspaceRollbackPolicy;
     private readonly Func<DateTimeOffset> _utcNow;
 
     public SessionSpawnTool(
@@ -86,6 +87,7 @@ public sealed class SessionSpawnTool
         FileAgentSpawnQueueStore? queueStore = null,
         AgentSpawnRunBreaker? runBreaker = null,
         FileAgentSpawnActiveRunStore? activeRunStore = null,
+        AgentSpawnWorkspaceRollbackPolicy? workspaceRollbackPolicy = null,
         Func<DateTimeOffset>? utcNow = null
     )
     {
@@ -96,6 +98,7 @@ public sealed class SessionSpawnTool
         _queueStore = queueStore;
         _activeRunStore = activeRunStore;
         _runBreaker = runBreaker ?? new AgentSpawnRunBreaker(DefaultStatePathResolver.CreateDefault());
+        _workspaceRollbackPolicy = workspaceRollbackPolicy;
         _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
     }
 
@@ -148,7 +151,11 @@ public sealed class SessionSpawnTool
             return Array.Empty<SessionSpawnToolResult>();
         }
 
-        var ready = _queueStore.GetReadyEntries(_utcNow(), Math.Max(1, maxCount));
+        var ready = _queueStore.ClaimReadyEntries(
+            _utcNow(),
+            Math.Max(1, maxCount),
+            $"session-spawn-flush:{Environment.ProcessId}"
+        );
         var results = new List<SessionSpawnToolResult>(ready.Count);
         foreach (var entry in ready)
         {
@@ -272,7 +279,7 @@ public sealed class SessionSpawnTool
                 _ = _conversationStore.AppendMessage(
                     blocked.ChildSessionKey,
                     "system",
-                    $"agent_spawn_breaker.blocked runId={blocked.RunId} runtime={blocked.Runtime} mode={blocked.Mode} backend={blocked.Backend} killAction={ResolveBreakerKillAction(blocked.Backend)} recoveryAction={ResolveBreakerRecoveryAction(blocked.Backend)} reason={blocked.Reason} message={NormalizeSingleLine(blocked.Message) ?? "blocked_by_breaker"}",
+                    $"agent_spawn_breaker.blocked runId={blocked.RunId} runtime={blocked.Runtime} mode={blocked.Mode} backend={blocked.Backend} killAction={ResolveBreakerKillAction(blocked.Backend)} recoveryAction={ResolveBreakerRecoveryAction(blocked.Backend, blocked.WorkspaceRollbackId)} workspaceRollbackId={NormalizeSingleLine(blocked.WorkspaceRollbackId) ?? "-"} workspaceRollbackChangedFiles={Math.Max(0, blocked.WorkspaceRollbackChangedFiles)} workspaceRollbackPartial={(blocked.WorkspaceRollbackPartial ? "true" : "false")} reason={blocked.Reason} message={NormalizeSingleLine(blocked.Message) ?? "blocked_by_breaker"}",
                     "sessions_spawn_breaker_blocked"
                 );
                 _ = _conversationStore.AppendMessage(
@@ -639,8 +646,10 @@ public sealed class SessionSpawnTool
         );
 
         string? activeId = null;
+        AgentSpawnWorkspaceBaseline? workspaceBaseline = null;
         try
         {
+            workspaceBaseline = TryCaptureWorkspaceRollbackBaseline(runId, childSessionKey);
             _ = _conversationStore.AppendMessage(
                 childSessionKey,
                 "system",
@@ -718,6 +727,7 @@ public sealed class SessionSpawnTool
 
             if (mode == "session")
             {
+                var workspaceRollback = TrySaveWorkspaceRollbackSnapshot(workspaceBaseline, runId, childSessionKey, activeId);
                 var sessionNote = BuildAcpAcceptedNote(
                     AcpSpawnSessionAcceptedNote,
                     budgetDecision,
@@ -725,6 +735,7 @@ public sealed class SessionSpawnTool
                     dailyCostDecision,
                     dispatchResult
                 );
+                sessionNote = AppendWorkspaceRollbackNote(sessionNote, workspaceRollback);
                 _ = _conversationStore.AppendMessage(
                     childSessionKey,
                     "assistant",
@@ -786,6 +797,7 @@ public sealed class SessionSpawnTool
                 category: null,
                 tags: new[] { "sessions_spawn", "acp", mode, "completed" }
             );
+            var completedWorkspaceRollback = TrySaveWorkspaceRollbackSnapshot(workspaceBaseline, runId, childSessionKey, activeId);
             _activeRunStore?.Complete(activeId, "completed", _utcNow());
             var runNote = BuildAcpAcceptedNote(
                 AcpSpawnAcceptedNote,
@@ -794,6 +806,7 @@ public sealed class SessionSpawnTool
                 dailyCostDecision,
                 dispatchResult
             );
+            runNote = AppendWorkspaceRollbackNote(runNote, completedWorkspaceRollback);
             return new SessionSpawnToolResult(
                 "accepted",
                 null,
@@ -816,6 +829,7 @@ public sealed class SessionSpawnTool
         {
             _dailyCostLedger.Release(dailyCostDecision.ReservationId);
             _admissionLimiter.Release(admissionDecision.ReservationId);
+            var workspaceRollback = TrySaveWorkspaceRollbackSnapshot(workspaceBaseline, runId, childSessionKey, activeId);
             _ = _conversationStore.AppendMessage(
                 childSessionKey,
                 "assistant",
@@ -836,7 +850,7 @@ public sealed class SessionSpawnTool
                 childSessionKey,
                 mode,
                 "acp",
-                null,
+                BuildFailureWorkspaceRollbackNote(workspaceRollback),
                 runTimeoutSeconds,
                 thread,
                 taskTruncated,
@@ -847,6 +861,106 @@ public sealed class SessionSpawnTool
                 commandPriority
             );
         }
+    }
+
+    private AgentSpawnWorkspaceBaseline? TryCaptureWorkspaceRollbackBaseline(string runId, string childSessionKey)
+    {
+        if (_workspaceRollbackPolicy == null || !_acpSessionBindingAdapter.UsesCommandDispatch())
+        {
+            return null;
+        }
+
+        try
+        {
+            var baseline = _workspaceRollbackPolicy.CaptureBaseline();
+            _ = _conversationStore.AppendMessage(
+                childSessionKey,
+                "system",
+                $"agent_spawn_workspace_rollback.baseline runId={runId} scanned={baseline.ScannedFiles} skipped={baseline.SkippedFiles} partial={(baseline.Partial ? "true" : "false")}",
+                "sessions_spawn_workspace_rollback_baseline"
+            );
+            return baseline;
+        }
+        catch (Exception ex)
+        {
+            _ = _conversationStore.AppendMessage(
+                childSessionKey,
+                "system",
+                $"agent_spawn_workspace_rollback.baseline_failed runId={runId} error={NormalizeSingleLine(ex.Message) ?? "unknown"}",
+                "sessions_spawn_workspace_rollback_failed"
+            );
+            return null;
+        }
+    }
+
+    private AgentSpawnWorkspaceRollbackSnapshot? TrySaveWorkspaceRollbackSnapshot(
+        AgentSpawnWorkspaceBaseline? baseline,
+        string runId,
+        string childSessionKey,
+        string? activeId
+    )
+    {
+        if (_workspaceRollbackPolicy == null || baseline == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var rollback = _workspaceRollbackPolicy.SaveRollbackIfChanged(baseline, runId, childSessionKey);
+            if (rollback == null)
+            {
+                return null;
+            }
+
+            _activeRunStore?.MarkWorkspaceRollback(
+                activeId,
+                rollback.RollbackId,
+                rollback.Path,
+                rollback.ChangedFiles,
+                rollback.Partial,
+                _utcNow()
+            );
+            _ = _conversationStore.AppendMessage(
+                childSessionKey,
+                "system",
+                $"agent_spawn_workspace_rollback.ready runId={runId} rollbackId={rollback.RollbackId} files={rollback.ChangedFiles} modified={rollback.ModifiedFiles} created={rollback.CreatedFiles} deleted={rollback.DeletedFiles} partial={(rollback.Partial ? "true" : "false")} skipped={rollback.SkippedFiles}",
+                "sessions_spawn_workspace_rollback_ready"
+            );
+            return rollback;
+        }
+        catch (Exception ex)
+        {
+            _ = _conversationStore.AppendMessage(
+                childSessionKey,
+                "system",
+                $"agent_spawn_workspace_rollback.save_failed runId={runId} error={NormalizeSingleLine(ex.Message) ?? "unknown"}",
+                "sessions_spawn_workspace_rollback_failed"
+            );
+            return null;
+        }
+    }
+
+    private static string AppendWorkspaceRollbackNote(string note, AgentSpawnWorkspaceRollbackSnapshot? rollback)
+    {
+        if (rollback == null)
+        {
+            return note;
+        }
+
+        return note
+            + $" workspace_rollback_id={rollback.RollbackId} workspace_rollback_files={rollback.ChangedFiles}"
+            + $" workspace_rollback_partial={(rollback.Partial ? "true" : "false")}.";
+    }
+
+    private static string? BuildFailureWorkspaceRollbackNote(AgentSpawnWorkspaceRollbackSnapshot? rollback)
+    {
+        if (rollback == null)
+        {
+            return null;
+        }
+
+        return $"workspace rollback snapshot available: rollback_id={rollback.RollbackId} files={rollback.ChangedFiles} partial={(rollback.Partial ? "true" : "false")}.";
     }
 
     private static SessionSpawnToolResult ErrorResult(
@@ -1050,8 +1164,11 @@ public sealed class SessionSpawnTool
     private static string BuildBreakerClosedReply(AgentSpawnBlockedActiveRun blocked)
     {
         var killAction = ResolveBreakerKillAction(blocked.Backend);
-        var recoveryAction = ResolveBreakerRecoveryAction(blocked.Backend);
-        return $"sessions_spawn breaker closed this child session. runId={blocked.RunId} backend={blocked.Backend} process_kill={killAction} recovery={recoveryAction}. Further sessions_send follow-ups are disabled until an operator clears the breaker and starts a new run.";
+        var recoveryAction = ResolveBreakerRecoveryAction(blocked.Backend, blocked.WorkspaceRollbackId);
+        var rollbackText = string.IsNullOrWhiteSpace(blocked.WorkspaceRollbackId)
+            ? "workspace_rollback_id=none"
+            : $"workspace_rollback_id={blocked.WorkspaceRollbackId} workspace_rollback_files={Math.Max(0, blocked.WorkspaceRollbackChangedFiles)} workspace_rollback_partial={(blocked.WorkspaceRollbackPartial ? "true" : "false")}";
+        return $"sessions_spawn breaker closed this child session. runId={blocked.RunId} backend={blocked.Backend} process_kill={killAction} recovery={recoveryAction} {rollbackText}. Further sessions_send follow-ups are disabled until an operator clears the breaker and starts a new run.";
     }
 
     private static string ResolveBreakerKillAction(string? backend)
@@ -1072,8 +1189,13 @@ public sealed class SessionSpawnTool
         return "unknown_manual_check_required";
     }
 
-    private static string ResolveBreakerRecoveryAction(string? backend)
+    private static string ResolveBreakerRecoveryAction(string? backend, string? workspaceRollbackId = null)
     {
+        if (!string.IsNullOrWhiteSpace(workspaceRollbackId))
+        {
+            return "restore_workspace_rollback_snapshot";
+        }
+
         var normalized = (backend ?? string.Empty).Trim().ToLowerInvariant();
         if (normalized.Contains("codex", StringComparison.Ordinal)
             || normalized.Contains("command", StringComparison.Ordinal)

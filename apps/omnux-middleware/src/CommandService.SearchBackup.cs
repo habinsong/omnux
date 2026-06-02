@@ -5,8 +5,8 @@ public sealed partial class CommandService
     public ConversationSearchResult SearchConversations(string query, int? maxResults = null)
         => _conversationAppService.SearchConversations(query, maxResults);
 
-    public BackupExportResult ExportBackup()
-        => _conversationAppService.ExportBackup();
+    public BackupExportResult ExportBackup(BackupExportOptions? options = null)
+        => _conversationAppService.ExportBackup(options);
 
     public BackupImportPreviewResult PreviewBackupImport(string fileName, string contentBase64)
         => _conversationAppService.PreviewBackupImport(fileName, contentBase64);

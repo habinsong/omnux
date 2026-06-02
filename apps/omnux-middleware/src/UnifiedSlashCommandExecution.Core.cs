@@ -8,16 +8,18 @@ public sealed partial class CommandService
         CancellationToken cancellationToken
     )
     {
-        return command.Kind switch
+        if (command.Kind == UnifiedSlashCommandKind.StaticMessage)
         {
-            UnifiedSlashCommandKind.StaticMessage => command.Message,
-            UnifiedSlashCommandKind.ApplyProfile => ApplyChannelProfile(source, command.Primary, command.Secondary),
-            UnifiedSlashCommandKind.SetMode => SetChannelMode(source, command.Primary),
-            UnifiedSlashCommandKind.SetProvider => SetChannelProvider(source, command.Primary, command.Secondary),
-            UnifiedSlashCommandKind.SetModel => SetChannelModel(source, command.Primary, command.Secondary),
-            UnifiedSlashCommandKind.BuildStatus => BuildChannelModelStatus(source),
-            _ => await ExecuteUnifiedSlashCommandOrchestrationAsync(command, source, cancellationToken)
-        };
+            return command.Message;
+        }
+
+        var channelResult = ExecuteUnifiedSlashChannelCommand(command, source);
+        if (channelResult != null)
+        {
+            return channelResult;
+        }
+
+        return await ExecuteUnifiedSlashCommandOrchestrationAsync(command, source, cancellationToken);
     }
 
     private async Task<string?> ExecuteUnifiedSlashCommandOrchestrationAsync(
@@ -32,7 +34,7 @@ public sealed partial class CommandService
             return memoryResult;
         }
 
-        var doctorResult = await ExecuteUnifiedSlashCommandDoctorAsync(command, cancellationToken);
+        var doctorResult = await ExecuteUnifiedSlashCommandDoctorAsync(command, source, cancellationToken);
         if (doctorResult != null)
         {
             return doctorResult;

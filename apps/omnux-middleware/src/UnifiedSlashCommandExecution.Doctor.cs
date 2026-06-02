@@ -4,14 +4,18 @@ public sealed partial class CommandService
 {
     private async Task<string?> ExecuteUnifiedSlashCommandDoctorAsync(
         UnifiedSlashCommand command,
+        string source,
         CancellationToken cancellationToken
     )
     {
-        if (command.Kind != UnifiedSlashCommandKind.Doctor)
+        if (!IsUnifiedSlashDoctorCommand(command.Kind))
         {
             return null;
         }
 
-        return await ExecuteDoctorReportCommandAsync(command.Json, command.LatestOnly, cancellationToken);
+        return await ExecuteUnifiedSlashDoctorCommandBoundaryAsync(
+            new UnifiedSlashDoctorCommandRequest(command.Json, command.LatestOnly, source),
+            cancellationToken
+        );
     }
 }

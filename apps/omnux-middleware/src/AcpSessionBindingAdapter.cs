@@ -68,6 +68,9 @@ public sealed class AcpSessionBindingAdapter
         };
     }
 
+    public bool UsesCommandDispatch()
+        => string.Equals(ResolveDispatchMode(_configuredMode, _configuredCommand), "command", StringComparison.Ordinal);
+
     private AcpSessionBindingDispatchResult DispatchStaged(AcpSessionBindingDispatchRequest request)
     {
         var optionSummary = BuildOptionSummary(request);

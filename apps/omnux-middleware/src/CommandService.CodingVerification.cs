@@ -937,8 +937,8 @@ async function waitFor(url, deadlineMs = 12000) {
         if (requiresWorkspaceVenv)
         {
             var venvGuard = OperatingSystem.IsWindows()
-                ? $"if exist {workspaceVenvPython} (set \"__omni_py={workspaceVenvPython}\") else (echo workspace .venv missing; refusing host pip install 1>&2 && exit /b 126)"
-                : $"if [ -x {workspaceVenvPython} ]; then __omni_py={workspaceVenvPython}; else printf '%s\\n' 'workspace .venv missing; refusing host pip install' >&2; exit 126; fi";
+                ? $"if not exist {workspaceVenvPython} (python -m venv .venv && {workspaceVenvPython} -m pip install --disable-pip-version-check --upgrade pip setuptools wheel) & if exist {workspaceVenvPython} (set \"__omni_py={workspaceVenvPython}\") else (echo workspace .venv missing; refusing host pip install 1>&2 && exit /b 126)"
+                : $"if [ ! -x {workspaceVenvPython} ]; then python3 -m venv .venv && {workspaceVenvPython} -m pip install --disable-pip-version-check --upgrade pip setuptools wheel; fi; if [ -x {workspaceVenvPython} ]; then __omni_py={workspaceVenvPython}; else printf '%s\\n' 'workspace .venv missing; refusing host pip install' >&2; exit 126; fi";
             commands.Add(venvGuard);
 
             if (File.Exists(Path.Combine(projectRoot, "requirements.txt")))

@@ -10,6 +10,20 @@
     { k: "network", label: "Network access", sub: "Call APIs and fetch remote data.", v: "allow" },
     { k: "delete", label: "Delete files", sub: "Removing files always needs approval.", v: "deny" },
   ];
+  const BACKUP_SCOPE_OPTIONS = [
+    { id: "conversations", label: "대화" },
+    { id: "routines", label: "루틴" },
+    { id: "routing-policy", label: "라우팅 정책" },
+    { id: "memory-notes", label: "메모리" },
+    { id: "plans", label: "계획" },
+    { id: "tasks", label: "Tasks" },
+    { id: "notebooks", label: "Notebooks" },
+    { id: "skills/global", label: "전역 스킬" },
+    { id: "commands/global", label: "전역 명령" },
+    { id: "skills/project", label: "프로젝트 스킬" },
+    { id: "commands/project", label: "프로젝트 명령" },
+  ];
+  const ALL_BACKUP_SCOPE_IDS = BACKUP_SCOPE_OPTIONS.map((item) => item.id);
 
   function normalizeStringArray(values) {
     if (!Array.isArray(values)) return [];
@@ -57,10 +71,17 @@
     const [backupExport, setBackupExport] = useState(null);
     const [backupPreview, setBackupPreview] = useState(null);
     const [backupImport, setBackupImport] = useState(null);
+    const [backupSelectedScopes, setBackupSelectedScopes] = useState(ALL_BACKUP_SCOPE_IDS);
     const [backupPending, setBackupPending] = useState({
       export: false,
       preview: false,
-      apply: false
+      apply: false,
+      cloudSync: false
+    });
+    const [syncConfig, setSyncConfig] = useState({
+      gistId: "",
+      gitHubTokenSet: false,
+      lastSyncUtc: ""
     });
     const sendMessage = typeof ctx.send === "function" ? ctx.send : noop;
     const toast = typeof ctx.toast === "function" ? ctx.toast : noop;
@@ -70,19 +91,43 @@
       return text.includes(search.trim().toLowerCase());
     });
 
-    const refresh = useCallback(() => sendMessage({ type: "list_memory_notes" }, { queueIfClosed: true }), [sendMessage]);
+    const refresh = useCallback(() => {
+      sendMessage({ type: "list_memory_notes" }, { queueIfClosed: true });
+      sendMessage({ type: "sync_config_read" }, { queueIfClosed: true });
+    }, [sendMessage]);
     const readNote = useCallback((name) => {
       setSelected(name);
       sendMessage({ type: "read_memory_note", noteName: name }, { queueIfClosed: true });
     }, [sendMessage]);
     const requestBackupExport = useCallback(() => {
+      if (backupSelectedScopes.length === 0) {
+        toast("백업 범위를 하나 이상 선택하세요.");
+        return;
+      }
+
       setBackupPending((current) => ({ ...current, export: true }));
-      const sent = sendMessage({ type: "backup_export_prepare" }, { queueIfClosed: true });
+      const sent = sendMessage({
+        type: "backup_export_prepare",
+        includeScopes: backupSelectedScopes
+      }, { queueIfClosed: true });
       if (!sent) {
         setBackupPending((current) => ({ ...current, export: false }));
         toast("미들웨어 연결이 필요합니다.");
       }
-    }, [sendMessage, toast]);
+    }, [backupSelectedScopes, sendMessage, toast]);
+    const toggleBackupScope = useCallback((scopeId) => {
+      const normalized = String(scopeId || "").trim();
+      if (!normalized) return;
+      setBackupSelectedScopes((current) => {
+        if (current.includes(normalized)) {
+          return current.filter((item) => item !== normalized);
+        }
+        return ALL_BACKUP_SCOPE_IDS.filter((item) => item === normalized || current.includes(item));
+      });
+    }, []);
+    const selectAllBackupScopes = useCallback(() => {
+      setBackupSelectedScopes(ALL_BACKUP_SCOPE_IDS);
+    }, []);
     const importBackupFile = useCallback(async (file) => {
       if (!file) return;
       setBackupPending((current) => ({ ...current, preview: true }));
@@ -109,8 +154,12 @@
           fileName: file.name || "backup.zip",
           conversationCount: 0,
           conflictCount: 0,
+          fileConflictCount: 0,
           fileCount: 0,
           conflicts: [],
+          fileConflicts: [],
+          syncMode: "unknown",
+          syncConflictPolicy: "unknown",
           error: error && error.message ? error.message : "백업 파일을 읽을 수 없습니다."
         });
         toast("백업 파일을 읽을 수 없습니다.");
@@ -135,6 +184,41 @@
       }
     }, [sendMessage, toast]);
 
+    const saveSyncConfig = useCallback((gistId, gitHubToken) => {
+      sendMessage({
+        type: "sync_config_write",
+        gistId: gistId,
+        gitHubToken: gitHubToken
+      }, { queueIfClosed: true });
+      toast("클라우드 동기화 설정을 저장했습니다.");
+    }, [sendMessage, toast]);
+
+    const requestCloudSyncUpload = useCallback(() => {
+      setBackupPending((current) => ({ ...current, cloudSync: true }));
+      const sent = sendMessage({
+        type: "cloud_sync_upload",
+        includeScopes: backupSelectedScopes
+      }, { queueIfClosed: true });
+      if (!sent) {
+        setBackupPending((current) => ({ ...current, cloudSync: false }));
+        toast("미들웨어 연결이 필요합니다.");
+      }
+    }, [backupSelectedScopes, sendMessage, toast]);
+
+    const requestCloudSyncDownload = useCallback((gistId) => {
+      setBackupPending((current) => ({ ...current, cloudSync: true }));
+      setBackupPreview(null);
+      setBackupImport(null);
+      const sent = sendMessage({
+        type: "cloud_sync_download",
+        gistId: gistId
+      }, { queueIfClosed: true });
+      if (!sent) {
+        setBackupPending((current) => ({ ...current, cloudSync: false }));
+        toast("미들웨어 연결이 필요합니다.");
+      }
+    }, [sendMessage, toast]);
+
     useEffect(() => {
       const onMessage = (event) => {
         const msg = event.detail || {};
@@ -148,6 +232,7 @@
             ok: !!msg.ok,
             fileName: msg.fileName || "",
             sizeBytes: Number(msg.sizeBytes) || 0,
+            scope: normalizeStringArray(msg.scope),
             included: normalizeStringArray(msg.included),
             excluded: normalizeStringArray(msg.excluded),
             error: msg.error || ""
@@ -165,8 +250,12 @@
             fileName: msg.fileName || "",
             conversationCount: Number(msg.conversationCount) || 0,
             conflictCount: Number(msg.conversationConflictCount) || 0,
+            fileConflictCount: Number(msg.fileConflictCount) || 0,
             fileCount: Number(msg.fileCount) || 0,
             conflicts: normalizeStringArray(msg.conflicts),
+            fileConflicts: normalizeStringArray(msg.fileConflicts),
+            syncMode: msg.syncMode || "unknown",
+            syncConflictPolicy: msg.syncConflictPolicy || "unknown",
             error: msg.error || ""
           });
           toast(msg.ok ? "백업 가져오기 미리보기를 준비했습니다." : "백업 미리보기에 실패했습니다.");
@@ -184,8 +273,22 @@
           });
           toast(msg.ok ? "백업을 적용했습니다." : "백업 적용에 실패했습니다.");
         }
+        if (msg.type === "sync_config_state") {
+          setSyncConfig({
+            gistId: msg.gistId || "",
+            gitHubTokenSet: !!msg.gitHubTokenSet,
+            lastSyncUtc: msg.lastSyncUtc || ""
+          });
+        }
+        if (msg.type === "cloud_sync_upload_result") {
+          setBackupPending((current) => ({ ...current, cloudSync: false }));
+          toast("클라우드(Gist)로 동기화 백업을 내보냈습니다.");
+        }
         if (msg.type === "error") {
-          setBackupPending((current) => ({ ...current, export: false, preview: false, apply: false }));
+          setBackupPending((current) => ({ ...current, export: false, preview: false, apply: false, cloudSync: false }));
+          if (msg.message && msg.message.includes("GitHub Token")) {
+            toast(msg.message);
+          }
         }
       };
       window.addEventListener("omnux:message", onMessage);
@@ -204,11 +307,19 @@
         exportResult: backupExport,
         previewResult: backupPreview,
         importResult: backupImport,
-        pending: backupPending
+        pending: backupPending,
+        scopeOptions: BACKUP_SCOPE_OPTIONS,
+        selectedScopes: backupSelectedScopes,
+        toggleScope: toggleBackupScope,
+        selectAllScopes: selectAllBackupScopes
       },
+      syncConfig,
       requestBackupExport,
       importBackupFile,
-      applyBackupImport
+      applyBackupImport,
+      saveSyncConfig,
+      requestCloudSyncUpload,
+      requestCloudSyncDownload
     };
   }
 

@@ -8,13 +8,14 @@ public sealed partial class CommandService
         CancellationToken cancellationToken
     )
     {
-        return command.Kind switch
+        if (!IsUnifiedSlashDomainCommand(command.Kind))
         {
-            UnifiedSlashCommandKind.Plan => await ExecutePlanSlashCommandAsync(command.Tokens, source, cancellationToken),
-            UnifiedSlashCommandKind.Task => await ExecuteTaskSlashCommandAsync(command.Tokens, source, cancellationToken),
-            UnifiedSlashCommandKind.Notebook => await ExecuteNotebookSlashCommandAsync(command.Tokens, source, cancellationToken),
-            UnifiedSlashCommandKind.Handoff => await ExecuteHandoffSlashCommandAsync(command.Tokens, source, cancellationToken),
-            _ => null
-        };
+            return null;
+        }
+
+        return await ExecuteUnifiedSlashDomainCommandBoundaryAsync(
+            new UnifiedSlashDomainCommandRequest(command.Kind, command.Tokens, source),
+            cancellationToken
+        );
     }
 }

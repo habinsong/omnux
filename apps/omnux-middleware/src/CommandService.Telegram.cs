@@ -54,49 +54,9 @@ public sealed partial class CommandService
         }
 
         var requestedThinking = tokens.Length >= 2 ? TelegramLlmPreferencePolicy.NormalizeThinkingLevel(tokens[1], "auto") : "auto";
-        lock (_telegramLlmLock)
-        {
-            if (command == "/talk")
-            {
-                ApplyTelegramTalkDefaults(requestedThinking);
-                return Task.FromResult<string?>(
-                    $"텔레그램 프로필을 대화용으로 바꿨습니다. 모드={FormatModeDisplayName(_telegramLlmPreferences.Mode)}, thinking={_telegramLlmPreferences.TalkThinkingLevel}"
-                );
-            }
-
-            ApplyTelegramCodeDefaults(requestedThinking);
-            return Task.FromResult<string?>(
-                $"텔레그램 프로필을 코딩용으로 바꿨습니다. 모드={FormatModeDisplayName(_telegramLlmPreferences.Mode)}, thinking={_telegramLlmPreferences.CodeThinkingLevel}"
-            );
-        }
-    }
-
-    private void ApplyTelegramTalkDefaults(string requestedThinking)
-    {
-        var fastModel = string.IsNullOrWhiteSpace(_providers.GroqModel) ? DefaultGroqPrimaryModel : _providers.GroqModel;
-        TelegramLlmPreferencePolicy.ApplyTalkDefaults(
-            _telegramLlmPreferences,
-            requestedThinking,
-            fastModel,
-            _providers.GeminiModel,
-            DefaultCopilotModel,
-            _providers.CerebrasModel,
-            _providers.CodexModel
-        );
-    }
-
-    private void ApplyTelegramCodeDefaults(string requestedThinking)
-    {
-        var fastModel = string.IsNullOrWhiteSpace(_providers.GroqModel) ? DefaultGroqPrimaryModel : _providers.GroqModel;
-        TelegramLlmPreferencePolicy.ApplyCodeDefaults(
-            _telegramLlmPreferences,
-            requestedThinking,
-            fastModel,
-            _providers.GeminiModel,
-            DefaultCopilotModel,
-            _providers.CerebrasModel,
-            _providers.CodexModel
-        );
+        var profile = command == "/talk" ? "talk" : "code";
+        var message = ApplyTelegramProfileCommandMutation(new TelegramLlmProfileCommandMutationRequest(profile, requestedThinking));
+        return Task.FromResult<string?>(message);
     }
 
     private async Task<string?> TryBuildInChatCopilotUsageResponseAsync(

@@ -12,6 +12,11 @@ namespace Omnux.Middleware;
 [JsonSerializable(typeof(AgentSpawnDailyCostLedgerState))]
 [JsonSerializable(typeof(AgentSpawnRunBreakerState))]
 [JsonSerializable(typeof(BackupPackageManifest))]
+[JsonSerializable(typeof(BackupSyncPolicy))]
+[JsonSerializable(typeof(SyncConfiguration))]
+[JsonSerializable(typeof(GistCreateRequest))]
+[JsonSerializable(typeof(GistUpdateRequest))]
+[JsonSerializable(typeof(GistResponse))]
 internal partial class OmniJsonContext : JsonSerializerContext
 {
 }

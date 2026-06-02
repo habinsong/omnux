@@ -11,6 +11,7 @@ omnux_core
 bin/
 obj/
 publish/
+.nuget/
 
 .claude/
 .github/workflows/

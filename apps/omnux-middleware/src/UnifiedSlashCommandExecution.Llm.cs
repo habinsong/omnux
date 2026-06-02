@@ -8,15 +8,14 @@ public sealed partial class CommandService
         CancellationToken cancellationToken
     )
     {
-        return command.Kind switch
+        if (!IsUnifiedSlashLlmCommand(command.Kind))
         {
-            UnifiedSlashCommandKind.LlmHelp => CommandHelpTextPolicy.BuildUnifiedLlmHelpText(source),
-            UnifiedSlashCommandKind.LlmUsage => await BuildTelegramUsageReportAsync(cancellationToken),
-            UnifiedSlashCommandKind.LlmModels => await BuildTelegramModelsReportAsync(command.Primary, cancellationToken),
-            UnifiedSlashCommandKind.LlmSetGroqModel => await SetGroqModelForChannelAsync(source, command.Primary, cancellationToken),
-            UnifiedSlashCommandKind.LlmSetCopilotModel => await SetCopilotModelForChannelAsync(source, command.Primary, cancellationToken),
-            UnifiedSlashCommandKind.LlmSetProviderThenModel => await SetChannelModelForProviderAsync(source, command.Primary, command.Secondary, cancellationToken),
-            _ => null
-        };
+            return null;
+        }
+
+        return await ExecuteUnifiedSlashLlmCommandBoundaryAsync(
+            new UnifiedSlashLlmCommandRequest(command.Kind, source, command.Primary, command.Secondary),
+            cancellationToken
+        );
     }
 }

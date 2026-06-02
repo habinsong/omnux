@@ -146,7 +146,9 @@ public sealed partial class WebSocketGateway
         GroqModelCatalog groqModelCatalog,
         CerebrasModelCatalog cerebrasModelCatalog,
         GuardRetryTimelineStore guardRetryTimelineStore,
-        AuditLogger auditLogger
+        AuditLogger auditLogger,
+        ISyncConfigurationStore syncConfigStore,
+        IGistSyncApplicationService gistSyncService
     )
     {
         _providers = providers;
@@ -194,6 +196,8 @@ public sealed partial class WebSocketGateway
         _conversationMemoryDispatcher = new WsConversationMemoryDispatcher(
             conversationService,
             memoryService,
+            syncConfigStore,
+            gistSyncService,
             SendConversationsAsync,
             SendConversationDetailAsync,
             SendMemoryNotesAsync,

@@ -36,6 +36,17 @@ public sealed class ConversationApplicationServiceBackupTests
         Assert.Equal("workspace/", manifest.GetProperty("WorkspaceRoot").GetString());
         Assert.Contains("conversations.json", manifest.GetProperty("Includes").EnumerateArray().Select(item => item.GetString()).ToArray());
         Assert.Contains("API 키", manifest.GetProperty("Excludes").EnumerateArray().Select(item => item.GetString()).ToArray());
+        var syncPolicy = manifest.GetProperty("SyncPolicy");
+        Assert.Equal("portable-package-only", syncPolicy.GetProperty("Mode").GetString());
+        Assert.Equal(
+            "preview_conflicts_then_skip_without_overwrite_or_replace_with_overwrite",
+            syncPolicy.GetProperty("ConflictPolicy").GetString()
+        );
+        Assert.Contains("notebooks", syncPolicy.GetProperty("Scope").EnumerateArray().Select(item => item.GetString()).ToArray());
+        Assert.Equal(
+            "not_enabled_until_explicit_sync_provider_is_configured",
+            syncPolicy.GetProperty("CloudBridge").GetString()
+        );
 
         var fileSha256 = manifest.GetProperty("FileSha256");
         Assert.True(fileSha256.TryGetProperty("conversations.json", out var conversationSha256));
@@ -61,6 +72,102 @@ public sealed class ConversationApplicationServiceBackupTests
         Assert.True(applied.Ok);
         var manifestPath = Path.Combine(root, ".state", "omnux-package.json");
         Assert.False(File.Exists(manifestPath));
+    }
+
+    [Fact]
+    public void ExportBackupHonorsSelectedPortableScopes()
+    {
+        var root = CreateTempDirectory();
+        var service = BuildService(root);
+
+        var exported = service.ExportBackup(new BackupExportOptions(new[]
+        {
+            "conversations",
+            "memory-notes",
+            "skills/project"
+        }));
+
+        Assert.True(exported.Ok);
+        Assert.Equal(new[] { "conversations", "memory-notes", "skills/project" }, exported.Scope);
+        Assert.Contains("conversations.json", exported.Included);
+        Assert.Contains("memory-notes/note.md", exported.Included);
+        Assert.Contains("skills/project/project-skill.md", exported.Included);
+        Assert.DoesNotContain("routines.json", exported.Included);
+        Assert.DoesNotContain("notebooks/handoff.md", exported.Included);
+        Assert.DoesNotContain("skills/global/global-skill.md", exported.Included);
+
+        using var archive = OpenArchive(exported.ContentBase64);
+        Assert.NotNull(archive.GetEntry("conversations.json"));
+        Assert.NotNull(archive.GetEntry("memory-notes/note.md"));
+        Assert.NotNull(archive.GetEntry("skills/project/project-skill.md"));
+        Assert.Null(archive.GetEntry("routines.json"));
+        Assert.Null(archive.GetEntry("notebooks/handoff.md"));
+        Assert.Null(archive.GetEntry("skills/global/global-skill.md"));
+
+        var manifest = ReadManifest(archive);
+        var includes = manifest.GetProperty("Includes").EnumerateArray().Select(item => item.GetString()).ToArray();
+        Assert.Equal(new[] { "conversations.json", "memory-notes/", "skills/project/" }, includes);
+        var scope = manifest.GetProperty("SyncPolicy").GetProperty("Scope").EnumerateArray().Select(item => item.GetString()).ToArray();
+        Assert.Equal(new[] { "conversations", "memory-notes", "skills/project" }, scope);
+    }
+
+    [Fact]
+    public void ExportBackupDoesNotLeakMachineSpecificPaths()
+    {
+        var root = CreateTempDirectory();
+        var service = BuildService(root);
+
+        var exported = service.ExportBackup();
+
+        Assert.True(exported.Ok);
+        using var archive = OpenArchive(exported.ContentBase64);
+        var manifestJson = ReadEntryText(archive, "omnux-package.json");
+        Assert.DoesNotContain(root, manifestJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(Path.Combine(root, ".state"), manifestJson, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(Path.Combine(root, "workspace"), manifestJson, StringComparison.OrdinalIgnoreCase);
+
+        foreach (var entry in archive.Entries)
+        {
+            Assert.DoesNotContain(root, entry.FullName, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain('\\', entry.FullName);
+            Assert.False(entry.FullName.StartsWith("/", StringComparison.Ordinal), $"entry must be relative: {entry.FullName}");
+            Assert.DoesNotContain("..", entry.FullName.Split('/'));
+        }
+    }
+
+    [Fact]
+    public void ExportBackupRejectsSelectedScopeWithNoFiles()
+    {
+        var root = CreateTempDirectory();
+        var service = BuildService(root);
+        Directory.Delete(Path.Combine(root, ".state", "plans"), recursive: true);
+        Directory.CreateDirectory(Path.Combine(root, ".state", "plans"));
+
+        var exported = service.ExportBackup(new BackupExportOptions(new[] { "plans" }));
+
+        Assert.False(exported.Ok);
+        Assert.Contains("내보낼 파일", exported.Error);
+        Assert.Equal(new[] { "plans" }, exported.Scope);
+    }
+
+    [Fact]
+    public void PreviewBackupImportReportsPortableFileConflictsAndSyncPolicy()
+    {
+        var root = CreateTempDirectory();
+        var service = BuildService(root);
+
+        var exported = service.ExportBackup();
+        var preview = service.PreviewBackupImport(exported.FileName, exported.ContentBase64);
+
+        Assert.True(preview.Ok);
+        Assert.Equal("portable-package-only", preview.SyncMode);
+        Assert.Equal(
+            "preview_conflicts_then_skip_without_overwrite_or_replace_with_overwrite",
+            preview.SyncConflictPolicy
+        );
+        Assert.True(preview.FileConflictCount > 0);
+        Assert.Contains("routines.json", preview.FileConflicts);
+        Assert.Contains("notebooks/handoff.md", preview.FileConflicts);
     }
 
     [Fact]
@@ -105,7 +212,65 @@ public sealed class ConversationApplicationServiceBackupTests
         Assert.Contains("SHA-256", applied.Error);
     }
 
-    private static ConversationApplicationService BuildService(string root)
+    [Fact]
+    public void PortablePackageAppliesToSeparateStateAndWorkspaceRoots()
+    {
+        var sourceRoot = CreateTempDirectory();
+        var sourceService = BuildService(sourceRoot);
+        var sourceStateRoot = Path.Combine(sourceRoot, ".state");
+        File.WriteAllText(Path.Combine(sourceStateRoot, "auth_sessions.json"), "{\"secret\":true}", Encoding.UTF8);
+        File.WriteAllText(Path.Combine(sourceStateRoot, "llm_usage.json"), "{\"token\":\"secret\"}", Encoding.UTF8);
+        File.WriteAllText(Path.Combine(sourceStateRoot, "telegram_reply_outbox.json"), "{\"token\":\"secret\"}", Encoding.UTF8);
+        Directory.CreateDirectory(Path.Combine(sourceStateRoot, "runtime"));
+        File.WriteAllText(Path.Combine(sourceStateRoot, "runtime", "session.log"), "secret", Encoding.UTF8);
+
+        var exported = sourceService.ExportBackup();
+
+        Assert.True(exported.Ok);
+        using (var archive = OpenArchive(exported.ContentBase64))
+        {
+            Assert.Null(archive.GetEntry("auth_sessions.json"));
+            Assert.Null(archive.GetEntry("llm_usage.json"));
+            Assert.Null(archive.GetEntry("telegram_reply_outbox.json"));
+            Assert.Null(archive.GetEntry("runtime/session.log"));
+        }
+
+        var targetRoot = CreateTempDirectory();
+        var targetService = BuildService(targetRoot, seed: false);
+        var targetStateRoot = Path.Combine(targetRoot, ".state");
+        var targetWorkspaceRoot = Path.Combine(targetRoot, "workspace");
+
+        var preview = targetService.PreviewBackupImport(exported.FileName, exported.ContentBase64);
+        Assert.True(preview.Ok);
+        Assert.Equal(1, preview.ConversationCount);
+        Assert.Equal(0, preview.ConversationConflictCount);
+        Assert.Equal(0, preview.FileConflictCount);
+        Assert.Equal("portable-package-only", preview.SyncMode);
+
+        var applied = targetService.ApplyBackupImport(preview.PreviewId, overwrite: false);
+
+        Assert.True(applied.Ok);
+        Assert.Equal(1, applied.ImportedConversations);
+        Assert.Equal(0, applied.SkippedConversations);
+        Assert.True(applied.ImportedFiles > 0);
+        Assert.NotNull(targetService.GetConversation("conv-1"));
+        Assert.True(File.Exists(Path.Combine(targetStateRoot, "routines.json")));
+        Assert.True(File.Exists(Path.Combine(targetStateRoot, "routing-policy.json")));
+        Assert.True(File.Exists(Path.Combine(targetStateRoot, "memory-notes", "note.md")));
+        Assert.True(File.Exists(Path.Combine(targetStateRoot, "plans", "plan.json")));
+        Assert.True(File.Exists(Path.Combine(targetStateRoot, "tasks", "task.json")));
+        Assert.True(File.Exists(Path.Combine(targetStateRoot, "notebooks", "handoff.md")));
+        Assert.True(File.Exists(Path.Combine(targetStateRoot, "skills", "global-skill.md")));
+        Assert.True(File.Exists(Path.Combine(targetStateRoot, "commands", "global-command.md")));
+        Assert.True(File.Exists(Path.Combine(targetWorkspaceRoot, ".omni", "skills", "project-skill.md")));
+        Assert.True(File.Exists(Path.Combine(targetWorkspaceRoot, ".omni", "commands", "project-command.md")));
+        Assert.False(File.Exists(Path.Combine(targetStateRoot, "omnux-package.json")));
+        Assert.False(File.Exists(Path.Combine(targetStateRoot, "auth_sessions.json")));
+        Assert.False(File.Exists(Path.Combine(targetStateRoot, "llm_usage.json")));
+        Assert.False(File.Exists(Path.Combine(targetStateRoot, "telegram_reply_outbox.json")));
+    }
+
+    private static ConversationApplicationService BuildService(string root, bool seed = true)
     {
         var stateRoot = Path.Combine(root, ".state");
         var workspaceRoot = Path.Combine(root, "workspace");
@@ -131,33 +296,37 @@ public sealed class ConversationApplicationServiceBackupTests
 
         Directory.CreateDirectory(stateRoot);
         Directory.CreateDirectory(workspaceRoot);
-        Directory.CreateDirectory(paths.MemoryNotesRootDir);
-        Directory.CreateDirectory(Path.Combine(stateRoot, "plans"));
-        Directory.CreateDirectory(Path.Combine(stateRoot, "tasks"));
-        Directory.CreateDirectory(Path.Combine(stateRoot, "notebooks"));
-        Directory.CreateDirectory(Path.Combine(stateRoot, "skills"));
-        Directory.CreateDirectory(Path.Combine(stateRoot, "commands"));
-        Directory.CreateDirectory(Path.Combine(workspaceRoot, ".omni", "skills"));
-        Directory.CreateDirectory(Path.Combine(workspaceRoot, ".omni", "commands"));
+        if (seed)
+        {
+            Directory.CreateDirectory(paths.MemoryNotesRootDir);
+            Directory.CreateDirectory(Path.Combine(stateRoot, "plans"));
+            Directory.CreateDirectory(Path.Combine(stateRoot, "tasks"));
+            Directory.CreateDirectory(Path.Combine(stateRoot, "notebooks"));
+            Directory.CreateDirectory(Path.Combine(stateRoot, "skills"));
+            Directory.CreateDirectory(Path.Combine(stateRoot, "commands"));
+            Directory.CreateDirectory(Path.Combine(workspaceRoot, ".omni", "skills"));
+            Directory.CreateDirectory(Path.Combine(workspaceRoot, ".omni", "commands"));
 
-        File.WriteAllText(paths.ConversationStatePath, BuildConversationStateJson(), Encoding.UTF8);
-        File.WriteAllText(paths.RoutineStatePath, "{\"routines\":[]}", Encoding.UTF8);
-        File.WriteAllText(Path.Combine(stateRoot, "routing-policy.json"), "{\"version\":1}", Encoding.UTF8);
-        File.WriteAllText(Path.Combine(paths.MemoryNotesRootDir, "note.md"), "# note", Encoding.UTF8);
-        File.WriteAllText(Path.Combine(stateRoot, "plans", "plan.json"), "{\"plan\":1}", Encoding.UTF8);
-        File.WriteAllText(Path.Combine(stateRoot, "tasks", "task.json"), "{\"task\":1}", Encoding.UTF8);
-        File.WriteAllText(Path.Combine(stateRoot, "notebooks", "handoff.md"), "# handoff", Encoding.UTF8);
-        File.WriteAllText(Path.Combine(stateRoot, "skills", "global-skill.md"), "# skill", Encoding.UTF8);
-        File.WriteAllText(Path.Combine(stateRoot, "commands", "global-command.md"), "# command", Encoding.UTF8);
-        File.WriteAllText(Path.Combine(workspaceRoot, ".omni", "skills", "project-skill.md"), "# project skill", Encoding.UTF8);
-        File.WriteAllText(Path.Combine(workspaceRoot, ".omni", "commands", "project-command.md"), "# project command", Encoding.UTF8);
+            File.WriteAllText(paths.ConversationStatePath, BuildConversationStateJson(), Encoding.UTF8);
+            File.WriteAllText(paths.RoutineStatePath, "{\"routines\":[]}", Encoding.UTF8);
+            File.WriteAllText(Path.Combine(stateRoot, "routing-policy.json"), "{\"version\":1}", Encoding.UTF8);
+            File.WriteAllText(Path.Combine(paths.MemoryNotesRootDir, "note.md"), "# note", Encoding.UTF8);
+            File.WriteAllText(Path.Combine(stateRoot, "plans", "plan.json"), "{\"plan\":1}", Encoding.UTF8);
+            File.WriteAllText(Path.Combine(stateRoot, "tasks", "task.json"), "{\"task\":1}", Encoding.UTF8);
+            File.WriteAllText(Path.Combine(stateRoot, "notebooks", "handoff.md"), "# handoff", Encoding.UTF8);
+            File.WriteAllText(Path.Combine(stateRoot, "skills", "global-skill.md"), "# skill", Encoding.UTF8);
+            File.WriteAllText(Path.Combine(stateRoot, "commands", "global-command.md"), "# command", Encoding.UTF8);
+            File.WriteAllText(Path.Combine(workspaceRoot, ".omni", "skills", "project-skill.md"), "# project skill", Encoding.UTF8);
+            File.WriteAllText(Path.Combine(workspaceRoot, ".omni", "commands", "project-command.md"), "# project command", Encoding.UTF8);
+        }
 
         return new ConversationApplicationService(
             new ConversationStore(paths.ConversationStatePath),
             new MemoryNoteStore(paths.MemoryNotesRootDir),
             new AuditLogger(Path.Combine(stateRoot, "audit.log")),
             paths,
-            new MemorySearchTool(paths)
+            new MemorySearchTool(paths),
+            new SyncConfigurationStore(paths)
         );
     }
 
@@ -204,14 +373,19 @@ public sealed class ConversationApplicationServiceBackupTests
 
     private static JsonElement ReadManifest(ZipArchive archive)
     {
-        var entry = archive.GetEntry("omnux-package.json");
+        var text = ReadEntryText(archive, "omnux-package.json");
+        using var doc = JsonDocument.Parse(text);
+        return doc.RootElement.Clone();
+    }
+
+    private static string ReadEntryText(ZipArchive archive, string entryName)
+    {
+        var entry = archive.GetEntry(entryName);
         Assert.NotNull(entry);
 
         using var stream = entry!.Open();
         using var reader = new StreamReader(stream, Encoding.UTF8);
-        var text = reader.ReadToEnd();
-        using var doc = JsonDocument.Parse(text);
-        return doc.RootElement.Clone();
+        return reader.ReadToEnd();
     }
 
     private static string ComputeArchiveEntrySha256(ZipArchive archive, string entryName)
