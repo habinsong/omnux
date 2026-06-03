@@ -28,7 +28,7 @@
 | MCP 서버/클라이언트 | ✅ 1차+ | `McpConfigDiscoveryService`, `McpServerReadinessPolicy`, `mcp_servers_list` — 설정 discovery + read-only readiness audit, 프로세스/JSON-RPC는 보류 |
 | Git worktree 격리 | ✅ 1차+ | `GitWorktreeIsolationManager`, `AgentWorktreeSnapshotService`, `agent_worktree_snapshot_get` — ACP spawn opt-in worktree CWD 주입 + 읽기 전용 inventory |
 | 셀프 힐링/워치독 | ✅ 1차+ | `FileAgentSpawnActiveRunStore.EvaluateWatchdog`, `agent_watchdog_snapshot_get` — active-run timeout/stale 감지 + 읽기 전용 inventory |
-| 자동 커밋/PR 생성 | ✅ 실행 게이트 1차 | `GitAutomationSnapshotService`, `GitOperationPreviewService`, `git_automation_snapshot_get`, `git_operation_preview/apply` — local branch/commit만 승인 게이트로 실행 |
+| 자동 커밋/PR 생성 | ✅ 실행 게이트 2차 | `GitAutomationSnapshotService`, `GitOperationPreviewService`, `git_automation_snapshot_get`, `git_operation_preview/apply` — local branch/commit + current branch push를 승인 게이트로 실행 |
 | Git 단위 타임머신 | ✅ 1차 | `GitTimeMachineSnapshotService`, `git_time_machine_snapshot_get` — 최근 체크포인트/롤백 readiness 읽기 전용 조회 |
 | Durable Workflow | ✅ 1차 | `LogicRunSnapshot` 지속 저장, `LogicRunRecoveryScanner`, `logic_graph_recovery_list` |
 | OpenTelemetry 옵저버빌리티 | ✅ 1차 | `TelemetryTracer`, `FileTelemetryTraceStore`, `WsTelemetryCommandDispatcher` — ActivitySource + 로컬 스냅샷 |
@@ -289,11 +289,13 @@
 - ✅ credential이 포함된 HTTPS remote URL과 query string은 snapshot에서 redaction한다.
 - ✅ `git_automation_snapshot_get`은 계속 read-only 조회 전용이다.
 - ✅ 실행 게이트 1차: WebSocket `git_operation_preview` / `git_operation_apply`가 `create_branch`, `stage_and_commit`, `snapshot_commit`을 local-only로 실행한다.
+- ✅ 실행 게이트 2차: `push_current_branch`를 추가했다. force push 없이 현재 브랜치 `HEAD`만 remote target으로 push한다.
 - ✅ apply는 `previewId` 단독으로 실행하지 않고, preview가 발급한 `confirmationToken` 또는 동일 `approval` payload를 요구한다.
 - ✅ apply 직전 preview 당시 `HEAD`, branch, 선택 파일 status를 재검증한다. 변경되면 fail-closed로 차단한다.
 - ✅ `stage_and_commit`은 선택 경로만 `git add -- <path>`로 staging하고, repo 밖 경로/path traversal/conflict file을 차단한다.
 - ✅ `create_branch`는 `codex/` prefix 또는 snapshot 추천 safe branch만 허용하고, 기존 브랜치 충돌을 차단한다.
-- ⏳ 보류: `git push`, `gh pr create`, `gh auth status`, remote/network 확인, rollback 실행, worktree remove/cleanup, `CodingApplicationService` 완료 훅 자동 호출, LLM 커밋 메시지 생성.
+- ✅ `push_current_branch`는 protected branch, detached HEAD, remote 없음, ambiguous remote, upstream mismatch, behind 상태, push할 커밋 없음 상태를 차단한다. upstream 없는 최초 push는 `codex/` 브랜치만 허용하고 `-u`로 tracking을 설정한다.
+- ⏳ 보류: `gh pr create`, `gh auth status`, PR 생성용 네트워크/auth 확인, rollback 실행, worktree remove/cleanup, `CodingApplicationService` 완료 훅 자동 호출, LLM 커밋 메시지 생성.
 
 ### 참고
 
@@ -303,7 +305,7 @@
 ### 개발 가이드 (Implementation Guide)
 - **대상 파일**: `WebSocketGateway.cs`, `WebSocketGateway.SocketLoop.cs`
 - **신규 파일**: `Application/GitAutomation/*`, `WsGitAutomationCommandDispatcher.cs`, `WsGitOperationCommandDispatcher.cs`
-- **구현 방향**: 조회는 `GitAutomationSnapshotService`에 남기고, 실행은 `preview → apply` 승인 게이트로 분리한다. 1차 실행은 local branch/commit/snapshot commit만 허용하며, push/PR/rollback/worktree cleanup은 별도 정책 확정 후 2차로 연결한다.
+- **구현 방향**: 조회는 `GitAutomationSnapshotService`에 남기고, 실행은 `preview → apply` 승인 게이트로 분리한다. 현재 실행은 local branch/commit/snapshot commit/current branch push까지 허용하며, PR/rollback/worktree cleanup은 별도 정책 확정 후 연결한다.
 
 ---
 

@@ -378,6 +378,149 @@ public sealed class GitOperationPreviewServiceTests
     }
 
     [Fact]
+    public async Task PushCurrentBranchPreviewAndApplySucceedsForInitialCodexBranch()
+    {
+        var parent = CreateTempRoot();
+        var root = Path.Combine(parent, "repo");
+        var remoteRoot = Path.Combine(parent, "remote.git");
+        try
+        {
+            Directory.CreateDirectory(root);
+            InitializeRepository(root);
+            await WriteTextAsync(root, "README.md", "readme\n");
+            RunGit(root, "add", "README.md");
+            RunGit(root, "commit", "-m", "docs: seed");
+            RunGit(root, "init", "--bare", remoteRoot);
+            RunGit(root, "remote", "add", "origin", remoteRoot);
+            RunGit(root, "checkout", "-b", "codex/push-current");
+            await WriteTextAsync(root, "feature.txt", "feature\n");
+            RunGit(root, "add", "feature.txt");
+            RunGit(root, "commit", "-m", "test: add feature");
+
+            var service = BuildService(root, out _);
+            var preview = await service.PreviewAsync(
+                new GitOperationPreviewRequest(
+                    GitOperationNames.PushCurrentBranch,
+                    string.Empty,
+                    string.Empty,
+                    Array.Empty<string>()
+                ),
+                CancellationToken.None
+            );
+
+            Assert.True(preview.Ok);
+            Assert.NotNull(preview.Approval);
+            Assert.Equal("origin", preview.Approval!.RemoteName);
+            Assert.Equal("codex/push-current", preview.Approval.RemoteBranchName);
+            Assert.True(preview.Approval.SetUpstream);
+            Assert.Contains(preview.PlannedCommands, command => command.Display == "git push -u origin HEAD:codex/push-current");
+
+            var apply = await service.ApplyAsync(
+                new GitOperationApplyRequest(preview.PreviewId, preview.Approval.ConfirmationToken, string.Empty),
+                new GitOperationExecutor(root),
+                CancellationToken.None
+            );
+
+            Assert.True(apply.Ok);
+            Assert.False(string.IsNullOrWhiteSpace(RunGit(remoteRoot, "rev-parse", "refs/heads/codex/push-current")));
+            Assert.Equal("origin/codex/push-current", RunGit(root, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}").Trim());
+        }
+        finally
+        {
+            DeleteTempRoot(parent);
+        }
+    }
+
+    [Fact]
+    public async Task PushCurrentBranchPreviewBlocksProtectedBranch()
+    {
+        var parent = CreateTempRoot();
+        var root = Path.Combine(parent, "repo");
+        var remoteRoot = Path.Combine(parent, "remote.git");
+        try
+        {
+            Directory.CreateDirectory(root);
+            InitializeRepository(root);
+            await WriteTextAsync(root, "README.md", "readme\n");
+            RunGit(root, "add", "README.md");
+            RunGit(root, "commit", "-m", "docs: seed");
+            RunGit(root, "branch", "-M", "main");
+            RunGit(root, "init", "--bare", remoteRoot);
+            RunGit(root, "remote", "add", "origin", remoteRoot);
+            await WriteTextAsync(root, "main.txt", "main\n");
+            RunGit(root, "add", "main.txt");
+            RunGit(root, "commit", "-m", "test: main update");
+
+            var service = BuildService(root, out _);
+            var preview = await service.PreviewAsync(
+                new GitOperationPreviewRequest(
+                    GitOperationNames.PushCurrentBranch,
+                    string.Empty,
+                    string.Empty,
+                    Array.Empty<string>()
+                ),
+                CancellationToken.None
+            );
+
+            Assert.False(preview.Ok);
+            Assert.Contains("protected_branch_push", preview.Blockers);
+        }
+        finally
+        {
+            DeleteTempRoot(parent);
+        }
+    }
+
+    [Fact]
+    public async Task PushCurrentBranchPreviewBlocksBehindUpstream()
+    {
+        var parent = CreateTempRoot();
+        var root = Path.Combine(parent, "repo");
+        var remoteRoot = Path.Combine(parent, "remote.git");
+        var otherRoot = Path.Combine(parent, "other");
+        try
+        {
+            Directory.CreateDirectory(root);
+            InitializeRepository(root);
+            await WriteTextAsync(root, "README.md", "readme\n");
+            RunGit(root, "add", "README.md");
+            RunGit(root, "commit", "-m", "docs: seed");
+            RunGit(root, "init", "--bare", remoteRoot);
+            RunGit(root, "remote", "add", "origin", remoteRoot);
+            RunGit(root, "checkout", "-b", "codex/behind");
+            RunGit(root, "push", "-u", "origin", "HEAD:codex/behind");
+
+            RunGit(parent, "clone", remoteRoot, otherRoot);
+            RunGit(otherRoot, "config", "user.email", "omnux-tests@example.invalid");
+            RunGit(otherRoot, "config", "user.name", "Omnux Tests");
+            RunGit(otherRoot, "checkout", "codex/behind");
+            await WriteTextAsync(otherRoot, "remote.txt", "remote\n");
+            RunGit(otherRoot, "add", "remote.txt");
+            RunGit(otherRoot, "commit", "-m", "test: remote update");
+            RunGit(otherRoot, "push", "origin", "HEAD:codex/behind");
+            RunGit(root, "fetch", "origin");
+
+            var service = BuildService(root, out _);
+            var preview = await service.PreviewAsync(
+                new GitOperationPreviewRequest(
+                    GitOperationNames.PushCurrentBranch,
+                    string.Empty,
+                    string.Empty,
+                    Array.Empty<string>()
+                ),
+                CancellationToken.None
+            );
+
+            Assert.False(preview.Ok);
+            Assert.Contains("branch_behind_remote", preview.Blockers);
+        }
+        finally
+        {
+            DeleteTempRoot(parent);
+        }
+    }
+
+    [Fact]
     public void WsDispatcherParsesPreviewPayloadAndFailsClosedApplyWithoutPreviewId()
     {
         var ok = WsGitOperationCommandDispatcher.TryBuildPreviewRequest(
