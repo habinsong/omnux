@@ -59,6 +59,21 @@
   - 실패 상태일 때만 짧은 error 문자열을 저장한다.
   - 최근 2,000개 이벤트만 파일에 유지한다.
 
+## 구현됨: 에이전트 active-run watchdog 1차
+
+- 후보 문서 항목: 추천 기능 6 `셀프 힐링 워치독`
+- 백엔드 구현:
+  - `FileAgentSpawnActiveRunStore.EvaluateWatchdog`
+  - `SessionSpawnTool.GetQueueStatus` watchdog 평가/대화 로그 반영
+  - `Program.RunAgentWatchdogLoopAsync` 60초 주기 백그라운드 평가
+- 감지/전환:
+  - `RunTimeoutSeconds`를 초과한 active run은 `state=timeout`으로 종료 처리한다.
+  - heartbeat가 12시간 이상 갱신되지 않은 active run은 `state=stale`로 종료 처리한다.
+  - 종료 처리 시 자식 세션에 `sessions_spawn_watchdog` / `sessions_spawn_watchdog_closed` 메시지를 남긴다.
+- 현재 안전 정책:
+  - 실제 OS 프로세스 kill/restart는 실행하지 않는다.
+  - 프론트/운영자가 child session과 workspace rollback 정보를 보고 재시작 여부를 결정한다.
+
 ## WebSocket 이벤트
 
 ### `telemetry_snapshot_get`
@@ -138,6 +153,60 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - 필터는 모두 선택 사항이다.
 - `events`는 최근 N개를 시간순으로 반환한다.
 - `providers`와 `total`은 필터 적용 후 전체 집계이며 `limit`으로 잘린 `events` 목록만의 집계가 아니다.
+
+### `sessions_spawn` + `action=status`
+
+기존 에이전트 스폰 큐 상태 응답에 watchdog 결과가 추가됐다.
+
+요청:
+
+```json
+{
+  "type": "sessions_spawn",
+  "action": "status"
+}
+```
+
+응답 추가 필드:
+
+```json
+{
+  "type": "sessions_spawn_result",
+  "action": "status",
+  "active": {
+    "activeCount": 0,
+    "oldestRunId": null,
+    "completedHistoryCount": 1
+  },
+  "watchdog": {
+    "activeCount": 0,
+    "timedOutCount": 1,
+    "staleCount": 0,
+    "eventCount": 1,
+    "checkedUtc": "2026-06-04T00:00:00Z",
+    "events": [
+      {
+        "runId": "run-id",
+        "childSessionKey": "conversation-id",
+        "runtime": "acp",
+        "mode": "run",
+        "backend": "codex",
+        "previousState": "dispatching",
+        "state": "timeout",
+        "reason": "run_timeout",
+        "message": "active run exceeded run timeout (60 seconds)",
+        "startedUtc": "...",
+        "completedUtc": "...",
+        "ageSeconds": 180,
+        "heartbeatAgeSeconds": 120
+      }
+    ]
+  }
+}
+```
+
+- `watchdog.events`는 해당 평가에서 새로 종료 처리된 run만 담는다.
+- 대시보드는 `eventCount > 0`이면 agent activity에 경고 카드나 타임라인 항목을 표시한다.
 
 ### `agent_bus_get`
 
@@ -279,6 +348,7 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 
 - Telemetry/비용 패널은 `telemetry_snapshot_get`을 주기 조회해 provider별 토큰 합계와 평균 지연시간을 표시한다.
 - 실패 목록은 `status != ok` 필터로 조회하고, `error`는 짧은 기술 메시지로만 표시한다.
+- 에이전트 상태 패널은 `sessions_spawn action=status`의 `watchdog` 필드를 보고 timeout/stale 이벤트를 표시한다.
 - 활동/에이전트 패널에서 `agent_bus_get`을 주기 조회하거나 수동 새로고침한다.
 - 보드 영역은 `payload.board`를 `groupId/runId` 기준으로 묶어 표시한다.
 - 타임라인은 `payload.lifecycle`와 `payload.messages`를 시간순으로 합쳐 표시한다.
@@ -287,6 +357,7 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 ## 보류한 후보
 
 - OpenTelemetry OTLP exporter: 현재는 `ActivitySource`와 로컬 스냅샷까지 구현했다. Jaeger/Grafana Tempo/Datadog export는 외부 패키지와 운영 설정이 필요하므로 별도 단계로 둔다.
+- 셀프 힐링 자동 kill/restart: 현재는 timeout/stale 감지와 상태 종료까지만 구현했다. 실제 프로세스 종료와 자동 재시작은 백엔드별 안전 정책이 필요해 별도 단계로 둔다.
 - Durable Workflow 체크포인트: 로직 그래프 런타임 재개 정책과 중복 실행 방지 규칙이 필요하다. 현재 기능과 독립된 저장소만 추가하면 실효성이 낮다.
 - MCP 서버 지원: 프로세스 생명주기와 JSON-RPC 스펙 구현이 필요해 높은 위험 작업이다.
 - 자동 커밋/PR 생성: 현재 워크트리가 대규모 변경 상태라 자동 커밋 계열 기능을 바로 붙이면 사용자 변경과 충돌할 수 있다.

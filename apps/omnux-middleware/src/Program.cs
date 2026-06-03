@@ -298,16 +298,17 @@ internal static class Program
             }
 
             var agentSpawnQueueTask = RunAgentSpawnQueueLoopAsync(toolServices.SessionSpawn, cts.Token);
+            var agentWatchdogTask = RunAgentWatchdogLoopAsync(toolServices.SessionSpawn, cts.Token);
             var telegramTask = runtimeServices.TelegramUpdateLoop.RunAsync(cts.Token);
-            var firstCompleted = await Task.WhenAny(webTask, telegramTask, agentSpawnQueueTask);
+            var firstCompleted = await Task.WhenAny(webTask, telegramTask, agentSpawnQueueTask, agentWatchdogTask);
 
             if (firstCompleted.IsFaulted)
             {
                 cts.Cancel();
-                await Task.WhenAll(webTask, telegramTask, agentSpawnQueueTask);
+                await Task.WhenAll(webTask, telegramTask, agentSpawnQueueTask, agentWatchdogTask);
             }
 
-            await Task.WhenAll(webTask, telegramTask, agentSpawnQueueTask);
+            await Task.WhenAll(webTask, telegramTask, agentSpawnQueueTask, agentWatchdogTask);
         }
         finally
         {
@@ -727,6 +728,42 @@ internal static class Program
             try
             {
                 await Task.Delay(TimeSpan.FromSeconds(15), cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+        }
+    }
+
+    private static async Task RunAgentWatchdogLoopAsync(
+        SessionSpawnTool sessionSpawnTool,
+        CancellationToken cancellationToken
+    )
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                var status = sessionSpawnTool.GetQueueStatus();
+                var marked = status.Watchdog?.EventCount ?? 0;
+                if (marked > 0)
+                {
+                    Console.Error.WriteLine($"[agent-spawn-watchdog] closed {marked} stale or timed-out active run(s).");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[agent-spawn-watchdog] evaluation failed: {ex.Message}");
+            }
+
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(60), cancellationToken);
             }
             catch (OperationCanceledException)
             {
