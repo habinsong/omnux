@@ -941,6 +941,68 @@ Ollama/LM Studio 같은 로컬 LLM endpoint의 모델 discovery 스냅샷을 조
 - `offlineMode.checks[].status`는 `ok`, `failed`, `warning`, `skipped` 중 하나다.
 - 이 요청은 모델 discovery만 수행한다. provider 자동 전환, 외부 트래픽 차단, 모델 warmup은 아직 실행하지 않는다.
 
+### `terminal_capabilities_get`
+
+터미널 자율 디버깅을 위한 shell/toolchain capability 스냅샷을 조회한다. 실제 PTY 세션이나 명령 실행은 시작하지 않는다.
+
+요청:
+
+```json
+{
+  "type": "terminal_capabilities_get"
+}
+```
+
+응답:
+
+```json
+{
+  "type": "terminal_capabilities_snapshot",
+  "payload": {
+    "status": "snapshot_only",
+    "ptySessionEnabled": false,
+    "shells": [
+      {
+        "name": "current-shell",
+        "kind": "shell",
+        "command": "/bin/zsh",
+        "status": "available",
+        "resolvedPath": "/bin/zsh",
+        "message": "command is resolvable"
+      }
+    ],
+    "toolchains": [
+      {
+        "name": "git",
+        "kind": "toolchain",
+        "command": "git",
+        "status": "available",
+        "resolvedPath": "/usr/bin/git",
+        "message": "command is resolvable"
+      }
+    ],
+    "checks": [
+      {
+        "name": "shell",
+        "status": "ok",
+        "message": "at least one shell is resolvable"
+      },
+      {
+        "name": "pty_session",
+        "status": "skipped",
+        "message": "PTY session lifecycle is not enabled yet"
+      }
+    ],
+    "scannedAtUtc": "2026-06-04T00:00:00Z"
+  }
+}
+```
+
+- `status`는 `snapshot_only` 또는 `blocked`다. `blocked`는 해석 가능한 shell이 없다는 뜻이다.
+- `ptySessionEnabled=false`이면 프론트는 실행/입력/중단 버튼을 비활성 상태로 둔다.
+- `shells[].status`와 `toolchains[].status`는 `available`, `missing` 중 하나다.
+- `checks[].status`는 `ok`, `failed`, `skipped` 중 하나다.
+
 ### `agent_bus_get`
 
 에이전트 메시지/보드/생명주기 스냅샷 조회.
@@ -1099,6 +1161,7 @@ Ollama/LM Studio 같은 로컬 LLM endpoint의 모델 discovery 스냅샷을 조
 - Git automation 패널은 `git_automation_snapshot_get`으로 현재 변경 파일, readiness, 커밋 메시지 초안을 표시한다. 실제 커밋/PR 버튼은 아직 백엔드 실행 API가 없으므로 비활성 상태로 둔다.
 - Self improvement 패널은 `self_improvement_snapshot_get`으로 workspace hygiene, 반복 bug_fix, hotspot review 제안을 표시한다. 모든 액션은 사용자 승인 UI가 생기기 전까지 보기 전용이다.
 - Local LLM 패널은 `local_llm_snapshot_get`으로 Ollama/LM Studio endpoint availability, 모델 목록, `offlineMode` readiness를 표시한다. 이 값은 라우팅 상태가 아니라 discovery/readiness로만 취급한다.
+- Terminal 패널은 `terminal_capabilities_get`으로 shell/toolchain readiness를 표시한다. `ptySessionEnabled=false`인 동안 실제 terminal start/send/stop UI는 비활성 처리한다.
 
 ## 보류한 후보
 
@@ -1116,4 +1179,5 @@ Ollama/LM Studio 같은 로컬 LLM endpoint의 모델 discovery 스냅샷을 조
 - 자동 커밋/PR 실제 실행: 1차는 read-only snapshot만 제공한다. `git add`, `git commit`, branch 생성, `gh pr create`는 사용자 승인/충돌/권한 정책이 필요해 보류한다.
 - Nightly 자기 개선 자동 실행: 1차는 read-only proposal snapshot만 제공한다. 실제 야간 루틴 등록, LLM 선호도 분석, `SKILL.md` 자동 갱신은 사용자 승인/충돌 정책이 필요하다.
 - Local LLM 실제 라우팅/오프라인 차단: 1차는 endpoint/model discovery와 오프라인 모드 readiness audit만 제공한다. `LocalLlmProvider`, cloud provider 차단, fallback 라우팅, 모델 warmup은 기존 LLM 호출 경로 영향이 커서 별도 단계로 둔다.
+- Terminal PTY 세션/명령 스트리밍/자동 repair loop: 1차는 shell/toolchain capability snapshot만 제공한다. 실제 host terminal 제어는 안전 정책, 로그 보관, 취소/timeout, 승인 흐름이 필요해 별도 단계로 둔다.
 - 시맨틱 검색/Ollama embed: 후보 문서 결론대로 코드 검색용 우선순위는 낮다.

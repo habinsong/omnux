@@ -34,6 +34,7 @@
 | 에이전트 권한 샌드박스 강화 | ✅ 1차 | `UniversalCodeExecutionSafetyPolicy`, `UniversalCodeRunner` bash/unknown shell preflight 차단 |
 | 커밋 히스토리 기반 학습 | ✅ 1차 | `GitCommitHistoryScanner`, `commit_learning_snapshot_get` — 읽기 전용 intent/hotspot 스냅샷 |
 | 로컬 LLM/오프라인 모드 | ✅ 1차+ | `LocalLlmDiscoveryService`, `LocalLlmOfflineModePolicy`, `local_llm_snapshot_get` — 모델 discovery + 오프라인 모드 readiness audit |
+| 터미널 자율 디버깅 | ✅ 1차 | `TerminalCapabilitySnapshotService`, `terminal_capabilities_get` — shell/toolchain capability snapshot만, PTY 실행은 보류 |
 | 벡터 임베딩 시맨틱 검색 | ⏳ Phase 6-3 | 현재 FTS 유지, Phase 6-2(Ollama) 선행 후 sqlite-vec + Ollama embed로 추가 |
 | Nightly 자기 개선 | ✅ 1차 | `SelfImprovementSnapshotService`, `self_improvement_snapshot_get` — 읽기 전용 개선 제안 |
 
@@ -822,6 +823,13 @@
 ### develop.md 원문
 
 > 샌드박스가 아닌 호스트 터미널 세션(pty)을 제어하여 빌드, 실행, 에러 분석(stderr), 코드 자동 수정 루프를 자율적으로 수행하는 `Terminal Node` 도입.
+
+### 상태: ✅ 1차 구현 / PTY 실행·명령 스트리밍 보류
+
+- WebSocket `terminal_capabilities_get` 요청이 `terminal_capabilities_snapshot`을 반환한다.
+- `TerminalCapabilitySnapshotService`가 `SHELL`, `PATH`, `PATHEXT`를 기준으로 shell 후보와 주요 toolchain 후보(`git`, `dotnet`, `npm`, `node`, `python3`, `python`, `make`)가 해석 가능한지 읽기 전용으로 평가한다.
+- `ptySessionEnabled=false`이며, 실제 PTY 세션 생성, stdin/stdout 스트리밍, 로그 저장, 자동 repair loop는 아직 실행하지 않는다.
+- 이 단계는 프론트가 터미널 패널을 붙이기 전에 환경 준비 상태와 보류된 기능을 표시하기 위한 capability snapshot이다.
 
 ### 경쟁사/연구 현황
 
