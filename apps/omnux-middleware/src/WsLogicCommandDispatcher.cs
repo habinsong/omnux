@@ -163,6 +163,17 @@ internal sealed class WsLogicCommandDispatcher
             return true;
         }
 
+        if (message.Type == "logic_graph_recovery_list")
+        {
+            await SendLogicRunRecoveryListResultAsync(
+                socket,
+                sendLock,
+                _logicService.ListRecoverableLogicGraphRuns(message.Limit),
+                cancellationToken
+            );
+            return true;
+        }
+
         return false;
     }
 private static Task SendLogicGraphListResultAsync(
@@ -248,6 +259,24 @@ private static Task SendLogicRunActionResultAsync(
         + $"\"message\":\"{WebSocketGateway.EscapeJson(result.Message)}\","
         + $"\"runId\":{WebSocketGateway.ToJsonStringOrNull(result.RunId)},"
         + $"\"snapshot\":{(result.Snapshot == null ? "null" : LogicGraphJson.Serialize(result.Snapshot))}"
+        + "}",
+        cancellationToken
+    );
+}
+
+private static Task SendLogicRunRecoveryListResultAsync(
+    WebSocket socket,
+    SemaphoreSlim sendLock,
+    LogicRunRecoveryListResult result,
+    CancellationToken cancellationToken
+)
+{
+    return WebSocketGateway.SendTextAsync(
+        socket,
+        sendLock,
+        "{"
+        + "\"type\":\"logic_graph_recovery_list_result\","
+        + $"\"payload\":{LogicGraphJson.Serialize(result)}"
         + "}",
         cancellationToken
     );

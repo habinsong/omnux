@@ -17,4 +17,5 @@ public sealed class LogicApplicationService : ILogicApplicationService
     public Task<LogicRunActionResult> RunLogicGraphAsync(string graphId, string source, string? runInput, Action<LogicRunEvent>? eventCallback, CancellationToken cancellationToken) => _inner.RunLogicGraphAsync(graphId, source, runInput, eventCallback, cancellationToken);
     public LogicRunActionResult CancelLogicGraphRun(string runId) => _inner.CancelLogicGraphRun(runId);
     public LogicRunSnapshot? GetLogicGraphRun(string runId) => _inner.GetLogicGraphRun(runId);
+    public LogicRunRecoveryListResult ListRecoverableLogicGraphRuns(int? limit = null) => _inner.ListRecoverableLogicGraphRuns(limit);
 }

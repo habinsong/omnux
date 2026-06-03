@@ -356,6 +356,11 @@ public sealed partial class CommandService
         return _logicRuntimeCoordinator.GetSnapshot(runId);
     }
 
+    public LogicRunRecoveryListResult ListRecoverableLogicGraphRuns(int? limit = null)
+    {
+        return LogicRunRecoveryScanner.List(ResolveLogicRuntimeRoot(), limit);
+    }
+
     internal async Task<LogicRunSnapshot> ExecuteLogicGraphRunCoreAsync(
         string graphId,
         string runId,

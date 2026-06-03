@@ -160,6 +160,21 @@
   - 실제 Tree-sitter parser와 Repomap 주입은 아직 적용하지 않았다.
   - 외부 parser package 없이 deterministic fallback만 사용한다.
 
+## 구현됨: Durable Workflow recovery 후보 조회 1차
+
+- 후보 문서 항목: 추천 기능 3 `Durable Workflow 체크포인트`
+- 백엔드 구현:
+  - 기존 `LogicRunSnapshot` 지속 저장
+  - `LogicRunRecoveryScanner`
+  - `logic_graph_recovery_list` WebSocket 요청
+- 동작:
+  - `.runtime/logic/<graphId>/<runId>/snapshot.json`을 스캔한다.
+  - `completed`, `error`, `canceled`가 아닌 run만 recovery 후보로 반환한다.
+  - 후보에는 완료/실패/대기 노드 수와 마지막 이벤트 로그가 포함된다.
+- 현재 안전 정책:
+  - 자동 resume/retry는 하지 않는다.
+  - 외부 side effect가 있는 노드의 중복 실행 정책이 정해진 뒤 재개 실행을 붙인다.
+
 ## WebSocket 이벤트
 
 ### `telemetry_snapshot_get`
@@ -451,6 +466,49 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - `disabled=true`면 `error`가 함께 올 수 있고, 이 경우 기존처럼 검색 비활성 상태로 처리한다.
 - 구조 인식 청킹은 인덱스 재생성 이후 반영된다. 프론트에서 즉시 확인하려면 기존 `memory_index_rebuild`를 먼저 호출한다.
 
+### `logic_graph_recovery_list`
+
+미들웨어 재시작 후 디스크에 남은 미완료 로직 그래프 실행 snapshot을 조회한다.
+
+요청:
+
+```json
+{
+  "type": "logic_graph_recovery_list",
+  "limit": 50
+}
+```
+
+응답:
+
+```json
+{
+  "type": "logic_graph_recovery_list_result",
+  "payload": {
+    "items": [
+      {
+        "runId": "logicrun-20260604000000-abcd1234",
+        "graphId": "graph-id",
+        "title": "Flow title",
+        "status": "running",
+        "source": "web",
+        "startedAtUtc": "2026-06-04T00:00:00Z",
+        "updatedAtUtc": "2026-06-04T00:01:00Z",
+        "completedNodeCount": 3,
+        "errorNodeCount": 0,
+        "pendingNodeCount": 2,
+        "lastEvent": "[2026-06-04T00:01:00Z] node_started n4 Step"
+      }
+    ],
+    "total": 1,
+    "scannedAtUtc": "2026-06-04T00:02:00Z"
+  }
+}
+```
+
+- 이 응답은 복구 후보 목록만 제공한다.
+- 실제 재개 버튼은 아직 연결하지 않는다. 우선 `logic_graph_run_get`으로 snapshot 상세를 열어 상태를 확인한다.
+
 ### `agent_bus_get`
 
 에이전트 메시지/보드/생명주기 스냅샷 조회.
@@ -598,6 +656,7 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - 리플레이 타임라인의 `correlation=conversation_window` telemetry는 시간창 기반 추정이므로, UI에서는 "관련 LLM 호출 후보"처럼 표시한다.
 - 메모리 검색 결과는 `memoryTier`를 배지로 표시하고, 오래된 `long_term` 결과도 score floor 정책으로 유지될 수 있음을 tooltip에 짧게 설명한다.
 - 메모리 인덱스 rebuild 후에는 `memory_search` snippet이 기존 라인 window보다 선언 단위에 가까워지므로, 코드 미리보기는 기존 `startLine/endLine` 표시를 그대로 사용한다.
+- 로직 그래프 화면은 시작 시 `logic_graph_recovery_list`를 호출해 재시작 후 남은 `running` 후보를 표시하고, 상세 확인은 기존 `logic_graph_run_get`으로 연다.
 - 활동/에이전트 패널에서 `agent_bus_get`을 주기 조회하거나 수동 새로고침한다.
 - 보드 영역은 `payload.board`를 `groupId/runId` 기준으로 묶어 표시한다.
 - 타임라인은 `payload.lifecycle`와 `payload.messages`를 시간순으로 합쳐 표시한다.
@@ -609,7 +668,7 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - Provider별 실제 prompt cache API 적용: 현재는 readiness/hash/affinity telemetry만 기록한다. Gemini explicit cache, Anthropic cache control, OpenAI 자동 캐시 과금 확인은 provider adapter별 계약 검토 후 붙인다.
 - 스마트 모델 라우팅 실제 적용: 현재는 telemetry readiness만 기록한다. provider/model 자동 교체, cascade retry, 품질 미달 escalation은 사용자 선택권과 실패 복구 정책을 먼저 정해야 한다.
 - 셀프 힐링 자동 kill/restart: 현재는 timeout/stale 감지와 상태 종료까지만 구현했다. 실제 프로세스 종료와 자동 재시작은 백엔드별 안전 정책이 필요해 별도 단계로 둔다.
-- Durable Workflow 체크포인트: 로직 그래프 런타임 재개 정책과 중복 실행 방지 규칙이 필요하다. 현재 기능과 독립된 저장소만 추가하면 실효성이 낮다.
+- Durable Workflow 자동 resume: 현재는 snapshot 저장과 recovery 후보 조회까지다. 중복 실행 방지와 side effect 정책이 정해진 뒤 재개 실행을 붙인다.
 - 세션 리플레이 append-only 결정 트리: 1차는 기존 저장소 조합 타임라인이다. LLM raw input/output, tool stdout/stderr 전체 저장은 개인정보/용량 정책이 필요해 보류한다.
 - 계층적 메모리 deep archive/cascading retrieval/ADR 저장소: 1차는 FTS score와 metadata 확장까지만 구현했다. 실제 접근 이벤트 수집과 ADR 데이터 모델은 별도 설계가 필요하다.
 - Tree-sitter/Repomap 본도입: 1차는 외부 의존성 없는 선언 경계 청킹이다. 실제 AST parser, 언어별 grammar, Repomap 프롬프트 주입은 별도 검증 후 붙인다.

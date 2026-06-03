@@ -22,6 +22,9 @@ namespace Omnux.Middleware;
 [JsonSerializable(typeof(LogicNodeResultEnvelope))]
 [JsonSerializable(typeof(LogicNodeRunState))]
 [JsonSerializable(typeof(LogicRunSnapshot))]
+[JsonSerializable(typeof(LogicRunRecoveryCandidate))]
+[JsonSerializable(typeof(LogicRunRecoveryCandidate[]), TypeInfoPropertyName = "LogicRunRecoveryCandidateArray")]
+[JsonSerializable(typeof(LogicRunRecoveryListResult))]
 internal partial class LogicGraphJsonContext : JsonSerializerContext
 {
 }
