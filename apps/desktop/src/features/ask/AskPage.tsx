@@ -1,10 +1,12 @@
-import { useEffect } from "react";
-import { BrainCircuit, Inbox, Plus, RefreshCw, Search, Send, Trash2, X } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { BrainCircuit, FileImage, Inbox, Paperclip, Plus, RefreshCw, Search, Send, Trash2, X } from "lucide-react";
 import { CardBoundary } from "../../CardBoundary";
 import { useDesktopAuthStore } from "../auth/auth-store";
 import { useDesktopShellStore } from "../../shell-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
 import { useAskPageBridge, useAskStore } from "./ask-store";
+import { filesToVisionAttachments } from "./ask-vision";
+import { AskVisionPanel } from "./AskVisionPanel";
 import { MarkdownMessage } from "./MarkdownMessage";
 import { Badge, Button, EmptyState, Input, Spinner, Textarea, cn } from "../../components/ui/primitives";
 
@@ -48,6 +50,7 @@ function ragTone(value: string): "success" | "warning" | "destructive" | "primar
 
 export function AskPage() {
   useAskPageBridge();
+  const visionFileInputRef = useRef<HTMLInputElement>(null);
   const bridgeStatus = useDesktopShellStore((state) => state.bridge.status);
   const authStatus = useDesktopAuthStore((state) => state.auth.status);
   const recordCardError = useUiLogStore((state) => state.recordCardError);
@@ -66,6 +69,19 @@ export function AskPage() {
         }))
         .filter((item) => item.id)
     : store.conversations;
+
+  const handleVisionFiles = async (files: FileList | null) => {
+    try {
+      const attachments = await filesToVisionAttachments(files);
+      useAskStore.setState({
+        visionFiles: attachments,
+        visionPreflight: null,
+        lastError: attachments.length > 0 ? null : "지원되는 이미지 파일을 선택하세요."
+      });
+    } catch (error) {
+      useAskStore.setState({ lastError: error instanceof Error ? error.message : "이미지 파일을 읽지 못했다." });
+    }
+  };
 
   useEffect(() => {
     if (canRequest) {
@@ -196,6 +212,24 @@ export function AskPage() {
             <Button variant="outline" size="sm" onClick={store.runRagPreflight} disabled={!canRequest || store.ragPending || !store.input.trim()}>
               <BrainCircuit size={14} aria-hidden="true" /> {store.ragPending ? "점검 중" : "검색 점검"}
             </Button>
+            <input
+              ref={visionFileInputRef}
+              className="sr-only"
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={(event) => {
+                const files = event.currentTarget.files;
+                void handleVisionFiles(files);
+                event.currentTarget.value = "";
+              }}
+            />
+            <Button variant="outline" size="sm" onClick={() => visionFileInputRef.current?.click()}>
+              <Paperclip size={14} aria-hidden="true" /> 이미지
+            </Button>
+            <Button variant="outline" size="sm" onClick={store.runVisionPreflight} disabled={!canRequest || store.visionPending || store.visionFiles.length === 0}>
+              <FileImage size={14} aria-hidden="true" /> {store.visionPending ? "점검 중" : "Vision 점검"}
+            </Button>
           </div>
 
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
@@ -275,6 +309,7 @@ export function AskPage() {
                 ) : null}
               </div>
             ) : null}
+            <AskVisionPanel files={store.visionFiles} preflight={store.visionPreflight} pending={store.visionPending} onClear={store.clearVisionPreflight} />
             {store.messages.map((message, index) => (
               <MessageBubble key={`${index}-${message.role}`} role={message.role} text={message.text} />
             ))}
