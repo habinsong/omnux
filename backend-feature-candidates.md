@@ -39,7 +39,7 @@
 | 로컬 LLM/오프라인 모드 | ✅ 1차+ | `LocalLlmDiscoveryService`, `LocalLlmOfflineModePolicy`, `local_llm_snapshot_get` — 모델 discovery + 오프라인 모드 readiness audit |
 | 터미널 자율 디버깅 | ✅ 1차 | `TerminalCapabilitySnapshotService`, `terminal_capabilities_get` — shell/toolchain capability snapshot만, PTY 실행은 보류 |
 | 다중 모달 클립보드/Vision | ✅ 1차 | `ClipboardVisionTool`, `clipboard_vision_preflight` — 이미지 첨부 검증/vision route readiness, 클립보드 감시·LLM 호출·스캐폴딩 실행은 보류 |
-| 벡터 임베딩 시맨틱 검색 | ⏳ Phase 6-3 | 현재 FTS 유지, Phase 6-2(Ollama) 선행 후 sqlite-vec + Ollama embed로 추가 |
+| 벡터 임베딩 시맨틱 검색 | ✅ 1차 readiness / 실행 보류 | `SemanticSearchReadinessService`, `semantic_search_readiness_get` — FTS/sqlite-vec/로컬 embedding 후보를 읽기 전용 점검, 실제 임베딩 생성·벡터 검색은 보류 |
 | Nightly 자기 개선 | ✅ 1차 | `SelfImprovementSnapshotService`, `self_improvement_snapshot_get` — 읽기 전용 개선 제안 |
 
 ---
@@ -63,7 +63,7 @@
 | 13 | 커밋 히스토리 기반 학습 | ⭐⭐⭐ | 중 | 없음 |
 | 14 | 프롬프트 캐싱 최적화 | ⭐⭐⭐ | 낮음 | 없음 |
 | 15 | Git Worktree 격리 | ⭐⭐⭐ | 중 | git |
-| 16 | 시맨틱 검색 (Ollama embed) | ⭐⭐ | 낮음 | 대화 검색용으로 보류 |
+| 16 | 시맨틱 검색 readiness (Ollama embed) | ⭐⭐ | 낮음 | 대화 검색용 선행조건만 조회, 실행은 보류 |
 
 ### 권장 구현 순서 (2026-06-04 갱신)
 
@@ -72,7 +72,7 @@
 3. **3차** (모델 최적화): 스마트 모델 라우팅 → Durable Workflow
 4. **4차** (외부 도구 연동): 자동 커밋/PR → MCP 서버 → Git Worktree
 5. **5차** (지능 고도화): 계층적 메모리 → 커밋 학습 → 세션 리플레이 → 샌드박스 강화
-6. **보류** (후순위): 시맨틱 검색(Ollama embed)은 나중에 필요시 대화 검색용으로만 검토
+6. **보류** (후순위): 시맨틱 검색(Ollama embed)은 readiness snapshot까지만 유지하고, 나중에 필요시 대화/기획 문서 검색용으로만 검토
 
 ## 추천 기능 1: 컨텍스트 적응형 압축 (Adaptive Context Compression)
 
@@ -335,6 +335,14 @@
 
 ### 가치: ⭐⭐ → **우선순위 대폭 하향. 코드가 아닌 '과거 대화/문서' 검색용으로만 제한적 사용.**
 
+### 상태: ✅ 1차 readiness snapshot 구현 / 실제 벡터 검색 보류
+
+- `SemanticSearchReadinessService`가 메모리 인덱스 DB, `chunks_fts`, `sqlite-vec` 함수 노출 여부, 로컬 LLM endpoint/model 후보를 읽기 전용으로 점검한다.
+- WebSocket `semantic_search_readiness_get`은 `semantic_search_readiness_snapshot`을 반환한다.
+- 응답은 `readOnly=true`, `vectorSearchEnabled=false`, `embeddingGenerationEnabled=false`, `codeSearchRecommended=true`를 명시한다.
+- `nomic-embed-text`, `mxbai-embed-large`, `bge`, `all-minilm`, `e5` 계열 모델은 자연어 검색 후보로만 표시한다.
+- 대량 임베딩 생성, `sqlite-vec` schema migration, vector similarity query, 코드 검색 semantic rerank는 `skipped`로 유지한다.
+
 ### 결론 (2026-06-04 아키텍처 확정)
 
 **Ollama Embed API는 당분간 보류(서랍행)하며, 코드 검색은 FTS5(BM25) + Tree-sitter(AST) 조합에 올인합니다.**
@@ -354,7 +362,8 @@
 
 
 ### 개발 가이드 (Implementation Guide)
-- **결론**: **아키텍처 확정으로 인해 코드 검색용 구현은 전면 보류합니다.**
+- **결론**: **아키텍처 확정으로 인해 코드 검색용 벡터 구현은 전면 보류합니다.**
+- **현재 구현**: `semantic_search_readiness_get`으로 프론트가 선행조건과 보류 사유를 표시할 수 있다.
 - **추후 구현 시**: 훗날 채팅 기록이나 기획 문서 등 '자연어 검색'이 필요해질 때만 `OpenAiCompatibleProtocol.cs` 패턴을 응용하여 `OllamaEmbeddingProvider.cs`를 추가하는 선에서 가볍게 연동합니다.
 
 ---
@@ -940,7 +949,7 @@
 |---|---|---|
 | **Tree-sitter(AST) 도입** | ✅ **핵심** | 클래스/함수 단위 지능형 청킹 및 Repomap 생성. AI 코드 파악의 핵심 |
 | **기존 FTS5(BM25) 유지** | ✅ **기본값** | 코드 검색은 BM25가 dense보다 우수함. AST 청킹과 결합 시 시너지 극대화 |
-| Ollama embed API | ⚠️ 보류 | 무거운 벡터 연산. 추후 자연어 쿼리(과거 대화/기획 문서) 검색에만 제한적 사용 |
+| Ollama embed API | ✅ 1차 readiness / ⚠️ 실행 보류 | `semantic_search_readiness_get`으로 선행조건만 조회. 무거운 벡터 연산은 추후 자연어 쿼리(과거 대화/기획 문서) 검색에만 제한적 사용 |
 | ONNX / Rust Candle | ❌ 기각 | 빌드 복잡도 증가, 용량 폭증, 아키텍처 원칙 위반 |
 
 ### 상태: ✅ 1차 확장 구현
@@ -948,6 +957,7 @@
 - `code_repomap_snapshot_get`은 외부 parser 없이 현재 workspace의 `apps`, `scripts`, `workspace` 하위 C#/JS/TS/Python 파일을 스캔한다.
 - 반환값은 파일별 `symbols[]`와 `signature`, `line`, `kind`이며, LLM 프롬프트 주입은 아직 하지 않는다.
 - 이 snapshot은 프론트 구조 지도와 추후 Tree-sitter 교체 전 계약 안정화용이다.
+- `semantic_search_readiness_get`은 FTS/sqlite-vec/local embedding 후보를 점검하지만, 실제 임베딩 생성과 벡터 검색은 실행하지 않는다.
 
 ### 추가 아이디어
 

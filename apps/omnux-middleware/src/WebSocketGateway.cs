@@ -93,6 +93,7 @@ public sealed partial class WebSocketGateway
     private readonly WsGitTimeMachineCommandDispatcher _gitTimeMachineCommandDispatcher;
     private readonly WsSelfImprovementCommandDispatcher _selfImprovementCommandDispatcher;
     private readonly WsLocalLlmCommandDispatcher _localLlmCommandDispatcher;
+    private readonly WsSemanticSearchCommandDispatcher _semanticSearchCommandDispatcher;
     private readonly WsTerminalCommandDispatcher _terminalCommandDispatcher;
     private readonly WsCodeRepomapCommandDispatcher _codeRepomapCommandDispatcher;
     private readonly WsRefactorCommandDispatcher _refactorCommandDispatcher;
@@ -299,8 +300,16 @@ public sealed partial class WebSocketGateway
         _selfImprovementCommandDispatcher = new WsSelfImprovementCommandDispatcher(
             new SelfImprovementSnapshotService(_paths.WorkspaceRootDir)
         );
+        var localLlmDiscoveryService = new LocalLlmDiscoveryService();
         _localLlmCommandDispatcher = new WsLocalLlmCommandDispatcher(
-            new LocalLlmDiscoveryService()
+            localLlmDiscoveryService
+        );
+        _semanticSearchCommandDispatcher = new WsSemanticSearchCommandDispatcher(
+            new SemanticSearchReadinessService(
+                _paths.WorkspaceRootDir,
+                _paths,
+                localLlmDiscoveryService
+            )
         );
         _terminalCommandDispatcher = new WsTerminalCommandDispatcher(
             new TerminalCapabilitySnapshotService()
