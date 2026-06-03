@@ -1127,6 +1127,43 @@ workspace 코드 구조 지도를 조회한다. 외부 parser나 LLM 호출 없�
     "diffShortStat": "1 file changed, 4 insertions(+), 1 deletion(-)",
     "suggestedCommitMessage": "chore(middleware): update backend changes",
     "suggestedBranchName": "codex/middleware-changes",
+    "remote": {
+      "hasRemote": true,
+      "remoteNames": ["origin"],
+      "primaryRemote": "origin",
+      "primaryRemoteUrl": "https://github.com/example/repo.git",
+      "pushRemoteUrl": "https://github.com/example/repo.git",
+      "hasUpstream": true,
+      "upstreamName": "origin/main",
+      "aheadCount": 0,
+      "behindCount": 0,
+      "suggestedPushTarget": "origin/main",
+      "warnings": []
+    },
+    "toolchain": {
+      "gitHubCli": {
+        "name": "GitHub CLI",
+        "command": "gh",
+        "status": "available",
+        "version": "gh version 2.x.x",
+        "message": "gh --version succeeded; auth and network checks are skipped"
+      }
+    },
+    "publishReadiness": {
+      "status": "ready_for_pull_request",
+      "pushReady": true,
+      "pullRequestReady": true,
+      "requiresApproval": true,
+      "blockers": [],
+      "skipped": [
+        "git_add",
+        "git_commit",
+        "git_branch_create",
+        "git_push",
+        "gh_auth_status",
+        "gh_pr_create"
+      ]
+    },
     "readiness": {
       "status": "ready_for_review",
       "commitRecommended": true,
@@ -1143,6 +1180,16 @@ workspace 코드 구조 지도를 조회한다. 외부 parser나 LLM 호출 없�
 - `limit`은 1~300으로 clamp된다.
 - `readOnly=true`가 현재 계약이다. 백엔드는 이 요청에서 `git add`, `git commit`, branch 생성, `gh pr create`를 실행하지 않는다.
 - `stagedFileCount`, `unstagedFileCount`, `untrackedFileCount`는 겹치지 않는 카운트다.
+- `changedFileCount`는 `files`가 limit으로 잘려도 전체 변경 파일 수를 의미한다.
+- `remote.primaryRemoteUrl`과 `remote.pushRemoteUrl`은 HTTPS credential과 query string이 redaction된 값이다.
+- `toolchain.gitHubCli.status`는 `available` 또는 `missing`이다. 현재 백엔드는 `gh --version`만 실행하고 인증/네트워크 상태는 확인하지 않는다.
+- `publishReadiness.status`는 프론트 버튼 상태를 나누는 용도다.
+  - `clean`: 변경 없음.
+  - `missing_remote`: 변경은 있으나 remote 없음.
+  - `needs_initial_push`: remote는 있으나 현재 branch upstream 없음.
+  - `missing_github_cli`: upstream은 있으나 `gh` CLI 없음.
+  - `ready_for_pull_request`: remote/upstream/gh가 모두 준비됨. 그래도 `requiresApproval=true`이므로 백엔드는 PR을 만들지 않는다.
+  - `blocked`: merge conflict 또는 detached HEAD 등 먼저 해결할 blocker가 있음.
 - `changedFileCount`와 상태별 카운트는 전체 변경 기준이고, `files`만 `limit`으로 잘린다. 잘렸으면 `filesTruncated=true`다.
 - `readiness.status=blocked`이면 `conflictedFileCount > 0`이거나 `blockers`에 이유가 들어간다.
 - `suggestedCommitMessage`와 `suggestedBranchName`은 LLM이 아니라 파일 경로/status 기반 heuristic이다. 자동 실행 근거가 아니라 사용자 승인 UI의 초안으로만 사용한다.

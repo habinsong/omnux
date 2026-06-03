@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 
 namespace Omnux.Middleware;
@@ -10,10 +9,14 @@ internal sealed class GitAutomationSnapshotService
     private const int GitTimeoutSeconds = 5;
 
     private readonly string _repositoryRoot;
+    private readonly GitAutomationRemoteSnapshotProbe _remoteProbe;
+    private readonly GitAutomationToolchainProbe _toolchainProbe;
 
     public GitAutomationSnapshotService(string repositoryRoot)
     {
         _repositoryRoot = Path.GetFullPath(string.IsNullOrWhiteSpace(repositoryRoot) ? "." : repositoryRoot);
+        _remoteProbe = new GitAutomationRemoteSnapshotProbe(_repositoryRoot);
+        _toolchainProbe = new GitAutomationToolchainProbe(_repositoryRoot);
     }
 
     public async Task<GitAutomationSnapshot> GetSnapshotAsync(
@@ -27,7 +30,8 @@ internal sealed class GitAutomationSnapshotService
             .ConfigureAwait(false);
         if (repoCheck.ExitCode != 0 || !repoCheck.StdOut.Trim().Equals("true", StringComparison.OrdinalIgnoreCase))
         {
-            warnings.Add(TrimWarning(repoCheck.StdErr, "workspace is not a git repository"));
+            var toolchain = await _toolchainProbe.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            warnings.Add(GitAutomationSnapshotText.TrimWarning(repoCheck.StdErr, "workspace is not a git repository"));
             return BuildSnapshot(
                 limit,
                 string.Empty,
@@ -35,6 +39,8 @@ internal sealed class GitAutomationSnapshotService
                 Array.Empty<GitAutomationChangedFile>(),
                 null,
                 string.Empty,
+                GitAutomationRemoteSnapshotProbe.Empty(),
+                toolchain,
                 warnings
             );
         }
@@ -43,11 +49,13 @@ internal sealed class GitAutomationSnapshotService
             .ConfigureAwait(false);
         var head = await ReadGitLineAsync(new[] { "rev-parse", "--short", "HEAD" }, cancellationToken)
             .ConfigureAwait(false);
+        var remote = await _remoteProbe.GetSnapshotAsync(branch, cancellationToken).ConfigureAwait(false);
+        var toolchainSnapshot = await _toolchainProbe.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
         var status = await RunGitAsync(new[] { "status", "--porcelain=v1", "-uall" }, cancellationToken)
             .ConfigureAwait(false);
         if (status.ExitCode != 0)
         {
-            warnings.Add(TrimWarning(status.StdErr, "git status failed"));
+            warnings.Add(GitAutomationSnapshotText.TrimWarning(status.StdErr, "git status failed"));
             return BuildSnapshot(
                 limit,
                 branch,
@@ -55,6 +63,8 @@ internal sealed class GitAutomationSnapshotService
                 Array.Empty<GitAutomationChangedFile>(),
                 null,
                 string.Empty,
+                remote,
+                toolchainSnapshot,
                 warnings
             );
         }
@@ -67,7 +77,7 @@ internal sealed class GitAutomationSnapshotService
             .ToArray();
         var visibleFiles = allFiles.Take(limit).ToArray();
 
-        return BuildSnapshot(limit, branch, head, allFiles, visibleFiles, diffShortStat, warnings);
+        return BuildSnapshot(limit, branch, head, allFiles, visibleFiles, diffShortStat, remote, toolchainSnapshot, warnings);
     }
 
     private GitAutomationSnapshot BuildSnapshot(
@@ -77,6 +87,8 @@ internal sealed class GitAutomationSnapshotService
         IReadOnlyList<GitAutomationChangedFile> allFiles,
         IReadOnlyList<GitAutomationChangedFile>? visibleFiles,
         string diffShortStat,
+        GitAutomationRemoteSnapshot remote,
+        GitAutomationToolchainSnapshot toolchain,
         IReadOnlyList<string> warnings
     )
     {
@@ -86,6 +98,13 @@ internal sealed class GitAutomationSnapshotService
         var conflicted = allFiles.Count(file => file.Category == "conflicted");
         var hasChanges = allFiles.Count > 0;
         var readiness = BuildReadiness(hasChanges, conflicted);
+        var publishReadiness = GitAutomationPublishReadinessPolicy.Build(
+            hasChanges,
+            conflicted,
+            branchName,
+            remote,
+            toolchain
+        );
         var suggestedMessage = hasChanges && conflicted == 0
             ? GitAutomationSuggestionPolicy.BuildSuggestedCommitMessage(allFiles)
             : string.Empty;
@@ -101,7 +120,7 @@ internal sealed class GitAutomationSnapshotService
             true,
             hasChanges,
             !hasChanges,
-            files.Count,
+            allFiles.Count,
             staged,
             unstaged,
             untracked,
@@ -112,6 +131,9 @@ internal sealed class GitAutomationSnapshotService
             diffShortStat,
             suggestedMessage,
             suggestedBranch,
+            remote,
+            toolchain,
+            publishReadiness,
             readiness,
             warnings,
             DateTimeOffset.UtcNow
@@ -286,87 +308,16 @@ internal sealed class GitAutomationSnapshotService
         return result.ExitCode == 0 ? result.StdOut.Trim() : string.Empty;
     }
 
-    private async Task<GitProcessResult> RunGitAsync(
+    private Task<GitAutomationProcessResult> RunGitAsync(
         IReadOnlyList<string> arguments,
         CancellationToken cancellationToken
     )
     {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = "git",
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            WorkingDirectory = _repositoryRoot
-        };
-
-        startInfo.ArgumentList.Add("-C");
-        startInfo.ArgumentList.Add(_repositoryRoot);
-        foreach (var argument in arguments)
-        {
-            startInfo.ArgumentList.Add(argument);
-        }
-
-        using var process = new Process { StartInfo = startInfo };
-        try
-        {
-            process.Start();
-        }
-        catch (Exception ex)
-        {
-            return new GitProcessResult(127, string.Empty, ex.Message);
-        }
-
-        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        try
-        {
-            await process.WaitForExitAsync(cancellationToken)
-                .WaitAsync(TimeSpan.FromSeconds(GitTimeoutSeconds), cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (TimeoutException)
-        {
-            TryKill(process);
-            return new GitProcessResult(124, string.Empty, "git command timed out");
-        }
-        catch (OperationCanceledException)
-        {
-            TryKill(process);
-            throw;
-        }
-
-        return new GitProcessResult(
-            process.ExitCode,
-            await stdoutTask.ConfigureAwait(false),
-            await stderrTask.ConfigureAwait(false)
+        return GitAutomationProcessRunner.RunGitAsync(
+            _repositoryRoot,
+            arguments,
+            GitTimeoutSeconds,
+            cancellationToken
         );
     }
-
-    private static string TrimWarning(string value, string fallback)
-    {
-        var normalized = (value ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(normalized))
-        {
-            normalized = fallback;
-        }
-
-        return normalized.Length <= 500 ? normalized : normalized[..500] + "...";
-    }
-
-    private static void TryKill(Process process)
-    {
-        try
-        {
-            if (!process.HasExited)
-            {
-                process.Kill(entireProcessTree: true);
-            }
-        }
-        catch
-        {
-        }
-    }
-
-    private sealed record GitProcessResult(int ExitCode, string StdOut, string StdErr);
 }

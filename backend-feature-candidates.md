@@ -28,7 +28,7 @@
 | MCP 서버/클라이언트 | ✅ 1차+ | `McpConfigDiscoveryService`, `McpServerReadinessPolicy`, `mcp_servers_list` — 설정 discovery + read-only readiness audit, 프로세스/JSON-RPC는 보류 |
 | Git worktree 격리 | ✅ 1차+ | `GitWorktreeIsolationManager`, `AgentWorktreeSnapshotService`, `agent_worktree_snapshot_get` — ACP spawn opt-in worktree CWD 주입 + 읽기 전용 inventory |
 | 셀프 힐링/워치독 | ✅ 1차 | `FileAgentSpawnActiveRunStore.EvaluateWatchdog`, 백그라운드 active-run timeout/stale 감지 |
-| 자동 커밋/PR 생성 | ✅ 1차 | `GitAutomationSnapshotService`, `git_automation_snapshot_get` — 읽기 전용 변경 감지/커밋 제안 |
+| 자동 커밋/PR 생성 | ✅ 1차+ | `GitAutomationSnapshotService`, `git_automation_snapshot_get` — 읽기 전용 변경 감지/커밋 제안 + remote/upstream/gh readiness |
 | Git 단위 타임머신 | ✅ 1차 | `GitTimeMachineSnapshotService`, `git_time_machine_snapshot_get` — 최근 체크포인트/롤백 readiness 읽기 전용 조회 |
 | Durable Workflow | ✅ 1차 | `LogicRunSnapshot` 지속 저장, `LogicRunRecoveryScanner`, `logic_graph_recovery_list` |
 | OpenTelemetry 옵저버빌리티 | ✅ 1차 | `TelemetryTracer`, `FileTelemetryTraceStore`, `WsTelemetryCommandDispatcher` — ActivitySource + 로컬 스냅샷 |
@@ -283,8 +283,12 @@
 - ✅ 1차 구현: WebSocket `git_automation_snapshot_get` 요청이 `git_automation_snapshot`을 반환한다.
 - ✅ `git status --porcelain=v1 -uall`, `git diff --numstat HEAD`, `git diff --shortstat HEAD`를 읽어 staged/unstaged/untracked/conflicted 파일 수와 변경 파일 목록을 만든다.
 - ✅ LLM 호출 없이 heuristic 기반 `suggestedCommitMessage`, `suggestedBranchName`, `readiness`를 제공한다.
+- ✅ remote/upstream readiness를 읽기 전용으로 제공한다. `remote`에는 primary remote, redacted URL, upstream 이름, ahead/behind, suggested push target이 포함된다.
+- ✅ GitHub CLI readiness를 `gh --version`까지만 확인해 `toolchain.gitHubCli`로 제공한다. `gh auth status`와 네트워크 확인은 실행하지 않는다.
+- ✅ `publishReadiness`가 push/PR 준비 상태를 `clean`, `missing_remote`, `needs_initial_push`, `missing_github_cli`, `ready_for_pull_request`, `blocked`로 구분한다.
+- ✅ credential이 포함된 HTTPS remote URL과 query string은 snapshot에서 redaction한다.
 - ✅ 기본 정책은 read-only다. `git commit`, 브랜치 생성, `gh pr create`, 파일 staging은 실행하지 않는다.
-- ⏳ 보류: 사용자 승인 플로우, 실제 커밋/브랜치/PR 생성, `CodingApplicationService` 완료 훅 자동 호출, LLM 커밋 메시지 생성.
+- ⏳ 보류: 사용자 승인 플로우, 실제 staging/commit/branch/push/PR 생성, `gh auth status`, `CodingApplicationService` 완료 훅 자동 호출, LLM 커밋 메시지 생성.
 
 ### 참고
 

@@ -18,6 +18,9 @@ internal sealed record GitAutomationSnapshot(
     string DiffShortStat,
     string SuggestedCommitMessage,
     string SuggestedBranchName,
+    GitAutomationRemoteSnapshot Remote,
+    GitAutomationToolchainSnapshot Toolchain,
+    GitAutomationPublishReadiness PublishReadiness,
     GitAutomationReadiness Readiness,
     IReadOnlyList<string> Warnings,
     DateTimeOffset ScannedAtUtc
@@ -41,4 +44,39 @@ internal sealed record GitAutomationReadiness(
     bool PullRequestRecommended,
     bool RequiresApproval,
     IReadOnlyList<string> Blockers
+);
+
+internal sealed record GitAutomationRemoteSnapshot(
+    bool HasRemote,
+    IReadOnlyList<string> RemoteNames,
+    string PrimaryRemote,
+    string PrimaryRemoteUrl,
+    string PushRemoteUrl,
+    bool HasUpstream,
+    string UpstreamName,
+    int? AheadCount,
+    int? BehindCount,
+    string SuggestedPushTarget,
+    IReadOnlyList<string> Warnings
+);
+
+internal sealed record GitAutomationToolchainSnapshot(
+    GitAutomationToolSnapshot GitHubCli
+);
+
+internal sealed record GitAutomationToolSnapshot(
+    string Name,
+    string Command,
+    string Status,
+    string Version,
+    string Message
+);
+
+internal sealed record GitAutomationPublishReadiness(
+    string Status,
+    bool PushReady,
+    bool PullRequestReady,
+    bool RequiresApproval,
+    IReadOnlyList<string> Blockers,
+    IReadOnlyList<string> Skipped
 );
