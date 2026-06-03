@@ -68,7 +68,15 @@ function resolveModel(payload) {
   return { ok: true, model: requested, error: null };
 }
 
-function resolveWorkspaceCwd() {
+function resolveWorkspaceCwd(payload) {
+  const requested = toOptionalTrimmedString(
+    payload?.workspaceDirectory
+      || payload?.options?.workspaceDirectory
+  );
+  if (requested) {
+    return path.resolve(requested);
+  }
+
   const envCwd = toOptionalTrimmedString(process.env.OMNUX_ACP_ADAPTER_CODEX_CWD);
   return envCwd || process.cwd();
 }
@@ -544,7 +552,7 @@ async function main() {
   }
 
   const codexBin = toOptionalTrimmedString(process.env.OMNUX_ACP_ADAPTER_CODEX_BIN) || "codex";
-  const workspaceCwd = resolveWorkspaceCwd();
+  const workspaceCwd = resolveWorkspaceCwd(payload);
   const timeoutMs = resolveTimeoutMs(payload);
   const toolProfile = resolveToolProfile(payload);
   const outputDirectory = resolveOutputDirectory(payload, workspaceCwd);

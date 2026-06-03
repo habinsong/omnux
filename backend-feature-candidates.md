@@ -23,7 +23,7 @@
 | 컨텍스트 적응형 압축 | ✅ | `AdaptiveContextCompressionPolicy`, 토큰/문자/메시지 임계치 기반 자동 압축 |
 | 에이전트 간 메시지 패싱 | ✅ | `AgentCommunicationApplicationService`, `FileAgentCommunicationStore`, `WsAgentCommandDispatcher` |
 | MCP 서버/클라이언트 | ✅ 1차 | `McpConfigDiscoveryService`, `mcp_servers_list` — 설정 discovery만, 프로세스/JSON-RPC는 보류 |
-| Git worktree 격리 | ❌ | 검색 결과 0 |
+| Git worktree 격리 | ✅ 1차 | `GitWorktreeIsolationManager`, `SessionSpawnTool` — ACP spawn opt-in worktree CWD 주입 |
 | 셀프 힐링/워치독 | ✅ 1차 | `FileAgentSpawnActiveRunStore.EvaluateWatchdog`, 백그라운드 active-run timeout/stale 감지 |
 | 자동 커밋/PR 생성 | ❌ | 검색 결과 0 |
 | Durable Workflow | ✅ 1차 | `LogicRunSnapshot` 지속 저장, `LogicRunRecoveryScanner`, `logic_graph_recovery_list` |
@@ -368,11 +368,18 @@
 
 중. git CLI 호출. 파일시스템 공간 소모 고려 필요.
 
+### 현재 구현 상태
+
+- ✅ 1차 구현: `OMNUX_AGENT_SPAWN_WORKTREE_MODE=auto|on|enabled|true|1`일 때 ACP `sessions_spawn` 직전에 `git worktree add --detach <state>/agent-worktrees/<runId> HEAD`를 실행한다.
+- ✅ 생성된 worktree 경로는 ACP dispatch payload의 `options.workspaceDirectory`로 전달되고, bundled Codex adapter는 해당 경로를 `codex exec -C` 기준 CWD로 사용한다.
+- ✅ child session timeline에 `sessions_spawn_worktree_ready` / `sessions_spawn_worktree_failed`와 `sessions_spawn_acp_dispatch` trace를 남긴다.
+- ✅ worktree 생성 실패 시 메인 workspace로 fallback하지 않고 spawn 실패로 처리한다. 격리 보장을 깨지 않기 위한 의도적 정책이다.
+- ⏳ 보류: 작업 완료 후 merge/cherry-pick, 자동 cleanup, ACP 외 subagent runtime 직접 연결, worktree 관리 UI.
 
 ### 개발 가이드 (Implementation Guide)
-- **대상 파일**: `SessionSpawnTool.cs`
-- **신규 파일**: `GitWorktreeManager.cs`
-- **구현 방향**: 다수의 서브 에이전트가 동시에 스폰될 때, 동일한 워크스페이스를 사용하면 파일 충돌이 발생합니다. 스폰 직전에 `git worktree add`를 호출하여 임시 폴더에 격리된 워크트리를 만들고, 해당 에이전트의 CWD(Current Working Directory)로 할당합니다.
+- **대상 파일**: `SessionSpawnTool.cs`, `AcpSessionBindingAdapter.cs`, `tools/acp-adapter-codex-exec.js`
+- **신규 파일**: `Application/Agents/GitWorktreeIsolationManager.cs`
+- **구현 방향**: 다수의 서브 에이전트가 동시에 스폰될 때, 동일한 워크스페이스를 사용하면 파일 충돌이 발생합니다. 스폰 직전에 opt-in 정책으로 `git worktree add`를 호출하여 임시 폴더에 격리된 워크트리를 만들고, 해당 ACP 에이전트의 CWD(Current Working Directory)로 할당합니다.
 
 ---
 

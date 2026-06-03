@@ -614,6 +614,10 @@ internal static class Program
             paths,
             diffPreviewService
         );
+        var sessionSpawnWorktreeManager = GitWorktreeIsolationManager.FromEnvironment(
+            paths.WorkspaceRootDir,
+            DefaultStatePathResolver.CreateDefault().ResolveStateDirectoryPath("agent-worktrees")
+        );
         var sessionSpawnTool = new SessionSpawnTool(
             conversationStore,
             acpSessionBindingAdapter,
@@ -622,7 +626,8 @@ internal static class Program
             sessionSpawnQueueStore,
             sessionSpawnRunBreaker,
             sessionSpawnActiveRunStore,
-            sessionSpawnWorkspaceRollbackPolicy
+            sessionSpawnWorkspaceRollbackPolicy,
+            sessionSpawnWorktreeManager
         );
         var browserTool = new BrowserTool(config);
         var canvasTool = new CanvasTool(config);

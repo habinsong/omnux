@@ -17,7 +17,8 @@ public sealed record AcpSessionBindingDispatchRequest(
     string? ToolProfile,
     string? OutputDirectory,
     string? CommandPriority,
-    string? BreakerStatePath = null
+    string? BreakerStatePath = null,
+    string? WorkspaceDirectory = null
 );
 
 public sealed record AcpSessionBindingDispatchResult(
@@ -336,6 +337,11 @@ public sealed class AcpSessionBindingAdapter
             tokens.Add($"outputDirectory={TrimLine(request.OutputDirectory)}");
         }
 
+        if (!string.IsNullOrWhiteSpace(request.WorkspaceDirectory))
+        {
+            tokens.Add($"workspaceDirectory={TrimLine(request.WorkspaceDirectory)}");
+        }
+
         if (tokens.Count == 0)
         {
             return "options=none";
@@ -576,7 +582,8 @@ public sealed class AcpSessionBindingAdapter
         builder.Append($"\"thinking\":{ToNullableJsonString(request.Thinking)},");
         builder.Append($"\"lightContext\":{(request.LightContext.HasValue ? (request.LightContext.Value ? "true" : "false") : "null")},");
         builder.Append($"\"toolProfile\":{ToNullableJsonString(request.ToolProfile)},");
-        builder.Append($"\"outputDirectory\":{ToNullableJsonString(request.OutputDirectory)}");
+        builder.Append($"\"outputDirectory\":{ToNullableJsonString(request.OutputDirectory)},");
+        builder.Append($"\"workspaceDirectory\":{ToNullableJsonString(request.WorkspaceDirectory)}");
         builder.Append("}");
         builder.Append("}");
         return builder.ToString();

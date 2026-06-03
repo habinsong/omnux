@@ -380,6 +380,31 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - `watchdog.events`는 해당 평가에서 새로 종료 처리된 run만 담는다.
 - 대시보드는 `eventCount > 0`이면 agent activity에 경고 카드나 타임라인 항목을 표시한다.
 
+### `sessions_spawn` ACP worktree isolation
+
+백엔드는 env opt-in일 때 ACP spawn을 별도 git worktree에서 실행할 수 있다.
+
+활성화 조건:
+
+```text
+OMNUX_AGENT_SPAWN_WORKTREE_MODE=auto|on|enabled|true|1
+```
+
+프론트 요청 payload는 기존 `sessions_spawn`과 동일하다. 별도 필드는 추가되지 않았다.
+
+응답/타임라인 확인 지점:
+
+- `sessions_spawn_result.note`에 `worktree_isolation=created|reused worktree_path=<path>`가 붙는다.
+- child session timeline에 `meta=sessions_spawn_worktree_ready`가 남는다.
+- ACP dispatch trace인 `meta=sessions_spawn_acp_dispatch`에는 `acp.option.workspaceDirectory=<path>`와 `acp.worktree.status=created|reused`가 포함된다.
+- worktree 생성 실패 시 메인 workspace fallback 없이 spawn 실패로 처리되고, child session에는 `meta=sessions_spawn_worktree_failed` 및 `sessions_spawn_acp_failed`가 남을 수 있다.
+
+프론트 연결 기준:
+
+- 기본 UI에서는 별도 입력을 만들 필요가 없다. 운영자가 env로 켠 경우에만 세션 상세/디버그 패널에서 worktree 상태와 경로를 표시한다.
+- `worktree_path`는 로컬 절대 경로일 수 있으므로 일반 사용자용 카드에는 축약 표시하고, 복사 버튼은 디버그/개발자 화면에만 둔다.
+- merge/cherry-pick/cleanup 버튼은 아직 연결하지 않는다.
+
 ### `session_replay_get`
 
 세션 리플레이 타임라인을 조회한다.
@@ -839,6 +864,7 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - 그룹 제어 버튼은 우선 `agent_group_command`만 호출하고, 실제 강제 중단은 추후 백엔드 제어 훅이 추가된 뒤 연결한다.
 - MCP 설정 패널은 `mcp_servers_list`를 호출해 발견된 서버와 invalid/error config를 표시한다. `status=discovered`는 "연결 가능 후보"이지 "실행 중"이 아니다.
 - Commit learning 패널은 `commit_learning_snapshot_get`을 호출해 최근 커밋 intent 분포와 자주 바뀌는 파일 hotspot을 표시한다. intent는 heuristic이므로 자동 규칙 적용 근거가 아니라 관찰용으로 둔다.
+- Worktree isolation은 새 WS 타입이 없다. 세션 결과 note와 child session timeline의 `sessions_spawn_worktree_*` / `sessions_spawn_acp_dispatch` metadata를 읽어 표시한다.
 
 ## 보류한 후보
 
@@ -848,6 +874,7 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - 셀프 힐링 자동 kill/restart: 현재는 timeout/stale 감지와 상태 종료까지만 구현했다. 실제 프로세스 종료와 자동 재시작은 백엔드별 안전 정책이 필요해 별도 단계로 둔다.
 - Durable Workflow 자동 resume: 현재는 snapshot 저장과 recovery 후보 조회까지다. 중복 실행 방지와 side effect 정책이 정해진 뒤 재개 실행을 붙인다.
 - 세션 리플레이 append-only 결정 트리: 1차는 기존 저장소 조합 타임라인이다. LLM raw input/output, tool stdout/stderr 전체 저장은 개인정보/용량 정책이 필요해 보류한다.
+- Git worktree merge/cherry-pick/cleanup UI: 1차는 ACP 실행 CWD 격리까지만 구현했다. 완료 후 메인 브랜치 반영, 충돌 해결, 오래된 worktree 정리는 별도 백엔드 정책이 필요하다.
 - 계층적 메모리 deep archive/cascading retrieval/ADR 저장소: 1차는 FTS score와 metadata 확장까지만 구현했다. 실제 접근 이벤트 수집과 ADR 데이터 모델은 별도 설계가 필요하다.
 - Tree-sitter/Repomap 본도입: 1차는 외부 의존성 없는 선언 경계 청킹이다. 실제 AST parser, 언어별 grammar, Repomap 프롬프트 주입은 별도 검증 후 붙인다.
 - MCP 서버 프로세스/JSON-RPC/tool registry 주입: 1차는 설정 discovery만 구현했다. 실제 실행은 서드파티 프로세스 권한/격리와 MCP handshake 정책이 필요해 보류한다.
