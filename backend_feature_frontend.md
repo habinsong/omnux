@@ -194,6 +194,27 @@
   - Python/Node/C/C++ 내부에서 직접 여는 네트워크나 파일 접근까지 정적 차단하지 않는다.
   - 이번 단계는 shell runner의 명백한 고위험 명령 차단에 한정한다.
 
+## 구현됨: MCP 서버 설정 discovery 1차
+
+- 후보 문서 항목: 추천 기능 4 `MCP 서버 지원`
+- 백엔드 구현:
+  - `McpConfigDiscoveryService`
+  - `WsMcpCommandDispatcher`
+- 스캔 대상:
+  - `.mcp.json`
+  - `.omni/mcp.json`
+  - `.cursor/mcp.json`
+  - `.codeium/windsurf/mcp_config.json`
+- 동작:
+  - config의 `mcpServers` 또는 `servers` object를 읽는다.
+  - 서버별 `name`, `transport`, `command`, `argsPreview`, `url`, `envKeys`, `enabled`, `status`를 반환한다.
+  - env 값은 절대 반환하지 않는다.
+  - token/api-key/password/secret 계열 args와 URL query 값은 `<redacted>`로 마스킹한다.
+- 현재 안전 정책:
+  - MCP 서버 프로세스를 시작하지 않는다.
+  - JSON-RPC handshake와 MCP tool registry 동적 주입은 아직 하지 않는다.
+  - discovery 응답은 프론트의 설정/상태 패널 표시용이다.
+
 ## WebSocket 이벤트
 
 ### `telemetry_snapshot_get`
@@ -528,6 +549,64 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - 이 응답은 복구 후보 목록만 제공한다.
 - 실제 재개 버튼은 아직 연결하지 않는다. 우선 `logic_graph_run_get`으로 snapshot 상세를 열어 상태를 확인한다.
 
+### `mcp_servers_list`
+
+워크스페이스 MCP 설정 파일을 스캔해 발견된 서버 설정을 조회한다. 서버 프로세스는 시작하지 않는다.
+
+요청:
+
+```json
+{
+  "type": "mcp_servers_list"
+}
+```
+
+응답:
+
+```json
+{
+  "type": "mcp_servers_snapshot",
+  "payload": {
+    "configFiles": [
+      {
+        "source": "workspace",
+        "path": "/abs/path/.mcp.json",
+        "exists": true,
+        "status": "ok",
+        "serverCount": 1
+      }
+    ],
+    "servers": [
+      {
+        "serverId": "workspace:filesystem",
+        "name": "filesystem",
+        "source": "workspace",
+        "configPath": "/abs/path/.mcp.json",
+        "transport": "stdio",
+        "command": "npx",
+        "argsPreview": ["-y", "@modelcontextprotocol/server-filesystem", "."],
+        "argumentCount": 3,
+        "url": "",
+        "workingDirectory": "",
+        "envKeys": ["GITHUB_TOKEN"],
+        "envKeyCount": 1,
+        "enabled": true,
+        "status": "discovered",
+        "message": "stdio server config discovered; process launch is not enabled yet"
+      }
+    ],
+    "errors": [],
+    "totalServers": 1,
+    "scannedAtUtc": "2026-06-04T00:00:00Z"
+  }
+}
+```
+
+- `status`는 `discovered`, `disabled`, `invalid` 중 하나다.
+- `configFiles[].status`는 `missing`, `ok`, `empty`, `invalid`, `error` 중 하나다.
+- `envKeys`에는 key만 포함되며 값은 내려오지 않는다.
+- `argsPreview`와 `url`은 민감값 redaction 후 내려온다.
+
 ### `agent_bus_get`
 
 에이전트 메시지/보드/생명주기 스냅샷 조회.
@@ -680,6 +759,7 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - 보드 영역은 `payload.board`를 `groupId/runId` 기준으로 묶어 표시한다.
 - 타임라인은 `payload.lifecycle`와 `payload.messages`를 시간순으로 합쳐 표시한다.
 - 그룹 제어 버튼은 우선 `agent_group_command`만 호출하고, 실제 강제 중단은 추후 백엔드 제어 훅이 추가된 뒤 연결한다.
+- MCP 설정 패널은 `mcp_servers_list`를 호출해 발견된 서버와 invalid/error config를 표시한다. `status=discovered`는 "연결 가능 후보"이지 "실행 중"이 아니다.
 
 ## 보류한 후보
 
@@ -691,7 +771,7 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - 세션 리플레이 append-only 결정 트리: 1차는 기존 저장소 조합 타임라인이다. LLM raw input/output, tool stdout/stderr 전체 저장은 개인정보/용량 정책이 필요해 보류한다.
 - 계층적 메모리 deep archive/cascading retrieval/ADR 저장소: 1차는 FTS score와 metadata 확장까지만 구현했다. 실제 접근 이벤트 수집과 ADR 데이터 모델은 별도 설계가 필요하다.
 - Tree-sitter/Repomap 본도입: 1차는 외부 의존성 없는 선언 경계 청킹이다. 실제 AST parser, 언어별 grammar, Repomap 프롬프트 주입은 별도 검증 후 붙인다.
-- MCP 서버 지원: 프로세스 생명주기와 JSON-RPC 스펙 구현이 필요해 높은 위험 작업이다.
+- MCP 서버 프로세스/JSON-RPC/tool registry 주입: 1차는 설정 discovery만 구현했다. 실제 실행은 서드파티 프로세스 권한/격리와 MCP handshake 정책이 필요해 보류한다.
 - 자동 커밋/PR 생성: 현재 워크트리가 대규모 변경 상태라 자동 커밋 계열 기능을 바로 붙이면 사용자 변경과 충돌할 수 있다.
 - Git Worktree 격리: 스폰 실행 경로와 롤백 정책을 함께 바꿔야 한다.
 - 시맨틱 검색/Ollama embed: 후보 문서 결론대로 코드 검색용 우선순위는 낮다.

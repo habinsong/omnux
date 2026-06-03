@@ -86,6 +86,7 @@ public sealed partial class WebSocketGateway
     private readonly WsTelemetryCommandDispatcher _telemetryCommandDispatcher;
     private readonly WsSessionReplayCommandDispatcher _sessionReplayCommandDispatcher;
     private readonly WsAgentCommandDispatcher _agentCommandDispatcher;
+    private readonly WsMcpCommandDispatcher _mcpCommandDispatcher;
     private readonly WsRefactorCommandDispatcher _refactorCommandDispatcher;
     private readonly WsContextCommandDispatcher _contextCommandDispatcher;
     private readonly WsNotebookCommandDispatcher _notebookCommandDispatcher;
@@ -271,6 +272,9 @@ public sealed partial class WebSocketGateway
         );
         _agentCommandDispatcher = new WsAgentCommandDispatcher(
             agentCommunicationService
+        );
+        _mcpCommandDispatcher = new WsMcpCommandDispatcher(
+            new McpConfigDiscoveryService(_paths.WorkspaceRootDir)
         );
         _refactorCommandDispatcher = new WsRefactorCommandDispatcher(
             refactorService
