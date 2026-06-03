@@ -277,6 +277,16 @@ public sealed partial class WebSocketGateway
                     continue;
                 }
 
+                if (await _telemetryCommandDispatcher.TryHandleAsync(
+                        message,
+                        socket,
+                        sendLock,
+                        cancellationToken
+                    ))
+                {
+                    continue;
+                }
+
                 if (await _agentCommandDispatcher.TryHandleAsync(
                         message,
                         socket,

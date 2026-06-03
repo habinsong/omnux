@@ -197,6 +197,7 @@ internal static class Program
             appServices.Cleanup,
             appServices.Conversation,
             appServices.Tool,
+            appServices.TelemetryTracer,
             llmSettingsApplicationService,
             llmControlApplicationService,
             slashCommandRouter,
@@ -782,6 +783,8 @@ internal static class Program
             new FileAgentCommunicationStore(pathResolver),
             auditLogger
         );
+        var telemetryTracer = new TelemetryTracer(new FileTelemetryTraceStore(pathResolver));
+        var telemetryApplicationService = new TelemetryApplicationService(telemetryTracer);
         var settingsApplicationService = new SettingsApplicationService(
             runtimeSettings,
             routingPolicyResolver,
@@ -849,6 +852,8 @@ internal static class Program
             contextApplicationService,
             projectApplicationService,
             agentCommunicationApplicationService,
+            telemetryTracer,
+            telemetryApplicationService,
             cleanupService,
             taskGraphApplicationService,
             memoryApplicationService,
@@ -901,6 +906,7 @@ internal static class Program
                 appServices.Doctor,
                 appServices.Plan,
                 appServices.TaskGraph,
+                appServices.Telemetry,
                 appServices.AgentCommunication,
                 appServices.Refactor,
                 appServices.Context,
@@ -937,6 +943,8 @@ internal static class Program
         ContextApplicationService Context,
         ProjectApplicationService Project,
         AgentCommunicationApplicationService AgentCommunication,
+        TelemetryTracer TelemetryTracer,
+        TelemetryApplicationService Telemetry,
         CleanupService Cleanup,
         TaskGraphApplicationService TaskGraph,
         MemoryApplicationService Memory,

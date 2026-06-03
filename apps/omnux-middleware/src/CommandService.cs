@@ -107,6 +107,7 @@ public sealed partial class CommandService :
     private readonly CleanupService _cleanupService;
     private readonly IConversationApplicationService _conversationAppService;
     private readonly IToolApplicationService _toolAppService;
+    private readonly TelemetryTracer _telemetryTracer;
     private readonly ILlmSettingsApplicationService _llmSettingsAppService;
     private readonly ITelegramLlmMutationApplicationService _telegramLlmMutationAppService;
     private readonly ITelegramCodingSettingsApplicationService _telegramCodingSettingsAppService;
@@ -176,6 +177,7 @@ public sealed partial class CommandService :
         CleanupService cleanupService,
         IConversationApplicationService conversationAppService,
         IToolApplicationService toolAppService,
+        TelemetryTracer telemetryTracer,
         ILlmSettingsApplicationService llmSettingsAppService,
         ILlmControlApplicationService llmControlApplicationService,
         SlashCommandRouter slashCommandRouter,
@@ -238,6 +240,7 @@ public sealed partial class CommandService :
         _cleanupService = cleanupService;
         _conversationAppService = conversationAppService;
         _toolAppService = toolAppService;
+        _telemetryTracer = telemetryTracer;
         _llmSettingsAppService = llmSettingsAppService;
         _llmControlApplicationService = llmControlApplicationService;
         _slashCommandRouter = slashCommandRouter;
