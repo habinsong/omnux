@@ -14,6 +14,29 @@
 | `policy_required` | Terminal PTY 실행, Local LLM 실제 라우팅, Self-RAG 자동 주입 | 실행 권한/비용/품질 정책 필요 | capability/readiness/preflight만 표시 |
 | `architecture_deferred` | Tree-sitter 본도입, 코드 검색용 Vector DB, durable workflow auto resume | 구조 결정/의존성 검증 후 진행 | 현재 1차 snapshot/heuristic 결과만 표시 |
 
+## Backend Implementation Roadmap
+
+Git 계열은 `create_branch`, `stage_and_commit`, `snapshot_commit`, `push_current_branch`, `open_pull_request`까지 승인 게이트로 열었다. 이제 Git은 잠시 보류하고, rollback/worktree 삭제처럼 파괴적인 작업은 뒤로 미룬다.
+
+다음 구현은 아래 순서로 진행한다.
+
+| 순서 | lane | 구현 단위 | 쪼개는 기준 | 보류 기준 |
+|---|---|---|---|---|
+| 1 | Local LLM 실제 라우팅 / 오프라인 모드 | readiness를 실제 provider 선택 정책으로 연결 | 1-1 routing policy contract, 1-2 local endpoint health/fallback, 1-3 cloud 차단/offline enforcement, 1-4 tests/docs | 기존 LLM 호출 경로를 크게 흔드는 provider 재작성 |
+| 2 | Self-RAG 실행 오케스트레이터 | preflight 결과를 명시 검색 실행 plan으로 연결 | 2-1 retrieval plan 응답, 2-2 memory/code/session 실행, 2-3 web 실행은 별도 승인, 2-4 결과 pack/trace, 2-5 tests/docs | LLM 프롬프트 자동 주입, 무조건 자동 검색 |
+| 3 | Terminal PTY 승인 게이트 | terminal 실행을 preview/apply/session 모델로 제한 | 3-1 session preview/store, 3-2 start/stop, 3-3 send input + timeout/log cap, 3-4 audit/tests/docs | 무제한 shell, background daemon, 원격 dashboard 실행 |
+| 4 | MCP process/JSON-RPC 1차 | MCP 서버 실행을 terminal 승인 모델 위에 얹음 | 4-1 config allow/approval, 4-2 process lifecycle, 4-3 initialize/tools list, 4-4 tool call은 별도 단계 | 임의 command 자동 실행, tool registry 자동 주입 |
+| 5 | 구조 고도화 | Tree-sitter/Repomap 본도입, durable resume | 5-1 언어별 parser 선택, 5-2 chunk diff 검증, 5-3 prompt 주입은 opt-in, 5-4 workflow resume side-effect 정책 | 대량 의존성 추가, 기존 memory schema 대규모 변경 |
+
+커밋/작업 단위 원칙:
+
+- 한 커밋은 하나의 backend capability만 연다.
+- 실행형 기능은 항상 `snapshot/readiness → preview → apply` 순서로 쪼갠다.
+- 프론트 파일은 이 단계에서 수정하지 않는다.
+- 문서는 기능 커밋 안에 같이 갱신한다.
+- 테스트는 최소 3종을 넣는다: 성공, blocker, apply 직전 상태 변경 또는 권한 실패.
+- 2~3개 커밋 안에 끝나지 않는 기능은 architecture_deferred로 내려서 다시 쪼갠다.
+
 ## 구현됨: 에이전트 통신 버스
 
 - 후보 문서 항목: 추천 기능 2 `인터-에이전트 메시지 패싱`
