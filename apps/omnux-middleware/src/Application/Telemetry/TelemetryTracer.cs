@@ -61,6 +61,15 @@ internal sealed class TelemetryLlmCallScope : IDisposable
             _activity?.SetTag("omnux.prompt_cache.static_tokens", request.PromptCache.EstimatedStaticPrefixTokens);
             _activity?.SetTag("omnux.prompt_cache.strategy", request.PromptCache.Strategy);
         }
+
+        if (request.ModelRouting != null)
+        {
+            _activity?.SetTag("omnux.model_routing.complexity", request.ModelRouting.Complexity);
+            _activity?.SetTag("omnux.model_routing.recommended_tier", request.ModelRouting.RecommendedTier);
+            _activity?.SetTag("omnux.model_routing.cascade_eligible", request.ModelRouting.CascadeEligible);
+            _activity?.SetTag("omnux.model_routing.estimated_input_tokens", request.ModelRouting.EstimatedInputTokens);
+            _activity?.SetTag("omnux.model_routing.reason", request.ModelRouting.Reason);
+        }
     }
 
     public void Complete(string provider, string model, string responseText, TokenUsage? usage)
@@ -132,6 +141,7 @@ internal sealed class TelemetryLlmCallScope : IDisposable
         }
 
         var promptCache = _request.PromptCache;
+        var modelRouting = _request.ModelRouting;
         var item = new TelemetryTraceEvent(
             $"telemetry_{completedUtc:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}",
             OperationName,
@@ -161,7 +171,13 @@ internal sealed class TelemetryLlmCallScope : IDisposable
             PromptCacheStaticChars = Math.Max(0, promptCache?.StaticPrefixChars ?? 0),
             PromptCacheStaticTokens = Math.Max(0L, promptCache?.EstimatedStaticPrefixTokens ?? 0),
             PromptCacheStrategy = NormalizeToken(promptCache?.Strategy).ToLowerInvariant(),
-            PromptCacheReason = NormalizeToken(promptCache?.Reason).ToLowerInvariant()
+            PromptCacheReason = NormalizeToken(promptCache?.Reason).ToLowerInvariant(),
+            ModelRoutingComplexity = NormalizeToken(modelRouting?.Complexity).ToLowerInvariant(),
+            ModelRoutingRecommendedTier = NormalizeToken(modelRouting?.RecommendedTier).ToLowerInvariant(),
+            ModelRoutingCascadeEligible = modelRouting?.CascadeEligible ?? false,
+            ModelRoutingEstimatedInputTokens = Math.Max(0L, modelRouting?.EstimatedInputTokens ?? 0),
+            ModelRoutingSignals = NormalizeToken(modelRouting?.Signals).ToLowerInvariant(),
+            ModelRoutingReason = NormalizeToken(modelRouting?.Reason).ToLowerInvariant()
         };
 
         try

@@ -311,7 +311,13 @@ public sealed class FileTelemetryTraceStore
             PromptCacheStaticChars = Math.Max(0, item.PromptCacheStaticChars),
             PromptCacheStaticTokens = Math.Max(0L, item.PromptCacheStaticTokens),
             PromptCacheStrategy = NormalizeOptionalToken(item.PromptCacheStrategy).ToLowerInvariant(),
-            PromptCacheReason = NormalizeOptionalToken(item.PromptCacheReason).ToLowerInvariant()
+            PromptCacheReason = NormalizeOptionalToken(item.PromptCacheReason).ToLowerInvariant(),
+            ModelRoutingComplexity = NormalizeOptionalToken(item.ModelRoutingComplexity).ToLowerInvariant(),
+            ModelRoutingRecommendedTier = NormalizeOptionalToken(item.ModelRoutingRecommendedTier).ToLowerInvariant(),
+            ModelRoutingCascadeEligible = item.ModelRoutingCascadeEligible,
+            ModelRoutingEstimatedInputTokens = Math.Max(0L, item.ModelRoutingEstimatedInputTokens),
+            ModelRoutingSignals = NormalizeOptionalToken(item.ModelRoutingSignals).ToLowerInvariant(),
+            ModelRoutingReason = NormalizeOptionalToken(item.ModelRoutingReason).ToLowerInvariant()
         };
     }
 

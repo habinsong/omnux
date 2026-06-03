@@ -77,6 +77,22 @@
   - cache key는 hash만 저장하고 프리픽스 원문은 저장하지 않는다.
   - provider별 명시 cache API 적용은 별도 단계로 둔다.
 
+## 구현됨: 스마트 모델 라우팅 readiness 1차
+
+- 후보 문서 항목: 추천 기능 10 `스마트 모델 라우팅 게이트웨이`
+- 백엔드 구현:
+  - `ModelRoutingReadinessPolicy`
+  - `TelemetryLlmCallRequest.ModelRouting`
+  - `TelemetryTraceEvent` model routing 필드
+- 동작:
+  - LLM 입력의 추정 token 수와 키워드 signal을 기준으로 `simple`, `moderate`, `complex`를 산출한다.
+  - 추천 tier는 `economy`, `balanced`, `frontier` 중 하나다.
+  - `modelRoutingCascadeEligible=true`면 추후 저가 모델 우선 시도 후 escalation 후보로 볼 수 있다.
+- 현재 안전 정책:
+  - 실제 provider/model 선택은 변경하지 않는다.
+  - cascade retry나 품질 판정 escalation도 아직 실행하지 않는다.
+  - 프론트는 telemetry 패널에서 관찰/분석용으로만 사용한다.
+
 ## 구현됨: 에이전트 active-run watchdog 1차
 
 - 후보 문서 항목: 추천 기능 6 `셀프 힐링 워치독`
@@ -196,6 +212,12 @@ LLM 호출 telemetry 스냅샷을 조회한다.
         "promptCacheStaticTokens": 1200,
         "promptCacheStrategy": "prefix_marker",
         "promptCacheReason": "eligible_static_prefix",
+        "modelRoutingComplexity": "simple",
+        "modelRoutingRecommendedTier": "economy",
+        "modelRoutingCascadeEligible": true,
+        "modelRoutingEstimatedInputTokens": 980,
+        "modelRoutingSignals": "transform",
+        "modelRoutingReason": "simple:tokens=980:transform",
         "error": "",
         "startedUtc": "...",
         "completedUtc": "..."
@@ -231,6 +253,7 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - `events`는 최근 N개를 시간순으로 반환한다.
 - `providers`와 `total`은 필터 적용 후 전체 집계이며 `limit`으로 잘린 `events` 목록만의 집계가 아니다.
 - `promptCacheKey`와 `promptCacheAffinityKey`는 원문이 아닌 hash다. 같은 정적 프리픽스면 같은 key가 나온다.
+- `modelRouting*` 필드는 관찰용 readiness metadata다. 현재 백엔드는 이 값으로 실제 모델을 자동 교체하지 않는다.
 
 ### `sessions_spawn` + `action=status`
 
@@ -568,6 +591,7 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 
 - Telemetry/비용 패널은 `telemetry_snapshot_get`을 주기 조회해 provider별 토큰 합계와 평균 지연시간을 표시한다.
 - Prompt cache readiness는 `promptCacheEligible=true` 비율과 `promptCacheAffinityKey`별 반복 횟수로 표시한다.
+- Smart routing readiness는 `modelRoutingComplexity`, `modelRoutingRecommendedTier`, `modelRoutingCascadeEligible`을 기준으로 저가 모델 후보 비율과 frontier 필요 비율을 표시한다.
 - 실패 목록은 `status != ok` 필터로 조회하고, `error`는 짧은 기술 메시지로만 표시한다.
 - 에이전트 상태 패널은 `sessions_spawn action=status`의 `watchdog` 필드를 보고 timeout/stale 이벤트를 표시한다.
 - 세션 상세/디버깅 패널은 `session_replay_get`을 호출해 대화, agent event, LLM 호출 metadata를 단일 타임라인으로 표시한다.
@@ -583,6 +607,7 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 
 - OpenTelemetry OTLP exporter: 현재는 `ActivitySource`와 로컬 스냅샷까지 구현했다. Jaeger/Grafana Tempo/Datadog export는 외부 패키지와 운영 설정이 필요하므로 별도 단계로 둔다.
 - Provider별 실제 prompt cache API 적용: 현재는 readiness/hash/affinity telemetry만 기록한다. Gemini explicit cache, Anthropic cache control, OpenAI 자동 캐시 과금 확인은 provider adapter별 계약 검토 후 붙인다.
+- 스마트 모델 라우팅 실제 적용: 현재는 telemetry readiness만 기록한다. provider/model 자동 교체, cascade retry, 품질 미달 escalation은 사용자 선택권과 실패 복구 정책을 먼저 정해야 한다.
 - 셀프 힐링 자동 kill/restart: 현재는 timeout/stale 감지와 상태 종료까지만 구현했다. 실제 프로세스 종료와 자동 재시작은 백엔드별 안전 정책이 필요해 별도 단계로 둔다.
 - Durable Workflow 체크포인트: 로직 그래프 런타임 재개 정책과 중복 실행 방지 규칙이 필요하다. 현재 기능과 독립된 저장소만 추가하면 실효성이 낮다.
 - 세션 리플레이 append-only 결정 트리: 1차는 기존 저장소 조합 타임라인이다. LLM raw input/output, tool stdout/stderr 전체 저장은 개인정보/용량 정책이 필요해 보류한다.

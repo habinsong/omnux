@@ -30,6 +30,7 @@
 | OpenTelemetry 옵저버빌리티 | ✅ 1차 | `TelemetryTracer`, `FileTelemetryTraceStore`, `WsTelemetryCommandDispatcher` — ActivitySource + 로컬 스냅샷 |
 | 세션 리플레이 & 디버깅 | ✅ 1차 | `SessionReplayApplicationService`, `WsSessionReplayCommandDispatcher` — 대화/telemetry/agent bus 타임라인 스냅샷 |
 | 프롬프트 캐싱 최적화 | ✅ 1차 | `PromptCachePolicy`, telemetry cache key/affinity/readiness 기록 |
+| 스마트 모델 라우팅 | ✅ 1차 | `ModelRoutingReadinessPolicy`, telemetry complexity/tier/cascade readiness 기록 |
 | 벡터 임베딩 시맨틱 검색 | ⏳ Phase 6-3 | 현재 FTS 유지, Phase 6-2(Ollama) 선행 후 sqlite-vec + Ollama embed로 추가 |
 | Nightly 자기 개선 | ❌ | 검색 결과 0 |
 
@@ -405,6 +406,13 @@
 ## 추천 기능 10: 스마트 모델 라우팅 게이트웨이 (Multi-Model Cascade Router)
 
 ### 가치: ⭐⭐⭐⭐
+
+### 상태: ✅ 1차 구현
+
+- `ModelRoutingReadinessPolicy`가 LLM 입력을 `simple`, `moderate`, `complex`로 분류한다.
+- 입력 token estimate, intent signal, 추천 tier(`economy`, `balanced`, `frontier`), cascade 후보 여부를 산출한다.
+- `TelemetryTraceEvent`에 `modelRouting*` 필드로 기록해 비용/라우팅 패널에서 관찰할 수 있게 했다.
+- 실제 provider/model 자동 변경, cascade 재시도, 품질 판정 기반 escalation은 아직 적용하지 않았다. 기존 사용자 선택과 provider chain 동작은 그대로 유지한다.
 
 ### 문제
 
