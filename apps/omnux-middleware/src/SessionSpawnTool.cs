@@ -62,6 +62,7 @@ public sealed class SessionSpawnTool
     private readonly AgentSpawnWatchdogCoordinator? _watchdogCoordinator;
     private readonly AgentSpawnRunBreaker _runBreaker;
     private readonly AgentSpawnWorkspaceRollbackPolicy? _workspaceRollbackPolicy;
+    private readonly GitWorktreeIsolationManager? _worktreeIsolationManager;
     private readonly Func<DateTimeOffset> _utcNow;
 
     public SessionSpawnTool(
@@ -90,6 +91,7 @@ public sealed class SessionSpawnTool
         AgentSpawnRunBreaker? runBreaker = null,
         FileAgentSpawnActiveRunStore? activeRunStore = null,
         AgentSpawnWorkspaceRollbackPolicy? workspaceRollbackPolicy = null,
+        GitWorktreeIsolationManager? worktreeIsolationManager = null,
         Func<DateTimeOffset>? utcNow = null
     )
     {
@@ -104,6 +106,7 @@ public sealed class SessionSpawnTool
             : new AgentSpawnWatchdogCoordinator(activeRunStore, conversationStore);
         _runBreaker = runBreaker ?? new AgentSpawnRunBreaker(DefaultStatePathResolver.CreateDefault());
         _workspaceRollbackPolicy = workspaceRollbackPolicy;
+        _worktreeIsolationManager = worktreeIsolationManager;
         _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
     }
 
@@ -654,8 +657,10 @@ public sealed class SessionSpawnTool
 
         string? activeId = null;
         AgentSpawnWorkspaceBaseline? workspaceBaseline = null;
+        GitWorktreeIsolationLease? worktreeLease = null;
         try
         {
+            worktreeLease = TryPrepareWorktreeIsolation(runId, childSessionKey);
             workspaceBaseline = TryCaptureWorkspaceRollbackBaseline(runId, childSessionKey);
             _ = _conversationStore.AppendMessage(
                 childSessionKey,
@@ -701,7 +706,8 @@ public sealed class SessionSpawnTool
                     acpToolProfile,
                     acpOutputDirectory,
                     commandPriority,
-                    DefaultStatePathResolver.CreateDefault().ResolveStateFilePath("agent_spawn_breaker.json")
+                    DefaultStatePathResolver.CreateDefault().ResolveStateFilePath("agent_spawn_breaker.json"),
+                    worktreeLease?.Ready == true ? worktreeLease.WorktreePath : null
                 )
             );
             dispatchResultSnapshot = dispatchResult;
@@ -717,7 +723,8 @@ public sealed class SessionSpawnTool
                     acpLightContext,
                     acpToolProfile,
                     acpOutputDirectory,
-                    commandPriority
+                    commandPriority,
+                    worktreeLease
                 ),
                 "sessions_spawn_acp_dispatch"
             );
@@ -743,6 +750,7 @@ public sealed class SessionSpawnTool
                     dispatchResult
                 );
                 sessionNote = AppendWorkspaceRollbackNote(sessionNote, workspaceRollback);
+                sessionNote = AppendWorktreeNote(sessionNote, worktreeLease);
                 _ = _conversationStore.AppendMessage(
                     childSessionKey,
                     "assistant",
@@ -814,6 +822,7 @@ public sealed class SessionSpawnTool
                 dispatchResult
             );
             runNote = AppendWorkspaceRollbackNote(runNote, completedWorkspaceRollback);
+            runNote = AppendWorktreeNote(runNote, worktreeLease);
             return new SessionSpawnToolResult(
                 "accepted",
                 null,
@@ -900,6 +909,34 @@ public sealed class SessionSpawnTool
         }
     }
 
+    private GitWorktreeIsolationLease? TryPrepareWorktreeIsolation(string runId, string childSessionKey)
+    {
+        if (_worktreeIsolationManager == null)
+        {
+            return null;
+        }
+
+        var lease = _worktreeIsolationManager.Prepare(runId);
+        if (!lease.Enabled)
+        {
+            return lease;
+        }
+
+        _ = _conversationStore.AppendMessage(
+            childSessionKey,
+            "system",
+            $"agent_spawn_worktree status={lease.Status} ready={(lease.Ready ? "true" : "false")} path={NormalizeSingleLine(lease.WorktreePath) ?? "-"} message={NormalizeSingleLine(lease.Message) ?? "-"}",
+            lease.Ready ? "sessions_spawn_worktree_ready" : "sessions_spawn_worktree_failed"
+        );
+
+        if (!lease.Ready)
+        {
+            throw new InvalidOperationException($"worktree isolation failed: {lease.Status}: {lease.Message}");
+        }
+
+        return lease;
+    }
+
     private AgentSpawnWorkspaceRollbackSnapshot? TrySaveWorkspaceRollbackSnapshot(
         AgentSpawnWorkspaceBaseline? baseline,
         string runId,
@@ -958,6 +995,16 @@ public sealed class SessionSpawnTool
         return note
             + $" workspace_rollback_id={rollback.RollbackId} workspace_rollback_files={rollback.ChangedFiles}"
             + $" workspace_rollback_partial={(rollback.Partial ? "true" : "false")}.";
+    }
+
+    private static string AppendWorktreeNote(string note, GitWorktreeIsolationLease? lease)
+    {
+        if (lease?.Ready != true || string.IsNullOrWhiteSpace(lease.WorktreePath))
+        {
+            return note;
+        }
+
+        return $"{note} worktree_isolation={lease.Status} worktree_path={lease.WorktreePath}.";
     }
 
     private static string? BuildFailureWorkspaceRollbackNote(AgentSpawnWorkspaceRollbackSnapshot? rollback)
@@ -1314,7 +1361,8 @@ public sealed class SessionSpawnTool
         bool? acpLightContext,
         string? acpToolProfile,
         string? acpOutputDirectory,
-        string? commandPriority
+        string? commandPriority,
+        GitWorktreeIsolationLease? worktreeLease = null
     )
     {
         var lines = new List<string>
@@ -1360,6 +1408,12 @@ public sealed class SessionSpawnTool
         if (!string.IsNullOrWhiteSpace(acpOutputDirectory))
         {
             lines.Add($"acp.option.outputDirectory={NormalizeSingleLine(acpOutputDirectory)}");
+        }
+
+        if (worktreeLease?.Ready == true)
+        {
+            lines.Add($"acp.option.workspaceDirectory={NormalizeSingleLine(worktreeLease.WorktreePath)}");
+            lines.Add($"acp.worktree.status={NormalizeSingleLine(worktreeLease.Status)}");
         }
 
         if (!string.IsNullOrWhiteSpace(dispatchResult.Message))

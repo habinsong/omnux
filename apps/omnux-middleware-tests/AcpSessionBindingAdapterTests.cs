@@ -87,7 +87,8 @@ public sealed class AcpSessionBindingAdapterTests
                 ToolProfile: "playwright_only",
                 OutputDirectory: "out",
                 CommandPriority: "background",
-                BreakerStatePath: "/tmp/omnux/agent_spawn_breaker.json"
+                BreakerStatePath: "/tmp/omnux/agent_spawn_breaker.json",
+                WorkspaceDirectory: "/tmp/omnux/worktree"
             )
         );
 
@@ -95,6 +96,7 @@ public sealed class AcpSessionBindingAdapterTests
         var root = doc.RootElement;
         Assert.Equal("/tmp/omnux/agent_spawn_breaker.json", root.GetProperty("breakerStatePath").GetString());
         Assert.Equal("background", root.GetProperty("commandPriority").GetString());
+        Assert.Equal("/tmp/omnux/worktree", root.GetProperty("options").GetProperty("workspaceDirectory").GetString());
     }
 
     [Fact]
