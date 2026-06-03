@@ -22,7 +22,7 @@
 | 핸드오프 | ✅ | `WsNotebookCommandDispatcher` |
 | 컨텍스트 적응형 압축 | ✅ | `AdaptiveContextCompressionPolicy`, 토큰/문자/메시지 임계치 기반 자동 압축 |
 | 에이전트 간 메시지 패싱 | ✅ | `AgentCommunicationApplicationService`, `FileAgentCommunicationStore`, `WsAgentCommandDispatcher` |
-| MCP 서버/클라이언트 | ❌ | CodexCliWrapper에 MCP 문자열만 존재 |
+| MCP 서버/클라이언트 | ✅ 1차 | `McpConfigDiscoveryService`, `mcp_servers_list` — 설정 discovery만, 프로세스/JSON-RPC는 보류 |
 | Git worktree 격리 | ❌ | 검색 결과 0 |
 | 셀프 힐링/워치독 | ✅ 1차 | `FileAgentSpawnActiveRunStore.EvaluateWatchdog`, 백그라운드 active-run timeout/stale 감지 |
 | 자동 커밋/PR 생성 | ❌ | 검색 결과 0 |
@@ -195,6 +195,14 @@
 ## 추천 기능 4: MCP 서버 지원 (Model Context Protocol)
 
 ### 가치: ⭐⭐⭐⭐
+
+### 상태: ✅ 1차 구현 / MCP 프로세스 실행 보류
+
+- `McpConfigDiscoveryService`가 workspace의 `.mcp.json`, `.omni/mcp.json`, `.cursor/mcp.json`, `.codeium/windsurf/mcp_config.json`을 스캔한다.
+- `mcpServers` 또는 `servers` object를 파싱해 서버 이름, transport, command/url, args preview, env key 목록, enabled/status를 반환한다.
+- env 값은 반환하지 않고, token/api-key/password/secret 계열 args와 URL query 값은 redaction한다.
+- WebSocket `mcp_servers_list` 요청이 `mcp_servers_snapshot`을 반환한다.
+- 실제 MCP 서버 프로세스 start/stop, JSON-RPC handshake, tool registry 동적 주입은 서드파티 프로세스 권한/격리 정책이 필요해 다음 단계로 둔다.
 
 ### 문제
 
