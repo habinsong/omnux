@@ -54,9 +54,15 @@
 - 조회 결과는 같은 Ask 화면 안에서 제목, 설명, 상태 배지로 요약한다.
 - 자동 검색 실행이나 retrieved context 프롬프트 주입은 하지 않는다.
 
+### Terminal readiness 상세화
+
+- 인사이트 화면의 `터미널 / 툴체인 readiness` 패널이 `terminal_capabilities_get` 상세 응답을 표시하도록 확장했다.
+- shell/toolchain resolved path, backend message, readiness checks, scan time을 표시한다.
+- `ptySessionEnabled=false` 상태에서는 시작/입력/중단 컨트롤을 비활성으로 보여준다.
+- 실제 PTY 세션 생성, stdin/stdout 스트리밍, 자동 repair loop는 백엔드 정책상 보류 상태라 실행하지 않는다.
+
 ## 다음 연결 후보
 
-- Terminal PTY 승인 게이트: terminal capability snapshot 이후 preview/apply/session 모델로 실행 제어.
 - MCP process/JSON-RPC 1차: MCP readiness를 실제 프로세스 lifecycle로 확장하되 Terminal 승인 모델 재사용.
 
 ## 주의

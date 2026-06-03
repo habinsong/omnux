@@ -1,13 +1,14 @@
 import { useEffect } from "react";
-import { BrainCircuit, GitBranch, GitCommitHorizontal, Map, RefreshCcw, Sparkles } from "lucide-react";
+import { BrainCircuit, GitBranch, GitCommitHorizontal, Map, Play, RefreshCcw, Send, Sparkles, Square } from "lucide-react";
 import { CardBoundary } from "../../CardBoundary";
 import { useDesktopShellStore } from "../../shell-store";
 import { useDesktopAuthStore } from "../auth/auth-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
 import { useInsightsPageBridge, useInsightsStore } from "./insights-store";
-import { Badge, Button, cn } from "../../components/ui/primitives";
+import { Badge, Button } from "../../components/ui/primitives";
 
 type LocalLlmView = NonNullable<ReturnType<typeof useInsightsStore.getState>["localLlm"]>;
+type TerminalView = NonNullable<ReturnType<typeof useInsightsStore.getState>["terminal"]>;
 
 function statusTone(status: string): "success" | "warning" | "destructive" | "primary" | "default" {
   const v = status.toLowerCase();
@@ -118,6 +119,55 @@ function LocalLlmPanel({ local }: { local: LocalLlmView }) {
   );
 }
 
+function TerminalPanel({ terminal }: { terminal: TerminalView }) {
+  const tools = [...terminal.shells, ...terminal.toolchains];
+  const availableTools = tools.filter((item) => item.status === "available").length;
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone={statusTone(terminal.status)}>{terminal.status}</Badge>
+        <Badge tone={terminal.ptySessionEnabled ? "success" : "outline"}>PTY {terminal.ptySessionEnabled ? "on" : "off"}</Badge>
+        <Badge tone="outline">{terminal.scannedAtUtc || "scan time -"}</Badge>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label="shell" value={terminal.shells.length} sub={`${terminal.shells.filter((item) => item.status === "available").length} available`} />
+        <Stat label="toolchain" value={terminal.toolchains.length} sub={`${availableTools} usable total`} />
+        <Stat label="checks" value={terminal.checks.length} sub={terminal.ptySessionEnabled ? "execution enabled" : "snapshot only"} />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" disabled={!terminal.ptySessionEnabled}>
+          <Play size={13} aria-hidden="true" /> 시작
+        </Button>
+        <Button variant="outline" size="sm" disabled={!terminal.ptySessionEnabled}>
+          <Send size={13} aria-hidden="true" /> 입력
+        </Button>
+        <Button variant="outline" size="sm" disabled={!terminal.ptySessionEnabled}>
+          <Square size={13} aria-hidden="true" /> 중단
+        </Button>
+      </div>
+      <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+        <div className="min-w-0 space-y-1">
+          {tools.map((item) => (
+            <Row
+              key={`${item.kind}-${item.name}-${item.command}`}
+              left={item.name}
+              sub={`${item.resolvedPath || item.command} · ${item.message || item.kind}`}
+              right={<Badge tone={statusTone(item.status)}>{item.status}</Badge>}
+            />
+          ))}
+          {tools.length === 0 ? <Empty label="조회된 shell/toolchain 없음" /> : null}
+        </div>
+        <div className="min-w-0 space-y-1">
+          {terminal.checks.map((check) => (
+            <Row key={check.name} left={check.name} sub={check.message} right={<Badge tone={statusTone(check.status)}>{check.status}</Badge>} />
+          ))}
+          {terminal.checks.length === 0 ? <Empty label="terminal readiness check 없음" /> : null}
+        </div>
+      </div>
+    </>
+  );
+}
+
 export function InsightsPage() {
   useInsightsPageBridge();
   const bridgeStatus = useDesktopShellStore((state) => state.bridge.status);
@@ -215,17 +265,7 @@ export function InsightsPage() {
 
         <CardBoundary title="터미널 / 툴체인 readiness" card="runtime" onError={recordCardError}>
           {store.terminal ? (
-            <>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge tone={statusTone(store.terminal.status)}>{store.terminal.status}</Badge>
-                <Badge tone={store.terminal.ptySessionEnabled ? "success" : "outline"}>PTY {store.terminal.ptySessionEnabled ? "on" : "off"}</Badge>
-              </div>
-              <div className={cn("grid gap-1", "grid-cols-1 sm:grid-cols-2")}>
-                {[...store.terminal.shells, ...store.terminal.toolchains].map((item) => (
-                  <Row key={`${item.name}-${item.command}`} left={item.name} sub={item.command} right={<Badge tone={statusTone(item.status)}>{item.status}</Badge>} />
-                ))}
-              </div>
-            </>
+            <TerminalPanel terminal={store.terminal} />
           ) : (
             <Empty label="새로고침하면 shell·toolchain 가용성이 표시됩니다." />
           )}
