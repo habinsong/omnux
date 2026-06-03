@@ -14,7 +14,7 @@
 | 스킬 자가 생성 | ✅ | `SkillCreateDirective` |
 | 로직 그래프 워크플로우 | ✅ | 노드 기반 비주얼 프로그래밍 런타임 |
 | FTS 코드베이스 인덱싱 | ✅ | `MemoryIndexDocumentSync` SQLite FTS |
-| 구조 인식 청킹 | ✅ 1차 | `MemoryChunkingPolicy`, C#/JS/TS/Python 선언 경계 기반 chunk plan |
+| 구조 인식 청킹 / Repomap | ✅ 1차+ | `MemoryChunkingPolicy`, `CodeRepomapSnapshotService`, C#/JS/TS/Python 선언 경계 chunk plan + read-only 구조 지도 |
 | 계층적 메모리 | ✅ 1차 | `MemoryTierPolicy`, `chunks.memory_tier/last_accessed_at`, tier-aware 검색 점수 |
 | 비용 제한 (Run Breaker) | ✅ | `AgentSpawnRunBreaker`, 60K 토큰/일 |
 | 검색 증거 검증 | ✅ | `SearchGuard`, `EvidencePack` |
@@ -731,13 +731,14 @@
 
 ### 가치: ⭐⭐⭐⭐⭐ — **핵심 RAG 아키텍처로 격상 (최우선 도입)**
 
-### 상태: ✅ 1차 구현 / Tree-sitter 본도입 보류
+### 상태: ✅ 1차+ 구현 / Tree-sitter 본도입 보류
 
 - `MemoryChunkingPolicy`를 추가해 프로젝트 코드 파일의 chunk plan을 `MemoryIndexDocumentSync` 밖으로 분리했다.
 - C#, JS/MJS, TS/TSX, Python 파일은 선언 경계(class/interface/function/method/constructor)를 기준으로 chunk를 나눈다.
 - memory note와 conversation 문서는 기존 sliding window 청킹을 유지한다.
 - 큰 선언 블록은 기존 max token/overlap 기준으로 fallback split한다.
-- 실제 Tree-sitter 파서, 다언어 AST node 추출, Repomap 생성/프롬프트 주입은 외부 패키지와 언어별 grammar 검증이 필요해 다음 단계로 둔다.
+- `CodeRepomapSnapshotService`와 WebSocket `code_repomap_snapshot_get`을 추가해 C#/JS/TS/Python 선언 signature를 읽기 전용 구조 지도로 반환한다.
+- 실제 Tree-sitter 파서, 다언어 AST node 추출, Repomap 프롬프트 자동 주입은 외부 패키지와 언어별 grammar 검증이 필요해 다음 단계로 둔다.
 
 ### 문제
 
@@ -937,6 +938,12 @@
 | **기존 FTS5(BM25) 유지** | ✅ **기본값** | 코드 검색은 BM25가 dense보다 우수함. AST 청킹과 결합 시 시너지 극대화 |
 | Ollama embed API | ⚠️ 보류 | 무거운 벡터 연산. 추후 자연어 쿼리(과거 대화/기획 문서) 검색에만 제한적 사용 |
 | ONNX / Rust Candle | ❌ 기각 | 빌드 복잡도 증가, 용량 폭증, 아키텍처 원칙 위반 |
+
+### 상태: ✅ 1차 확장 구현
+
+- `code_repomap_snapshot_get`은 외부 parser 없이 현재 workspace의 `apps`, `scripts`, `workspace` 하위 C#/JS/TS/Python 파일을 스캔한다.
+- 반환값은 파일별 `symbols[]`와 `signature`, `line`, `kind`이며, LLM 프롬프트 주입은 아직 하지 않는다.
+- 이 snapshot은 프론트 구조 지도와 추후 Tree-sitter 교체 전 계약 안정화용이다.
 
 ### 추가 아이디어
 

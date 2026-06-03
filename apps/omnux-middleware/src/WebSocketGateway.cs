@@ -92,6 +92,7 @@ public sealed partial class WebSocketGateway
     private readonly WsSelfImprovementCommandDispatcher _selfImprovementCommandDispatcher;
     private readonly WsLocalLlmCommandDispatcher _localLlmCommandDispatcher;
     private readonly WsTerminalCommandDispatcher _terminalCommandDispatcher;
+    private readonly WsCodeRepomapCommandDispatcher _codeRepomapCommandDispatcher;
     private readonly WsRefactorCommandDispatcher _refactorCommandDispatcher;
     private readonly WsContextCommandDispatcher _contextCommandDispatcher;
     private readonly WsNotebookCommandDispatcher _notebookCommandDispatcher;
@@ -295,6 +296,9 @@ public sealed partial class WebSocketGateway
         );
         _terminalCommandDispatcher = new WsTerminalCommandDispatcher(
             new TerminalCapabilitySnapshotService()
+        );
+        _codeRepomapCommandDispatcher = new WsCodeRepomapCommandDispatcher(
+            new CodeRepomapSnapshotService(_paths.WorkspaceRootDir)
         );
         _refactorCommandDispatcher = new WsRefactorCommandDispatcher(
             refactorService

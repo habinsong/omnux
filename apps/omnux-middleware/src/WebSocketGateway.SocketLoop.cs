@@ -367,6 +367,16 @@ public sealed partial class WebSocketGateway
                     continue;
                 }
 
+                if (await _codeRepomapCommandDispatcher.TryHandleAsync(
+                        message,
+                        socket,
+                        sendLock,
+                        cancellationToken
+                    ))
+                {
+                    continue;
+                }
+
                 if (await _refactorCommandDispatcher.TryHandleAsync(
                         message,
                         socket,
