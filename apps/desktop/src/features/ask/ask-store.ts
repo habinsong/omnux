@@ -5,6 +5,18 @@ import { requestDesktopInsights } from "../middleware/insights-gateway";
 import { requestDesktopRag } from "../middleware/rag-gateway";
 import { requestConfirmDialog, requestPromptDialog } from "../dialog/dialog-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
+import {
+  buildRagExecution,
+  normalizeMemoryRagExecution,
+  normalizeRagPreflight,
+  normalizeRepomapRagExecution,
+  normalizeSessionReplayRagExecution,
+  normalizeSessionReplayResultExecution,
+  normalizeWebRagExecution,
+  type AskRagCandidate,
+  type AskRagExecution,
+  type AskRagPreflight
+} from "./ask-rag";
 
 export type AskConversationItem = {
   id: string;
@@ -26,27 +38,6 @@ export type AskChatMode = "single" | "orchestration" | "multi";
 export type AskMultiResult = {
   summary: string;
   providers: Array<{ key: string; label: string; model: string; text: string }>;
-};
-
-export type AskRagPreflight = {
-  status: string;
-  queryPreview: string;
-  retrievalRecommended: boolean;
-  primaryStrategy: string;
-  signals: string[];
-  candidates: Array<{ kind: string; priority: string; recommended: boolean; reason: string; suggestedRequestType: string }>;
-  skipped: string[];
-};
-
-export type AskRagCandidate = AskRagPreflight["candidates"][number];
-
-export type AskRagExecution = {
-  kind: string;
-  requestType: string;
-  status: string;
-  loading: boolean;
-  error: string;
-  items: Array<{ title: string; detail: string; badge: string }>;
 };
 
 type AskState = {
@@ -125,36 +116,6 @@ function normalizeMultiResult(message: DesktopServerMessage): AskMultiResult {
       }))
       .filter((item) => item.model || item.text)
   };
-}
-
-function records(value: unknown): Record<string, unknown>[] {
-  return Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
-}
-
-function str(value: unknown): string {
-  return typeof value === "string" ? value : value == null ? "" : String(value);
-}
-
-function normalizeRagPreflight(payload: Record<string, unknown>): AskRagPreflight {
-  return {
-    status: str(payload.status),
-    queryPreview: str(payload.queryPreview),
-    retrievalRecommended: !!payload.retrievalRecommended,
-    primaryStrategy: str(payload.primaryStrategy),
-    signals: Array.isArray(payload.signals) ? payload.signals.map(str) : [],
-    candidates: records(payload.candidates).map((candidate) => ({
-      kind: str(candidate.kind),
-      priority: str(candidate.priority),
-      recommended: !!candidate.recommended,
-      reason: str(candidate.reason),
-      suggestedRequestType: str(candidate.suggestedRequestType)
-    })),
-    skipped: Array.isArray(payload.skipped) ? payload.skipped.map(str) : []
-  };
-}
-
-function buildRagExecution(kind: string, requestType: string, loading = false): AskRagExecution {
-  return { kind, requestType, status: loading ? "running" : "idle", loading, error: "", items: [] };
 }
 
 export const useAskStore = create<AskState>((set, get) => ({
@@ -347,90 +308,30 @@ export function useAskPageBridge() {
     }
 
     if (message.type === "memory_search_result" && store.ragExecution?.requestType === "memory_search") {
-      useAskStore.setState({
-        ragExecution: {
-          ...store.ragExecution,
-          loading: false,
-          status: String(message.error || "") ? "error" : "done",
-          error: String(message.error || ""),
-          items: records(message.results).slice(0, 6).map((item) => ({
-            title: str(item.path || item.fullPath || item.noteName || "memory"),
-            detail: str(item.snippet || item.excerpt || ""),
-            badge: Number(item.score || 0).toFixed(2)
-          }))
-        }
-      });
+      useAskStore.setState({ ragExecution: normalizeMemoryRagExecution(store.ragExecution, message) });
       return;
     }
 
     if (message.type === "web_search_result" && store.ragExecution?.requestType === "web_search") {
-      useAskStore.setState({
-        ragExecution: {
-          ...store.ragExecution,
-          loading: false,
-          status: String(message.error || "") ? "error" : "done",
-          error: String(message.error || ""),
-          items: records(message.results).slice(0, 6).map((item) => ({
-            title: str(item.title || item.url || "web result"),
-            detail: str(item.description || item.snippet || item.url),
-            badge: str(message.provider || "web")
-          }))
-        }
-      });
+      useAskStore.setState({ ragExecution: normalizeWebRagExecution(store.ragExecution, message) });
       return;
     }
 
     if (message.type === "code_repomap_snapshot" && store.ragExecution?.requestType === "code_repomap_snapshot_get") {
       const payload = (message.payload || {}) as Record<string, unknown>;
-      useAskStore.setState({
-        ragExecution: {
-          ...store.ragExecution,
-          loading: false,
-          status: str(payload.status || "done"),
-          error: "",
-          items: records(payload.files).slice(0, 6).map((file) => {
-            const symbols = records(file.symbols);
-            const first = symbols[0] || {};
-            return {
-              title: str(file.path || "file"),
-              detail: first.name ? `${str(first.kind)} ${str(first.name)} · line ${Number(first.line || 0)}` : str(file.language || ""),
-              badge: String(file.symbolCount || symbols.length || 0)
-            };
-          })
-        }
-      });
+      useAskStore.setState({ ragExecution: normalizeRepomapRagExecution(store.ragExecution, payload) });
       return;
     }
 
     if (message.type === "session_replay_snapshot" && store.ragExecution?.requestType === "session_replay_get") {
       const payload = (message.payload || {}) as Record<string, unknown>;
-      useAskStore.setState({
-        ragExecution: {
-          ...store.ragExecution,
-          loading: false,
-          status: "done",
-          error: "",
-          items: records(payload.events).slice(0, 6).map((event) => ({
-            title: str(event.title || event.kind || "event"),
-            detail: str(event.summary || event.meta || event.source),
-            badge: str(event.severity || event.source || "event")
-          }))
-        }
-      });
+      useAskStore.setState({ ragExecution: normalizeSessionReplayRagExecution(store.ragExecution, payload) });
       return;
     }
 
     if (message.type === "session_replay_result" && store.ragExecution?.requestType === "session_replay_get") {
       const payload = (message.payload || {}) as Record<string, unknown>;
-      useAskStore.setState({
-        ragExecution: {
-          ...store.ragExecution,
-          loading: false,
-          status: payload.ok === false ? "error" : "done",
-          error: str(payload.message),
-          items: []
-        }
-      });
+      useAskStore.setState({ ragExecution: normalizeSessionReplayResultExecution(store.ragExecution, payload) });
       return;
     }
 
