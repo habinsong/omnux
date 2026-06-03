@@ -234,6 +234,7 @@ internal static class Program
         ));
         var commandExecutionService = new CommandExecutionService(commandService, executionContext);
         var routineLlmGateway = commandService.CreateRoutineLlmGateway();
+        var routineSearchGateway = commandService.CreateRoutineSearchGateway();
         var routineLogicGraphRunner = commandService.CreateRoutineLogicGraphRunner();
         var routineApplicationService = new RoutineApplicationService(
             config.Providers,
@@ -249,6 +250,7 @@ internal static class Program
             toolServices.SessionSpawn,
             routineRegistry,
             routineLlmGateway,
+            routineSearchGateway,
             routineLogicGraphRunner
         );
         slashCommandHandlers.Add(new RoutineSlashCommandHandler(routineApplicationService));

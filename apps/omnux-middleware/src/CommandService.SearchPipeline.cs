@@ -13,11 +13,13 @@ public sealed partial class CommandService
         string Provider,
         string Model
     );
-    private readonly record struct GeminiGroundedWebAnswerResult(
-        LlmSingleChatResult Response,
-        ChatLatencyMetrics? Latency,
-        IReadOnlyList<SearchCitationReference>? Citations = null
-    );
+    private GeminiUrlContextAnswerService? _urlContextAnswerService;
+
+    // URL context answer(Gemini)의 단일 소스. routine search gateway와 SearchPipeline/chat/telegram이
+    // 같은 서비스 인스턴스를 공유한다. (결함 #4 공유 chat 엔진 분리 — URL context 슬라이스)
+    private GeminiUrlContextAnswerService UrlContextAnswerService =>
+        _urlContextAnswerService ??= new GeminiUrlContextAnswerService(_providers, _context, _llmRouter, WebFetchClient);
+
     private async Task<WebNeedDecisionResult> DecideNeedWebBySelectedProviderAsync(
         string input,
         string provider,
@@ -95,7 +97,7 @@ public sealed partial class CommandService
         return SearchPromptPolicy.BuildWebNeedDecisionPrompt(normalizedInput);
     }
 
-    private async Task<GeminiGroundedWebAnswerResult> GenerateGeminiUrlContextAnswerDetailedAsync(
+    private Task<GeminiGroundedWebAnswerResult> GenerateGeminiUrlContextAnswerDetailedAsync(
         string input,
         IReadOnlyList<string> urls,
         string memoryHint,
@@ -110,139 +112,21 @@ public sealed partial class CommandService
         CancellationToken cancellationToken
     )
     {
-        var model = ResolveUrlContextLlmModel();
-        const bool includeGoogleSearch = false;
-        const string route = "gemini-url-single";
-        var chunkIndex = 0;
-        Action<string>? deltaCallback = null;
-        if (streamCallback != null)
-        {
-            deltaCallback = delta =>
-            {
-                if (string.IsNullOrEmpty(delta))
-                {
-                    return;
-                }
-
-                chunkIndex += 1;
-                streamCallback(new ChatStreamUpdate(scope, mode, conversationId, "gemini", model, route, delta, chunkIndex));
-            };
-        }
-
-        var promptStopwatch = Stopwatch.StartNew();
-        var repositoryContext = await TryLoadRepositoryContextSnapshotAsync(input, urls, cancellationToken);
-        var extractiveRepositoryAnswer = repositoryContext.HasValue
-            ? SearchUrlContextPolicy.TryBuildRepositoryExtractiveAnswer(
-                input,
-                repositoryContext.Value.Description,
-                repositoryContext.Value.ReadmeText
-            )
-            : string.Empty;
-        if (!string.IsNullOrWhiteSpace(extractiveRepositoryAnswer))
-        {
-            var extractiveSanitizeStopwatch = Stopwatch.StartNew();
-            var extractiveOutputText = SearchAnswerFormatterPolicy.EnsureReadableWebAnswerResponse(extractiveRepositoryAnswer, input, allowMarkdownTable);
-            var extractiveSanitizeMs = Math.Max(0L, extractiveSanitizeStopwatch.ElapsedMilliseconds);
-            ChatLatencyMetrics? extractiveLatency = null;
-            if (!string.IsNullOrWhiteSpace(decisionPath))
-            {
-                extractiveLatency = new ChatLatencyMetrics(
-                    decisionMs,
-                    Math.Max(0L, promptStopwatch.ElapsedMilliseconds),
-                    0,
-                    Math.Max(0L, promptStopwatch.ElapsedMilliseconds),
-                    extractiveSanitizeMs,
-                    decisionPath
-                );
-            }
-
-            if (deltaCallback != null)
-            {
-                deltaCallback(extractiveOutputText);
-            }
-
-            return new GeminiGroundedWebAnswerResult(
-                new LlmSingleChatResult("gemini", model, extractiveOutputText),
-                extractiveLatency,
-                Array.Empty<SearchCitationReference>()
-            );
-        }
-
-        var prompt = BuildGeminiUrlContextAnswerPrompt(
+        // 단일 소스: URL context answer 로직은 GeminiUrlContextAnswerService가 소유한다.
+        // chat/telegram(이 경로)과 routine search gateway가 같은 서비스를 공유한다.
+        return UrlContextAnswerService.GenerateAsync(
             input,
             urls,
             memoryHint,
             allowMarkdownTable,
             enforceTelegramOutputStyle,
-            includeGoogleSearch,
-            repositoryContext
-        );
-        var maxOutputTokens = ResolveGeminiUrlContextMaxOutputTokens(input);
-        var promptBuildMs = Math.Max(0L, promptStopwatch.ElapsedMilliseconds);
-        GeminiUrlContextChatResponse response;
-        if (repositoryContext.HasValue)
-        {
-            var directStopwatch = Stopwatch.StartNew();
-            var directText = await _llmRouter.GenerateGeminiChatAsync(
-                prompt,
-                model,
-                maxOutputTokens,
-                cancellationToken
-            );
-            response = new GeminiUrlContextChatResponse(
-                directText,
-                0,
-                Math.Max(0L, directStopwatch.ElapsedMilliseconds),
-                Array.Empty<SearchCitationReference>()
-            );
-            if (deltaCallback != null && !string.IsNullOrWhiteSpace(directText))
-            {
-                deltaCallback(directText);
-            }
-        }
-        else
-        {
-            response = await _llmRouter.GenerateGeminiUrlContextChatStreamingAsync(
-                prompt,
-                model,
-                maxOutputTokens,
-                _context.GeminiWebTimeoutMs,
-                includeGoogleSearch,
-                deltaCallback,
-                cancellationToken
-            );
-        }
-
-        var sanitizeStopwatch = Stopwatch.StartNew();
-        string outputText;
-        if (SearchPromptPolicy.IsGeminiUrlContextFailureText(response.Text))
-        {
-            outputText = BuildGeminiUrlContextFailureNotice(input, response.Text);
-        }
-        else
-        {
-            outputText = ChatOutputSanitizerPolicy.Sanitize(response.Text, keepMarkdownTables: allowMarkdownTable);
-            outputText = SearchAnswerFormatterPolicy.EnsureReadableWebAnswerResponse(outputText, input, allowMarkdownTable);
-        }
-
-        var sanitizeMs = Math.Max(0L, sanitizeStopwatch.ElapsedMilliseconds);
-        ChatLatencyMetrics? latency = null;
-        if (!string.IsNullOrWhiteSpace(decisionPath))
-        {
-            latency = new ChatLatencyMetrics(
-                decisionMs,
-                promptBuildMs,
-                response.FirstChunkMs,
-                response.FullResponseMs,
-                sanitizeMs,
-                decisionPath
-            );
-        }
-
-        return new GeminiGroundedWebAnswerResult(
-            new LlmSingleChatResult("gemini", model, outputText),
-            latency,
-            response.Citations
+            streamCallback,
+            scope,
+            mode,
+            conversationId,
+            decisionPath,
+            decisionMs,
+            cancellationToken
         );
     }
 
@@ -367,46 +251,6 @@ public sealed partial class CommandService
             new LlmSingleChatResult("gemini", model, outputText),
             latency
         );
-    }
-
-    private string BuildGeminiUrlContextAnswerPrompt(
-        string input,
-        IReadOnlyList<string> urls,
-        string memoryHint,
-        bool allowMarkdownTable,
-        bool enforceTelegramOutputStyle,
-        bool includeGoogleSearch,
-        SearchRepositoryContextSnapshot? repositoryContext = null
-    )
-    {
-        var promptRepositoryContext = repositoryContext.HasValue
-            ? new SearchPromptRepositoryContext(
-                repositoryContext.Value.RepositorySlug,
-                repositoryContext.Value.Description,
-                repositoryContext.Value.ReadmeText
-            )
-            : (SearchPromptRepositoryContext?)null;
-        return SearchPromptPolicy.BuildGeminiUrlContextAnswerPrompt(
-            input,
-            urls,
-            memoryHint,
-            allowMarkdownTable,
-            enforceTelegramOutputStyle,
-            includeGoogleSearch,
-            _context.WebDefaultNewsCount,
-            _context.WebDefaultListCount,
-            promptRepositoryContext
-        );
-    }
-
-    private async Task<SearchRepositoryContextSnapshot?> TryLoadRepositoryContextSnapshotAsync(
-        string input,
-        IReadOnlyList<string> urls,
-        CancellationToken cancellationToken
-    )
-    {
-        var loader = new GitHubRepositoryContextLoader(WebFetchClient);
-        return await loader.TryLoadAsync(input, urls, cancellationToken);
     }
 
     private string BuildGeminiWebAnswerPrompt(
@@ -601,20 +445,6 @@ public sealed partial class CommandService
             _context.WebDefaultNewsCount,
             _context.WebDefaultListCount
         );
-    }
-
-    private int ResolveGeminiUrlContextMaxOutputTokens(string input)
-    {
-        return SearchPromptPolicy.ResolveGeminiUrlContextMaxOutputTokens(
-            input,
-            _context.WebDefaultNewsCount,
-            _context.WebDefaultListCount
-        );
-    }
-
-    private string BuildGeminiUrlContextFailureNotice(string input, string failureText)
-    {
-        return SearchPromptPolicy.BuildGeminiUrlContextFailureNotice(input, failureText);
     }
 
     private string BuildGeminiWebFailureNotice(string input, string failureText)
