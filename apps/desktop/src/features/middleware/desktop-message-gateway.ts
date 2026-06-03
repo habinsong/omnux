@@ -37,7 +37,9 @@ export type DesktopRequestType =
   | "canvas"
   | "get_routines"
   | "run_routine"
-  | "delete_routine";
+  | "delete_routine"
+  | "create_routine"
+  | "preview_routine";
 
 export type DesktopRequestPayload = Record<string, unknown> & {
   type: DesktopRequestType;
@@ -77,7 +79,9 @@ const DESKTOP_ALLOWED_REQUESTS = new Set<DesktopRequestType>([
   "canvas",
   "get_routines",
   "run_routine",
-  "delete_routine"
+  "delete_routine",
+  "create_routine",
+  "preview_routine"
 ]);
 const DESKTOP_PUBLIC_REQUESTS = new Set<DesktopRequestType>([
   "request_otp",
@@ -246,5 +250,52 @@ export const requestDesktopRoutine = {
   },
   deleteRoutine(routineId: string) {
     return sendDesktopRequest({ type: "delete_routine", routineId });
+  },
+  previewRoutine(form: RoutineCreateInput) {
+    return sendDesktopRequest({ type: "preview_routine", ...buildRoutinePreviewPayload(form) });
+  },
+  createRoutine(form: RoutineCreateInput) {
+    return sendDesktopRequest({ type: "create_routine", ...buildRoutineCreatePayload(form) });
   }
 };
+
+// React 폼 입력 → 미들웨어 routine 필드 변환. UI는 폼만 넘기고 필드명/형변환은 gateway가 맡는다.
+export interface RoutineCreateInput {
+  title: string;
+  request: string;
+  scheduleKind: string;
+  scheduleTime: string;
+  weekdays: number[];
+  dayOfMonth: number;
+  runImmediately: boolean;
+  notifyTelegram: boolean;
+}
+
+function buildRoutineSchedulePayload(form: RoutineCreateInput): Record<string, unknown> {
+  const kind = form.scheduleKind || "manual";
+  const payload: Record<string, unknown> = { scheduleKind: kind };
+  if (kind === "daily" || kind === "weekly" || kind === "monthly") {
+    payload.scheduleTime = form.scheduleTime || "08:00";
+  }
+  if (kind === "weekly") {
+    payload.weekdays = Array.isArray(form.weekdays) ? form.weekdays : [];
+  }
+  if (kind === "monthly") {
+    payload.dayOfMonth = form.dayOfMonth || 1;
+  }
+  return payload;
+}
+
+function buildRoutinePreviewPayload(form: RoutineCreateInput): Record<string, unknown> {
+  return { text: form.request.trim(), ...buildRoutineSchedulePayload(form) };
+}
+
+function buildRoutineCreatePayload(form: RoutineCreateInput): Record<string, unknown> {
+  return {
+    text: form.request.trim(),
+    title: form.title.trim(),
+    runImmediately: !!form.runImmediately,
+    notifyTelegram: !!form.notifyTelegram,
+    ...buildRoutineSchedulePayload(form)
+  };
+}
