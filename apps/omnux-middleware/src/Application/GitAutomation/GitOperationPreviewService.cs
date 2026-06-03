@@ -35,7 +35,7 @@ internal sealed class GitOperationPreviewService
         var blockers = new List<string>();
         var warnings = new List<string>();
 
-        if (!GitOperationNames.IsLocalAllowed(operation))
+        if (!GitOperationNames.IsAllowed(operation))
         {
             AddBlocked(checks, blockers, "unsupported_operation", "지원하지 않는 Git operation입니다.");
             return BuildBlockedPreview(operation, checks, blockers, warnings);
@@ -57,6 +57,18 @@ internal sealed class GitOperationPreviewService
         {
             await ValidateCreateBranchAsync(
                 normalizedRequest,
+                statusFiles,
+                checks,
+                blockers,
+                warnings,
+                cancellationToken
+            ).ConfigureAwait(false);
+        }
+        else if (operation == GitOperationNames.PushCurrentBranch)
+        {
+            normalizedRequest = await ValidatePushCurrentBranchAsync(
+                normalizedRequest,
+                repository,
                 statusFiles,
                 checks,
                 blockers,
@@ -91,7 +103,10 @@ internal sealed class GitOperationPreviewService
             repository.BranchName,
             normalizedRequest.BranchName,
             normalizedRequest.CommitMessage,
-            normalizedRequest.Paths
+            normalizedRequest.Paths,
+            normalizedRequest.RemoteName,
+            normalizedRequest.RemoteBranchName,
+            normalizedRequest.SetUpstream
         );
         var record = new GitOperationPreviewRecord(
             previewId,
@@ -184,19 +199,24 @@ internal sealed class GitOperationPreviewService
     {
         var branchName = (request.BranchName ?? string.Empty).Trim();
         var commitMessage = NormalizeCommitMessage(request.CommitMessage);
+        var remoteName = (request.RemoteName ?? string.Empty).Trim();
+        var remoteBranchName = (request.RemoteBranchName ?? string.Empty).Trim();
         var paths = new List<string>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var rawPath in request.Paths ?? Array.Empty<string>())
+        if (operation is GitOperationNames.StageAndCommit or GitOperationNames.SnapshotCommit)
         {
-            if (!TryNormalizeRepositoryPath(rawPath, out var normalizedPath, out var pathError))
+            foreach (var rawPath in request.Paths ?? Array.Empty<string>())
             {
-                AddBlocked(checks, blockers, pathError, $"허용되지 않는 경로입니다: {rawPath}");
-                continue;
-            }
+                if (!TryNormalizeRepositoryPath(rawPath, out var normalizedPath, out var pathError))
+                {
+                    AddBlocked(checks, blockers, pathError, $"허용되지 않는 경로입니다: {rawPath}");
+                    continue;
+                }
 
-            if (seen.Add(normalizedPath))
-            {
-                paths.Add(normalizedPath);
+                if (seen.Add(normalizedPath))
+                {
+                    paths.Add(normalizedPath);
+                }
             }
         }
 
@@ -216,7 +236,15 @@ internal sealed class GitOperationPreviewService
             AddBlocked(checks, blockers, "too_many_paths", $"한 번에 처리 가능한 파일은 최대 {MaxPathCount}개입니다.");
         }
 
-        return new GitOperationPreviewRequest(operation, branchName, commitMessage, paths);
+        return new GitOperationPreviewRequest(
+            operation,
+            branchName,
+            commitMessage,
+            paths,
+            remoteName,
+            remoteBranchName,
+            request.SetUpstream
+        );
     }
 
     private async Task ValidateCreateBranchAsync(
@@ -275,6 +303,123 @@ internal sealed class GitOperationPreviewService
             warnings.Add("dirty_worktree");
             checks.Add(new GitOperationCheck("dirty_worktree", "warning", "변경 중인 파일이 있는 상태에서 브랜치를 생성합니다."));
         }
+    }
+
+    private async Task<GitOperationPreviewRequest> ValidatePushCurrentBranchAsync(
+        GitOperationPreviewRequest request,
+        RepositoryState repository,
+        IReadOnlyList<GitOperationAffectedFile> statusFiles,
+        List<GitOperationCheck> checks,
+        List<string> blockers,
+        List<string> warnings,
+        CancellationToken cancellationToken
+    )
+    {
+        if (repository.BranchName == "HEAD" || string.IsNullOrWhiteSpace(repository.BranchName))
+        {
+            AddBlocked(checks, blockers, "detached_head", "detached HEAD 상태에서는 push할 수 없습니다.");
+            return request;
+        }
+
+        if (IsProtectedBranch(repository.BranchName))
+        {
+            AddBlocked(checks, blockers, "protected_branch_push", "보호 브랜치 push는 2차 게이트에서 허용하지 않습니다.");
+        }
+        else
+        {
+            checks.Add(new GitOperationCheck("protected_branch", "passed", "보호 브랜치가 아닙니다."));
+        }
+
+        var remotes = await ReadRemoteNamesAsync(cancellationToken).ConfigureAwait(false);
+        if (remotes.Count == 0)
+        {
+            AddBlocked(checks, blockers, "no_remote", "설정된 git remote가 없습니다.");
+            return request;
+        }
+
+        var upstream = await ReadUpstreamAsync(remotes, cancellationToken).ConfigureAwait(false);
+        var remoteName = ResolvePushRemoteName(request.RemoteName, upstream, remotes, checks, blockers);
+        var remoteBranchName = ResolvePushRemoteBranchName(request.RemoteBranchName, upstream, repository.BranchName);
+        if (string.IsNullOrWhiteSpace(remoteName))
+        {
+            return request;
+        }
+
+        if (!remotes.Contains(remoteName, StringComparer.Ordinal))
+        {
+            AddBlocked(checks, blockers, "unknown_remote", "요청한 remote가 현재 저장소에 없습니다.");
+        }
+        else
+        {
+            checks.Add(new GitOperationCheck("remote", "passed", $"remote '{remoteName}' 확인 완료"));
+        }
+
+        if (!IsSafeRemoteName(remoteName))
+        {
+            AddBlocked(checks, blockers, "invalid_remote_name", "remote 이름 형식이 안전하지 않습니다.");
+        }
+
+        if (!IsSafeBranchNameShape(remoteBranchName))
+        {
+            AddBlocked(checks, blockers, "invalid_remote_branch_name", "remote branch 이름 형식이 안전하지 않습니다.");
+        }
+        else
+        {
+            var checkRef = await RunGitAsync(
+                new[] { "check-ref-format", "--branch", remoteBranchName },
+                cancellationToken
+            ).ConfigureAwait(false);
+            if (checkRef.ExitCode != 0)
+            {
+                AddBlocked(checks, blockers, "invalid_remote_branch_name", "remote branch git ref 검증에 실패했습니다.");
+            }
+        }
+
+        if (!upstream.HasUpstream && !repository.BranchName.StartsWith("codex/", StringComparison.Ordinal))
+        {
+            AddBlocked(checks, blockers, "initial_push_requires_codex_branch", "upstream 없는 최초 push는 codex/ 브랜치만 허용합니다.");
+        }
+
+        if (upstream.HasUpstream)
+        {
+            if (!string.Equals(remoteName, upstream.RemoteName, StringComparison.Ordinal)
+                || !string.Equals(remoteBranchName, upstream.BranchName, StringComparison.Ordinal))
+            {
+                AddBlocked(checks, blockers, "push_target_mismatch", "기존 upstream과 다른 push target은 허용하지 않습니다.");
+            }
+
+            if (upstream.BehindCount > 0)
+            {
+                AddBlocked(checks, blockers, "branch_behind_remote", "현재 브랜치가 upstream보다 뒤처져 있습니다.");
+            }
+            else
+            {
+                checks.Add(new GitOperationCheck("upstream_behind", "passed", "upstream보다 뒤처지지 않았습니다."));
+            }
+
+            if (upstream.AheadCount <= 0)
+            {
+                AddBlocked(checks, blockers, "nothing_to_push", "upstream에 push할 새 커밋이 없습니다.");
+            }
+        }
+        else
+        {
+            checks.Add(new GitOperationCheck("initial_push", "warning", "upstream 없는 최초 push로 remote tracking을 설정합니다."));
+            warnings.Add("initial_push_sets_upstream");
+        }
+
+        if (statusFiles.Count > 0)
+        {
+            warnings.Add("dirty_worktree");
+            checks.Add(new GitOperationCheck("dirty_worktree", "warning", "커밋되지 않은 변경이 있지만 push 대상은 현재 HEAD입니다."));
+        }
+
+        return request with
+        {
+            RemoteName = remoteName,
+            RemoteBranchName = remoteBranchName,
+            SetUpstream = !upstream.HasUpstream
+        };
     }
 
     private static void ValidateCommitOperation(
@@ -477,6 +622,11 @@ internal sealed class GitOperationPreviewService
             return statusFiles;
         }
 
+        if (operation == GitOperationNames.PushCurrentBranch)
+        {
+            return statusFiles;
+        }
+
         var selected = new HashSet<string>(paths, StringComparer.Ordinal);
         return statusFiles.Where(file => selected.Contains(file.Path)).ToArray();
     }
@@ -489,6 +639,12 @@ internal sealed class GitOperationPreviewService
             return new[] { new GitOperationPlannedCommand("git", args, BuildDisplay(args)) };
         }
 
+        if (request.Operation == GitOperationNames.PushCurrentBranch)
+        {
+            var args = BuildPushArguments(request);
+            return new[] { new GitOperationPlannedCommand("git", args, BuildDisplay(args)) };
+        }
+
         var addArgs = new List<string> { "add", "--" };
         addArgs.AddRange(request.Paths);
         var commitArgs = new[] { "commit", "-m", request.CommitMessage };
@@ -497,6 +653,19 @@ internal sealed class GitOperationPreviewService
             new GitOperationPlannedCommand("git", addArgs, BuildDisplay(addArgs)),
             new GitOperationPlannedCommand("git", commitArgs, BuildDisplay(commitArgs))
         };
+    }
+
+    private static IReadOnlyList<string> BuildPushArguments(GitOperationPreviewRequest request)
+    {
+        var args = new List<string> { "push" };
+        if (request.SetUpstream)
+        {
+            args.Add("-u");
+        }
+
+        args.Add(request.RemoteName);
+        args.Add($"HEAD:{request.RemoteBranchName}");
+        return args;
     }
 
     private async Task<RepositoryState> ReadRepositoryStateAsync(CancellationToken cancellationToken)
@@ -513,6 +682,109 @@ internal sealed class GitOperationPreviewService
         var head = await ReadGitLineAsync(new[] { "rev-parse", "HEAD" }, cancellationToken)
             .ConfigureAwait(false);
         return new RepositoryState(true, branch, head);
+    }
+
+    private async Task<IReadOnlyList<string>> ReadRemoteNamesAsync(CancellationToken cancellationToken)
+    {
+        var result = await RunGitAsync(new[] { "remote" }, cancellationToken).ConfigureAwait(false);
+        if (result.ExitCode != 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        return result.StdOut
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(remote => !string.IsNullOrWhiteSpace(remote))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private async Task<UpstreamState> ReadUpstreamAsync(
+        IReadOnlyList<string> remotes,
+        CancellationToken cancellationToken
+    )
+    {
+        var upstreamName = await ReadGitLineAsync(
+            new[] { "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}" },
+            cancellationToken
+        ).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(upstreamName))
+        {
+            return UpstreamState.Empty;
+        }
+
+        var remoteName = string.Empty;
+        var branchName = string.Empty;
+        foreach (var remote in remotes.OrderByDescending(remote => remote.Length))
+        {
+            var prefix = remote + "/";
+            if (upstreamName.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                remoteName = remote;
+                branchName = upstreamName[prefix.Length..];
+                break;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(remoteName) || string.IsNullOrWhiteSpace(branchName))
+        {
+            return UpstreamState.Empty;
+        }
+
+        var counts = await ReadGitLineAsync(new[] { "rev-list", "--left-right", "--count", "@{upstream}...HEAD" }, cancellationToken)
+            .ConfigureAwait(false);
+        var parts = counts.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        var behind = parts.Length > 0 && int.TryParse(parts[0], out var parsedBehind) ? parsedBehind : 0;
+        var ahead = parts.Length > 1 && int.TryParse(parts[1], out var parsedAhead) ? parsedAhead : 0;
+        return new UpstreamState(true, remoteName, branchName, behind, ahead);
+    }
+
+    private static string ResolvePushRemoteName(
+        string requestedRemoteName,
+        UpstreamState upstream,
+        IReadOnlyList<string> remotes,
+        List<GitOperationCheck> checks,
+        List<string> blockers
+    )
+    {
+        if (!string.IsNullOrWhiteSpace(requestedRemoteName))
+        {
+            return requestedRemoteName.Trim();
+        }
+
+        if (upstream.HasUpstream)
+        {
+            return upstream.RemoteName;
+        }
+
+        if (remotes.Contains("origin", StringComparer.Ordinal))
+        {
+            return "origin";
+        }
+
+        if (remotes.Count == 1)
+        {
+            return remotes[0];
+        }
+
+        AddBlocked(checks, blockers, "ambiguous_remote", "remote가 여러 개라 push target을 추론할 수 없습니다.");
+        return string.Empty;
+    }
+
+    private static string ResolvePushRemoteBranchName(
+        string requestedRemoteBranchName,
+        UpstreamState upstream,
+        string currentBranchName
+    )
+    {
+        if (!string.IsNullOrWhiteSpace(requestedRemoteBranchName))
+        {
+            return requestedRemoteBranchName.Trim();
+        }
+
+        return upstream.HasUpstream ? upstream.BranchName : currentBranchName;
     }
 
     private async Task<IReadOnlyList<GitOperationAffectedFile>> ReadStatusAsync(CancellationToken cancellationToken)
@@ -728,6 +1000,29 @@ internal sealed class GitOperationPreviewService
         return branchName.All(ch => !char.IsControl(ch) && !char.IsWhiteSpace(ch));
     }
 
+    private static bool IsSafeRemoteName(string remoteName)
+    {
+        if (string.IsNullOrWhiteSpace(remoteName)
+            || remoteName.StartsWith("-", StringComparison.Ordinal)
+            || remoteName.Contains("..", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return remoteName.All(ch => !char.IsControl(ch) && !char.IsWhiteSpace(ch) && ch != ':');
+    }
+
+    private static bool IsProtectedBranch(string branchName)
+    {
+        if (branchName is "main" or "master" or "develop" or "dev" or "trunk")
+        {
+            return true;
+        }
+
+        return branchName.StartsWith("release/", StringComparison.Ordinal)
+               || branchName.StartsWith("hotfix/", StringComparison.Ordinal);
+    }
+
     private static string BuildSuggestedBranchName(IReadOnlyList<GitOperationAffectedFile> statusFiles)
     {
         if (statusFiles.Count == 0)
@@ -831,4 +1126,15 @@ internal sealed class GitOperationPreviewService
         string BranchName,
         string HeadHash
     );
+
+    private sealed record UpstreamState(
+        bool HasUpstream,
+        string RemoteName,
+        string BranchName,
+        int BehindCount,
+        int AheadCount
+    )
+    {
+        public static readonly UpstreamState Empty = new(false, string.Empty, string.Empty, 0, 0);
+    }
 }

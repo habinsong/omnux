@@ -24,6 +24,10 @@ internal sealed class GitOperationExecutor
                 new[] { "checkout", "-b", record.Request.BranchName }
             },
             GitOperationNames.StageAndCommit or GitOperationNames.SnapshotCommit => BuildCommitCommandSets(record),
+            GitOperationNames.PushCurrentBranch => new[]
+            {
+                BuildPushCommandSet(record)
+            },
             _ => Array.Empty<IReadOnlyList<string>>()
         };
 
@@ -83,6 +87,19 @@ internal sealed class GitOperationExecutor
             addArgs,
             new[] { "commit", "-m", record.Request.CommitMessage }
         };
+    }
+
+    private static IReadOnlyList<string> BuildPushCommandSet(GitOperationPreviewRecord record)
+    {
+        var args = new List<string> { "push" };
+        if (record.Request.SetUpstream)
+        {
+            args.Add("-u");
+        }
+
+        args.Add(record.Request.RemoteName);
+        args.Add($"HEAD:{record.Request.RemoteBranchName}");
+        return args;
     }
 
     private static GitOperationApplyResult BuildFailure(

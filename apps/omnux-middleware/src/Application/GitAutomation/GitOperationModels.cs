@@ -5,10 +5,11 @@ internal static class GitOperationNames
     public const string CreateBranch = "create_branch";
     public const string StageAndCommit = "stage_and_commit";
     public const string SnapshotCommit = "snapshot_commit";
+    public const string PushCurrentBranch = "push_current_branch";
 
-    public static bool IsLocalAllowed(string operation)
+    public static bool IsAllowed(string operation)
     {
-        return operation is CreateBranch or StageAndCommit or SnapshotCommit;
+        return operation is CreateBranch or StageAndCommit or SnapshotCommit or PushCurrentBranch;
     }
 }
 
@@ -16,7 +17,10 @@ internal sealed record GitOperationPreviewRequest(
     string Operation,
     string BranchName,
     string CommitMessage,
-    IReadOnlyList<string> Paths
+    IReadOnlyList<string> Paths,
+    string RemoteName = "",
+    string RemoteBranchName = "",
+    bool SetUpstream = false
 );
 
 internal sealed record GitOperationApplyRequest(
@@ -91,7 +95,10 @@ internal sealed record GitOperationApprovalPayload(
     string BranchName,
     string TargetBranchName,
     string CommitMessage,
-    IReadOnlyList<string> Paths
+    IReadOnlyList<string> Paths,
+    string RemoteName = "",
+    string RemoteBranchName = "",
+    bool SetUpstream = false
 );
 
 internal sealed record GitOperationPreviewRecord(

@@ -81,7 +81,10 @@ internal sealed class WsGitOperationCommandDispatcher
                 operation,
                 ReadString(root, "branchName"),
                 ReadString(root, "commitMessage"),
-                ReadStringArray(root, "paths", "selectedPaths")
+                ReadStringArray(root, "paths", "selectedPaths"),
+                ReadString(root, "remoteName"),
+                ReadString(root, "remoteBranchName"),
+                ReadBool(root, "setUpstream") ?? false
             );
             return true;
         }
@@ -269,6 +272,22 @@ internal sealed class WsGitOperationCommandDispatcher
         }
 
         return Array.Empty<string>();
+    }
+
+    private static bool? ReadBool(JsonElement root, string name)
+    {
+        if (!TryGetProperty(root, name, out var value))
+        {
+            return null;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.String when bool.TryParse(value.GetString(), out var parsed) => parsed,
+            _ => null
+        };
     }
 
     private static bool TryGetProperty(JsonElement root, string name, out JsonElement value)
