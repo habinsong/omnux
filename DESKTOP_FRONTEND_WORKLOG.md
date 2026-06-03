@@ -40,9 +40,15 @@
 - `node scripts/check-desktop-shell-boundary-contract.mjs`: 통과.
 - 브라우저 QA: 운영 화면에서 `Git automation`, `Preview`, `대상 파일` 렌더링과 콘솔 오류 없음 확인.
 
+### Local LLM readiness 상세화
+
+- 인사이트 화면의 `로컬 LLM (Ollama / LM Studio)` 패널이 `local_llm_snapshot_get` 상세 응답을 표시하도록 확장했다.
+- endpoint별 latency/error, 발견 모델 목록, 모델 family/parameter/quantization/size를 표시한다.
+- `offlineMode.status`, 요청 env var, cloud credential env var 이름, 오프라인 readiness check를 배지와 행으로 표시한다.
+- 실제 provider 라우팅, cloud 차단, 모델 warmup은 백엔드 정책상 보류 상태라 UI에서 실행 버튼으로 노출하지 않는다.
+
 ## 다음 연결 후보
 
-- Local LLM 실제 라우팅 / 오프라인 모드: readiness를 provider 선택 정책과 사용자 제어로 연결.
 - Self-RAG 실행 오케스트레이터: preflight 결과를 검색 실행 plan과 evidence pack UI로 확장.
 - Terminal PTY 승인 게이트: terminal capability snapshot 이후 preview/apply/session 모델로 실행 제어.
 - MCP process/JSON-RPC 1차: MCP readiness를 실제 프로세스 lifecycle로 확장하되 Terminal 승인 모델 재사용.
