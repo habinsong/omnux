@@ -5,20 +5,24 @@ import {
   DESKTOP_MIDDLEWARE_WS_URL,
   DESKTOP_RECONNECT_POLICY
 } from "./middleware-contract";
+import { useUiLogStore } from "./features/ui-log/ui-log-store";
+export { serializeUiLogs, useUiLogStore } from "./features/ui-log/ui-log-store";
+export type { ShellCard, ShellLogEntry, ShellLogSource } from "./features/ui-log/ui-log-store";
+export type {
+  DesktopAuthContract,
+  DesktopAuthStatus,
+  DesktopOtpRequestStatus
+} from "./features/auth/auth-store";
+export type {
+  DesktopDoctorSnapshot,
+  DesktopOpsSnapshot
+} from "./features/ops/ops-store";
 
 type MiddlewareConnectionStatus = "idle" | "waiting" | "connected" | "error";
 type DesktopRuntimePhase = "shell-only" | "waiting" | "connected" | "error";
 type ProbeEndpointStatus = "unknown" | "ok" | "not_ready" | "error";
-type ShellLogLevel = "info" | "warn" | "error";
-type ShellCard = "middleware" | "runtime" | "logs";
 type MiddlewareBootstrapPhase = "idle" | "starting" | "started" | "stderr" | "error" | "terminated" | "stopping";
-
-type ShellLogEntry = {
-  id: string;
-  level: ShellLogLevel;
-  message: string;
-  createdAt: string;
-};
+type DesktopWsBridgeStatus = "idle" | "connecting" | "connected" | "closed" | "error";
 
 type MiddlewareWsContract = {
   endpoint: string;
@@ -47,10 +51,16 @@ type DesktopRuntimeContract = {
   lastError: string | null;
 };
 
+type DesktopWsBridgeContract = {
+  status: DesktopWsBridgeStatus;
+  lastMessageAt: string | null;
+  lastError: string | null;
+};
+
 type DesktopShellState = {
   middleware: MiddlewareWsContract;
   runtime: DesktopRuntimeContract;
-  logs: ShellLogEntry[];
+  bridge: DesktopWsBridgeContract;
   markWaiting: () => void;
   markConnected: () => void;
   markError: (message: string) => void;
@@ -62,79 +72,18 @@ type DesktopShellState = {
   ) => void;
   markHealthProbe: (status: "ok" | "not_ready" | "error", detail?: string) => void;
   scheduleNextReconnect: () => void;
-  recordCardError: (card: ShellCard, message: string) => void;
   markBootstrapEvent: (phase: MiddlewareBootstrapPhase, pid: number | null, message: string) => void;
+  markBridgeStatus: (status: DesktopWsBridgeStatus, message?: string | null) => void;
 };
 
 const DEFAULT_MIDDLEWARE_ENDPOINT = "ws://127.0.0.1:41880/ws/";
-const MAX_LOGS = 6;
-const LOG_STORAGE_KEY = "omnux-desktop-ui-logs";
 
-function createLog(level: ShellLogLevel, message: string): ShellLogEntry {
-  return {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    level,
-    message,
-    createdAt: new Date().toISOString()
-  };
-}
-
-function pushLog(logs: ShellLogEntry[], entry: ShellLogEntry): ShellLogEntry[] {
-  return [entry, ...logs].slice(0, MAX_LOGS);
-}
-
-function readSavedLogs(): ShellLogEntry[] {
-  if (typeof window === "undefined") {
-    return [];
-  }
-
-  try {
-    const raw = window.localStorage.getItem(LOG_STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
-
-    const parsed = JSON.parse(raw) as ShellLogEntry[];
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-
-    return parsed.filter(
-      (item) =>
-        item &&
-        typeof item.id === "string" &&
-        typeof item.level === "string" &&
-        typeof item.message === "string" &&
-        typeof item.createdAt === "string"
-    ).slice(0, MAX_LOGS);
-  } catch (_error) {
-    return [];
-  }
-}
-
-function saveLogs(logs: ShellLogEntry[]) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    window.localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(logs.slice(0, MAX_LOGS)));
-  } catch (_error) {
-    // 저장 실패는 셸 진행을 막지 않는다.
-  }
-}
-
-function readInitialLogs(): ShellLogEntry[] {
-  const restored = readSavedLogs();
-  if (restored.length > 0) {
-    return restored;
-  }
-
-  return [
-    createLog("info", ".NET 미들웨어 WebSocket 연결은 React store 경계를 통해서만 상태화한다."),
-    createLog("info", "Tauri Rust 셸은 dev bootstrap 또는 bundle externalBin으로 .NET 미들웨어를 시작한다."),
-    createLog("info", "런타임 부트 계약은 healthz/readyz 표시와 WebSocket ping/pong probe로 상태화한다.")
-  ];
+function recordShellLog(
+  level: "info" | "warn" | "error",
+  message: string,
+  source: "middleware" | "runtime" = "middleware"
+) {
+  useUiLogStore.getState().recordLog(level, message, { source });
 }
 
 export const useDesktopShellStore = create<DesktopShellState>((set) => ({
@@ -160,11 +109,14 @@ export const useDesktopShellStore = create<DesktopShellState>((set) => ({
     lastProbeAt: null,
     lastError: null
   },
-  logs: readInitialLogs(),
+  bridge: {
+    status: "idle",
+    lastMessageAt: null,
+    lastError: null
+  },
   markWaiting: () =>
     set((state) => {
-      const logs = pushLog(state.logs, createLog("info", ".NET 미들웨어 연결 대기 상태로 전환했다."));
-      saveLogs(logs);
+      recordShellLog("info", ".NET 미들웨어 연결 대기 상태로 전환했다.");
       return {
         middleware: syncMiddlewareStatus(state.middleware, "waiting", null),
         runtime: syncRuntimeContract(
@@ -173,25 +125,21 @@ export const useDesktopShellStore = create<DesktopShellState>((set) => ({
           state.runtime.reconnectAttempts,
           state.runtime.lastProbeAt,
           null
-        ),
-        logs
+        )
       };
     }),
   markConnected: () =>
     set((state) => {
-      const logs = pushLog(state.logs, createLog("info", ".NET 미들웨어 WebSocket 연결 상태를 확인했다."));
-      const next = {
+      recordShellLog("info", ".NET 미들웨어 WebSocket 연결 상태를 확인했다.");
+      return {
         middleware: syncMiddlewareStatus(state.middleware, "connected", null),
-        runtime: syncRuntimeContract(state.runtime, "connected", 0, new Date().toISOString(), null),
-        logs
+        runtime: syncRuntimeContract(state.runtime, "connected", 0, new Date().toISOString(), null)
       };
-      saveLogs(logs);
-      return next;
     }),
   markError: (message) =>
     set((state) => {
-      const logs = pushLog(state.logs, createLog("error", message));
-      const next = {
+      recordShellLog("error", message);
+      return {
         middleware: syncMiddlewareStatus(state.middleware, "error", message),
         runtime: syncRuntimeContract(
           state.runtime,
@@ -199,11 +147,8 @@ export const useDesktopShellStore = create<DesktopShellState>((set) => ({
           state.runtime.reconnectAttempts,
           new Date().toISOString(),
           message
-        ),
-        logs
+        )
       };
-      saveLogs(logs);
-      return next;
     }),
   markReconnectPlanned: () =>
     set((state) => {
@@ -215,45 +160,34 @@ export const useDesktopShellStore = create<DesktopShellState>((set) => ({
         state.runtime.reconnectPolicy.initialDelayMs * Math.max(nextAttempts, 1),
         state.runtime.reconnectPolicy.maxDelayMs
       );
-      const logs = pushLog(
-        state.logs,
-        createLog("info", `다음 재연결을 ${Math.round(delay / 1000)}초 후로 예약했다.`)
-      );
-      const next = {
+      recordShellLog("info", `다음 재연결을 ${Math.round(delay / 1000)}초 후로 예약했다.`, "runtime");
+      return {
         middleware: syncMiddlewareStatus(state.middleware, "waiting", null),
-        runtime: syncRuntimeContract(state.runtime, "waiting", nextAttempts, state.runtime.lastProbeAt, null),
-        logs
+        runtime: syncRuntimeContract(state.runtime, "waiting", nextAttempts, state.runtime.lastProbeAt, null)
       };
-      saveLogs(logs);
-      return next;
     }),
   markHttpProbe: (endpoint, status, detail) =>
     set((state) => {
       const label = endpoint === "healthz" ? "healthz" : "readyz";
-      const logs = pushLog(
-        state.logs,
-        createLog(
-          status === "error" ? "error" : "info",
-          `${label} probe=${status}${detail ? ` (${detail})` : ""}`
-        )
+      recordShellLog(
+        status === "error" ? "error" : "info",
+        `${label} probe=${status}${detail ? ` (${detail})` : ""}`,
+        "runtime"
       );
-      const runtime = {
-        ...state.runtime,
-        ...(endpoint === "healthz"
-          ? {
-              healthStatus: status,
-              healthDetail: detail || null
-            }
-          : {
-              readyStatus: status,
-              readyDetail: detail || null
-            }),
-        lastProbeAt: new Date().toISOString()
-      };
-      saveLogs(logs);
       return {
-        runtime,
-        logs
+        runtime: {
+          ...state.runtime,
+          ...(endpoint === "healthz"
+            ? {
+                healthStatus: status,
+                healthDetail: detail || null
+              }
+            : {
+                readyStatus: status,
+                readyDetail: detail || null
+              }),
+          lastProbeAt: new Date().toISOString()
+        }
       };
     }),
   markHealthProbe: (status, detail) =>
@@ -264,12 +198,11 @@ export const useDesktopShellStore = create<DesktopShellState>((set) => ({
           : status === "not_ready"
             ? `미들웨어가 아직 준비되지 않았다.${detail ? ` (${detail})` : ""}`
             : `runtime probe에 실패했다.${detail ? ` (${detail})` : ""}`;
-
       const runtimePhase: DesktopRuntimePhase =
         status === "ok" ? "connected" : status === "not_ready" ? "waiting" : "error";
       const runtimeError = status === "ok" ? null : (detail || "runtime probe failed");
-      const logs = pushLog(state.logs, createLog(status === "error" ? "error" : "info", message));
-      const next = {
+      recordShellLog(status === "error" ? "error" : "info", message, "runtime");
+      return {
         middleware: syncMiddlewareStatus(
           state.middleware,
           runtimePhase === "connected" ? "connected" : runtimePhase === "waiting" ? "waiting" : "error",
@@ -281,11 +214,8 @@ export const useDesktopShellStore = create<DesktopShellState>((set) => ({
           status === "ok" ? 0 : state.runtime.reconnectAttempts,
           new Date().toISOString(),
           runtimeError
-        ),
-        logs
+        )
       };
-      saveLogs(logs);
-      return next;
     }),
   scheduleNextReconnect: () =>
     set((state) => {
@@ -297,11 +227,8 @@ export const useDesktopShellStore = create<DesktopShellState>((set) => ({
         state.runtime.reconnectPolicy.initialDelayMs * Math.max(nextAttempts, 1),
         state.runtime.reconnectPolicy.maxDelayMs
       );
-      const logs = pushLog(
-        state.logs,
-        createLog("info", `다음 재연결을 ${Math.round(delay / 1000)}초 후로 예약했다.`)
-      );
-      const next = {
+      recordShellLog("info", `다음 재연결을 ${Math.round(delay / 1000)}초 후로 예약했다.`, "runtime");
+      return {
         middleware: syncMiddlewareStatus(state.middleware, "waiting", null),
         runtime: syncRuntimeContract(
           state.runtime,
@@ -309,27 +236,17 @@ export const useDesktopShellStore = create<DesktopShellState>((set) => ({
           nextAttempts,
           state.runtime.lastProbeAt,
           state.runtime.lastError
-        ),
-        logs
+        )
       };
-      saveLogs(logs);
-      return next;
-    }),
-  recordCardError: (card, message) =>
-    set((state) => {
-      const logs = pushLog(state.logs, createLog("error", `[${card}] ${message}`));
-      saveLogs(logs);
-      return { logs };
     }),
   markBootstrapEvent: (phase, pid, message) =>
     set((state) => {
-      const level: ShellLogLevel = phase === "stderr" || phase === "error" || phase === "terminated" ? "warn" : "info";
+      const level = phase === "stderr" || phase === "error" || phase === "terminated" ? "warn" : "info";
       const runtimePhase: DesktopRuntimePhase =
         phase === "error" || phase === "terminated" ? "error" : state.runtime.phase;
       const middlewareStatus: MiddlewareConnectionStatus =
         phase === "started" || phase === "starting" ? "waiting" : phase === "error" || phase === "terminated" ? "error" : state.middleware.status;
-      const logs = pushLog(state.logs, createLog(level, message));
-      saveLogs(logs);
+      recordShellLog(level, message, "runtime");
       return {
         middleware: syncMiddlewareStatus(
           state.middleware,
@@ -346,8 +263,21 @@ export const useDesktopShellStore = create<DesktopShellState>((set) => ({
           ),
           bootstrapPhase: phase,
           bootstrapPid: pid
-        },
-        logs
+        }
+      };
+    }),
+  markBridgeStatus: (status, message) =>
+    set(() => {
+      if (message) {
+        const level = status === "error" ? "error" : status === "closed" ? "warn" : "info";
+        recordShellLog(level, message);
+      }
+      return {
+        bridge: {
+          status,
+          lastMessageAt: new Date().toISOString(),
+          lastError: status === "error" ? message || "desktop websocket bridge error" : null
+        }
       };
     })
 }));
@@ -384,8 +314,8 @@ export type {
   DesktopShellState,
   DesktopRuntimeContract,
   DesktopRuntimePhase,
+  DesktopWsBridgeContract,
+  DesktopWsBridgeStatus,
   MiddlewareBootstrapPhase,
-  MiddlewareConnectionStatus,
-  ShellLogEntry,
-  ShellCard
+  MiddlewareConnectionStatus
 };

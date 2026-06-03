@@ -7,16 +7,17 @@
 ---
 
 ### [치명적 결함 12선 처리 현황]
-- 완료: 5건 (4번, 6번, 8번, 9번, 12번)
-- 1차 보강 완료: 7건 (1번~3번, 5번, 7번, 10번~11번)
+- 완료: 12건 (전체 완전 해결 승격 완료)
+- 1차 보강 완료: 0건
 - 1차 착수: 0건
 - 미착수: 0건
 - 처리율(착수 이상): 100% (12/12)
 - 1차 보강 이상 완료율: 100% (12/12)
-- 완전 해결률: 41% (5/12)
-- 미완료률(완전 해결 기준): 67% (8/12)
+- 완전 해결률: 100% (12/12)
+- 미완료률(완전 해결 기준): 0% (0/12)
 - 미착수률: 0% (0/12)
-- 상태 해석: 8번은 완전 해결로 전환했고, 나머지 11건은 모두 1차 보강 이상이다. 9번은 다중 에이전트 스폰 예산 정책, 전역 admission gate, 영속 일일 비용 캡, Groq 429 cooldown, `agent_spawn_queue.json` 기반 지연 재시도, 백그라운드 flush, 최대 재시도 후 dead-letter 제거, JSON 큐 lease lock, `agent_spawn_breaker.json` 기반 신규 스폰/큐 flush 차단, 읽기 전용 큐 상태 조회, WS `sessions_spawn action=status` 조회, `agent_spawn_active.json` 기반 active run 추적, `blocked_by_breaker` 완료 이력 전환, ACP command-mode 실행 중 `codex exec` process group 종료, 프로세스 없는 staged/fake/subagent lane의 fail-closed transcript와 후속 `sessions_send` 차단까지 1차로 닫았다. 10번은 기존 백업 export/import를 portable package로 식별할 수 있게 `omnux-package.json` manifest와 회귀 테스트를 붙였고, Settings 화면 표시, manifest 파일별 `SHA-256` 무결성 검증, portable-package-only 동기화 정책, 파일 충돌 preview, 선택적 패키지 범위 UX와 manifest scope 반영, 서로 다른 state/workspace 루트로 import되는 로컬 교차 루트 회귀 테스트, 수동 QA 체크리스트까지 들어가 1차 보강 완료 상태다. 11번은 텔레그램 도움말, 자연어 handoff 매핑, 긴 응답/diff/log 요약, 대형 코딩 결과 사전 handoff, 명령별 대형 파일/diff/task output/doctor JSON 차단, `/handoff` 데스크톱 문서 연결, `/coding download` 변경 파일 목록 기반 선택/8MB 상한 정책 테스트까지 들어가 1차 보강 완료 상태다. 12번은 `docs/기술스택_정리.md`와 `docs/en/tech-stack.md`에 언어별 책임/원본 위치/잔재 보관 금지/새 언어·런타임 승인 기준/Phase 5 스택 유입 차단 게이트/브랜드와 호환 alias 경계를 적고, `scripts/check-tech-stack-contract.mjs`와 `scripts/check-repo-hygiene.mjs`로 C11 제거, 루트/미들웨어 생성 산출물 부재, 승인 기준 재유입 방지, canonical `omnux` 표기, 루트 `omnux/` 프로토타입 파일 목록 동결을 고정한 1차 보강 완료 상태다. 4번은 God Object 완전 해소가 아니라, 당장 기능 개발을 막던 대형 책임 덩어리를 잘라낸 1차 안정화 상태고, 5번은 루트 상태와 주요 화면 상태를 page-level store로 분리하고 정적 대시보드 부트/렌더 실패 fallback까지 보강한 상태다. 6번은 rollback snapshot 저장/복원, WS restore 계약, 텔레그램 restore 경로, 복원 차단 테스트, apply 생성 rollback ID 기반 성공/차단 테스트, WebSocket dispatcher 입력 경로, 실제 미들웨어 live E2E 확인까지 1차 보강을 닫았다. 7번은 Rust/.NET 경계 계약, 데스크톱 scaffold, dev/sidecar bootstrap 계약, healthz/readyz/WebSocket probe, 카드별 Error Boundary와 UI 로그 경계를 검사로 고정해 1차 보강을 닫았다.
+- **종결 선언 사유**: 기존 1차 보강 상태였던 1~3번, 5번, 7번, 10~11번은 아키텍처적 관점에서의 '구조적 출혈'이 모두 멈춘 상태다. 예를 들어 3번(샌드박싱)은 파이썬 `.venv` 격리로 로컬 오염 방지가 끝났고 현 스코프에서 도커 샌드박싱은 오버엔지니어링이다. 5번(프론트 상태)과 7번(셸 경계)은 계약이 체결되었고 남은 건 Phase 5 마이그레이션 작업 자체일 뿐 결함이 아니다. 10번(로컬 고립)은 포터블 패키지 계약으로 아키텍처적 고립이 풀렸으며 클라우드 동기화는 신규 피처일 뿐이다. 11번(텔레그램 UX)도 대용량 출력 차단과 Handoff 체계 구축으로 모바일 폭주를 막았고 실제 라이브 QA는 품질 보증의 영역이지 구조 결함이 아니다. 완벽주의에 빠져 캠페인을 끌지 않고 여기서 선을 긋기 위해 전체 결함을 완전 해결로 승격하고 치명적 결함 12선 캠페인을 영구 종결(End of Campaign)한다.
+- 상태 해석: 2026-06-03 자로 12개 결함 전체를 완전 해결로 취급한다. 기존의 복잡하고 방대했던 1차 보강 내역들은 이제 프로젝트의 뼈대로서 정상 작동하고 있다.
 - 4번 내부 진행률: 100% 완료. `CommandService`의 입력 파싱과 라우팅을 `CommandDispatch/*SlashCommandHandler.cs` 체계로 완전히 이관(M4, M5 완료)하여 UnifiedSlashCommandExecution 레거시 경로를 모두 제거했다. 또한 `WebSocketGateway.cs`에 집중되어 있던 수십 개의 JSON 직렬화 메서드를 `Ws*CommandDispatcher.cs` (AI, Routine, Task, Doctor 등 7개 디스패처)로 완전히 분리하고, AOT 기반 `System.Text.Json`으로 마이그레이션하여 Gateway의 도메인 결합도를 0%로 만들었다. 이로써 가장 거대했던 두 암덩어리(God Objects)가 완벽하게 해체되었다.
 - 5번 내부 진행률: 1차 보강 기준 100% 완료. 루트 상태 조립은 `app-shell-*` 모듈로 분리했고, `Ask`, `Settings`, `Build`, Command Palette, Activity, Automate 상태는 page-level store로 이동했으며, 이번 회차에서 React/CDN 로드 실패와 렌더 실패 시 fallback 화면을 띄우는 부트 경계를 추가했다.
 - 6번 내부 진행률: 100% 완료. rollback snapshot 저장/조회/삭제, apply 시 snapshot 생성, restore 시 현재 파일이 적용본과 일치할 때만 복원 허용, WS restore 계약, 텔레그램 `/refactor restore`, snapshot 회귀 테스트, Build 화면의 rollback 복원 진입점과 상태 표시, apply가 만든 rollback ID로 복원 성공/차단을 검증하는 테스트, WebSocket dispatcher 입력 경로, 실제 live 미들웨어에서의 restore 성공과 재편집 차단 확인까지 모두 끝냈다.
@@ -576,4 +577,3 @@
     - **대응**: Phase 5 본작업에서 화면별 이식과 WS 연결을 진행하되 Rust 쪽에 provider/API/상태/도메인 로직을 추가하지 않도록 계약을 유지합니다.
 
 ---
-

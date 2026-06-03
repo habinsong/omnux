@@ -15,6 +15,11 @@ function assertIncludes(source, needle, label) {
   assert.ok(source.includes(needle), `${label}: expected to include ${needle}`);
 }
 
+function assertNotIncludes(source, needle, label) {
+  assertionCount += 1;
+  assert.ok(!source.includes(needle), `${label}: expected not to include ${needle}`);
+}
+
 function collectFiles(directory, predicate) {
   const entries = readdirSync(directory, { withFileTypes: true });
   const files = [];
@@ -118,11 +123,32 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     "src/App.tsx",
     "src/App.css",
     "src/main.tsx",
+    "src/CardBoundary.tsx",
+    "src/ShellFault.tsx",
     "src/shell-store.ts",
     "src/ShellErrorBoundary.tsx",
     "src/middleware-contract.ts",
+    "src/ReadOnlyWsPanel.tsx",
     "src/use-middleware-bootstrap-events.ts",
-    "src/use-middleware-runtime-probe.ts"
+    "src/use-middleware-runtime-probe.ts",
+    "src/use-middleware-session.ts",
+    "src/features/auth/auth-store.ts",
+    "src/features/ask/AskPage.tsx",
+    "src/features/ask/ask-store.ts",
+    "src/features/automate/AutomatePage.tsx",
+    "src/features/automate/automate-store.ts",
+    "src/features/explore/ExplorePage.tsx",
+    "src/features/explore/explore-store.ts",
+    "src/features/ops/OperationsPage.tsx",
+    "src/features/ops/ops-store.ts",
+    "src/features/shell/DesktopNavigation.tsx",
+    "src/features/shell/PageBoundary.tsx",
+    "src/features/shell/ShellOverviewPage.tsx",
+    "src/features/settings/SettingsPage.tsx",
+    "src/features/settings/settings-store.ts",
+    "src/features/shell/ShellStatusCards.tsx",
+    "src/features/ui-log/UiLogPanel.tsx",
+    "src/features/ui-log/ui-log-store.ts"
   ];
 
   for (const relativePath of requiredFrontendFiles) {
@@ -134,33 +160,48 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   const appSource = read("apps/desktop/src/App.tsx");
   assertIncludes(
     appSource,
-    "useDesktopShellStore",
-    "desktop App.tsx shell store boundary"
+    "AskPage",
+    "desktop App.tsx ask page wiring"
   );
   assertIncludes(
     appSource,
-    "WebSocket",
-    "desktop App.tsx middleware websocket contract"
+    "ExplorePage",
+    "desktop App.tsx explore page wiring"
   );
   assertIncludes(
     appSource,
-    "sidecar",
-    "desktop App.tsx sidecar contract"
+    "AutomatePage",
+    "desktop App.tsx automate page wiring"
   );
   assertIncludes(
     appSource,
-    "reconnectPolicy",
-    "desktop App.tsx reconnect policy contract"
+    "SettingsPage",
+    "desktop App.tsx settings page wiring"
   );
   assertIncludes(
     appSource,
-    "CardBoundary",
-    "desktop App.tsx card error boundary"
+    "DesktopNavigation",
+    "desktop App.tsx page registry navigation"
   );
   assertIncludes(
     appSource,
-    "recordCardError",
-    "desktop App.tsx card error logging"
+    "PageBoundary",
+    "desktop App.tsx page error boundary"
+  );
+  assertIncludes(
+    appSource,
+    "DesktopPageDefinition",
+    "desktop App.tsx typed page registry"
+  );
+  assertIncludes(
+    appSource,
+    "ShellOverviewPage",
+    "desktop App.tsx shell page wiring"
+  );
+  assertIncludes(
+    appSource,
+    "OperationsPage",
+    "desktop App.tsx operations page wiring"
   );
   assertIncludes(
     appSource,
@@ -169,18 +210,196 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   );
   assertIncludes(
     appSource,
+    "useMiddlewareSessionBridge",
+    "desktop App.tsx websocket session bridge hook"
+  );
+  [
+    "useDesktopShellStore",
+    "new WebSocket",
+    "serializeUiLogs",
+    "recordCardError",
+    "markDoctorResult",
+    "markPlanListResult",
+    "markTaskGraphListResult",
+    "useAskStore",
+    "useExploreStore",
+    "useSettingsStore",
+    "useAutomateStore"
+  ].forEach((needle) =>
+    assertNotIncludes(
+      appSource,
+      needle,
+      `desktop App.tsx must stay routing/layout only (${needle})`
+    )
+  );
+
+  const shellOverviewSource = read("apps/desktop/src/features/shell/ShellOverviewPage.tsx");
+  assertIncludes(
+    shellOverviewSource,
+    "CardBoundary",
+    "desktop shell overview owns card boundaries"
+  );
+  assertIncludes(
+    shellOverviewSource,
+    "UiLogPanel",
+    "desktop shell overview owns ui log panel"
+  );
+
+  const shellStatusCardsSource = read("apps/desktop/src/features/shell/ShellStatusCards.tsx");
+  assertIncludes(
+    shellStatusCardsSource,
+    "useDesktopShellStore",
+    "desktop shell status cards read shell store"
+  );
+  assertIncludes(
+    shellStatusCardsSource,
     "bootstrapPhase",
-    "desktop App.tsx bootstrap phase display"
+    "desktop shell status cards display bootstrap phase"
   );
   assertIncludes(
-    appSource,
+    shellStatusCardsSource,
     "healthStatus",
-    "desktop App.tsx healthz probe status display"
+    "desktop shell status cards display healthz status"
   );
   assertIncludes(
-    appSource,
+    shellStatusCardsSource,
     "readyStatus",
-    "desktop App.tsx readyz probe status display"
+    "desktop shell status cards display readyz status"
+  );
+  assertIncludes(
+    shellStatusCardsSource,
+    "reconnectPolicy",
+    "desktop shell status cards display reconnect policy"
+  );
+
+  const uiLogPanelSource = read("apps/desktop/src/features/ui-log/UiLogPanel.tsx");
+  assertIncludes(
+    uiLogPanelSource,
+    "serializeUiLogs",
+    "desktop ui log panel export serialization"
+  );
+  assertIncludes(
+    uiLogPanelSource,
+    "로그 내보내기",
+    "desktop ui log panel export button"
+  );
+  assertIncludes(
+    uiLogPanelSource,
+    "clearLogs",
+    "desktop ui log panel clear action"
+  );
+  assertIncludes(
+    uiLogPanelSource,
+    "componentStack",
+    "desktop ui log panel component stack display"
+  );
+
+  const pageBoundarySource = read("apps/desktop/src/features/shell/PageBoundary.tsx");
+  assertIncludes(
+    pageBoundarySource,
+    "class PageBoundary",
+    "desktop page error boundary class"
+  );
+  assertIncludes(
+    pageBoundarySource,
+    "recordLog(\"error\"",
+    "desktop page boundary logs render errors"
+  );
+  assertIncludes(
+    pageBoundarySource,
+    "화면 다시 렌더",
+    "desktop page boundary local retry"
+  );
+
+  const cardBoundarySource = read("apps/desktop/src/CardBoundary.tsx");
+  assertIncludes(
+    cardBoundarySource,
+    "class CardBoundary",
+    "desktop CardBoundary.tsx card error boundary class"
+  );
+  assertIncludes(
+    cardBoundarySource,
+    "this.props.onError",
+    "desktop CardBoundary.tsx card error callback contract"
+  );
+  assertIncludes(
+    cardBoundarySource,
+    "componentStack",
+    "desktop CardBoundary.tsx component stack capture"
+  );
+  assertIncludes(
+    cardBoundarySource,
+    "onRetry={this.retry}",
+    "desktop CardBoundary.tsx card retry fallback"
+  );
+
+  const shellFaultSource = read("apps/desktop/src/ShellFault.tsx");
+  assertIncludes(
+    shellFaultSource,
+    "role=\"alert\"",
+    "desktop ShellFault.tsx alert role"
+  );
+  assertIncludes(
+    shellFaultSource,
+    "error-stack",
+    "desktop ShellFault.tsx stack display"
+  );
+  assertIncludes(
+    shellFaultSource,
+    "retryLabel",
+    "desktop ShellFault.tsx retry label"
+  );
+  assertIncludes(
+    shellFaultSource,
+    "다시 렌더",
+    "desktop ShellFault.tsx default retry label"
+  );
+
+  const readOnlyPanelSource = read("apps/desktop/src/ReadOnlyWsPanel.tsx");
+  assertIncludes(
+    readOnlyPanelSource,
+    "useDesktopShellStore",
+    "desktop ReadOnlyWsPanel.tsx shell bridge status ownership"
+  );
+  assertIncludes(
+    readOnlyPanelSource,
+    "useDesktopAuthStore",
+    "desktop ReadOnlyWsPanel.tsx auth page store ownership"
+  );
+  assertIncludes(
+    readOnlyPanelSource,
+    "useOpsPageStore",
+    "desktop ReadOnlyWsPanel.tsx ops page store ownership"
+  );
+  assertIncludes(
+    readOnlyPanelSource,
+    "requestDesktopOtp",
+    "desktop ReadOnlyWsPanel.tsx otp request action"
+  );
+  assertIncludes(
+    readOnlyPanelSource,
+    "submitDesktopOtp",
+    "desktop ReadOnlyWsPanel.tsx otp submit action"
+  );
+  assertIncludes(
+    readOnlyPanelSource,
+    "OTP 요청",
+    "desktop ReadOnlyWsPanel.tsx otp request control"
+  );
+  assertIncludes(
+    readOnlyPanelSource,
+    "최근 Doctor 보고서",
+    "desktop ReadOnlyWsPanel.tsx read-only doctor query control"
+  );
+  assertIncludes(
+    readOnlyPanelSource,
+    "운영 목록 조회",
+    "desktop ReadOnlyWsPanel.tsx read-only operations query control"
+  );
+  assertIncludes(
+    readOnlyPanelSource,
+    "requestDesktopOpsSnapshot",
+    "desktop ReadOnlyWsPanel.tsx read-only operations query action"
   );
 
   const shellStoreSource = read("apps/desktop/src/shell-store.ts");
@@ -256,6 +475,304 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   );
   assertIncludes(
     shellStoreSource,
+    "useUiLogStore",
+    "desktop shell store delegates logs to ui log store"
+  );
+  [
+    "DesktopAuthContract = {",
+    "DesktopDoctorSnapshot = {",
+    "DesktopOpsSnapshot = {",
+    "markAuthRequired:",
+    "markDoctorResult:",
+    "markPlanListResult:",
+    "markTaskGraphListResult:",
+    "logs:"
+  ].forEach((needle) =>
+    assertNotIncludes(
+      shellStoreSource,
+      needle,
+      `desktop shell store must not own page/global log state (${needle})`
+    )
+  );
+
+  const uiLogStoreSource = read("apps/desktop/src/features/ui-log/ui-log-store.ts");
+  assertIncludes(
+    uiLogStoreSource,
+    "UI_LOG_SCHEMA_VERSION",
+    "desktop ui log store schema"
+  );
+  assertIncludes(
+    uiLogStoreSource,
+    "serializeUiLogs",
+    "desktop ui log store serializer"
+  );
+  assertIncludes(
+    uiLogStoreSource,
+    "recordShellError",
+    "desktop ui log store shell error logging"
+  );
+  assertIncludes(
+    uiLogStoreSource,
+    "clearLogs",
+    "desktop ui log store clear action"
+  );
+  assertIncludes(
+    uiLogStoreSource,
+    "componentStack",
+    "desktop ui log store component stack persistence"
+  );
+
+  const authStoreSource = read("apps/desktop/src/features/auth/auth-store.ts");
+  assertIncludes(
+    authStoreSource,
+    "DesktopAuthContract",
+    "desktop auth store auth state contract"
+  );
+  assertIncludes(
+    authStoreSource,
+    "markAuthRequired",
+    "desktop auth store auth required action"
+  );
+
+  const askPageSource = read("apps/desktop/src/features/ask/AskPage.tsx");
+  assertIncludes(
+    askPageSource,
+    "CardBoundary",
+    "desktop ask page card boundaries"
+  );
+  assertIncludes(
+    askPageSource,
+    "useAskStore",
+    "desktop ask page ask store ownership"
+  );
+  assertIncludes(
+    askPageSource,
+    "canRequest",
+    "desktop ask page gates domain requests behind auth"
+  );
+  assertIncludes(
+    askPageSource,
+    "row-actions",
+    "desktop ask page conversation row actions"
+  );
+  assertIncludes(
+    askPageSource,
+    "renameConversation",
+    "desktop ask page conversation rename action"
+  );
+  assertIncludes(
+    askPageSource,
+    "saveConversationToMemory",
+    "desktop ask page memory save action"
+  );
+  assertIncludes(
+    askPageSource,
+    "deleteConversation",
+    "desktop ask page conversation delete action"
+  );
+
+  const askStoreSource = read("apps/desktop/src/features/ask/ask-store.ts");
+  assertIncludes(
+    askStoreSource,
+    "requestDesktopAsk",
+    "desktop ask store request gateway"
+  );
+  assertIncludes(
+    askStoreSource,
+    "conversation_search_result",
+    "desktop ask store search result handling"
+  );
+  assertIncludes(
+    askStoreSource,
+    "memory_note_created",
+    "desktop ask store memory note handling"
+  );
+
+  const explorePageSource = read("apps/desktop/src/features/explore/ExplorePage.tsx");
+  assertIncludes(
+    explorePageSource,
+    "useExploreStore",
+    "desktop explore page store ownership"
+  );
+  assertIncludes(
+    explorePageSource,
+    "selectedTab",
+    "desktop explore page selected tab"
+  );
+  assertIncludes(
+    explorePageSource,
+    "canRequest",
+    "desktop explore page gates domain requests behind auth"
+  );
+  assertIncludes(
+    explorePageSource,
+    "fetchResult",
+    "desktop explore page renders url fetch result"
+  );
+  assertIncludes(
+    explorePageSource,
+    "history?.messages",
+    "desktop explore page renders session history messages"
+  );
+  assertIncludes(
+    explorePageSource,
+    "browserResult",
+    "desktop explore page renders browser result"
+  );
+  assertIncludes(
+    explorePageSource,
+    "canvasResult",
+    "desktop explore page renders canvas result"
+  );
+  assertIncludes(
+    explorePageSource,
+    "runBrowser(\"open\"",
+    "desktop explore page browser open action"
+  );
+  assertIncludes(
+    explorePageSource,
+    "runCanvas(\"navigate\"",
+    "desktop explore page canvas navigate action"
+  );
+
+  const exploreStoreSource = read("apps/desktop/src/features/explore/explore-store.ts");
+  assertIncludes(
+    exploreStoreSource,
+    "requestDesktopExplore",
+    "desktop explore store request gateway"
+  );
+  assertIncludes(
+    exploreStoreSource,
+    "web_search_result",
+    "desktop explore store web search result handling"
+  );
+  assertIncludes(
+    exploreStoreSource,
+    "canvas_result",
+    "desktop explore store canvas result handling"
+  );
+
+  const settingsPageSource = read("apps/desktop/src/features/settings/SettingsPage.tsx");
+  assertIncludes(
+    settingsPageSource,
+    "useSettingsStore",
+    "desktop settings page store ownership"
+  );
+  assertIncludes(
+    settingsPageSource,
+    "canRequest",
+    "desktop settings page gates domain requests behind auth"
+  );
+  assertIncludes(
+    settingsPageSource,
+    "backupPreview",
+    "desktop settings page backup preview display"
+  );
+  assertIncludes(
+    settingsPageSource,
+    "memorySearchResults",
+    "desktop settings page memory search result display"
+  );
+  assertIncludes(
+    settingsPageSource,
+    "downloadBackupPackage",
+    "desktop settings page backup download action"
+  );
+
+  const settingsStoreSource = read("apps/desktop/src/features/settings/settings-store.ts");
+  assertIncludes(
+    settingsStoreSource,
+    "requestDesktopSettings",
+    "desktop settings store request gateway"
+  );
+  assertIncludes(
+    settingsStoreSource,
+    "memory_notes",
+    "desktop settings store memory notes handling"
+  );
+  assertIncludes(
+    settingsStoreSource,
+    "backup_import_preview_result",
+    "desktop settings store backup preview handling"
+  );
+  assertIncludes(
+    settingsStoreSource,
+    "downloadBackupPackage",
+    "desktop settings store local backup download action"
+  );
+  assertIncludes(
+    settingsStoreSource,
+    "backup_export_prepare_result",
+    "desktop settings store backup export handling"
+  );
+
+  const automatePageSource = read("apps/desktop/src/features/automate/AutomatePage.tsx");
+  assertIncludes(
+    automatePageSource,
+    "useAutomateStore",
+    "desktop automate page store ownership"
+  );
+  assertIncludes(
+    automatePageSource,
+    "canRequest",
+    "desktop automate page gates domain requests behind auth"
+  );
+  assertIncludes(
+    automatePageSource,
+    "routines",
+    "desktop automate page routines listing"
+  );
+  assertIncludes(
+    automatePageSource,
+    "selectedRoutine",
+    "desktop automate page selected routine detail"
+  );
+  assertIncludes(
+    automatePageSource,
+    "selectRoutine",
+    "desktop automate page delegates selection to page store"
+  );
+
+  const automateStoreSource = read("apps/desktop/src/features/automate/automate-store.ts");
+  assertIncludes(
+    automateStoreSource,
+    "requestDesktopRoutine",
+    "desktop automate store request gateway"
+  );
+  assertIncludes(
+    automateStoreSource,
+    "routines_state",
+    "desktop automate store routines state handling"
+  );
+
+  const opsStoreSource = read("apps/desktop/src/features/ops/ops-store.ts");
+  assertIncludes(
+    opsStoreSource,
+    "DesktopDoctorSnapshot",
+    "desktop ops store doctor snapshot contract"
+  );
+  assertIncludes(
+    opsStoreSource,
+    "DesktopOpsSnapshot",
+    "desktop ops store operations snapshot contract"
+  );
+  assertIncludes(
+    opsStoreSource,
+    "markDoctorResult",
+    "desktop ops store read-only doctor result action"
+  );
+  assertIncludes(
+    opsStoreSource,
+    "markPlanListResult",
+    "desktop ops store read-only plan list action"
+  );
+  assertIncludes(
+    opsStoreSource,
+    "markTaskGraphListResult",
+    "desktop ops store read-only task graph list action"
+  );
+  assertIncludes(
+    shellStoreSource,
     "bootstrapPid",
     "desktop shell store bootstrap pid"
   );
@@ -275,6 +792,21 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     boundarySource,
     "데스크톱 셸 렌더링을 중단했다",
     "desktop shell error boundary fallback"
+  );
+  assertIncludes(
+    boundarySource,
+    "recordShellError",
+    "desktop shell error boundary logging"
+  );
+  assertIncludes(
+    boundarySource,
+    "다시 시도",
+    "desktop shell error boundary retry button"
+  );
+  assertIncludes(
+    boundarySource,
+    "componentStack",
+    "desktop shell error boundary component stack"
   );
   assertIncludes(
     read("apps/desktop/src/main.tsx"),
@@ -365,6 +897,100 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     "desktop runtime probe manual retrigger hook"
   );
 
+  const sessionBridgeSource = read("apps/desktop/src/use-middleware-session.ts");
+  assertIncludes(
+    sessionBridgeSource,
+    "auth_required",
+    "desktop session bridge handles auth_required"
+  );
+  assertIncludes(
+    sessionBridgeSource,
+    "requestDesktopAuth",
+    "desktop session bridge auth gateway"
+  );
+  assertIncludes(
+    sessionBridgeSource,
+    "requestDesktopOps",
+    "desktop session bridge ops gateway"
+  );
+  assertIncludes(
+    sessionBridgeSource,
+    "publishDesktopMessage",
+    "desktop session bridge publishes messages to page stores"
+  );
+  assertIncludes(
+    sessionBridgeSource,
+    "bindDesktopSessionSocket",
+    "desktop session bridge socket binding"
+  );
+  assertIncludes(
+    sessionBridgeSource,
+    "DESKTOP_MIDDLEWARE_WS_URL",
+    "desktop session bridge websocket url"
+  );
+
+  const gatewaySource = read("apps/desktop/src/features/middleware/desktop-message-gateway.ts");
+  assertIncludes(
+    gatewaySource,
+    "request_otp",
+    "desktop gateway otp request"
+  );
+  assertIncludes(
+    gatewaySource,
+    "resume_auth",
+    "desktop gateway auth resume request"
+  );
+  assertIncludes(
+    gatewaySource,
+    "doctor_get_last",
+    "desktop gateway doctor query"
+  );
+  assertIncludes(
+    gatewaySource,
+    "plan_list",
+    "desktop gateway plan query"
+  );
+  assertIncludes(
+    gatewaySource,
+    "task_graph_list",
+    "desktop gateway task query"
+  );
+  assertIncludes(
+    gatewaySource,
+    "DESKTOP_PUBLIC_REQUESTS",
+    "desktop gateway only lets auth requests bypass auth gate"
+  );
+  assertIncludes(
+    gatewaySource,
+    "useDesktopAuthStore",
+    "desktop gateway checks auth state before domain requests"
+  );
+  assertIncludes(
+    gatewaySource,
+    "normalizeToolActionPayload",
+    "desktop gateway translates browser/canvas tool payloads"
+  );
+  assertIncludes(
+    gatewaySource,
+    "webFetchUrl",
+    "desktop gateway owns middleware url field translation"
+  );
+  assertIncludes(
+    gatewaySource,
+    "list_conversations",
+    "desktop gateway ask query"
+  );
+  assertIncludes(
+    gatewaySource,
+    "backup_import_apply",
+    "desktop gateway backup apply"
+  );
+  assertIncludes(
+    gatewaySource,
+    "run_routine",
+    "desktop gateway routine action"
+  );
+
   const bootstrapEventsSource = read("apps/desktop/src/use-middleware-bootstrap-events.ts");
   assertIncludes(
     bootstrapEventsSource,
@@ -393,8 +1019,25 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     srcDir,
     (filePath) => filePath.endsWith(".ts") || filePath.endsWith(".tsx")
   );
+  const oversizedFrontendFiles = frontendFiles
+    .map((filePath) => ({
+      filePath,
+      lineCount: readFileSync(filePath, "utf8").split(/\r?\n/).length
+    }))
+    .filter((entry) => entry.lineCount > 500)
+    .map((entry) => `${toRelative(entry.filePath)} (${entry.lineCount} lines)`);
+  assertionCount += 1;
+  assert.deepEqual(
+    oversizedFrontendFiles,
+    [],
+    `desktop frontend God Object 위험 파일은 500줄 이하여야 합니다:\n${oversizedFrontendFiles.join("\n")}`
+  );
+
   const frontendForbiddenPatterns = [
-    { pattern: /\bpaletteOpen\b/, reason: "예전 paletteOpen ReferenceError 회귀 차단" }
+    { pattern: /\bpaletteOpen\b/, reason: "예전 paletteOpen ReferenceError 회귀 차단" },
+    { pattern: /\bdoctor_fix_apply\b/, reason: "desktop Phase 5 운영 위험 명령은 별도 apply UX 없이 금지" },
+    { pattern: /\bcleanup_apply\b/, reason: "desktop Phase 5 운영 위험 명령은 별도 apply UX 없이 금지" },
+    { pattern: /\btask_retry\b/, reason: "desktop Phase 5 운영 위험 명령은 별도 retry UX 없이 금지" }
   ];
 
   const frontendViolations = [];
@@ -412,6 +1055,32 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     frontendViolations,
     [],
     `desktop frontend boundary 위반:\n${frontendViolations.join("\n")}`
+  );
+
+  const websocketOwners = new Set([
+    "apps/desktop/src/use-middleware-runtime-probe.ts",
+    "apps/desktop/src/use-middleware-session.ts"
+  ]);
+  const websocketLeaks = frontendFiles
+    .filter((filePath) => readFileSync(filePath, "utf8").includes("new WebSocket"))
+    .map(toRelative)
+    .filter((relativePath) => !websocketOwners.has(relativePath));
+  assertionCount += 1;
+  assert.deepEqual(
+    websocketLeaks,
+    [],
+    `desktop WebSocket 직접 생성은 runtime probe/session bridge만 허용:\n${websocketLeaks.join("\n")}`
+  );
+
+  const rawGatewayLeaks = frontendFiles
+    .filter((filePath) => toRelative(filePath) !== "apps/desktop/src/features/middleware/desktop-message-gateway.ts")
+    .filter((filePath) => readFileSync(filePath, "utf8").includes("sendDesktopRequest("))
+    .map(toRelative);
+  assertionCount += 1;
+  assert.deepEqual(
+    rawGatewayLeaks,
+    [],
+    `desktop raw WS request는 desktop-message-gateway.ts 밖에서 호출 금지:\n${rawGatewayLeaks.join("\n")}`
   );
 }
 
