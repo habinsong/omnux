@@ -207,12 +207,12 @@ git diff --check
 
 ## 5. UI 전환 및 마이그레이션 진척도 (Phase 1~5)
 
-전체 WS 연결률: 58/93 (62%). Phase 1~4 완료 시 93/93 (100%).
+전체 WS 연결률: 63/93 (68%). Phase 1~4 완료 시 93/93 (100%).
 
 | 단계 (Phase) | 상태 | 목표 및 내용 |
 |---|---|---|
 | **Phase 1. Routine CRUD** | ✅ 완료 | Automate 화면 루틴 연결 완료 (`create`, `run`, `delete` 등) |
-| **Phase 2. Conversation + Memory** | 🟡 진행 중 | 대화 관리(6개) + 메모리 CRUD(8개) + 백업(3개) WS 연결 |
+| **Phase 2. Conversation + Memory** | ✅ 완료 | 대화 관리(6개) + 메모리 CRUD(8개) + 백업(3개) WS 연결 완료 (Ask 대화 CRUD·검색, Settings 메모리 CRUD, 백업/복원·Cloud Sync) |
 | **Phase 3. Web/Browser/Sessions** | 🔴 대기 | 웹 검색(4개) + 세션(4개) WS 연결 |
 | **Phase 4. Doctor/Cleanup/Task** | 🔴 대기 | Doctor 수정(2개) + Cleanup(2개) + Task(3개) + 기타 설정 WS 연결 |
 | **Phase 5. Tauri 마이그레이션** | 🟡 진행 중 | React+Vite+Tauri 기반 데스크톱 앱으로 전면 전환 |
@@ -230,7 +230,8 @@ git diff --check
 - `Settings` 화면의 Memory 탭도 `send`/`toast` 참조를 분리하고, 메모리 내용 갱신 시 선택 항목이 stale 상태에 묶이지 않도록 정리했다.
 - 실제 브라우저 검증에서 `Settings` -> `Memory & backup` 진입과 메모리 검색/백업 버튼 렌더를 확인했다.
 - `Settings` Memory 탭에 메모리 노트 CRUD를 연결했다: 선택 노트 `이름 변경`(rename_memory_note)·`삭제`(delete_memory_notes)와 범위 `메모리 비우기`(clear_memory). 백엔드가 mutation 후 `memory_notes`를 재브로드캐스트하므로 리스트는 자동 갱신되고, 파괴적 작업은 confirm으로 가드했다. 브라우저 프리뷰에서 렌더·선택 시 액션 노출·delete/rename end-to-end(전송+낙관적 UI)·리스트 갱신 경로(`omnux:memory_notes`)를 콘솔 에러 없이 확인했다.
-- Phase 2 잔여: 대화 `create_conversation`·`delete_conversation`·`update_conversation_meta`·`conversation_search`와 `create_memory_note`(대화 기반)를 `Ask` 화면 사이드바에 연결. 백엔드는 모두 지원(`WsConversationMemoryDispatcher`), 프론트 와이어링만 남음. 백업 3종은 연결 완료.
+- `Ask` 화면 대화 CRUD를 연결해 **Phase 2를 완료**했다: `RecentConversations`에 `새 대화`(create_conversation), 행별 `이름 변경`(update_conversation_meta)·`메모리로 저장`(create_memory_note)·`삭제`(delete_conversation), 그리고 대화 검색 입력(conversation_search, Enter 트리거 → 검색 결과 렌더). 백엔드가 mutation 후 `conversations`를 재브로드캐스트하므로 목록은 `omnux:conversations` 경유로 자동 갱신되고, 파괴적 작업은 confirm으로 가드했다. 브라우저 프리뷰에서 렌더·검색 end-to-end(입력+Enter→검색 중→결과/snippet)·created/deleted/memory_note_created 토스트·행 액션 클릭을 콘솔 에러 없이 확인했다.
+- Phase 2(대화 관리 6 + 메모리 CRUD 8 + 백업 3 = 17 WS)는 모두 연결 완료. 다음은 Phase 3(웹 검색 4 + 세션 4).
 
 **Phase 3 — Web 검색 / Browser / Sessions**
 1. `ws-web.js`, `ws-sessions.js` 작성.
