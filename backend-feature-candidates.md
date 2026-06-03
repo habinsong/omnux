@@ -26,6 +26,7 @@
 | Git worktree 격리 | ✅ 1차 | `GitWorktreeIsolationManager`, `SessionSpawnTool` — ACP spawn opt-in worktree CWD 주입 |
 | 셀프 힐링/워치독 | ✅ 1차 | `FileAgentSpawnActiveRunStore.EvaluateWatchdog`, 백그라운드 active-run timeout/stale 감지 |
 | 자동 커밋/PR 생성 | ✅ 1차 | `GitAutomationSnapshotService`, `git_automation_snapshot_get` — 읽기 전용 변경 감지/커밋 제안 |
+| Git 단위 타임머신 | ✅ 1차 | `GitTimeMachineSnapshotService`, `git_time_machine_snapshot_get` — 최근 체크포인트/롤백 readiness 읽기 전용 조회 |
 | Durable Workflow | ✅ 1차 | `LogicRunSnapshot` 지속 저장, `LogicRunRecoveryScanner`, `logic_graph_recovery_list` |
 | OpenTelemetry 옵저버빌리티 | ✅ 1차 | `TelemetryTracer`, `FileTelemetryTraceStore`, `WsTelemetryCommandDispatcher` — ActivitySource + 로컬 스냅샷 |
 | 세션 리플레이 & 디버깅 | ✅ 1차 | `SessionReplayApplicationService`, `WsSessionReplayCommandDispatcher` — 대화/telemetry/agent bus 타임라인 스냅샷 |
@@ -961,6 +962,14 @@
 ### 관련 기능 (이미 문서에 포함)
 
 - **기능 5**: 자동 커밋/PR 생성
+
+### 상태: ✅ 1차 read-only snapshot 구현
+
+- `git_time_machine_snapshot_get`은 현재 저장소의 branch/head, dirty/conflict 상태, 최근 commit checkpoint, rollback readiness를 읽기 전용으로 반환한다.
+- dirty worktree에서는 `manual_review_required`로 보고, merge conflict가 있으면 `blocked`로 보고한다.
+- checkpoint별 `current_head`, `history_rewrite_required`, `merge_commit` risk flag를 반환해 프론트가 롤백 후보를 안전하게 표시할 수 있게 했다.
+- `auto_snapshot_commit`, `snapshot_branch_creation`, `rollback_execution`, `worktree_clean`, `snapshot_gc`는 모두 `skipped` check로 반환한다.
+- 실제 `git commit`, `git reset --hard`, `git clean -fd`, snapshot branch 생성/삭제는 파괴적 상태 변경이라 승인/충돌/백업 정책이 확정될 때까지 보류한다.
 
 ### 추가 아이디어
 

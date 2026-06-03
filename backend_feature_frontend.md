@@ -237,6 +237,23 @@
   - LLM으로 커밋 의도를 추론하지 않는다.
   - memory note, skill, 시스템 프롬프트에 자동 주입하지 않는다.
 
+## 구현됨: Git 단위 타임머신 read-only snapshot 1차
+
+- 후보 문서 항목: Phase 6-4 `Git 단위 타임머신 기능`
+- 백엔드 구현:
+  - `GitTimeMachineSnapshotService`
+  - `GitTimeMachineReadinessPolicy`
+  - `WsGitTimeMachineCommandDispatcher`
+- 동작:
+  - 현재 git 저장소 여부, branch/head, dirty/conflict 상태를 조회한다.
+  - 최근 commit을 checkpoint 목록으로 반환한다.
+  - checkpoint별 `current_head`, `history_rewrite_required`, `merge_commit` risk flag를 제공한다.
+  - dirty worktree는 `manual_review_required`, merge conflict는 `blocked`, clean + 2개 이상 checkpoint는 `ready_for_rollback_review`로 반환한다.
+- 현재 안전 정책:
+  - 이 요청은 `readOnly=true`이며 저장소를 수정하지 않는다.
+  - 자동 snapshot commit, snapshot branch 생성, `git reset --hard`, `git clean -fd`, checkpoint GC는 모두 `checks[].status=skipped`로만 표시한다.
+  - 프론트는 이 응답을 롤백 UI의 상태/경고/후보 표시용으로만 사용하고 실행 버튼은 아직 연결하지 않는다.
+
 ## WebSocket 이벤트
 
 ### `telemetry_snapshot_get`
@@ -858,6 +875,81 @@ workspace 코드 구조 지도를 조회한다. 외부 parser나 LLM 호출 없�
 - `changedFileCount`와 상태별 카운트는 전체 변경 기준이고, `files`만 `limit`으로 잘린다. 잘렸으면 `filesTruncated=true`다.
 - `readiness.status=blocked`이면 `conflictedFileCount > 0`이거나 `blockers`에 이유가 들어간다.
 - `suggestedCommitMessage`와 `suggestedBranchName`은 LLM이 아니라 파일 경로/status 기반 heuristic이다. 자동 실행 근거가 아니라 사용자 승인 UI의 초안으로만 사용한다.
+
+### `git_time_machine_snapshot_get`
+
+Git checkpoint/rollback 후보와 안전 상태를 읽기 전용으로 조회한다.
+
+요청:
+
+```json
+{
+  "type": "git_time_machine_snapshot_get",
+  "limit": 30
+}
+```
+
+응답:
+
+```json
+{
+  "type": "git_time_machine_snapshot",
+  "payload": {
+    "repositoryRoot": "/path/to/workspace",
+    "branchName": "main",
+    "headHash": "abcdef...",
+    "headShortHash": "abcdef123456",
+    "isRepository": true,
+    "readOnly": true,
+    "hasChanges": false,
+    "isClean": true,
+    "changedFileCount": 0,
+    "conflictedFileCount": 0,
+    "diffShortStat": "",
+    "limit": 30,
+    "checkpointsTruncated": false,
+    "snapshotNamespace": "snapshots",
+    "suggestedSnapshotBranch": "snapshots/main/20260604000000-abcdef123456",
+    "checkpoints": [
+      {
+        "hash": "abcdef...",
+        "shortHash": "abcdef123456",
+        "subject": "feat: add backend snapshot",
+        "authorName": "Dev",
+        "authorDateUtc": "2026-06-04T00:00:00Z",
+        "parentShortHashes": ["123456abcdef"],
+        "isHead": true,
+        "rollbackCandidate": false,
+        "riskFlags": ["current_head"]
+      }
+    ],
+    "readiness": {
+      "status": "ready_for_rollback_review",
+      "snapshotCreationRecommended": false,
+      "rollbackAvailable": true,
+      "requiresApproval": true,
+      "blockers": []
+    },
+    "checks": [
+      {
+        "name": "rollback_execution",
+        "status": "skipped",
+        "detail": "git reset --hard is not enabled"
+      }
+    ],
+    "warnings": [],
+    "scannedAtUtc": "2026-06-04T00:00:00Z"
+  }
+}
+```
+
+- `limit`은 1~100으로 clamp된다.
+- `readiness.status`는 `ready_for_rollback_review`, `manual_review_required`, `clean`, `blocked` 중 하나다.
+- dirty worktree에서는 `rollbackAvailable=false`이고 `blockers`에 `uncommitted_changes_present`, `rollback_would_discard_worktree_changes`가 들어간다.
+- merge conflict가 있으면 `blockers`에 `merge_conflicts_present`가 들어간다.
+- `git status` 자체가 실패하면 `readiness.status=blocked`, `blockers=["git_status_failed"]`로 처리한다.
+- `checkpoints[].rollbackCandidate=true`는 UI 후보 표시용이다. 백엔드는 아직 rollback 실행 요청을 제공하지 않는다.
+- `checks`에는 실제 실행이 보류된 작업이 `skipped`로 포함된다. 프론트는 실행 버튼 대신 disabled 상태와 이유를 보여준다.
 
 ### `self_improvement_snapshot_get`
 
