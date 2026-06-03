@@ -36,7 +36,8 @@ assert.match(routineUtils, /runImmediately: form\?\.runImmediately === true/, "�
 assert.match(appShellRender, /automate: window\.AutomatePage/, "새 Home 중심 앱은 Automate 화면을 라우팅해야 합니다.");
 assert.match(automate, /function CreatePanel/, "새 Automate 화면에는 루틴 생성 패널이 있어야 합니다.");
 assert.match(automate, /Telegram is connected/, "새 Automate 화면은 텔레그램 루틴 진입점을 보여야 합니다.");
-assert.match(automateState, /ctx\.toast\('Automation created'\)/, "새 Automate 화면은 생성 완료 흐름을 제공해야 합니다.");
+assert.match(automateState, /msg\.type === 'routine_result'/, "새 Automate 화면은 백엔드 routine_result로 생성 완료를 처리해야 합니다.");
+assert.match(automateState, /ctx\.toast\(msg\.message/, "새 Automate 화면은 백엔드 결과 메시지를 사용자에게 보여야 합니다.");
 assert.match(ask, /ctx\.setRoute\('automate', \{ create: true \}\)/, "Ask 답변에서 자동화 생성으로 이어져야 합니다.");
 assert.match(build, /ctx\.setRoute\('automate', \{ create: true \}\)/, "Build 결과에서 자동화 저장으로 이어져야 합니다.");
 assert.match(composer, /createRoutineFromCurrentInput\("chat:single"\)/, "대화 단일 입력창에서 루틴 전환을 제공해야 합니다.");

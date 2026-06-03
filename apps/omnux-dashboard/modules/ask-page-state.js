@@ -27,6 +27,7 @@
     const activeConversationId = ctx.activeConversationId || null;
     const conversations = Array.isArray(ctx.conversations) ? ctx.conversations : [];
     const memoryNotes = Array.isArray(ctx.memoryNotes) ? ctx.memoryNotes : [];
+    const authenticated = !!ctx.runtime?.authenticated;
 
     const openConversation = useCallback((item) => {
       if (!item || !item.id) return;
@@ -162,9 +163,10 @@
     }, [setActiveConversationId, toast]);
 
     useEffect(() => {
+      if (!authenticated) return;
       sendMessage({ type: "list_conversations", scope: "chat", mode: "single" }, { queueIfClosed: true, silent: true });
       sendMessage({ type: "list_memory_notes" }, { queueIfClosed: true, silent: true });
-    }, [sendMessage]);
+    }, [authenticated, sendMessage]);
 
     const payloadInput = payload && payload.input ? payload.input : "";
     useEffect(() => {

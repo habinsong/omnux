@@ -87,7 +87,7 @@ public sealed partial class WebSocketGateway
                         break;
                     }
 
-                    _ = HandleContextAsync(context, cancellationToken);
+                    TrackRequestTask(HandleContextWithLimitAsync(context, cancellationToken));
                 }
             }
             finally
@@ -97,6 +97,7 @@ public sealed partial class WebSocketGateway
                     listener.Stop();
                 }
 
+                await WaitForTrackedRequestsAsync(TimeSpan.FromSeconds(5));
                 SetGatewayHealthState(
                     status: "stopped",
                     listenerPrefix: listenerPrefix,
@@ -183,6 +184,103 @@ public sealed partial class WebSocketGateway
 
         context.Response.StatusCode = (int)HttpStatusCode.NotFound;
         await WriteResponseAsync(context.Response, "text/plain; charset=utf-8", "not found", cancellationToken);
+    }
+
+    private async Task HandleContextWithLimitAsync(HttpListenerContext context, CancellationToken cancellationToken)
+    {
+        if (!TryAcquireHttpRequestSlot())
+        {
+            context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests;
+            await WriteResponseAsync(
+                context.Response,
+                "text/plain; charset=utf-8",
+                "too many concurrent requests",
+                cancellationToken
+            );
+            return;
+        }
+
+        try
+        {
+            await HandleContextAsync(context, cancellationToken);
+        }
+        finally
+        {
+            ReleaseHttpRequestSlot();
+        }
+    }
+
+    private bool TryAcquireHttpRequestSlot()
+    {
+        var active = Interlocked.Increment(ref _activeHttpRequests);
+        if (active <= Math.Max(1, _gatewayOptions.HttpMaxConcurrentRequests))
+        {
+            return true;
+        }
+
+        Interlocked.Decrement(ref _activeHttpRequests);
+        return false;
+    }
+
+    private void ReleaseHttpRequestSlot()
+    {
+        Interlocked.Decrement(ref _activeHttpRequests);
+    }
+
+    private void TrackRequestTask(Task task)
+    {
+        lock (_requestTasksLock)
+        {
+            _requestTasks.Add(task);
+        }
+
+        _ = task.ContinueWith(
+            completed =>
+            {
+                lock (_requestTasksLock)
+                {
+                    _requestTasks.Remove(completed);
+                }
+
+                if (completed.IsFaulted)
+                {
+                    Console.Error.WriteLine($"[web] request failed: {completed.Exception?.GetBaseException().Message}");
+                }
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default
+        );
+    }
+
+    private async Task WaitForTrackedRequestsAsync(TimeSpan timeout)
+    {
+        Task[] tasks;
+        lock (_requestTasksLock)
+        {
+            tasks = _requestTasks.ToArray();
+        }
+
+        if (tasks.Length == 0)
+        {
+            return;
+        }
+
+        var all = Task.WhenAll(tasks);
+        var completed = await Task.WhenAny(all, Task.Delay(timeout));
+        if (completed != all)
+        {
+            Console.Error.WriteLine($"[web] shutdown continued with {tasks.Length} request task(s) still active.");
+            return;
+        }
+
+        try
+        {
+            await all;
+        }
+        catch
+        {
+        }
     }
 
     private static async Task WriteResponseAsync(

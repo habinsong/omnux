@@ -1,0 +1,807 @@
+AcpSessionBindingAdapter.cs:
+  Classes: AcpSessionBindingDispatchRequest, AcpSessionBindingDispatchResult, AcpSessionBindingAdapter, ParsedCommandResult
+  Methods: Dispatch, UsesCommandDispatch
+
+AgentSpawnAdmissionLimiter.cs:
+  Classes: AgentSpawnAdmissionDecision, AgentSpawnAdmissionLimiter, Reservation
+  Methods: TryAcquire, EstimateTokens, Release
+
+AgentSpawnBudgetPolicy.cs:
+  Classes: AgentSpawnBudgetDecision, AgentSpawnBudgetPolicy
+  Methods:
+
+AgentSpawnDailyCostLedger.cs:
+  Classes: AgentSpawnDailyCostDecision, AgentSpawnDailyCostSnapshot, AgentSpawnDailyCostLedger, AgentSpawnDailyCostLedgerState, AgentSpawnDailyCostLedgerReservation
+  Methods: TryReserve, Release, GetSnapshot
+
+AgentSpawnRunBreaker.cs:
+  Classes: AgentSpawnRunBreakerDecision, AgentSpawnRunBreaker, AgentSpawnRunBreakerState
+  Methods: Evaluate
+
+AgentSpawnWorkspaceRollbackPolicy.cs:
+  Classes: AgentSpawnWorkspaceRollbackPolicy, AgentSpawnWorkspaceBaseline, AgentSpawnWorkspaceRollbackSnapshot, AgentSpawnWorkspaceFileSnapshot, AgentSpawnWorkspaceScan
+  Methods: CaptureBaseline, SaveRollbackIfChanged
+
+AppConfig.cs:
+  Classes: AppConfig, ProviderOptions, PathOptions, GatewayOptions, SecurityOptions, DoctorOptions, RefactorOptions, ContextOptions, ExecutionOptions
+  Methods:
+
+AtomicFileStore.cs:
+  Classes: AtomicFileStore
+  Methods:
+
+AuditLogger.cs:
+  Classes: AuditLogger
+  Methods: Log
+
+AuthSessionGateway.cs:
+  Classes: struct, AuthSessionGateway
+  Methods: CreatePendingSessionAsync, TryHandleAsync
+
+BrowserTool.cs:
+  Classes: BrowserToolTab, BrowserToolResult, BrowserTool, BrowserProfileState, BrowserTabState
+  Methods: Execute
+
+CanvasTool.cs:
+  Classes: CanvasToolSnapshot, CanvasToolResult, CanvasTool, CanvasProfileState, CanvasSnapshotState
+  Methods: Execute
+
+CerebrasErrorPolicy.cs:
+  Classes: CerebrasErrorPolicy
+  Methods:
+
+CerebrasModelCatalog.cs:
+  Classes: CerebrasModelCatalog, CerebrasModelInfo
+  Methods: GetModelsAsync, ResolveFirstAvailableModelAsync, GetCachedResolvedModel, Dispose
+
+ChatOutputSanitizerPolicy.cs:
+  Classes: ChatOutputSanitizerPolicy
+  Methods:
+
+ChatRetryGuardPolicy.cs:
+  Classes: ChatRetryGuardPolicy
+  Methods:
+
+ChatStreamingContinuation.cs:
+  Classes: ChatStreamingContinuation
+  Methods:
+
+CitationAccumulator.cs:
+  Classes: CitationAccumulator
+  Methods: Merge, Add, MergeFromGeminiPayload, ToArray
+
+CodexCliWrapper.cs:
+  Classes: CodexCliWrapper, LoginSession, ProcessResult, CodexStatus
+  Methods: GetStatusAsync, StartLoginAsync, LogoutAsync, GenerateChatAsync, AppendOutput
+
+CodingArtifactCleanupPolicy.cs:
+  Classes: CodingArtifactCleanupPolicy
+  Methods:
+
+CodingDeterministicOutputRepairPolicy.cs:
+  Classes: CodingDeterministicOutputRepairPolicy
+  Methods:
+
+CodingDeterministicScaffoldPolicy.cs:
+  Classes: CodingDeterministicScaffoldPolicy
+  Methods:
+
+CodingDeterministicStructuredRepairPolicy.cs:
+  Classes: CodingDeterministicGeneratedFile, CodingDeterministicStructuredRepairPlan, CodingDeterministicStructuredRepairPolicy, Main, Ledger, BucketTotal
+  Methods:
+
+CodingExecutionSafetyPolicy.cs:
+  Classes: CodingExecutionSafetyPolicy
+  Methods:
+
+CodingExpectedOutputPolicy.cs:
+  Classes: CodingExpectedOutputPolicy
+  Methods:
+
+CodingFallbackDecisionPolicy.cs:
+  Classes: CodingFallbackDecisionPolicy
+  Methods:
+
+CodingFallbackPolicy.cs:
+  Classes: CodingFallbackProjectProfile, FallbackGeneratedFile, FallbackFileBundle, CodingRepairObjectivePromptRequest, CodingFallbackPolicy
+  Methods:
+
+CodingLanguagePolicy.cs:
+  Classes: CodingLanguagePolicy
+  Methods:
+
+CodingLoopActionExecutor.cs:
+  Classes: struct, CodingLoopActionExecutor
+  Methods:
+
+CodingLoopPlanParser.cs:
+  Classes: CodingLoopPlanParser
+  Methods:
+
+CodingLoopTuningPolicy.cs:
+  Classes: CodingLoopTuningPolicy
+  Methods:
+
+CodingOrchestrationPromptPolicy.cs:
+  Classes: CodingOrchestrationPromptPolicy
+  Methods:
+
+CodingProgressPolicy.cs:
+  Classes: CodingProgressPolicy
+  Methods:
+
+CodingPromptPolicy.cs:
+  Classes: CodingLoopPromptPolicyRequest, CodingWorkerSummaryDigest, CodingPromptPolicy
+  Methods:
+
+CodingQualityBriefPolicy.cs:
+  Classes: CodingQualityBriefPolicy
+  Methods:
+
+CodingTestEvidencePolicy.cs:
+  Classes: CodingTestEvidencePolicy
+  Methods:
+
+CodingWorkerSelectionPolicy.cs:
+  Classes: CodingWorkerSelectionPolicy
+  Methods:
+
+CommandHelpTextPolicy.cs:
+  Classes: CommandHelpTextPolicy
+  Methods:
+
+CommandService.BrowserIntent.cs:
+  Classes: CommandService, BrowserIntentCommand
+  Methods:
+
+CommandService.Chat.cs:
+  Classes: CommandService
+  Methods: ChatSingleWithStateAsync, ChatOrchestrationWithStateAsync, ChatMultiWithStateAsync, ChatSingleAsync, ChatOrchestrationAsync
+
+CommandService.Citations.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.Cleanup.cs:
+  Classes: CommandService
+  Methods: PreviewCleanup, ApplyCleanup
+
+CommandService.CodingGateway.cs:
+  Classes: CommandService, CodingCommandGatewayAdapter
+  Methods: ConfigureCodingApplicationService, CreateCodingCommandGateway
+
+CommandService.Commands.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.Config.cs:
+  Classes: CommandService
+  Methods: ListSessions, GetSessionHistory, SendToSession, SpawnSession, GetSessionSpawnStatus
+
+CommandService.Context.cs:
+  Classes: CommandService
+  Methods: ScanProjectContextAsync, ListSkillsAsync, ListCommandsAsync
+
+CommandService.Conversations.cs:
+  Classes: CommandService
+  Methods: ListConversations, CreateConversation, GetConversation, DeleteConversation, UpdateConversationMetadata
+
+CommandService.Execution.Dispatch.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.Execution.PostRouting.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.Execution.TelegramRouting.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.Execution.cs:
+  Classes: CommandService
+  Methods: ExecuteAsync
+
+CommandService.InputPreparation.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.LlmSettings.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.LlmSettingsRouting.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.LogicGraphs.cs:
+  Classes: CommandService, MutableLogicNodeState
+  Methods: ConfigureLogicGraphRuntime, ListLogicGraphs, GetLogicGraph, SaveLogicGraphAsync, DeleteLogicGraph
+
+CommandService.LogicPathBrowser.cs:
+  Classes: CommandService
+  Methods: BrowseLogicPath
+
+CommandService.Memory.cs:
+  Classes: CommandService
+  Methods: CreateMemoryNoteAsync
+
+CommandService.NaturalCommandExecution.cs:
+  Classes: CommandService, NaturalCommandExecutionRequest
+  Methods:
+
+CommandService.NaturalCommands.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.ProviderRouting.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.Refactor.cs:
+  Classes: CommandService
+  Methods: ReadWithAnchorsAsync, PreviewRefactorAsync, ApplyRefactorAsync, RestoreRollbackAsync, RunLspRenameAsync
+
+CommandService.RoutineGateway.cs:
+  Classes: CommandService, RoutineLlmGatewayAdapter
+  Methods: ConfigureRoutineApplicationService, CreateRoutineLlmGateway
+
+CommandService.RoutineLogicGraphRunner.cs:
+  Classes: CommandService, RoutineLogicGraphRunnerAdapter
+  Methods: CreateRoutineLogicGraphRunner
+
+CommandService.RoutineSearchGateway.cs:
+  Classes: CommandService, RoutineSearchGatewayAdapter
+  Methods: CreateRoutineSearchGateway
+
+CommandService.SearchAnswerComposition.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.SearchBackup.cs:
+  Classes: CommandService
+  Methods: SearchConversations, ExportBackup, PreviewBackupImport, ApplyBackupImport
+
+CommandService.SearchPipeline.cs:
+  Classes: CommandService, WebNeedDecisionResult
+  Methods:
+
+CommandService.Settings.cs:
+  Classes: CommandService
+  Methods: GetSettingsSnapshot, GetRoutingPolicySnapshot, SaveRoutingPolicy, ResetRoutingPolicy, GetLastRoutingDecision
+
+CommandService.SlashDispatch.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.Telegram.Coding.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.Telegram.CodingSettings.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.Telegram.Conversation.cs:
+  Classes: CommandService
+  Methods: EnsureTelegramLinkedConversation
+
+CommandService.Telegram.LlmChannelMutation.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.Telegram.LlmCommandBoundary.cs:
+  Classes: CommandService, struct
+  Methods:
+
+CommandService.Telegram.LlmControl.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.Telegram.LlmExecution.cs:
+  Classes: CommandService, struct
+  Methods:
+
+CommandService.Telegram.LlmModelSelection.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.Telegram.LlmReports.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.Telegram.Refactor.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.Telegram.ResponseFinalize.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.Telegram.SkillAliases.cs:
+  Classes: CommandService
+  Methods: TryRewriteSlashAliasToSkillInvocation
+
+CommandService.Telegram.SkillRuntime.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.Telegram.Skills.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.Telegram.UrlRouting.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.Telegram.cs:
+  Classes: CommandService
+  Methods: GetCurrentTelegramExecutionMetadata
+
+CommandService.ThinkPlus.cs:
+  Classes: CommandService
+  Methods: IsThinkPlusActiveForThread, SetThinkPlusForThread
+
+CommandService.Types.cs:
+  Classes: TokenUsage, TokenUsageEstimator, LlmSingleChatResult, LlmOrchestrationResult, LlmMultiChatResult, InputAttachment, SearchCitationReference, SearchCitationSentenceMapping, SearchCitationValidationSummary, ChatRequest, MultiChatRequest, ChatStreamUpdate, ChatLatencyMetrics, ConversationChatResult, ConversationSearchHit, ConversationSearchResult, ConversationImportResult, BackupExportOptions, BackupExportResult, BackupImportPreviewResult, BackupImportApplyResult, ConversationMultiResult, CodingRunRequest, CodingWorkerResult, CodingWorkerResultSnapshot, ConversationCodingResultSnapshot, CodingEvidencePack, CodingResultExecutionResult, CodingRunResult, WorkspaceFilePreview, MemoryIndexRebuildResult, DoctorFixAction, DoctorFixPlanResult, CleanupCandidate, CleanupPreviewResult, CleanupApplyResult, CodingProgressUpdate, ParsedCode, ScaffoldFileSpec, CodingLoopAction, CodingLoopPlan, CodingLoopActionResult, AutonomousCodingOutcome, ShellRunResult, InputPreparationResult, TelegramExecutionMetadata, TelegramTurnContext, RoutineSummary, RoutineActionResult, RoutineProgressUpdate, RoutineRunSummary, RoutineRunDetailResult, CronToolStatusResult, CronToolSchedule, CronToolPayload, CronToolJobState, CronToolJob, CronToolListResult, CronToolAddResult, CronToolUpdateResult, CronToolRunResult, CronToolRemoveResult, CronToolRunLogEntry, CronToolRunsResult, CronToolWakeResult, RoutineSchedule, RoutineScheduleConfig, RoutineModelStrategy, RoutineGenerationResult, RoutineExecutionPreviewResult, RoutineSchedulerStatus, RoutineState, RoutineDefinition, RoutineRunLogEntry, RoutineAgentExecutionMetadata, RoutineExecutionOutcome, TelegramLlmPreferences, TelegramCodingPreferences, TelegramRefactorSession, WebLlmPreferences, NaturalCommandInterpretation, CanonicalCommand, NaturalCommandValidationResult
+  Methods: Clone
+
+CommandService.Utils.cs:
+  Classes: CommandService
+  Methods: RecordRoutedEvent
+
+CommandService.WebResultSelection.cs:
+  Classes: CommandService
+  Methods:
+
+CommandService.cs:
+  Classes: CommandService
+  Methods: ClearActiveSkill, ClearActiveSkillForConversation
+
+ConversationContextPolicy.cs:
+  Classes: ConversationContextPolicy
+  Methods:
+
+ConversationHistoryPolicy.cs:
+  Classes: ConversationHistoryPolicy
+  Methods:
+
+ConversationStore.cs:
+  Classes: ConversationStore, ConversationState, ConversationThread, ConversationMessage, ConversationThreadSummary, ConversationMessageView, ConversationThreadView
+  Methods: List, ListAll, ListAllViews, Create, Ensure
+
+ConversationTitlePolicy.cs:
+  Classes: ConversationTitlePolicy
+  Methods:
+
+CopilotCliWrapper.cs:
+  Classes: CopilotCliWrapper, LoginSession, ProcessResult, CopilotModelMeta, PremiumUsageRawItem, CopilotStatus, CopilotUsage, CopilotModelInfo, CopilotPremiumUsageSnapshot, CopilotPremiumUsageItem, CopilotState
+  Methods: GetStatusAsync, SuggestCodeAsync, GenerateChatAsync, GetModelsAsync, GetSelectedModel
+
+CoreRuntimeClient.cs:
+  Classes: ICoreRuntimeClient, DotNetCoreRuntimeClient, NativeMethods, MemoryStatusEx
+  Methods: GetMetricsAsync, KillAsync
+
+DoctorCli.cs:
+  Classes: DoctorCli
+  Methods:
+
+Env.cs:
+  Classes: Env
+  Methods:
+
+ExternalContentGuard.cs:
+  Classes: ExternalContentGuard
+  Methods:
+
+GatewayApiEndpoint.cs:
+  Classes: GatewayApiEndpoint, CodingPreviewFileResult
+  Methods: TryHandleAsync
+
+GatewayStartupProbe.cs:
+  Classes: GatewayStartupProbe, struct
+  Methods: RunAsync
+
+GeminiCitationParser.cs:
+  Classes: GeminiCitationParser
+  Methods:
+
+GeminiGenerateContentAdapter.cs:
+  Classes: IGeminiGenerateContentAdapter, GeminiGenerateContentRequest, GeminiGenerateContentResult, GeminiGenerateContentAdapter
+  Methods: SendAsync
+
+GeminiGroundedRetriever.cs:
+  Classes: GeminiGroundedResultItem, GeminiGroundedRetrieverResult, GeminiGroundedRetriever
+  Methods: RetrieveAsync
+
+GeminiRequestPolicy.cs:
+  Classes: GeminiRequestPolicy
+  Methods:
+
+GeminiSearchContracts.cs:
+  Classes: GeminiKeyPolicy, SearchIntentProfile, SearchConstraints, SearchRequest, SearchDocument, SearchResponse, SearchLoopTermination, SearchGateway, SearchEvidencePack, SearchEvidenceIntentProfile, SearchEvidenceConstraints, SearchEvidenceItem, SearchEvidenceClaim, SearchEvidenceQuality
+  Methods:
+
+GeminiStreamingAdapter.cs:
+  Classes: IGeminiStreamingAdapter, GeminiStreamingAdapterRequest, GeminiStreamingAdapterResult, GeminiStreamingAdapter
+  Methods: StreamAsync
+
+GeneratedCodeCandidatePolicy.cs:
+  Classes: GeneratedCodeCandidatePolicy
+  Methods:
+
+GeneratedCodeTextPolicy.cs:
+  Classes: GeneratedCodeTextPolicy
+  Methods:
+
+GroqModelCatalog.cs:
+  Classes: GroqModelCatalog, GroqModelInfo, GroqModelSpec
+  Methods: GetModelsAsync, Dispose
+
+GroqPromptPolicy.cs:
+  Classes: GroqPromptPolicy
+  Methods:
+
+GroqRateLimitHeaderParser.cs:
+  Classes: GroqRateLimitHeaderParser
+  Methods:
+
+GuardRetryTimelineJsonContext.cs:
+  Classes: GuardRetryTimelineJsonContext
+  Methods:
+
+GuardRetryTimelineStore.cs:
+  Classes: GuardRetryTimelineStore, ChannelAccumulator, BucketAccumulator, GuardRetryTimelinePersistedState, GuardRetryTimelineSnapshot, GuardRetryTimelineChannelSnapshot, GuardRetryTimelineBucketSnapshot, GuardRetryTimelineEntry
+  Methods: Add, BuildSnapshotJson
+
+HttpStaticFileEndpoint.cs:
+  Classes: HttpStaticFileEndpoint, StaticAssetCacheEntry
+  Methods: TryHandleAsync
+
+InputAttachmentPolicy.cs:
+  Classes: InputAttachmentPolicy
+  Methods:
+
+KillCommandPolicy.cs:
+  Classes: KillCommandPolicy
+  Methods:
+
+KillTargetGuardPolicy.cs:
+  Classes: KillTargetGuardPolicy
+  Methods:
+
+LegacyGeminiGroundingSearchGateway.cs:
+  Classes: LegacyGeminiGroundingSearchGateway, CachedSearchSnapshot
+  Methods: SearchAsync
+
+LlmRouter.cs:
+  Classes: GeminiGroundedChatResponse, GeminiUrlContextChatResponse, OpenAiCompatibleStreamChunk, LlmRouter, GroqUsage, GroqRateLimit, GeminiUsage, LlmUsageState
+  Methods: GetSelectedGroqModel, ClearLastResponseTokenUsage, ConsumeLastResponseTokenUsage, TrySetSelectedGroqModel, TryGetGroqCooldownWait
+
+LocalAssistantQuestionPolicy.cs:
+  Classes: LocalAssistantQuestionPolicy
+  Methods:
+
+LocalTimeTextPolicy.cs:
+  Classes: LocalTimeTextPolicy
+  Methods:
+
+LogicGraphValidationPolicy.cs:
+  Classes: LogicGraphValidationPolicy
+  Methods:
+
+LogicLeafNodeExecutor.cs:
+  Classes: LogicLeafNodeExecutor
+  Methods:
+
+LogicNodeRuntimePolicy.cs:
+  Classes: LogicNodeRuntimePolicy
+  Methods:
+
+LogicTemplateResolver.cs:
+  Classes: LogicTemplateResolver
+  Methods:
+
+LogicValueParsingPolicy.cs:
+  Classes: LogicValueParsingPolicy
+  Methods:
+
+MemoryGetTool.cs:
+  Classes: MemoryGetToolResult, MemoryGetTool
+  Methods: Get
+
+MemoryIndexDocumentSync.cs:
+  Classes: MemoryIndexSyncSnapshot, MemoryIndexDocumentSync, SqliteProcessResult, MemorySourceDocument, MemoryChunkEntry
+  Methods: SyncOnce
+
+MemoryIndexSchemaBootstrap.cs:
+  Classes: MemoryIndexSchemaSnapshot, MemoryIndexSchemaBootstrap, SqliteProcessResult
+  Methods: EnsureInitialized
+
+MemoryNoteSelectionPolicy.cs:
+  Classes: MemoryNoteSelectionPolicy
+  Methods:
+
+MemoryNoteStore.cs:
+  Classes: MemoryNoteStore, MemoryNoteItem, MemoryNoteReadResult, MemoryNoteSaveResult, MemoryNoteCreateResult, MemoryNoteDeleteResult, MemoryNoteRenameResult
+  Methods: Save, RenameForConversationTitle, List, Read, DeleteByScope
+
+MemorySearchTool.cs:
+  Classes: MemorySearchCitationResult, MemorySearchToolResult, MemorySearchTool, SearchRow, SqliteProcessResult
+  Methods: Search
+
+MultiComparisonPolicy.cs:
+  Classes: MultiComparisonPolicy
+  Methods:
+
+NaturalCommandCandidatePolicy.cs:
+  Classes: NaturalCommandLlmPreferenceSnapshot, NaturalCommandInterpretCandidate, NaturalCommandCandidatePolicy
+  Methods:
+
+NaturalCommandDeterministicPolicy.cs:
+  Classes: NaturalCommandDeterministicPolicy
+  Methods:
+
+NaturalCommandDispatchPolicy.cs:
+  Classes: NaturalCommandDispatchDecision, NaturalCommandDispatchPolicy
+  Methods:
+
+NaturalCommandInterpretationPolicy.cs:
+  Classes: NaturalCommandInterpretationPolicy
+  Methods:
+
+NaturalCommandResolutionPolicy.cs:
+  Classes: NaturalCommandResolutionPolicy
+  Methods:
+
+NaturalCommandValidationPolicy.cs:
+  Classes: NaturalCommandValidationPolicy
+  Methods:
+
+NodesTool.cs:
+  Classes: NodesToolNode, NodesToolPairingRequest, NodesToolResult, NodesTool, NodesProfileState, NodeState, PairingRequestState
+  Methods: Execute
+
+NvidiaStatusPollingAdapter.cs:
+  Classes: NvidiaStatusPollingAdapter
+  Methods: PollAsync
+
+OmniJsonContext.cs:
+  Classes: OmniJsonContext
+  Methods:
+
+OpenAiCompatibleProtocol.cs:
+  Classes: OpenAiCompatibleProtocol
+  Methods:
+
+PlanningPromptPolicy.cs:
+  Classes: PlanningPromptPolicy
+  Methods:
+
+Program.cs:
+  Classes: Program, PersistenceServices, SearchServices, RefactorServices, ProjectContextServices, WorkflowServices, ToolServices, ApplicationServices, RuntimeServices
+  Methods:
+
+ProviderChatAdapter.cs:
+  Classes: IProviderChatAdapter, ProviderChatAdapterRequest, ProviderChatAdapterResult, OpenAiCompatibleChatAdapter
+  Methods: SendAsync
+
+ProviderModelSelectionPolicy.cs:
+  Classes: ProviderModelSelectionPolicy
+  Methods:
+
+ProviderRegistry.cs:
+  Classes: ProviderAvailability, ProviderRegistry
+  Methods: GetAvailableProvidersAsync, ResolveAutoProviderAsync, GetAvailabilitySnapshotAsync
+
+ProviderResponseParser.cs:
+  Classes: struct, ProviderResponseParser
+  Methods:
+
+ProviderStreamingAdapter.cs:
+  Classes: IProviderStreamingChatAdapter, ProviderStreamingAdapterRequest, ProviderStreamingTurnResult, OpenAiCompatibleStreamingChatAdapter
+  Methods: SendTurnAsync
+
+ProviderTimeoutPolicy.cs:
+  Classes: ProviderTimeoutPolicy
+  Methods:
+
+PythonSandboxClient.cs:
+  Classes: PythonSandboxClient
+  Methods: ExecuteCodeAsync, ExecuteScriptAsync
+
+RemoteLimitedMessagePolicy.cs:
+  Classes: RemoteLimitedMessagePolicy
+  Methods:
+
+RouterIntentClassifier.cs:
+  Classes: RouterIntentClassifier
+  Methods:
+
+RoutineCommandPolicy.cs:
+  Classes: RoutineCommandPolicy, RoutineBrowserCommandSpec
+  Methods:
+
+RoutineSchedulePolicy.cs:
+  Classes: RoutineSchedulePolicy
+  Methods:
+
+RuntimeSettings.cs:
+  Classes: RuntimeSettings, SettingsSnapshot
+  Methods: GetTelegramBotToken, GetTelegramChatId, GetGroqApiKey, GetGeminiApiKey, GetCerebrasApiKey
+
+SearchAnswerGuard.cs:
+  Classes: SearchAnswerGuardFailure, SearchAnswerGuardDecision, SearchAnswerGuard
+  Methods:
+
+SearchEvidencePackBuilder.cs:
+  Classes: SearchEvidencePackBuilder
+  Methods:
+
+SecretLoader.cs:
+  Classes: SecretLoader
+  Methods:
+
+SessionContext.cs:
+  Classes: SessionContext
+  Methods:
+
+SessionHistoryTool.cs:
+  Classes: SessionHistoryToolMessage, SessionHistoryToolResult, SessionHistoryTool, struct
+  Methods: Get
+
+SessionListTool.cs:
+  Classes: SessionListToolMessage, SessionListToolSession, SessionListToolResult, SessionListTool
+  Methods: List
+
+SessionManager.cs:
+  Classes: SessionManager, SessionRecord, TrustedAuthTicket, AuthSessionState, TrustedSessionRecord
+  Methods: Authenticate, TryResumeTrusted, MarkAuthenticatedFromTrusted, TryGetOtp, IsAuthenticated
+
+SessionSendTool.cs:
+  Classes: SessionSendToolResult, SessionSendTool
+  Methods: Send
+
+SessionSpawnTool.cs:
+  Classes: SessionSpawnToolResult, SessionSpawnQueueStatus, SessionSpawnTool
+  Methods: Spawn, FlushQueuedSpawns, GetQueueStatus, GetQueueSnapshot
+
+SkillCreateDirective.cs:
+  Classes: SkillCreateDirectiveResult, SkillCreateDirective
+  Methods: Apply
+
+SkillFileService.cs:
+  Classes: SkillFileGetResult, SkillFileSaveResult, SkillFileDeleteResult, SkillFileService
+  Methods: Get, Save, Delete
+
+SttTranscriptionAdapter.cs:
+  Classes: SttTranscriptionAdapter
+  Methods: TranscribeAsync
+
+TelegramClient.cs:
+  Classes: TelegramClient, TelegramMarkdownTableBlock, TelegramUpdate, TelegramInlineButton
+  Methods: SendOtpAsync, SendMessageAsync, SendProgressMessageAsync, ReplaceMessageAsync, SendMessageWithButtonsAsync
+
+TelegramPollingStateStore.cs:
+  Classes: TelegramPollingStateStore, Lease
+  Methods: LoadNextOffset, SaveNextOffset, TryAcquireLease, Dispose
+
+TelegramUpdateLoop.cs:
+  Classes: TelegramUpdateLoop, CommandWindow
+  Methods: RunAsync
+
+TextOutputTruncator.cs:
+  Classes: TextOutputTruncator
+  Methods:
+
+ToolRegistry.cs:
+  Classes: ToolDefinition, ToolAvailability, ToolRegistry
+  Methods: TryRegister, GetAvailability, GetAvailabilitySnapshot, GetEnabledToolIds
+
+UnifiedSlashCommandPolicy.cs:
+  Classes: UnifiedSlashCommand, UnifiedSlashCommandPolicy
+  Methods:
+
+UniversalCodeRunner.cs:
+  Classes: UniversalCodeRunner, ShellRunResult, CodeExecutionResult
+  Methods: ExecuteAsync
+
+UsageStatePersistence.cs:
+  Classes: UsageStatePersistence
+  Methods:
+
+WebFetchTool.cs:
+  Classes: WebFetchToolResult, WebFetchTool
+  Methods: FetchAsync
+
+WebSearchTool.cs:
+  Classes: WebSearchResultItem, ExternalContentDescriptor, WebSearchToolResult
+  Methods:
+
+WebSocketGateway.Health.cs:
+  Classes: WebSocketGateway
+  Methods:
+
+WebSocketGateway.Http.cs:
+  Classes: WebSocketGateway
+  Methods: RunAsync
+
+WebSocketGateway.Protocol.cs:
+  Classes: WebSocketGateway, ClientMessage
+  Methods:
+
+WebSocketGateway.Serialization.cs:
+  Classes: WebSocketGateway
+  Methods:
+
+WebSocketGateway.SocketLoop.cs:
+  Classes: WebSocketGateway
+  Methods:
+
+WebSocketGateway.cs:
+  Classes: WebSocketGateway, GuardAlertDispatchTargetResult, GuardAlertDispatchResult, RateWindow
+  Methods:
+
+WsAiCommandDispatcher.cs:
+  Classes: WsAiCommandDispatcher
+  Methods: TryHandleAsync
+
+WsAiWsResponses.cs:
+  Classes: GuardedErrorWsResponse, ChatResultWsResponse, ChatStreamChunkWsResponse, CodingResultWsResponse, CodingExecutionResultWsResponse, CodingProgressWsResponse, ChatMultiResultWsResponse, WsAiJsonContext
+  Methods: GuardedErrorWsResponse, ChatResultWsResponse, ChatStreamChunkWsResponse, CodingResultWsResponse, CodingExecutionResultWsResponse
+
+WsContextCommandDispatcher.cs:
+  Classes: WsContextCommandDispatcher
+  Methods: TryHandleAsync
+
+WsConversationMemoryDispatcher.cs:
+  Classes: WsConversationMemoryDispatcher
+  Methods: TryHandleAsync
+
+WsConversationMemoryWsResponses.cs:
+  Classes: MemoryIndexRebuildWsResponse, ConversationSearchWsResponse, BackupExportWsResponse, BackupImportPreviewWsResponse, BackupImportApplyWsResponse, WsConversationMemoryJsonContext
+  Methods: MemoryIndexRebuildWsResponse, ConversationSearchWsResponse, BackupExportWsResponse, BackupImportPreviewWsResponse, BackupImportApplyWsResponse
+
+WsDoctorCommandDispatcher.cs:
+  Classes: WsDoctorCommandDispatcher
+  Methods: TryHandleAsync
+
+WsLogicCommandDispatcher.cs:
+  Classes: WsLogicCommandDispatcher
+  Methods: TryHandleAsync
+
+WsNotebookCommandDispatcher.cs:
+  Classes: WsNotebookCommandDispatcher
+  Methods: TryHandleAsync
+
+WsPlanningCommandDispatcher.cs:
+  Classes: WsPlanningCommandDispatcher
+  Methods: TryHandleAsync
+
+WsProjectCommandDispatcher.cs:
+  Classes: WsProjectCommandDispatcher
+  Methods: TryHandleAsync
+
+WsRefactorCommandDispatcher.cs:
+  Classes: WsRefactorCommandDispatcher
+  Methods: TryHandleAsync
+
+WsRoutineCommandDispatcher.cs:
+  Classes: WsRoutineCommandDispatcher
+  Methods: TryHandleAsync
+
+WsRoutineWsResponses.cs:
+  Classes: RoutinesStateWsResponse, RoutineActionResultWsResponse, RoutineProgressWsResponse, RoutineRunDetailWsResponse, RoutineExecutionPreviewWsResponse, RoutineSchedulerStatusWsResponse, WsRoutineJsonContext
+  Methods: RoutinesStateWsResponse, RoutineActionResultWsResponse, RoutineProgressWsResponse, RoutineRunDetailWsResponse, RoutineExecutionPreviewWsResponse
+
+WsSetupCommandDispatcher.cs:
+  Classes: WsSetupCommandDispatcher
+  Methods: TryHandleAsync
+
+WsTaskCommandDispatcher.cs:
+  Classes: WsTaskCommandDispatcher
+  Methods: TryHandleAsync
+
+WsToolCommandDispatcher.cs:
+  Classes: WsToolCommandDispatcher
+  Methods: TryHandleAsync

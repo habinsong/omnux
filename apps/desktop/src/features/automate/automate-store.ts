@@ -6,6 +6,7 @@ import {
   type DesktopServerMessage,
   type RoutineCreateInput
 } from "../middleware/desktop-message-gateway";
+import { requestConfirmDialog } from "../dialog/dialog-store";
 
 type RoutineItem = {
   id: string;
@@ -14,6 +15,16 @@ type RoutineItem = {
   toolProfile: string;
   scheduleSummary: string;
   preview: string;
+  request: string;
+  scheduleKind: string;
+  scheduleTime: string;
+  dayOfMonth: number | null;
+  weekdays: number[];
+  notifyTelegram: boolean;
+  executionMode: string;
+  resolvedExecutionMode: string;
+  runCommand: string;
+  lastStatus: string;
 };
 
 export type RoutineCreateForm = RoutineCreateInput;
@@ -43,14 +54,17 @@ type AutomateState = {
   lastMessage: string;
   createForm: RoutineCreateForm;
   creating: boolean;
+  createPanelOpen: boolean;
   preview: RoutinePreview | null;
   loadRoutines: () => void;
   selectRoutine: (id: string) => void;
   runRoutine: (id: string) => void;
+  toggleRoutine: (id: string, enabled: boolean) => void;
   deleteRoutine: (id: string) => void;
   patchCreateForm: (patch: Partial<RoutineCreateForm>) => void;
   toggleWeekday: (day: number) => void;
   resetCreateForm: () => void;
+  setCreatePanelOpen: (open: boolean) => void;
   previewRoutine: () => void;
   createRoutine: () => void;
 };
@@ -62,6 +76,7 @@ export const useAutomateStore = create<AutomateState>((set, get) => ({
   lastMessage: "",
   createForm: { ...EMPTY_CREATE_FORM },
   creating: false,
+  createPanelOpen: false,
   preview: null,
   loadRoutines: () => {
     set({ pending: true });
@@ -77,9 +92,22 @@ export const useAutomateStore = create<AutomateState>((set, get) => ({
       set({ pending: false, lastMessage: "루틴 실행 요청을 전송하지 못했다." });
     }
   },
-  deleteRoutine: (id) => {
+  toggleRoutine: (id, enabled) => {
     if (!id) return;
-    if (!window.confirm("루틴을 삭제할까요?")) return;
+    set({ pending: true, selectedRoutineId: id });
+    if (!requestDesktopRoutine.toggleRoutine(id, enabled)) {
+      set({ pending: false, lastMessage: "루틴 상태 변경 요청을 전송하지 못했다." });
+    }
+  },
+  deleteRoutine: async (id) => {
+    if (!id) return;
+    const confirmed = await requestConfirmDialog({
+      title: "루틴 삭제",
+      message: "선택한 루틴을 삭제할까요?",
+      confirmLabel: "삭제",
+      tone: "danger"
+    });
+    if (!confirmed) return;
     set({ pending: true, selectedRoutineId: id });
     if (!requestDesktopRoutine.deleteRoutine(id)) {
       set({ pending: false, lastMessage: "루틴 삭제 요청을 전송하지 못했다." });
@@ -92,6 +120,7 @@ export const useAutomateStore = create<AutomateState>((set, get) => ({
     set({ createForm: { ...get().createForm, weekdays: next } });
   },
   resetCreateForm: () => set({ createForm: { ...EMPTY_CREATE_FORM }, preview: null }),
+  setCreatePanelOpen: (open) => set({ createPanelOpen: open }),
   previewRoutine: () => {
     const form = get().createForm;
     if (form.request.trim().length < 5) {
@@ -115,17 +144,55 @@ export const useAutomateStore = create<AutomateState>((set, get) => ({
   }
 }));
 
+function readString(record: Record<string, unknown>, ...keys: string[]) {
+  const value = keys.map((key) => record[key]).find((candidate) => typeof candidate === "string");
+  return typeof value === "string" ? value : "";
+}
+
+function readNumber(record: Record<string, unknown>, ...keys: string[]) {
+  const value = keys.map((key) => record[key]).find((candidate) => typeof candidate === "number" && Number.isFinite(candidate));
+  return typeof value === "number" ? value : null;
+}
+
+function readBoolean(record: Record<string, unknown>, fallback: boolean, ...keys: string[]) {
+  const value = keys.map((key) => record[key]).find((candidate) => typeof candidate === "boolean");
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function readNumberList(record: Record<string, unknown>, ...keys: string[]) {
+  const value = keys.map((key) => record[key]).find(Array.isArray);
+  return Array.isArray(value)
+    ? value.map(Number).filter((item) => Number.isInteger(item))
+    : [];
+}
+
 function normalizeList(value: unknown): RoutineItem[] {
   return Array.isArray(value)
     ? value.map((item) => {
         const record = item as Record<string, unknown>;
+        const request = readString(record, "request", "Request", "text", "Text");
+        const scheduleText = readString(record, "scheduleText", "ScheduleText", "scheduleSummary", "schedule");
+        const scheduleKind = readString(record, "scheduleKind", "ScheduleKind") || "daily";
+        const scheduleTime = readString(record, "scheduleTime", "ScheduleTime", "timeOfDay", "TimeOfDay");
+        const toolProfile = readString(record, "toolProfile", "ToolProfile", "agentToolProfile", "AgentToolProfile", "profile");
+        const lastStatus = readString(record, "lastStatus", "LastStatus");
         return {
-          id: String(record.id || record.routineId || ""),
-          title: String(record.title || record.name || "루틴"),
-          enabled: !!record.enabled,
-          toolProfile: String(record.toolProfile || record.profile || ""),
-          scheduleSummary: String(record.scheduleSummary || record.schedule || ""),
-          preview: String(record.preview || record.description || "")
+          id: readString(record, "id", "Id", "routineId", "RoutineId"),
+          title: readString(record, "title", "Title", "name", "Name") || "루틴",
+          enabled: readBoolean(record, true, "enabled", "Enabled"),
+          toolProfile,
+          scheduleSummary: scheduleText,
+          preview: readString(record, "preview", "description", "lastOutput", "LastOutput") || request,
+          request,
+          scheduleKind,
+          scheduleTime,
+          dayOfMonth: readNumber(record, "dayOfMonth", "DayOfMonth"),
+          weekdays: readNumberList(record, "weekdays", "Weekdays"),
+          notifyTelegram: readBoolean(record, false, "notifyTelegram", "NotifyTelegram"),
+          executionMode: readString(record, "executionMode", "ExecutionMode"),
+          resolvedExecutionMode: readString(record, "resolvedExecutionMode", "ResolvedExecutionMode"),
+          runCommand: readString(record, "runCommand", "RunCommand"),
+          lastStatus
         };
       }).filter((item) => item.id)
     : [];
@@ -162,7 +229,7 @@ export function useAutomatePageBridge() {
         creating: false,
         lastMessage: String(message.message || ""),
         selectedRoutineId: String((message.routine as { id?: string } | undefined)?.id || useAutomateStore.getState().selectedRoutineId),
-        ...(wasCreating && succeeded ? { createForm: { ...EMPTY_CREATE_FORM }, preview: null } : {})
+        ...(wasCreating && succeeded ? { createForm: { ...EMPTY_CREATE_FORM }, preview: null, createPanelOpen: false } : {})
       });
       return;
     }

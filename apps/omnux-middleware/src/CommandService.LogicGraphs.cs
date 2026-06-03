@@ -435,10 +435,10 @@ public sealed partial class CommandService
 
         void PersistSnapshot(LogicRunSnapshot snapshot)
         {
-            File.WriteAllText(
+            AtomicFileStore.WriteAllText(
                 Path.Combine(runDirectory, LogicRunSnapshotFileName),
                 LogicGraphJson.Serialize(snapshot),
-                new UTF8Encoding(false)
+                ownerOnly: true
             );
         }
 
@@ -486,10 +486,10 @@ public sealed partial class CommandService
 
             currentGraphId = graph.GraphId;
             title = graph.Title;
-            File.WriteAllText(
+            AtomicFileStore.WriteAllText(
                 Path.Combine(runDirectory, "graph.json"),
                 LogicGraphJson.Serialize(graph),
-                new UTF8Encoding(false)
+                ownerOnly: true
             );
 
             var validation = LogicGraphValidationPolicy.Validate(graph);
@@ -805,10 +805,10 @@ public sealed partial class CommandService
             ResultText = resultText,
             Error = runError
         };
-        File.WriteAllText(
+        AtomicFileStore.WriteAllText(
             Path.Combine(runDirectory, LogicRunSnapshotFileName),
             LogicGraphJson.Serialize(finalSnapshot),
-            new UTF8Encoding(false)
+            ownerOnly: true
         );
 
         _routineRegistry.MutateIfChanged(routines =>
@@ -1478,7 +1478,7 @@ public sealed partial class CommandService
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath) ?? workspaceRoot);
-        File.WriteAllText(fullPath, content, new UTF8Encoding(false));
+        AtomicFileStore.WriteAllText(fullPath, content, ownerOnly: false);
         context.Artifacts.Add(fullPath);
         return new LogicNodeExecutionOutcome(BuildLogicEnvelope(
             ok: true,

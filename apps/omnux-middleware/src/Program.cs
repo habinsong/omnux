@@ -73,17 +73,10 @@ internal static class Program
         );
         var refactorServices = ConfigureRefactorServices(config, pathResolver);
         var toolServices = ConfigureToolServices(config, runtimeSettings, persistence.ConversationStore, refactorServices.DiffPreview);
-        if (IsMemoryIndexBootstrapEnabled())
-        {
-            BootstrapMemoryIndex(paths);
-        }
-        else
-        {
-            Console.WriteLine("[memory-index] bootstrap skipped by OMNUX_SKIP_MEMORY_INDEX_BOOTSTRAP");
-        }
         var auditLogger = new AuditLogger(config.AuditLogPath);
         var appServices = ConfigureApplicationServices(
             config,
+            pathResolver,
             runtimeSettings,
             routingPolicyResolver,
             auditLogger,
@@ -292,26 +285,37 @@ internal static class Program
 
         Console.WriteLine($"[middleware] starting (ws={gateway.WebSocketPort}, core=dotnet)");
 
-        var webTask = runtimeServices.WebSocketGateway.RunAsync(cts.Token);
-        if (gateway.EnableGatewayStartupProbe)
+        var memoryIndexTask = Task.CompletedTask;
+        try
         {
-            var startupProbe = new GatewayStartupProbe(gateway, paths, gateway.WebSocketPort);
-            _ = startupProbe.RunAsync(cts.Token);
-        }
+            var webTask = runtimeServices.WebSocketGateway.RunAsync(cts.Token);
+            memoryIndexTask = StartMemoryIndexBootstrap(paths, cts.Token);
+            if (gateway.EnableGatewayStartupProbe)
+            {
+                var startupProbe = new GatewayStartupProbe(gateway, paths, gateway.WebSocketPort);
+                _ = startupProbe.RunAsync(cts.Token);
+            }
 
-        var agentSpawnQueueTask = RunAgentSpawnQueueLoopAsync(toolServices.SessionSpawn, cts.Token);
-        var telegramTask = runtimeServices.TelegramUpdateLoop.RunAsync(cts.Token);
-        var firstCompleted = await Task.WhenAny(webTask, telegramTask, agentSpawnQueueTask);
+            var agentSpawnQueueTask = RunAgentSpawnQueueLoopAsync(toolServices.SessionSpawn, cts.Token);
+            var telegramTask = runtimeServices.TelegramUpdateLoop.RunAsync(cts.Token);
+            var firstCompleted = await Task.WhenAny(webTask, telegramTask, agentSpawnQueueTask);
 
-        if (firstCompleted.IsFaulted)
-        {
-            cts.Cancel();
+            if (firstCompleted.IsFaulted)
+            {
+                cts.Cancel();
+                await Task.WhenAll(webTask, telegramTask, agentSpawnQueueTask);
+            }
+
             await Task.WhenAll(webTask, telegramTask, agentSpawnQueueTask);
         }
-
-        await Task.WhenAll(webTask, telegramTask, agentSpawnQueueTask);
-        await workflowServices.TaskGraphCoordinator.StopAsync();
-        await logicGraphRuntimeCoordinator.StopAsync();
+        finally
+        {
+            cts.Cancel();
+            await WaitForShutdownTaskAsync(memoryIndexTask, "memory-index", TimeSpan.FromSeconds(10));
+            await workflowServices.TaskGraphCoordinator.StopAsync();
+            await logicGraphRuntimeCoordinator.StopAsync();
+            toolServices.Browser.Dispose();
+        }
     }
 
     private static PersistenceServices ConfigurePersistence(
@@ -345,6 +349,59 @@ internal static class Program
                || !(value.Equals("1", StringComparison.OrdinalIgnoreCase)
                     || value.Equals("true", StringComparison.OrdinalIgnoreCase)
                     || value.Equals("yes", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static Task StartMemoryIndexBootstrap(PathOptions paths, CancellationToken cancellationToken)
+    {
+        if (!IsMemoryIndexBootstrapEnabled())
+        {
+            Console.WriteLine("[memory-index] bootstrap skipped by OMNUX_SKIP_MEMORY_INDEX_BOOTSTRAP");
+            return Task.CompletedTask;
+        }
+
+        return Task.Run(
+            () =>
+            {
+                if (!cancellationToken.IsCancellationRequested)
+                {
+                    BootstrapMemoryIndex(paths);
+                }
+            },
+            CancellationToken.None
+        );
+    }
+
+    private static async Task WaitForShutdownTaskAsync(Task task, string name, TimeSpan timeout)
+    {
+        if (task.IsCompleted)
+        {
+            await ObserveShutdownTaskAsync(task, name);
+            return;
+        }
+
+        var completed = await Task.WhenAny(task, Task.Delay(timeout));
+        if (completed != task)
+        {
+            Console.Error.WriteLine($"[{name}] shutdown continued before task completed.");
+            return;
+        }
+
+        await ObserveShutdownTaskAsync(task, name);
+    }
+
+    private static async Task ObserveShutdownTaskAsync(Task task, string name)
+    {
+        try
+        {
+            await task;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[{name}] shutdown observed task error: {ex.Message}");
+        }
     }
 
     private static SearchServices ConfigureSearchServices(
@@ -679,6 +736,7 @@ internal static class Program
 
     private static ApplicationServices ConfigureApplicationServices(
         AppConfig config,
+        IStatePathResolver pathResolver,
         RuntimeSettings runtimeSettings,
         RoutingPolicyResolver routingPolicyResolver,
         AuditLogger auditLogger,
@@ -719,6 +777,11 @@ internal static class Program
         var cleanupService = new CleanupService(paths);
         var doctorApplicationService = new DoctorApplicationService(doctorService, paths);
         var notebookApplicationService = new NotebookApplicationService(notebookService);
+        var projectApplicationService = new ProjectApplicationService(pathResolver.ResolveStateFilePath("projects.json"));
+        var agentCommunicationApplicationService = new AgentCommunicationApplicationService(
+            new FileAgentCommunicationStore(pathResolver),
+            auditLogger
+        );
         var settingsApplicationService = new SettingsApplicationService(
             runtimeSettings,
             routingPolicyResolver,
@@ -784,6 +847,8 @@ internal static class Program
             settingsApplicationService,
             refactorApplicationService,
             contextApplicationService,
+            projectApplicationService,
+            agentCommunicationApplicationService,
             cleanupService,
             taskGraphApplicationService,
             memoryApplicationService,
@@ -830,11 +895,13 @@ internal static class Program
                 appServices.Conversation,
                 appServices.Memory,
                 appServices.Tool,
+                appServices.Project,
                 routineApplicationService,
                 logicApplicationService,
                 appServices.Doctor,
                 appServices.Plan,
                 appServices.TaskGraph,
+                appServices.AgentCommunication,
                 appServices.Refactor,
                 appServices.Context,
                 appServices.Notebook,
@@ -868,6 +935,8 @@ internal static class Program
         SettingsApplicationService Settings,
         RefactorApplicationService Refactor,
         ContextApplicationService Context,
+        ProjectApplicationService Project,
+        AgentCommunicationApplicationService AgentCommunication,
         CleanupService Cleanup,
         TaskGraphApplicationService TaskGraph,
         MemoryApplicationService Memory,

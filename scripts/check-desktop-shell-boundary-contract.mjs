@@ -137,6 +137,8 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     "src/features/ask/ask-store.ts",
     "src/features/automate/AutomatePage.tsx",
     "src/features/automate/automate-store.ts",
+    "src/features/projects/ProjectsPage.tsx",
+    "src/features/projects/projects-store.ts",
     "src/features/explore/ExplorePage.tsx",
     "src/features/explore/explore-store.ts",
     "src/features/ops/OperationsPage.tsx",
@@ -170,6 +172,11 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   );
   assertIncludes(
     appSource,
+    "ProjectsPage",
+    "desktop App.tsx projects page wiring"
+  );
+  assertIncludes(
+    appSource,
     "AutomatePage",
     "desktop App.tsx automate page wiring"
   );
@@ -187,6 +194,11 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     appSource,
     "PageBoundary",
     "desktop App.tsx page error boundary"
+  );
+  assertIncludes(
+    appSource,
+    "DesktopDialogHost",
+    "desktop App.tsx renders in-app dialog host"
   );
   assertIncludes(
     appSource,
@@ -567,6 +579,21 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   );
   assertIncludes(
     askPageSource,
+    "chatMode",
+    "desktop ask page chat mode selector"
+  );
+  assertIncludes(
+    askPageSource,
+    "multiResult",
+    "desktop ask page multi provider result display"
+  );
+  assertIncludes(
+    askPageSource,
+    "MarkdownMessage",
+    "desktop ask page uses React markdown component"
+  );
+  assertIncludes(
+    askPageSource,
     "deleteConversation",
     "desktop ask page conversation delete action"
   );
@@ -586,6 +613,55 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     askStoreSource,
     "memory_note_created",
     "desktop ask store memory note handling"
+  );
+  assertIncludes(
+    askStoreSource,
+    "llm_chat_multi_result",
+    "desktop ask store multi chat result handling"
+  );
+  assertIncludes(
+    askStoreSource,
+    "requestDesktopAsk.chat",
+    "desktop ask store selected mode request gateway"
+  );
+
+  const projectsPageSource = read("apps/desktop/src/features/projects/ProjectsPage.tsx");
+  assertIncludes(
+    projectsPageSource,
+    "useProjectsStore",
+    "desktop projects page store ownership"
+  );
+  assertIncludes(
+    projectsPageSource,
+    "createProject",
+    "desktop projects page create action"
+  );
+  assertIncludes(
+    projectsPageSource,
+    "updateSelectedProject",
+    "desktop projects page update action"
+  );
+  assertIncludes(
+    projectsPageSource,
+    "touchProject",
+    "desktop projects page touch action"
+  );
+
+  const projectsStoreSource = read("apps/desktop/src/features/projects/projects-store.ts");
+  assertIncludes(
+    projectsStoreSource,
+    "requestDesktopProjects",
+    "desktop projects store request gateway"
+  );
+  assertIncludes(
+    projectsStoreSource,
+    "projects_state",
+    "desktop projects store state handling"
+  );
+  assertIncludes(
+    projectsStoreSource,
+    "project_result",
+    "desktop projects store mutation result handling"
   );
 
   const explorePageSource = read("apps/desktop/src/features/explore/ExplorePage.tsx");
@@ -613,6 +689,21 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     explorePageSource,
     "history?.messages",
     "desktop explore page renders session history messages"
+  );
+  assertIncludes(
+    explorePageSource,
+    "sendSessionMessage",
+    "desktop explore page sessions_send action"
+  );
+  assertIncludes(
+    explorePageSource,
+    "spawnSession",
+    "desktop explore page sessions_spawn action"
+  );
+  assertIncludes(
+    explorePageSource,
+    "loadSpawnStatus",
+    "desktop explore page sessions_spawn status action"
   );
   assertIncludes(
     explorePageSource,
@@ -651,6 +742,16 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     "canvas_result",
     "desktop explore store canvas result handling"
   );
+  assertIncludes(
+    exploreStoreSource,
+    "sessions_send_result",
+    "desktop explore store sessions_send result handling"
+  );
+  assertIncludes(
+    exploreStoreSource,
+    "sessions_spawn_result",
+    "desktop explore store sessions_spawn result handling"
+  );
 
   const settingsPageSource = read("apps/desktop/src/features/settings/SettingsPage.tsx");
   assertIncludes(
@@ -678,6 +779,11 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     "downloadBackupPackage",
     "desktop settings page backup download action"
   );
+  assertIncludes(
+    settingsPageSource,
+    "cerebrasModels",
+    "desktop settings page Cerebras models display"
+  );
 
   const settingsStoreSource = read("apps/desktop/src/features/settings/settings-store.ts");
   assertIncludes(
@@ -704,6 +810,16 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     settingsStoreSource,
     "backup_export_prepare_result",
     "desktop settings store backup export handling"
+  );
+  assertIncludes(
+    settingsStoreSource,
+    "cerebras_models",
+    "desktop settings store Cerebras models handling"
+  );
+  assertIncludes(
+    settingsStoreSource,
+    "requestConfirmDialog",
+    "desktop settings store uses in-app confirm dialog"
   );
 
   const automatePageSource = read("apps/desktop/src/features/automate/AutomatePage.tsx");
@@ -982,6 +1098,36 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   );
   assertIncludes(
     gatewaySource,
+    "llm_chat_multi",
+    "desktop gateway multi chat request"
+  );
+  assertIncludes(
+    gatewaySource,
+    "projects_list",
+    "desktop gateway projects list request"
+  );
+  assertIncludes(
+    gatewaySource,
+    "project_update",
+    "desktop gateway projects update request"
+  );
+  assertIncludes(
+    gatewaySource,
+    "sessions_send",
+    "desktop gateway sessions send request"
+  );
+  assertIncludes(
+    gatewaySource,
+    "sessions_spawn",
+    "desktop gateway sessions spawn request"
+  );
+  assertIncludes(
+    gatewaySource,
+    "get_cerebras_models",
+    "desktop gateway Cerebras models request"
+  );
+  assertIncludes(
+    gatewaySource,
     "backup_import_apply",
     "desktop gateway backup apply"
   );
@@ -1014,6 +1160,26 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     !desktopPackage.includes("@tauri-apps/plugin-opener"),
     "desktop package should not keep opener plugin dependency"
   );
+  assertIncludes(
+    desktopPackage,
+    "\"react-markdown\"",
+    "desktop package uses react-markdown"
+  );
+  assertIncludes(
+    desktopPackage,
+    "\"remark-gfm\"",
+    "desktop package uses remark-gfm for tables/lists"
+  );
+  assertNotIncludes(
+    desktopPackage,
+    "\"markdown-it\"",
+    "desktop package must not use markdown-it string renderer"
+  );
+  assertNotIncludes(
+    desktopPackage,
+    "\"dompurify\"",
+    "desktop package must not need DOMPurify for markdown string HTML"
+  );
 
   const frontendFiles = collectFiles(
     srcDir,
@@ -1037,7 +1203,10 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     { pattern: /\bpaletteOpen\b/, reason: "예전 paletteOpen ReferenceError 회귀 차단" },
     { pattern: /\bdoctor_fix_apply\b/, reason: "desktop Phase 5 운영 위험 명령은 별도 apply UX 없이 금지" },
     { pattern: /\bcleanup_apply\b/, reason: "desktop Phase 5 운영 위험 명령은 별도 apply UX 없이 금지" },
-    { pattern: /\btask_retry\b/, reason: "desktop Phase 5 운영 위험 명령은 별도 retry UX 없이 금지" }
+    { pattern: /\btask_retry\b/, reason: "desktop Phase 5 운영 위험 명령은 별도 retry UX 없이 금지" },
+    { pattern: /\bwindow\.(alert|confirm|prompt)\b/, reason: "desktop UX에서 브라우저 네이티브 alert/confirm/prompt 금지" },
+    { pattern: /\bdangerouslySetInnerHTML\b/, reason: "desktop markdown은 React component renderer를 사용해야 함" },
+    { pattern: /\brenderMarkdownToSafeHtml\b/, reason: "markdown HTML string 렌더 경로 금지" }
   ];
 
   const frontendViolations = [];

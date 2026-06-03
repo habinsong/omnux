@@ -111,7 +111,7 @@ public sealed class SkillFileService
 
             Directory.CreateDirectory(validation.SkillDir);
             var content = BuildSkillFileContent(validation.Name, description ?? string.Empty, body ?? string.Empty);
-            File.WriteAllText(skillFilePath, content, new UTF8Encoding(false));
+            AtomicFileStore.WriteAllText(skillFilePath, content, ownerOnly: true);
             return new SkillFileSaveResult(true, null, validation.Name, validation.Scope, skillFilePath);
         }
         catch (Exception ex)

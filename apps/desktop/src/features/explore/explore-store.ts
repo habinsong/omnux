@@ -1,33 +1,7 @@
 import { useEffect } from "react";
 import { create } from "zustand";
 import { requestDesktopExplore, subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
-
-type WebSearchResult = {
-  url: string;
-  title: string;
-  description: string;
-  published: string;
-};
-
-type WebFetchResult = {
-  url: string;
-  finalUrl: string;
-  status: number | string;
-  contentType: string;
-  length: number;
-  truncated: boolean;
-  text: string;
-  error: string;
-};
-
-type SessionsHistoryResult = {
-  sessionKey: string;
-  status: string;
-  count: number;
-  truncated: boolean;
-  messages: Array<{ role: string; text: string }>;
-  error: string;
-};
+import type { SessionsHistoryResult, SessionsSendResult, SessionsSpawnResult, WebFetchResult, WebSearchResult } from "./explore-types";
 
 type ExploreState = {
   selectedTab: "search" | "fetch" | "sessions" | "browser" | "canvas";
@@ -42,6 +16,18 @@ type ExploreState = {
   selectedSessionKey: string;
   historyLoading: boolean;
   history: SessionsHistoryResult | null;
+  sessionMessage: string;
+  sessionSending: boolean;
+  sessionSendResult: SessionsSendResult | null;
+  spawnTask: string;
+  spawnRuntime: string;
+  spawnMode: string;
+  spawnLabel: string;
+  spawnTimeoutSeconds: number;
+  spawnThread: boolean;
+  spawnLoading: boolean;
+  spawnStatusLoading: boolean;
+  spawnResult: SessionsSpawnResult | null;
   browserUrl: string;
   browserLoading: boolean;
   browserResult: { ok: boolean; action: string; disabled: boolean; running: boolean; adapter: string; activeUrl: string; tabs: Array<{ targetId: string; url: string; title: string; active: boolean }>; error: string } | null;
@@ -56,6 +42,16 @@ type ExploreState = {
   runWebFetch: () => void;
   loadSessions: () => void;
   openSession: (key: string) => void;
+  setSessionMessage: (value: string) => void;
+  sendSessionMessage: () => void;
+  setSpawnTask: (value: string) => void;
+  setSpawnRuntime: (value: string) => void;
+  setSpawnMode: (value: string) => void;
+  setSpawnLabel: (value: string) => void;
+  setSpawnTimeoutSeconds: (value: number) => void;
+  setSpawnThread: (value: boolean) => void;
+  spawnSession: () => void;
+  loadSpawnStatus: () => void;
   setBrowserUrl: (value: string) => void;
   runBrowser: (action: string, extra?: Record<string, unknown>) => void;
   setCanvasUrl: (value: string) => void;
@@ -75,6 +71,18 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
   selectedSessionKey: "",
   historyLoading: false,
   history: null,
+  sessionMessage: "",
+  sessionSending: false,
+  sessionSendResult: null,
+  spawnTask: "",
+  spawnRuntime: "acp",
+  spawnMode: "run",
+  spawnLabel: "",
+  spawnTimeoutSeconds: 900,
+  spawnThread: true,
+  spawnLoading: false,
+  spawnStatusLoading: false,
+  spawnResult: null,
   browserUrl: "",
   browserLoading: false,
   browserResult: null,
@@ -115,6 +123,46 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
       set({ historyLoading: false, lastError: "세션 이력 요청을 전송하지 못했다." });
     }
   },
+  setSessionMessage: (value) => set({ sessionMessage: value }),
+  sendSessionMessage: () => {
+    const sessionKey = String(get().selectedSessionKey || "").trim();
+    const message = String(get().sessionMessage || "").trim();
+    if (!sessionKey || !message) return;
+    set({ sessionSending: true, sessionSendResult: null });
+    if (!requestDesktopExplore.sessionsSend(sessionKey, message, 60)) {
+      set({ sessionSending: false, lastError: "세션 메시지 전송 요청을 전송하지 못했다." });
+    }
+  },
+  setSpawnTask: (value) => set({ spawnTask: value }),
+  setSpawnRuntime: (value) => set({ spawnRuntime: value }),
+  setSpawnMode: (value) => set({ spawnMode: value }),
+  setSpawnLabel: (value) => set({ spawnLabel: value }),
+  setSpawnTimeoutSeconds: (value) => {
+    const safeValue = Number.isFinite(value) ? Math.max(30, Math.min(3600, Math.round(value))) : 900;
+    set({ spawnTimeoutSeconds: safeValue });
+  },
+  setSpawnThread: (value) => set({ spawnThread: value }),
+  spawnSession: () => {
+    const task = String(get().spawnTask || "").trim();
+    if (!task) return;
+    set({ spawnLoading: true, spawnResult: null });
+    if (!requestDesktopExplore.sessionsSpawn(
+      task,
+      get().spawnRuntime,
+      get().spawnMode,
+      get().spawnLabel,
+      get().spawnTimeoutSeconds,
+      get().spawnThread
+    )) {
+      set({ spawnLoading: false, lastError: "세션 생성 요청을 전송하지 못했다." });
+    }
+  },
+  loadSpawnStatus: () => {
+    set({ spawnStatusLoading: true });
+    if (!requestDesktopExplore.sessionsSpawnStatus()) {
+      set({ spawnStatusLoading: false, lastError: "세션 생성 상태 요청을 전송하지 못했다." });
+    }
+  },
   setBrowserUrl: (value) => set({ browserUrl: value }),
   runBrowser: (action, extra = {}) => {
     const normalized = String(action || "").trim();
@@ -137,6 +185,25 @@ export const useExploreStore = create<ExploreState>((set, get) => ({
 
 function normalizeServerList<T>(value: unknown, mapper: (item: Record<string, unknown>) => T): T[] {
   return Array.isArray(value) ? value.map((item) => mapper(item as Record<string, unknown>)) : [];
+}
+
+function normalizeNumber(value: unknown, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function normalizeNullableNumber(value: unknown) {
+  if (value == null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeNullableBoolean(value: unknown) {
+  return typeof value === "boolean" ? value : null;
+}
+
+function normalizeRecord(value: unknown) {
+  return value && typeof value === "object" ? value as Record<string, unknown> : null;
 }
 
 export function useExplorePageBridge() {
@@ -210,6 +277,108 @@ export function useExplorePageBridge() {
       return;
     }
 
+    if (message.type === "sessions_send_result") {
+      const delivery = normalizeRecord(message.delivery);
+      const sessionKey = String(message.sessionKey || message.requestedSessionKey || "");
+      useExploreStore.setState((state) => ({
+        sessionSending: false,
+        sessionMessage: "",
+        sessionSendResult: {
+          sessionKey,
+          requestedSessionKey: String(message.requestedSessionKey || ""),
+          timeoutSeconds: normalizeNumber(message.timeoutSeconds),
+          requestedTimeoutSeconds: normalizeNullableNumber(message.requestedTimeoutSeconds),
+          status: String(message.status || ""),
+          runId: String(message.runId || ""),
+          messageTruncated: !!message.messageTruncated,
+          reply: String(message.reply || ""),
+          error: String(message.error || ""),
+          delivery: delivery
+            ? {
+                status: String(delivery.status || ""),
+                mode: String(delivery.mode || "")
+              }
+            : null
+        },
+        historyLoading: sessionKey && sessionKey === state.selectedSessionKey ? true : state.historyLoading
+      }));
+      if (sessionKey && sessionKey === useExploreStore.getState().selectedSessionKey) {
+        if (!requestDesktopExplore.sessionsHistory(sessionKey, 50)) {
+          useExploreStore.setState({ historyLoading: false });
+        }
+      }
+      return;
+    }
+
+    if (message.type === "sessions_spawn_result") {
+      const queue = normalizeRecord(message.queue);
+      const active = normalizeRecord(message.active);
+      const action = String(message.action || "");
+      useExploreStore.setState({
+        spawnLoading: action === "status" ? useExploreStore.getState().spawnLoading : false,
+        spawnStatusLoading: false,
+        spawnResult: {
+          action,
+          task: String(message.task || ""),
+          label: String(message.label || ""),
+          requestedRuntime: String(message.requestedRuntime || ""),
+          requestedMode: String(message.requestedMode || ""),
+          requestedRunTimeoutSeconds: normalizeNullableNumber(message.requestedRunTimeoutSeconds),
+          requestedTimeoutSeconds: normalizeNullableNumber(message.requestedTimeoutSeconds),
+          requestedThread: normalizeNullableBoolean(message.requestedThread),
+          status: String(message.status || ""),
+          runId: String(message.runId || ""),
+          childSessionKey: String(message.childSessionKey || ""),
+          mode: String(message.mode || ""),
+          runtime: String(message.runtime || ""),
+          runTimeoutSeconds: normalizeNumber(message.runTimeoutSeconds),
+          thread: !!message.thread,
+          taskTruncated: !!message.taskTruncated,
+          followUpStatus: String(message.followUpStatus || ""),
+          followUpAction: String(message.followUpAction || ""),
+          backendSessionId: String(message.backendSessionId || ""),
+          threadBindingKey: String(message.threadBindingKey || ""),
+          commandPriority: String(message.commandPriority || ""),
+          note: String(message.note || ""),
+          error: String(message.error || ""),
+          breakerBlocked: !!message.breakerBlocked,
+          breakerReason: String(message.breakerReason || ""),
+          breakerMessage: String(message.breakerMessage || ""),
+          queue: queue
+            ? {
+                total: normalizeNumber(queue.total),
+                ready: normalizeNumber(queue.ready),
+                nextAttemptUtc: String(queue.nextAttemptUtc || ""),
+                nextEntryId: String(queue.nextEntryId || ""),
+                nextReason: String(queue.nextReason || ""),
+                nextError: String(queue.nextError || ""),
+                nextAttemptCount: normalizeNumber(queue.nextAttemptCount),
+                nearDeadLetterCount: normalizeNumber(queue.nearDeadLetterCount)
+              }
+            : null,
+          active: active
+            ? {
+                activeCount: normalizeNumber(active.activeCount),
+                oldestRunId: String(active.oldestRunId || ""),
+                oldestRuntime: String(active.oldestRuntime || ""),
+                oldestMode: String(active.oldestMode || ""),
+                oldestBackend: String(active.oldestBackend || ""),
+                oldestStartedUtc: String(active.oldestStartedUtc || ""),
+                oldestAgeSeconds: normalizeNullableNumber(active.oldestAgeSeconds),
+                completedHistoryCount: normalizeNumber(active.completedHistoryCount)
+              }
+            : null
+        }
+      });
+      if (String(message.childSessionKey || "")) {
+        useExploreStore.setState({ sessionsLoading: true });
+        if (!requestDesktopExplore.sessionsList(30)) {
+          useExploreStore.setState({ sessionsLoading: false });
+        }
+      }
+      return;
+    }
+
     if (message.type === "browser_result") {
       useExploreStore.setState({
         browserLoading: false,
@@ -262,6 +431,9 @@ export function useExplorePageBridge() {
         fetchLoading: false,
         sessionsLoading: false,
         historyLoading: false,
+        sessionSending: false,
+        spawnLoading: false,
+        spawnStatusLoading: false,
         browserLoading: false,
         canvasLoading: false,
         lastError: String(message.message || "오류")

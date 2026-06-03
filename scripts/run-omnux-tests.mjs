@@ -127,6 +127,11 @@ function main() {
     [toRelative(path.join(repoRoot, "scripts", "check-chat-telegram-contract.mjs"))]
   );
   runStep(
+    "settings live contract",
+    "node",
+    [toRelative(path.join(repoRoot, "scripts", "check-settings-live-contract.mjs"))]
+  );
+  runStep(
     "logic tab contract",
     "node",
     [toRelative(path.join(repoRoot, "scripts", "check-logic-tab-contract.mjs"))]

@@ -23,7 +23,15 @@
         ),
         React.createElement("div", { className: "items-center gap8", style: { flexWrap: "wrap", paddingLeft: 4 } },
           React.createElement("button", { className: "btn sm ghost", onClick: () => navigator.clipboard?.writeText(m.text).then(() => ctx.toast("복사했습니다.")) }, I.copy({ size: 14 }), t("Copy")),
-          React.createElement("button", { className: "btn sm ghost", onClick: () => ctx.toast("Saved to project") }, I.save({ size: 14 }), t("Save")),
+          React.createElement("button", { className: "btn sm ghost", onClick: () => {
+            if (!ctx.activeConversationId) {
+              ctx.toast("저장할 대화가 없습니다.");
+              return;
+            }
+            if (!ctx.send({ type: "create_memory_note", conversationId: ctx.activeConversationId, compactConversation: false }, { queueIfClosed: true })) {
+              ctx.toast("미들웨어 연결이 필요합니다.");
+            }
+          } }, I.save({ size: 14 }), t("Save")),
           React.createElement("button", { className: "btn sm ghost", onClick: () => ctx.setRoute('automate', { create: true }) }, I.bot({ size: 14 }), t("Turn into automation")),
           React.createElement("button", { className: "btn sm ghost", onClick: () => ctx.setRoute("build") }, I.code({ size: 14 }), t("Open in Build")),
         ),
@@ -31,28 +39,48 @@
     );
   }
 
-  function CompareView({ ctx }) {
-    const pair = [D.providers[0], D.providers[1]];
-    const ans = [
-      "같은 프롬프트를 여러 모델에 보내는 기능은 Build/Chat 고급 화면의 다중 LLM 모드에 연결되어 있습니다.",
-      "빠른 비교가 필요하면 기존 대화의 다중 LLM 모드를 열어 실제 모델 응답을 비교하세요.",
+  function CompareView({ result, pending }) {
+    const providers = [
+      { key: "groq", label: "Groq", model: "groqModel", color: "#F55036", glyph: "G" },
+      { key: "gemini", label: "Gemini", model: "geminiModel", color: "#4285F4", glyph: "G" },
+      { key: "cerebras", label: "Cerebras", model: "cerebrasModel", color: "#EF6A35", glyph: "C" },
+      { key: "nvidia", label: "NVIDIA NIM", model: "nvidiaModel", color: "#76B900", glyph: "N" },
+      { key: "copilot", label: "Copilot", model: "copilotModel", color: "#5B5EF0", glyph: "P" },
+      { key: "codex", label: "Codex", model: "codexModel", color: "#111418", glyph: "C" },
     ];
+    const rows = providers
+      .map((item) => ({
+        ...item,
+        text: String(result && result[item.key] ? result[item.key] : "").trim(),
+        modelName: String(result && result[item.model] ? result[item.model] : "").trim(),
+      }))
+      .filter((item) => item.text || item.modelName);
+
+    if (!result) {
+      return React.createElement("div", { className: "card card-pad", style: { background: "var(--surface-2)" } },
+        React.createElement("div", { className: "card-title" }, "실제 다중 모델 비교"),
+        React.createElement("p", { className: "muted", style: { fontSize: 13, marginTop: 6, lineHeight: 1.6 } },
+          pending ? "다중 모델 응답을 기다리는 중입니다." : "아래 입력창에 질문을 보내면 llm_chat_multi 결과를 provider별로 표시합니다.")
+      );
+    }
+
     return (
-      React.createElement("div", { className: "compare-grid", style: { display: "grid", gap: 16 } },
-        pair.map((p, i) =>
-          React.createElement("div", { key: p.id, className: "card card-pad" },
+      React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 16 } },
+        result.summary ? React.createElement("div", { className: "card card-pad", style: { background: "var(--surface-2)" } },
+          React.createElement("div", { className: "card-title" }, "요약"),
+          React.createElement("p", { style: { lineHeight: 1.7, color: "var(--text-2)", whiteSpace: "pre-wrap" } }, result.summary)
+        ) : null,
+        rows.length === 0 ? React.createElement("div", { className: "empty", style: { padding: "24px 12px" } }, "표시할 모델 응답이 없습니다.") : null,
+        rows.map((p) =>
+          React.createElement("div", { key: p.key, className: "card card-pad" },
             React.createElement("div", { className: "between", style: { marginBottom: 12 } },
               React.createElement("div", { className: "items-center gap10" },
                 React.createElement("div", { className: "prov-logo", style: { background: p.color, width: 26, height: 26, fontSize: 12 } }, p.glyph),
-                React.createElement("b", { style: { fontWeight: 700 } }, p.name),
+                React.createElement("b", { style: { fontWeight: 700 } }, p.label),
               ),
-              React.createElement("span", { className: "badge soft" }, i === 0 ? t("Most complete") : t("4× faster")),
+              p.modelName ? React.createElement("span", { className: "badge soft mono" }, p.modelName) : null,
             ),
-            React.createElement("p", { style: { lineHeight: 1.6, color: "var(--text-2)" } }, ans[i]),
-            React.createElement("div", { className: "items-center gap8 mt16" },
-              React.createElement("button", { className: "btn sm ghost", onClick: () => ctx.toast("다중 LLM 모드는 기존 Chat 화면에서 사용하세요.") }, I.scale({ size: 14 }), t("Compare")),
-              React.createElement("span", { className: "faint mono", style: { fontSize: 11, marginLeft: "auto" } }, p.latency),
-            ),
+            React.createElement("p", { style: { lineHeight: 1.7, color: "var(--text-2)", whiteSpace: "pre-wrap" } }, p.text || "응답 없음")
           )
         ),
       )
@@ -164,6 +192,7 @@
       showModels,
       setShowModels,
       pending,
+      multiResult,
       scrollRef,
       conversations,
       memoryNotes,
@@ -204,7 +233,7 @@
                 ),
               ),
 
-              compareMode ? React.createElement(CompareView, { ctx }) : null,
+              compareMode ? React.createElement(CompareView, { result: multiResult, pending }) : null,
 
               empty ? React.createElement("div", { style: { marginTop: 30 } },
                 React.createElement("div", { className: "eyebrow", style: { marginBottom: 12 } }, t("Suggested prompts")),
@@ -216,7 +245,7 @@
                   React.createElement("div", { style: { flex: 1 } },
                     React.createElement("b", { style: { fontWeight: 700 } }, t("Ask about a file")),
                     React.createElement("div", { className: "muted", style: { fontSize: 13 } }, "대화, 메모리, 파일을 함께 확인할 수 있습니다.")),
-                  React.createElement("button", { className: "btn", onClick: () => ctx.toast("Attach a file to analyze") }, t("Attach file")),
+                  React.createElement("button", { className: "btn", onClick: () => ctx.setRoute("projects") }, t("Attach file")),
                 ),
                 React.createElement(RecentConversations, {
                   ctx, conversations, onOpen: openConversation,

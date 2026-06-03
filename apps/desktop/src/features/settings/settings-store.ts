@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { create } from "zustand";
-import { requestDesktopSettings, subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
+import { requestDesktopLlm, requestDesktopSettings, subscribeDesktopMessages, type DesktopServerMessage, type LlmCredentialInput } from "../middleware/desktop-message-gateway";
+import { requestConfirmDialog, requestPromptDialog } from "../dialog/dialog-store";
 
 type MemoryNoteItem = {
   name: string;
@@ -19,6 +20,12 @@ type SettingsState = {
   backupIncludeScopes: string[];
   backupPreview: { previewId: string; fileName: string; conversationCount: number; conflictCount: number; fileCount: number; error: string } | null;
   backupPackage: { fileName: string; contentBase64: string } | null;
+  cerebrasModels: { selected: string; items: Array<{ id: string; ownedBy: string; created: string }> };
+  groqModels: { selected: string; items: string[] };
+  copilotModels: { selected: string; items: string[] };
+  copilotStatus: { text: string; detail: string };
+  codexStatus: { text: string; detail: string };
+  llmMessage: string;
   lastMessage: string;
   loading: boolean;
   setMemorySearchQuery: (value: string) => void;
@@ -33,6 +40,13 @@ type SettingsState = {
   importBackup: (file: File | null) => void;
   applyBackup: () => void;
   downloadBackupPackage: () => void;
+  loadCerebrasModels: () => void;
+  loadLlmServices: () => void;
+  setGroqModel: (model: string) => void;
+  setCopilotModel: (model: string) => void;
+  startCopilotLogin: () => void;
+  saveLlmCredentials: (keys: LlmCredentialInput) => void;
+  deleteLlmCredentials: () => void;
 };
 
 const BACKUP_SCOPES = ["conversations", "routines", "routing-policy", "memory-notes", "plans", "tasks", "notebooks", "skills/global", "commands/global", "skills/project", "commands/project"];
@@ -46,6 +60,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   backupIncludeScopes: BACKUP_SCOPES,
   backupPreview: null,
   backupPackage: null,
+  cerebrasModels: { selected: "", items: [] },
+  groqModels: { selected: "", items: [] },
+  copilotModels: { selected: "", items: [] },
+  copilotStatus: { text: "조회 전", detail: "-" },
+  codexStatus: { text: "조회 전", detail: "-" },
+  llmMessage: "",
   lastMessage: "",
   loading: false,
   setMemorySearchQuery: (value) => set({ memorySearchQuery: value }),
@@ -62,26 +82,43 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       set({ loading: false, lastMessage: "메모리 노트 읽기 요청을 전송하지 못했다." });
     }
   },
-  renameMemoryNote: (name) => {
+  renameMemoryNote: async (name) => {
     const current = String(name || "").trim();
     if (!current) return;
-    const next = window.prompt("새 메모리 노트 이름", current);
+    const next = await requestPromptDialog({
+      title: "메모리 노트 이름 변경",
+      message: "새 메모리 노트 이름을 입력하세요.",
+      defaultValue: current,
+      placeholder: "메모리 노트 이름"
+    });
     const newName = String(next || "").trim();
     if (!newName || newName === current) return;
     if (!requestDesktopSettings.renameMemoryNote(current, newName)) {
       set({ lastMessage: "메모리 노트 이름 변경 요청을 전송하지 못했다." });
     }
   },
-  deleteSelectedMemoryNotes: () => {
+  deleteSelectedMemoryNotes: async () => {
     const current = String(get().selectedNoteName || "").trim();
     if (!current) return;
-    if (!window.confirm(`메모리 노트 "${current}"를 삭제할까요?`)) return;
+    const confirmed = await requestConfirmDialog({
+      title: "메모리 노트 삭제",
+      message: `메모리 노트 "${current}"를 삭제할까요?`,
+      confirmLabel: "삭제",
+      tone: "danger"
+    });
+    if (!confirmed) return;
     if (!requestDesktopSettings.deleteMemoryNotes([current])) {
       set({ lastMessage: "메모리 노트 삭제 요청을 전송하지 못했다." });
     }
   },
-  clearMemory: () => {
-    if (!window.confirm("메모리 범위를 비울까요?")) return;
+  clearMemory: async () => {
+    const confirmed = await requestConfirmDialog({
+      title: "메모리 비우기",
+      message: "현재 대화 메모리 범위를 비울까요?",
+      confirmLabel: "비우기",
+      tone: "danger"
+    });
+    if (!confirmed) return;
     if (!requestDesktopSettings.clearMemory("chat")) {
       set({ lastMessage: "메모리 비우기 요청을 전송하지 못했다." });
     }
@@ -143,8 +180,58 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     link.download = backupPackage.fileName || "omnux-backup.zip";
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  },
+  loadCerebrasModels: () => {
+    set({ loading: true });
+    if (!requestDesktopSettings.cerebrasModels()) {
+      set({ loading: false, lastMessage: "Cerebras 모델 조회 요청을 전송하지 못했다." });
+    }
+  },
+  loadLlmServices: () => {
+    set({ llmMessage: "" });
+    requestDesktopLlm.groqModels();
+    requestDesktopLlm.copilotModels();
+    requestDesktopLlm.copilotStatus();
+    requestDesktopLlm.codexStatus();
+    requestDesktopLlm.usageStats();
+  },
+  setGroqModel: (model) => {
+    if (!model.trim()) return;
+    if (!requestDesktopLlm.setGroqModel(model)) set({ llmMessage: "Groq 모델 적용 요청을 전송하지 못했다." });
+  },
+  setCopilotModel: (model) => {
+    if (!model.trim()) return;
+    if (!requestDesktopLlm.setCopilotModel(model)) set({ llmMessage: "Copilot 모델 적용 요청을 전송하지 못했다." });
+  },
+  startCopilotLogin: () => {
+    if (!requestDesktopLlm.startCopilotLogin()) set({ llmMessage: "Copilot 로그인 요청을 전송하지 못했다." });
+  },
+  saveLlmCredentials: (keys) => {
+    if (!requestDesktopLlm.setCredentials(keys, true)) set({ llmMessage: "API 키 저장 요청을 전송하지 못했다." });
+  },
+  deleteLlmCredentials: async () => {
+    const confirmed = await requestConfirmDialog({
+      title: "API 키 삭제",
+      message: "저장된 LLM API 키를 삭제할까요? (세션과 영속 저장 모두)",
+      confirmLabel: "삭제",
+      tone: "danger"
+    });
+    if (!confirmed) return;
+    if (!requestDesktopLlm.deleteCredentials(true)) set({ llmMessage: "API 키 삭제 요청을 전송하지 못했다." });
   }
 }));
+
+function normalizeModelIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => (typeof item === "string" ? item : String((item as Record<string, unknown>)?.id || (item as Record<string, unknown>)?.model || "")))
+    .filter(Boolean);
+}
+
+function statusText(installed: boolean, authenticated: boolean, mode: string): string {
+  if (!installed) return "미설치";
+  return authenticated ? `설치/인증 완료 (${mode || "-"})` : `설치됨, 미인증 (${mode || "-"})`;
+}
 
 function normalizeServerList<T>(value: unknown, mapper: (item: Record<string, unknown>) => T): T[] {
   return Array.isArray(value) ? value.map((item) => mapper(item as Record<string, unknown>)) : [];
@@ -187,7 +274,7 @@ export function useSettingsPageBridge() {
       return;
     }
 
-    if (message.type === "backup_export_prepare_result") {
+    if (message.type === "backup_export_result" || message.type === "backup_export_prepare_result") {
       useSettingsStore.setState({
         backupPackage: message.contentBase64
           ? {
@@ -216,11 +303,59 @@ export function useSettingsPageBridge() {
       return;
     }
 
-    if (message.type === "backup_import_apply_result") {
+    if (message.type === "backup_import_result" || message.type === "backup_import_apply_result") {
       useSettingsStore.setState({
         lastMessage: String(message.message || "백업 적용 응답 수신"),
         loading: false
       });
+      return;
+    }
+
+    if (message.type === "cerebras_models") {
+      useSettingsStore.setState({
+        cerebrasModels: {
+          selected: String(message.selected || ""),
+          items: normalizeServerList(message.items, (item) => ({
+            id: String(item.id || ""),
+            ownedBy: String(item.owned_by || item.ownedBy || ""),
+            created: String(item.created || "")
+          }))
+        },
+        loading: false
+      });
+      return;
+    }
+
+    if (message.type === "groq_models") {
+      useSettingsStore.setState({ groqModels: { selected: String(message.selected || ""), items: normalizeModelIds(message.items) } });
+      return;
+    }
+    if (message.type === "copilot_models") {
+      useSettingsStore.setState({ copilotModels: { selected: String(message.selected || ""), items: normalizeModelIds(message.items) } });
+      return;
+    }
+    if (message.type === "copilot_status") {
+      useSettingsStore.setState({ copilotStatus: { text: statusText(!!message.installed, !!message.authenticated, String(message.mode || "")), detail: String(message.detail || "-") } });
+      return;
+    }
+    if (message.type === "codex_status") {
+      useSettingsStore.setState({ codexStatus: { text: statusText(!!message.installed, !!message.authenticated, String(message.mode || "")), detail: String(message.detail || "-") } });
+      return;
+    }
+    if (message.type === "groq_model_set" || message.type === "copilot_model_set") {
+      const provider = message.type === "groq_model_set" ? "Groq" : "Copilot";
+      useSettingsStore.setState({ llmMessage: message.ok ? `${provider} 모델을 ${String(message.model || "-")}로 적용했습니다.` : String(message.message || `${provider} 모델 적용 실패`) });
+      if (message.type === "groq_model_set") requestDesktopLlm.groqModels();
+      else requestDesktopLlm.copilotModels();
+      return;
+    }
+    if (message.type === "copilot_login_result") {
+      useSettingsStore.setState({ llmMessage: String(message.message || "Copilot 로그인 요청을 시작했습니다.") });
+      requestDesktopLlm.copilotStatus();
+      return;
+    }
+    if (message.type === "llm_credentials_result" || message.type === "set_llm_credentials_result" || message.type === "delete_llm_credentials_result") {
+      useSettingsStore.setState({ llmMessage: String(message.message || "API 키 설정을 갱신했습니다.") });
       return;
     }
 

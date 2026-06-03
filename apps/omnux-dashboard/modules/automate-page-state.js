@@ -1,7 +1,6 @@
 /* omnux - automate page state */
 (function () {
   const { useState, useEffect, useCallback } = React;
-  const D = window.OMNUX_DATA;
   const t = (s, fb) => window.t(s, fb);
 
   const AUTOMATE_TRIGGERS = {
@@ -50,16 +49,31 @@
     const submit = useCallback(() => {
       if (!prompt.trim() || !send) return;
       setSubmitting(true);
-      send({
+      const sent = send({
         type: 'create_routine',
         text: prompt.trim(),
         title: name.trim() || undefined,
         scheduleKind,
         runImmediately: trigger === 'manual' ? false : true,
-      });
-      ctx.toast('Automation created');
-      onClose();
+      }, { queueIfClosed: true });
+      if (!sent) {
+        setSubmitting(false);
+        ctx.toast('미들웨어 연결이 필요합니다.');
+      }
     }, [ctx, name, onClose, prompt, scheduleKind, send, trigger]);
+
+    useEffect(() => {
+      const onMessage = (event) => {
+        const msg = event.detail || {};
+        if (msg.type === 'routine_result') {
+          setSubmitting(false);
+          ctx.toast(msg.message || (msg.ok ? 'Automation created' : 'Automation failed'));
+          if (msg.ok) onClose();
+        }
+      };
+      window.addEventListener('omnux:message', onMessage);
+      return () => window.removeEventListener('omnux:message', onMessage);
+    }, [ctx, onClose]);
 
     return {
       trigger,
@@ -79,9 +93,7 @@
     const [creating, setCreating] = useState(!!(payload && payload.create));
     const [deleting, setDeleting] = useState(null);
     const [running, setRunning] = useState(null);
-    const items = (Array.isArray(routines) && routines.length > 0)
-      ? routines.map(routineToCard)
-      : D.automations;
+    const items = Array.isArray(routines) ? routines.map(routineToCard) : [];
 
     useEffect(() => {
       if (payload && payload.create) setCreating(true);
@@ -90,26 +102,34 @@
     const onToggle = useCallback((id, enabled) => {
       if (send) {
         send({ type: 'toggle_routine', routineId: id, enabled });
-        ctx.toast(enabled ? t('Enabled') : t('Disabled'));
       }
     }, [send, ctx]);
 
     const onRun = useCallback((id) => {
       if (send) {
         send({ type: 'run_routine', routineId: id });
-        ctx.toast(t('Running\u2026'));
         setRunning(id);
-        setTimeout(() => setRunning(null), 3000);
       }
     }, [send, ctx]);
 
     const onDeleteConfirm = useCallback(() => {
       if (send && deleting) {
         send({ type: 'delete_routine', routineId: deleting.id });
-        ctx.toast(t('Deleted'));
         setDeleting(null);
       }
     }, [send, deleting, ctx]);
+
+    useEffect(() => {
+      const onMessage = (event) => {
+        const msg = event.detail || {};
+        if (msg.type === 'routine_result') {
+          setRunning(null);
+          ctx.toast(msg.message || (msg.ok ? '루틴 요청을 처리했습니다.' : '루틴 요청이 실패했습니다.'));
+        }
+      };
+      window.addEventListener('omnux:message', onMessage);
+      return () => window.removeEventListener('omnux:message', onMessage);
+    }, [ctx]);
 
     return {
       creating,

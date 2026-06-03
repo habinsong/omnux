@@ -1,6 +1,6 @@
 /* omnux — settings page state */
 (function () {
-  const { useState, useEffect, useCallback } = React;
+  const { useState, useEffect, useCallback, useRef } = React;
   const noop = () => {};
 
   const SETTINGS_PERMS = [
@@ -941,11 +941,525 @@
     };
   }
 
+  const EMPTY_SETTINGS_STATE = {
+    telegramBotTokenSet: false,
+    telegramChatIdSet: false,
+    groqApiKeySet: false,
+    geminiApiKeySet: false,
+    cerebrasApiKeySet: false,
+    nvidiaApiKeySet: false,
+    codexApiKeySet: false,
+    telegramBotTokenMasked: "",
+    telegramChatIdMasked: "",
+    groqApiKeyMasked: "",
+    geminiApiKeyMasked: "",
+    cerebrasApiKeyMasked: "",
+    nvidiaApiKeyMasked: "",
+    codexApiKeyMasked: "",
+    externalDashboardEnabled: false,
+    remoteDashboardClient: false,
+    dashboardExternalUrls: []
+  };
+
+  const EMPTY_USAGE_STATE = {
+    gemini: null,
+    copilotPremium: null,
+    copilotLocal: null
+  };
+
+  const EMPTY_MODEL_STATE = {
+    selected: "",
+    items: []
+  };
+
+  const EMPTY_PENDING_STATE = {
+    otpRequest: false,
+    auth: false,
+    telegram: false,
+    telegramDelete: false,
+    telegramTest: false,
+    llm: false,
+    llmDelete: false,
+    groqRefresh: false,
+    groqApply: false,
+    cerebrasRefresh: false,
+    copilotRefresh: false,
+    copilotApply: false,
+    copilotStatus: false,
+    copilotLogin: false,
+    codexStatus: false,
+    codexLogin: false,
+    codexLogout: false
+  };
+
+  function normalizeSettingsRuntimeState(value) {
+    if (!value || typeof value !== "object") {
+      return { ...EMPTY_SETTINGS_STATE };
+    }
+    return {
+      ...EMPTY_SETTINGS_STATE,
+      ...value,
+      dashboardExternalUrls: Array.isArray(value.dashboardExternalUrls) ? value.dashboardExternalUrls : []
+    };
+  }
+
+  function normalizeUsageRuntimeState(value) {
+    if (!value || typeof value !== "object") {
+      return { ...EMPTY_USAGE_STATE };
+    }
+    return {
+      gemini: value.gemini || null,
+      copilotPremium: value.copilotPremium || null,
+      copilotLocal: value.copilotLocal || null
+    };
+  }
+
+  function normalizeModelRuntimeState(value) {
+    if (!value || typeof value !== "object") {
+      return { ...EMPTY_MODEL_STATE };
+    }
+    return {
+      selected: String(value.selected || ""),
+      items: Array.isArray(value.items) ? value.items : []
+    };
+  }
+
+  function trimOrUndefined(value) {
+    const text = String(value || "").trim();
+    return text ? text : undefined;
+  }
+
+  function parseAuthTtlHours(value) {
+    const parsed = Number.parseInt(String(value || ""), 10);
+    if (!Number.isFinite(parsed)) return 24;
+    return Math.max(1, Math.min(168, parsed));
+  }
+
+  function useSettingsLiveState(ctx, active) {
+    const runtime = ctx.runtime || {};
+    const sendMessage = typeof ctx.send === "function" ? ctx.send : noop;
+    const toast = typeof ctx.toast === "function" ? ctx.toast : noop;
+    const loadedRef = useRef(false);
+    const activeRef = useRef(active);
+    const authRefreshRef = useRef(false);
+    const groqSelectedRef = useRef("");
+    const copilotSelectedRef = useRef("");
+
+    const settings = normalizeSettingsRuntimeState(runtime.settings);
+    const usage = normalizeUsageRuntimeState(runtime.usage);
+    const groqModels = normalizeModelRuntimeState(runtime.groqModels);
+    const cerebrasModels = normalizeModelRuntimeState(runtime.cerebrasModels);
+    const copilotModels = normalizeModelRuntimeState(runtime.copilotModels);
+    const copilotStatus = runtime.copilotStatus || null;
+    const codexStatus = runtime.codexStatus || null;
+    const settingsResult = runtime.settingsResult || null;
+    const otpResult = runtime.otpResult || null;
+    const remoteDashboardClient = !!settings.remoteDashboardClient || !!runtime.remoteDashboardClient;
+    const connected = !!runtime.connected || runtime.status === "connected";
+    const authenticated = !!runtime.authenticated;
+    const needsAuth = !!runtime.authRequired && !authenticated;
+    const canEditSecrets = connected && authenticated && !remoteDashboardClient;
+
+    const [otp, setOtp] = useState("");
+    const [authTtlHours, setAuthTtlHours] = useState("24");
+    const [persist, setPersist] = useState(true);
+    const [telegramBotToken, setTelegramBotToken] = useState("");
+    const [telegramChatId, setTelegramChatId] = useState("");
+    const [groqApiKey, setGroqApiKey] = useState("");
+    const [geminiApiKey, setGeminiApiKey] = useState("");
+    const [cerebrasApiKey, setCerebrasApiKey] = useState("");
+    const [nvidiaApiKey, setNvidiaApiKey] = useState("");
+    const [codexApiKey, setCodexApiKey] = useState("");
+    const [selectedGroqModel, setSelectedGroqModel] = useState("");
+    const [selectedCopilotModel, setSelectedCopilotModel] = useState("");
+    const [pending, setPending] = useState(EMPTY_PENDING_STATE);
+
+    useEffect(() => {
+      activeRef.current = active;
+    }, [active]);
+
+    const setPendingKey = useCallback((key, value) => {
+      setPending((current) => ({ ...current, [key]: !!value }));
+    }, []);
+
+    const sendOrToast = useCallback((payload) => {
+      const sent = sendMessage(payload, { queueIfClosed: true });
+      if (!sent) {
+        toast("미들웨어 WebSocket 연결이 필요합니다.");
+      }
+      return sent;
+    }, [sendMessage, toast]);
+
+    const refreshAll = useCallback(() => {
+      sendMessage({ type: "get_settings" }, { queueIfClosed: true, silent: true });
+      if (authenticated) {
+        sendMessage({ type: "get_usage_stats" }, { queueIfClosed: true, silent: true });
+        sendMessage({ type: "get_groq_models" }, { queueIfClosed: true, silent: true });
+        sendMessage({ type: "get_cerebras_models" }, { queueIfClosed: true, silent: true });
+        sendMessage({ type: "get_copilot_models" }, { queueIfClosed: true, silent: true });
+        sendMessage({ type: "get_copilot_status" }, { queueIfClosed: true, silent: true });
+        sendMessage({ type: "get_codex_status" }, { queueIfClosed: true, silent: true });
+      }
+    }, [authenticated, sendMessage]);
+
+    const requestOtp = useCallback(() => {
+      if (remoteDashboardClient) {
+        toast("외부 접속 제한 모드에서는 OTP 요청을 사용할 수 없습니다.");
+        return;
+      }
+      setPendingKey("otpRequest", true);
+      if (!sendOrToast({ type: "request_otp" })) {
+        setPendingKey("otpRequest", false);
+      }
+    }, [remoteDashboardClient, sendOrToast, setPendingKey, toast]);
+
+    const authenticate = useCallback(() => {
+      const code = otp.trim();
+      if (!code) {
+        toast("OTP 코드를 입력하세요.");
+        return;
+      }
+      setPendingKey("auth", true);
+      if (!sendOrToast({
+        type: "auth",
+        otp: code,
+        authTtlHours: parseAuthTtlHours(authTtlHours)
+      })) {
+        setPendingKey("auth", false);
+      }
+    }, [authTtlHours, otp, sendOrToast, setPendingKey, toast]);
+
+    const saveTelegram = useCallback(() => {
+      setPendingKey("telegram", true);
+      if (!sendOrToast({
+        type: "set_telegram_credentials",
+        telegramBotToken: trimOrUndefined(telegramBotToken),
+        telegramChatId: trimOrUndefined(telegramChatId),
+        persist
+      })) {
+        setPendingKey("telegram", false);
+      }
+    }, [persist, sendOrToast, setPendingKey, telegramBotToken, telegramChatId]);
+
+    const deleteTelegram = useCallback(() => {
+      if (typeof window.confirm === "function"
+        && !window.confirm("Telegram 연동 정보를 삭제할까요?")) {
+        return;
+      }
+      setPendingKey("telegramDelete", true);
+      if (!sendOrToast({ type: "delete_telegram_credentials", persist })) {
+        setPendingKey("telegramDelete", false);
+        return;
+      }
+      setTelegramBotToken("");
+      setTelegramChatId("");
+    }, [persist, sendOrToast, setPendingKey]);
+
+    const testTelegram = useCallback(() => {
+      setPendingKey("telegramTest", true);
+      if (!sendOrToast({ type: "test_telegram" })) {
+        setPendingKey("telegramTest", false);
+      }
+    }, [sendOrToast, setPendingKey]);
+
+    const saveLlm = useCallback(() => {
+      setPendingKey("llm", true);
+      if (!sendOrToast({
+        type: "set_llm_credentials",
+        groqApiKey: trimOrUndefined(groqApiKey),
+        geminiApiKey: trimOrUndefined(geminiApiKey),
+        cerebrasApiKey: trimOrUndefined(cerebrasApiKey),
+        nvidiaApiKey: trimOrUndefined(nvidiaApiKey),
+        codexApiKey: trimOrUndefined(codexApiKey),
+        persist
+      })) {
+        setPendingKey("llm", false);
+      }
+    }, [cerebrasApiKey, codexApiKey, geminiApiKey, groqApiKey, nvidiaApiKey, persist, sendOrToast, setPendingKey]);
+
+    const deleteLlm = useCallback(() => {
+      if (typeof window.confirm === "function"
+        && !window.confirm("저장된 LLM API 키를 모두 삭제할까요?")) {
+        return;
+      }
+      setPendingKey("llmDelete", true);
+      if (!sendOrToast({ type: "delete_llm_credentials", persist })) {
+        setPendingKey("llmDelete", false);
+        return;
+      }
+      setGroqApiKey("");
+      setGeminiApiKey("");
+      setCerebrasApiKey("");
+      setNvidiaApiKey("");
+      setCodexApiKey("");
+    }, [persist, sendOrToast, setPendingKey]);
+
+    const refreshGroqModels = useCallback(() => {
+      setPendingKey("groqRefresh", true);
+      if (!sendOrToast({ type: "get_groq_models" })) {
+        setPendingKey("groqRefresh", false);
+      }
+    }, [sendOrToast, setPendingKey]);
+
+    const applyGroqModel = useCallback(() => {
+      const model = selectedGroqModel.trim();
+      if (!model) {
+        toast("Groq 모델을 선택하세요.");
+        return;
+      }
+      setPendingKey("groqApply", true);
+      if (!sendOrToast({ type: "set_groq_model", model })) {
+        setPendingKey("groqApply", false);
+      }
+    }, [selectedGroqModel, sendOrToast, setPendingKey, toast]);
+
+    const refreshCerebrasModels = useCallback(() => {
+      setPendingKey("cerebrasRefresh", true);
+      if (!sendOrToast({ type: "get_cerebras_models" })) {
+        setPendingKey("cerebrasRefresh", false);
+      }
+    }, [sendOrToast, setPendingKey]);
+
+    const refreshCopilotModels = useCallback(() => {
+      setPendingKey("copilotRefresh", true);
+      if (!sendOrToast({ type: "get_copilot_models" })) {
+        setPendingKey("copilotRefresh", false);
+      }
+    }, [sendOrToast, setPendingKey]);
+
+    const applyCopilotModel = useCallback(() => {
+      const model = selectedCopilotModel.trim();
+      if (!model) {
+        toast("Copilot 모델을 선택하세요.");
+        return;
+      }
+      setPendingKey("copilotApply", true);
+      if (!sendOrToast({ type: "set_copilot_model", model })) {
+        setPendingKey("copilotApply", false);
+      }
+    }, [selectedCopilotModel, sendOrToast, setPendingKey, toast]);
+
+    const refreshCopilotStatus = useCallback(() => {
+      setPendingKey("copilotStatus", true);
+      if (!sendOrToast({ type: "get_copilot_status" })) {
+        setPendingKey("copilotStatus", false);
+      }
+    }, [sendOrToast, setPendingKey]);
+
+    const startCopilotLogin = useCallback(() => {
+      setPendingKey("copilotLogin", true);
+      if (!sendOrToast({ type: "start_copilot_login" })) {
+        setPendingKey("copilotLogin", false);
+      }
+    }, [sendOrToast, setPendingKey]);
+
+    const refreshCodexStatus = useCallback(() => {
+      setPendingKey("codexStatus", true);
+      if (!sendOrToast({ type: "get_codex_status" })) {
+        setPendingKey("codexStatus", false);
+      }
+    }, [sendOrToast, setPendingKey]);
+
+    const startCodexLogin = useCallback(() => {
+      setPendingKey("codexLogin", true);
+      if (!sendOrToast({ type: "start_codex_login" })) {
+        setPendingKey("codexLogin", false);
+      }
+    }, [sendOrToast, setPendingKey]);
+
+    const logoutCodex = useCallback(() => {
+      setPendingKey("codexLogout", true);
+      if (!sendOrToast({ type: "logout_codex" })) {
+        setPendingKey("codexLogout", false);
+      }
+    }, [sendOrToast, setPendingKey]);
+
+    useEffect(() => {
+      const next = groqModels.selected || groqModels.items[0]?.id || "";
+      if (next && groqSelectedRef.current !== next) {
+        groqSelectedRef.current = next;
+        setSelectedGroqModel(next);
+      }
+    }, [groqModels.items, groqModels.selected]);
+
+    useEffect(() => {
+      const next = copilotModels.selected || copilotModels.items[0]?.id || "";
+      if (next && copilotSelectedRef.current !== next) {
+        copilotSelectedRef.current = next;
+        setSelectedCopilotModel(next);
+      }
+    }, [copilotModels.items, copilotModels.selected]);
+
+    useEffect(() => {
+      if (!active || loadedRef.current) {
+        return;
+      }
+      loadedRef.current = true;
+      refreshAll();
+    }, [active, refreshAll]);
+
+    useEffect(() => {
+      if (active && authenticated && !authRefreshRef.current) {
+        authRefreshRef.current = true;
+        refreshAll();
+      }
+      if (!authenticated) {
+        authRefreshRef.current = false;
+      }
+    }, [active, authenticated, refreshAll]);
+
+    useEffect(() => {
+      const onMessage = (event) => {
+        const msg = event.detail || {};
+        const shouldToast = activeRef.current;
+        if (msg.type === "otp_request_result") {
+          setPendingKey("otpRequest", false);
+          if (shouldToast) toast(msg.message || (msg.ok ? "OTP를 요청했습니다." : "OTP 요청에 실패했습니다."));
+        }
+        if (msg.type === "auth_result") {
+          setPendingKey("auth", false);
+          if (msg.ok) {
+            setOtp("");
+            if (shouldToast) toast(msg.resumed ? "인증 세션을 복구했습니다." : "인증되었습니다.");
+          } else {
+            if (shouldToast) toast("OTP 인증에 실패했습니다.");
+          }
+        }
+        if (msg.type === "settings_result") {
+          setPending((current) => ({
+            ...current,
+            telegram: false,
+            telegramDelete: false,
+            telegramTest: false,
+            llm: false,
+            llmDelete: false
+          }));
+          if (shouldToast) toast(msg.message || (msg.ok ? "설정을 저장했습니다." : "설정 작업이 실패했습니다."));
+          if (msg.ok) {
+            setTelegramBotToken("");
+            setTelegramChatId("");
+            setGroqApiKey("");
+            setGeminiApiKey("");
+            setCerebrasApiKey("");
+            setNvidiaApiKey("");
+            setCodexApiKey("");
+          }
+        }
+        if (msg.type === "groq_models") {
+          setPendingKey("groqRefresh", false);
+        }
+        if (msg.type === "cerebras_models") {
+          setPendingKey("cerebrasRefresh", false);
+        }
+        if (msg.type === "groq_model_set") {
+          setPendingKey("groqApply", false);
+          if (shouldToast) toast(msg.ok ? `Groq 모델을 ${msg.model || "-"}로 적용했습니다.` : (msg.message || "Groq 모델 적용 실패"));
+        }
+        if (msg.type === "copilot_models") {
+          setPendingKey("copilotRefresh", false);
+        }
+        if (msg.type === "copilot_model_set") {
+          setPendingKey("copilotApply", false);
+          if (shouldToast) toast(msg.ok ? `Copilot 모델을 ${msg.model || "-"}로 적용했습니다.` : (msg.message || "Copilot 모델 적용 실패"));
+        }
+        if (msg.type === "copilot_status") {
+          setPendingKey("copilotStatus", false);
+        }
+        if (msg.type === "copilot_login_result") {
+          setPendingKey("copilotLogin", false);
+          if (shouldToast) toast(msg.message || "Copilot 로그인 요청을 시작했습니다.");
+        }
+        if (msg.type === "codex_status") {
+          setPendingKey("codexStatus", false);
+        }
+        if (msg.type === "codex_login_result") {
+          setPendingKey("codexLogin", false);
+          if (shouldToast) toast(msg.message || "Codex 로그인 요청을 시작했습니다.");
+        }
+        if (msg.type === "codex_logout_result") {
+          setPendingKey("codexLogout", false);
+          if (shouldToast) toast(msg.message || "Codex 로그아웃 요청을 처리했습니다.");
+        }
+        if (msg.type === "error") {
+          setPending(EMPTY_PENDING_STATE);
+          if (shouldToast && (msg.message || "").toLowerCase() !== "unauthorized") {
+            toast(msg.message || "요청 처리 중 오류가 발생했습니다.");
+          }
+        }
+      };
+      window.addEventListener("omnux:message", onMessage);
+      return () => window.removeEventListener("omnux:message", onMessage);
+    }, [setPendingKey, toast]);
+
+    return {
+      connected,
+      authenticated,
+      needsAuth,
+      canEditSecrets,
+      remoteDashboardClient,
+      authExpiresAtLocal: runtime.authExpiresAtLocal || "",
+      authLocalOffset: runtime.authLocalOffset || "",
+      authTtlHours,
+      setAuthTtlHours,
+      otp,
+      setOtp,
+      requestOtp,
+      authenticate,
+      persist,
+      setPersist,
+      settings,
+      usage,
+      settingsResult,
+      otpResult,
+      pending,
+      telegramBotToken,
+      setTelegramBotToken,
+      telegramChatId,
+      setTelegramChatId,
+      saveTelegram,
+      deleteTelegram,
+      testTelegram,
+      groqApiKey,
+      setGroqApiKey,
+      geminiApiKey,
+      setGeminiApiKey,
+      cerebrasApiKey,
+      setCerebrasApiKey,
+      nvidiaApiKey,
+      setNvidiaApiKey,
+      codexApiKey,
+      setCodexApiKey,
+      saveLlm,
+      deleteLlm,
+      groqModels,
+      selectedGroqModel,
+      setSelectedGroqModel,
+      refreshGroqModels,
+      applyGroqModel,
+      cerebrasModels,
+      refreshCerebrasModels,
+      copilotModels,
+      selectedCopilotModel,
+      setSelectedCopilotModel,
+      refreshCopilotModels,
+      applyCopilotModel,
+      copilotStatus,
+      refreshCopilotStatus,
+      startCopilotLogin,
+      codexStatus,
+      refreshCodexStatus,
+      startCodexLogin,
+      logoutCodex,
+      refreshAll
+    };
+  }
+
   function useSettingsPageState(ctx, payload) {
     const [tab, setTab] = useState((payload && payload.tab) || "general");
     const memory = useSettingsMemoryState(ctx);
     const permissions = useSettingsPermissionState();
     const operations = useSettingsOperationsState(ctx, tab === "operations");
+    const live = useSettingsLiveState(ctx, tab === "models" || tab === "integrations");
 
     return {
       tab,
@@ -953,7 +1467,8 @@
       memory,
       permissions,
       perms: SETTINGS_PERMS,
-      operations
+      operations,
+      live
     };
   }
 
@@ -962,6 +1477,7 @@
     useSettingsMemoryState,
     useSettingsPermissionState,
     useSettingsOperationsState,
+    useSettingsLiveState,
     useSettingsPageState
   });
 })();

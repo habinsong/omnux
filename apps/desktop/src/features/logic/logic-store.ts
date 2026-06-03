@@ -5,6 +5,7 @@ import {
   subscribeDesktopMessages,
   type DesktopServerMessage
 } from "../middleware/desktop-message-gateway";
+import { requestConfirmDialog } from "../dialog/dialog-store";
 
 export type LogicGraphSummary = {
   graphId: string;
@@ -22,6 +23,8 @@ export type LogicNode = {
   type: string;
   title: string;
   enabled: boolean;
+  position: { x: number; y: number };
+  size: { width: number; height: number };
   config: Record<string, string>;
 };
 
@@ -55,6 +58,8 @@ type LogicState = {
   graphs: LogicGraphSummary[];
   selectedGraphId: string;
   graph: LogicGraphDetail | null;
+  graphJson: string;
+  runInput: string;
   runSnapshot: LogicRunSnapshot | null;
   loadingList: boolean;
   loadingGraph: boolean;
@@ -62,11 +67,21 @@ type LogicState = {
   lastError: string;
   loadGraphs: () => void;
   openGraph: (graphId: string) => void;
+  setGraphJson: (value: string) => void;
+  setRunInput: (value: string) => void;
+  saveGraph: () => void;
+  deleteGraph: () => void;
   runGraph: () => void;
+  cancelRun: () => void;
 };
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function readNumber(record: Record<string, unknown>, key: string, fallback: number) {
+  const value = record[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
 function normalizeSummaries(items: unknown): LogicGraphSummary[] {
@@ -105,6 +120,14 @@ function normalizeGraph(value: unknown): LogicGraphDetail | null {
           type: String(nodeRecord.type || ""),
           title: String(nodeRecord.title || ""),
           enabled: nodeRecord.enabled !== false,
+          position: {
+            x: readNumber(asRecord(nodeRecord.position), "x", 0),
+            y: readNumber(asRecord(nodeRecord.position), "y", 0)
+          },
+          size: {
+            width: readNumber(asRecord(nodeRecord.size), "width", 188),
+            height: readNumber(asRecord(nodeRecord.size), "height", 112)
+          },
           config: normalizedConfig
         };
       })
@@ -154,6 +177,8 @@ export const useLogicStore = create<LogicState>((set, get) => ({
   graphs: [],
   selectedGraphId: "",
   graph: null,
+  graphJson: "",
+  runInput: "",
   runSnapshot: null,
   loadingList: false,
   loadingGraph: false,
@@ -167,17 +192,49 @@ export const useLogicStore = create<LogicState>((set, get) => ({
   },
   openGraph: (graphId) => {
     if (!graphId) return;
-    set({ selectedGraphId: graphId, loadingGraph: true, graph: null, runSnapshot: null });
+    set({ selectedGraphId: graphId, loadingGraph: true, graph: null, graphJson: "", runSnapshot: null });
     if (!requestDesktopLogic.getGraph(graphId)) {
       set({ loadingGraph: false, lastError: "logic graph 조회 요청을 전송하지 못했다." });
+    }
+  },
+  setGraphJson: (value) => set({ graphJson: value }),
+  setRunInput: (value) => set({ runInput: value }),
+  saveGraph: () => {
+    const json = get().graphJson.trim();
+    if (!json) return;
+    set({ loadingGraph: true, lastError: "" });
+    if (!requestDesktopLogic.saveGraph(get().selectedGraphId, json)) {
+      set({ loadingGraph: false, lastError: "logic graph 저장 요청을 전송하지 못했다." });
+    }
+  },
+  deleteGraph: async () => {
+    const graphId = get().selectedGraphId;
+    if (!graphId) return;
+    const confirmed = await requestConfirmDialog({
+      title: "Logic graph 삭제",
+      message: `logic graph "${graphId}"를 삭제할까요?`,
+      confirmLabel: "삭제",
+      tone: "danger"
+    });
+    if (!confirmed) return;
+    set({ loadingGraph: true, lastError: "" });
+    if (!requestDesktopLogic.deleteGraph(graphId)) {
+      set({ loadingGraph: false, lastError: "logic graph 삭제 요청을 전송하지 못했다." });
     }
   },
   runGraph: () => {
     const graphId = get().selectedGraphId;
     if (!graphId) return;
     set({ running: true, runSnapshot: null, lastError: "" });
-    if (!requestDesktopLogic.runGraph(graphId)) {
+    if (!requestDesktopLogic.runGraph(graphId, get().runInput)) {
       set({ running: false, lastError: "logic graph 실행 요청을 전송하지 못했다." });
+    }
+  },
+  cancelRun: () => {
+    const runId = get().runSnapshot?.runId || "";
+    if (!runId) return;
+    if (!requestDesktopLogic.cancelRun(runId)) {
+      set({ lastError: "logic graph 취소 요청을 전송하지 못했다." });
     }
   }
 }));
@@ -191,18 +248,22 @@ export function useLogicPageBridge() {
       }
 
       if (message.type === "logic_graph_result") {
+        const graph = normalizeGraph(message.graph);
         useLogicStore.setState({
           loadingGraph: false,
-          graph: normalizeGraph(message.graph),
+          graph,
+          graphJson: message.graph ? JSON.stringify(message.graph, null, 2) : useLogicStore.getState().graphJson,
+          selectedGraphId: graph?.graphId || useLogicStore.getState().selectedGraphId,
           lastError: message.ok === false ? String(message.message || "logic graph 조회 실패") : ""
         });
         return;
       }
 
-      if (message.type === "logic_graph_run_result") {
+      if (message.type === "logic_graph_run_result" || message.type === "logic_graph_run_event") {
+        const snapshot = normalizeSnapshot(message.snapshot);
         useLogicStore.setState({
-          running: false,
-          runSnapshot: normalizeSnapshot(message.snapshot),
+          running: message.type === "logic_graph_run_event" && snapshot?.status !== "completed" && snapshot?.status !== "failed",
+          runSnapshot: snapshot,
           lastError: message.ok === false ? String(message.message || "logic graph 실행 실패") : ""
         });
         return;

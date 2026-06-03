@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { create } from "zustand";
 import { requestDesktopAsk, requestDesktopSettings, subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
+import { requestConfirmDialog, requestPromptDialog } from "../dialog/dialog-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
 
 export type AskConversationItem = {
@@ -18,10 +19,19 @@ export type AskMessage = {
   text: string;
 };
 
+export type AskChatMode = "single" | "orchestration" | "multi";
+
+export type AskMultiResult = {
+  summary: string;
+  providers: Array<{ key: string; label: string; model: string; text: string }>;
+};
+
 type AskState = {
   conversations: AskConversationItem[];
   memoryNotes: Array<{ name: string; excerpt: string }>;
   messages: AskMessage[];
+  chatMode: AskChatMode;
+  multiResult: AskMultiResult | null;
   activeConversationId: string | null;
   searchQuery: string;
   searchResults: Array<{ conversationId: string; title: string; snippet: string }>;
@@ -32,6 +42,7 @@ type AskState = {
   searching: boolean;
   lastError: string | null;
   setInput: (value: string) => void;
+  setChatMode: (mode: AskChatMode) => void;
   loadConversations: () => void;
   loadMemoryNotes: () => void;
   openConversation: (item: AskConversationItem) => void;
@@ -65,10 +76,34 @@ function normalizeConversation(item: unknown): AskConversationItem {
   };
 }
 
+function normalizeMultiResult(message: DesktopServerMessage): AskMultiResult {
+  const definitions = [
+    { key: "groq", label: "Groq", modelKey: "groqModel" },
+    { key: "gemini", label: "Gemini", modelKey: "geminiModel" },
+    { key: "cerebras", label: "Cerebras", modelKey: "cerebrasModel" },
+    { key: "nvidia", label: "NVIDIA NIM", modelKey: "nvidiaModel" },
+    { key: "copilot", label: "Copilot", modelKey: "copilotModel" },
+    { key: "codex", label: "Codex", modelKey: "codexModel" }
+  ];
+  return {
+    summary: String(message.summary || message.commonSummary || ""),
+    providers: definitions
+      .map((definition) => ({
+        key: definition.key,
+        label: definition.label,
+        model: String(message[definition.modelKey] || ""),
+        text: String(message[definition.key] || "")
+      }))
+      .filter((item) => item.model || item.text)
+  };
+}
+
 export const useAskStore = create<AskState>((set, get) => ({
   conversations: [],
   memoryNotes: [],
   messages: [],
+  chatMode: "single",
+  multiResult: null,
   activeConversationId: null,
   searchQuery: "",
   searchResults: [],
@@ -79,6 +114,7 @@ export const useAskStore = create<AskState>((set, get) => ({
   searching: false,
   lastError: null,
   setInput: (value) => set({ input: value }),
+  setChatMode: (mode) => set({ chatMode: mode, multiResult: null }),
   loadConversations: () => {
     set({ loadingConversations: true, lastError: null });
     if (!requestDesktopAsk.listConversations("chat", "single")) {
@@ -110,8 +146,13 @@ export const useAskStore = create<AskState>((set, get) => ({
       set({ pending: false, lastError: "새 대화 요청을 전송하지 못했다." });
     }
   },
-  renameConversation: (item) => {
-    const next = window.prompt("새 대화 제목을 입력하세요.", item.title || "");
+  renameConversation: async (item) => {
+    const next = await requestPromptDialog({
+      title: "대화 이름 변경",
+      message: "새 대화 제목을 입력하세요.",
+      defaultValue: item.title || "",
+      placeholder: "대화 제목"
+    });
     const title = String(next || "").trim();
     if (!title || title === item.title) {
       return;
@@ -120,8 +161,14 @@ export const useAskStore = create<AskState>((set, get) => ({
       set({ lastError: "대화 이름 변경 요청을 전송하지 못했다." });
     }
   },
-  deleteConversation: (item) => {
-    if (!window.confirm(`대화 "${item.title || item.id}"를 삭제할까요?`)) {
+  deleteConversation: async (item) => {
+    const confirmed = await requestConfirmDialog({
+      title: "대화 삭제",
+      message: `대화 "${item.title || item.id}"를 삭제할까요?`,
+      confirmLabel: "삭제",
+      tone: "danger"
+    });
+    if (!confirmed) {
       return;
     }
     if (!requestDesktopAsk.deleteConversation(item.id, "chat", "single")) {
@@ -154,8 +201,9 @@ export const useAskStore = create<AskState>((set, get) => ({
       return;
     }
     const nextMessages: AskMessage[] = [...get().messages, { role: "user", text }];
-    set({ messages: nextMessages, input: "", pending: true });
-    if (!requestDesktopAsk.chatSingle(text, get().activeConversationId)) {
+    const mode = get().chatMode;
+    set({ messages: nextMessages, input: "", pending: true, multiResult: mode === "multi" ? null : get().multiResult });
+    if (!requestDesktopAsk.chat(mode, text, get().activeConversationId)) {
       set({ pending: false, lastError: "대화 전송 요청을 전송하지 못했다." });
     }
   }
@@ -225,11 +273,12 @@ export function useAskPageBridge() {
       return;
     }
 
-    if (message.type === "llm_chat_result" && message.conversation && typeof message.conversation === "object") {
+    if ((message.type === "llm_chat_result" || message.type === "llm_chat_multi_result") && message.conversation && typeof message.conversation === "object") {
       const conversation = message.conversation as Record<string, unknown>;
       useAskStore.setState({
         activeConversationId: typeof conversation.id === "string" ? conversation.id : store.activeConversationId,
         messages: Array.isArray(conversation.messages) ? (conversation.messages.map((item) => normalizeMessage(item)) as AskMessage[]) : store.messages,
+        multiResult: message.type === "llm_chat_multi_result" ? normalizeMultiResult(message) : store.multiResult,
         pending: false,
         lastError: null
       });

@@ -1,7 +1,6 @@
 /* omnux — Settings screen */
 (function () {
   const I = window.Icons;
-  const D = window.OMNUX_DATA;
   const t = (s, fb) => window.t(s, fb);
 
   function Row({ label, sub, children }) {
@@ -308,10 +307,6 @@
             React.createElement("button", { className: !ctx.advanced ? "on" : "", onClick: () => ctx.setAdvanced(false) }, t("Simple")),
             React.createElement("button", { className: ctx.advanced ? "on" : "", onClick: () => ctx.setAdvanced(true) }, t("Advanced")),
           )),
-        React.createElement(Row, { label: t("Default project"), sub: t("Where new tasks start.") },
-          React.createElement("select", { className: "field" }, D.projects.map((p) => React.createElement("option", { key: p.id }, p.name)))),
-        React.createElement(Row, { label: t("Start on launch"), sub: t("Open omnux when you log in.") },
-          React.createElement(window.Toggle, { on: true, onClick: () => {} })),
       ),
     );
   }
@@ -536,30 +531,233 @@
     );
   }
 
+  function badge(label, ok, tone) {
+    const className = tone || (ok ? "completed" : "soft");
+    return React.createElement("span", { className: `badge ${className}` }, label);
+  }
+
+  function maskPlaceholder(masked, fallback) {
+    return masked ? `${masked} (설정됨)` : fallback;
+  }
+
+  function numberText(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number.toLocaleString("ko-KR") : "-";
+  }
+
+  function AuthPanel({ live }) {
+    const pending = live.pending || {};
+    const connected = !!live.connected;
+    const authenticated = !!live.authenticated;
+    const remote = !!live.remoteDashboardClient;
+    const title = !connected ? "미들웨어 연결 대기" : remote ? "외부 접속 제한 모드" : authenticated ? "세션 인증됨" : "OTP 인증 필요";
+    const detail = !connected
+      ? "라이브 미들웨어 연결 후 설정 저장과 상태 조회를 사용할 수 있습니다."
+      : remote
+        ? "외부 접속에서는 민감 정보 저장과 CLI 인증 작업이 제한됩니다."
+        : authenticated
+          ? (live.authExpiresAtLocal ? `인증 만료 ${live.authExpiresAtLocal}` : "민감 설정 저장이 가능합니다.")
+          : "Telegram 또는 로컬 콘솔 fallback OTP로 현재 세션을 승인하세요.";
+
+    return React.createElement("div", { className: "card card-pad mt12" },
+      React.createElement("div", { className: "between", style: { gap: 12, alignItems: "flex-start" } },
+        React.createElement("div", null,
+          React.createElement("div", { className: "card-title items-center gap8" }, I.shield({ size: 17 }), title),
+          React.createElement("div", { className: "muted", style: { fontSize: 13, marginTop: 4, lineHeight: 1.5 } }, detail)),
+        badge(authenticated || remote ? "접근 가능" : "인증 필요", authenticated || remote, authenticated || remote ? "completed" : "needs_review")),
+      !authenticated && connected && !remote ? React.createElement("div", { className: "items-center gap8 mt16", style: { flexWrap: "wrap" } },
+        React.createElement("input", {
+          className: "field",
+          value: live.otp || "",
+          inputMode: "numeric",
+          placeholder: "OTP 6자리",
+          style: { flex: "1 1 180px", minWidth: 0 },
+          onChange: (event) => live.setOtp(event.target.value)
+        }),
+        React.createElement("input", {
+          className: "field",
+          value: live.authTtlHours || "24",
+          inputMode: "numeric",
+          title: "인증 유지 시간",
+          style: { flex: "0 1 110px", minWidth: 90 },
+          onChange: (event) => live.setAuthTtlHours(event.target.value)
+        }),
+        React.createElement("button", { className: "btn sm", disabled: pending.otpRequest, onClick: live.requestOtp }, pending.otpRequest ? "요청 중..." : "OTP 요청"),
+        React.createElement("button", { className: "btn sm primary", disabled: pending.auth || !(live.otp || "").trim(), onClick: live.authenticate }, pending.auth ? "인증 중..." : "인증")
+      ) : null,
+      live.otpResult && live.otpResult.message ? React.createElement("div", { className: "muted mt12", style: { fontSize: 12, lineHeight: 1.5 } }, live.otpResult.message) : null
+    );
+  }
+
+  function ResultNote({ result }) {
+    if (!result || !result.message) return null;
+    return React.createElement("div", {
+      className: "card card-pad mt12",
+      style: { background: "var(--surface-2)", color: result.ok === false ? "var(--red-text)" : "var(--text-2)", fontSize: 13, lineHeight: 1.5 }
+    }, result.message);
+  }
+
+  function SecretField({ label, sub, value, onChange, placeholder, isSet, disabled }) {
+    return React.createElement("div", { className: "set-row", style: { alignItems: "flex-start" } },
+      React.createElement("div", { className: "sr-label" },
+        React.createElement("b", null, label),
+        React.createElement("span", null, sub),
+        React.createElement("div", { className: "mt12" }, badge(isSet ? "저장됨" : "미설정", isSet))),
+      React.createElement("input", {
+        type: "password",
+        className: "field",
+        autoComplete: "off",
+        spellCheck: false,
+        disabled,
+        value,
+        placeholder,
+        style: { width: "min(360px, 100%)" },
+        onChange: (event) => onChange(event.target.value)
+      }));
+  }
+
+  function PersistToggle({ live }) {
+    return React.createElement("label", { className: "chip", style: { display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 12.5 } },
+      React.createElement("input", {
+        type: "checkbox",
+        checked: !!live.persist,
+        onChange: (event) => live.setPersist(event.target.checked)
+      }),
+      "보안 저장소에 저장");
+  }
+
+  function ModelList({ items, selected }) {
+    if (!items.length) {
+      return React.createElement("div", { className: "empty", style: { padding: "20px 0" } }, "조회된 모델이 없습니다.");
+    }
+    return React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8, marginTop: 12 } },
+      items.slice(0, 6).map((item) => React.createElement("div", { key: item.id, className: "row", style: { alignItems: "flex-start" } },
+        React.createElement("div", { style: { minWidth: 0, flex: 1 } },
+          React.createElement("div", { className: "row-title mono", style: { fontSize: 12.5, whiteSpace: "normal", wordBreak: "break-word" } }, item.id || "-"),
+          React.createElement("div", { className: "row-meta", style: { whiteSpace: "normal" } },
+            [item.tier, item.provider, item.context_window, item.rate_limit || item.speed_tps].filter(Boolean).join(" · ") || "-")),
+        item.id === selected ? badge("선택됨", true) : null
+      ))
+    );
+  }
+
+  function UsageSummary({ usage }) {
+    const gemini = usage.gemini || {};
+    const premium = usage.copilotPremium || {};
+    const local = usage.copilotLocal || {};
+    return React.createElement("div", { className: "card card-pad mt16" },
+      React.createElement("div", { className: "card-title", style: { marginBottom: 12 } }, "사용량"),
+      React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 } },
+        React.createElement("div", null,
+          React.createElement("div", { className: "eyebrow" }, "Gemini"),
+          React.createElement("div", { style: { fontWeight: 800, marginTop: 4 } }, numberText(gemini.requests), " requests"),
+          React.createElement("div", { className: "muted", style: { fontSize: 12 } }, `${numberText(gemini.total_tokens)} tokens · $${gemini.estimated_cost_usd || "0.000000"}`)),
+        React.createElement("div", null,
+          React.createElement("div", { className: "eyebrow" }, "Copilot Premium"),
+          React.createElement("div", { style: { fontWeight: 800, marginTop: 4 } }, premium.available ? `${premium.percent_used || "0"}%` : "조회 안됨"),
+          React.createElement("div", { className: "muted", style: { fontSize: 12 } }, premium.message || "-")),
+        React.createElement("div", null,
+          React.createElement("div", { className: "eyebrow" }, "Copilot Local"),
+          React.createElement("div", { style: { fontWeight: 800, marginTop: 4 } }, numberText(local.total_requests), " requests"),
+          React.createElement("div", { className: "muted", style: { fontSize: 12 } }, local.selected_model || "-"))
+      ));
+  }
+
   function ModelsTab({ ctx }) {
+    const live = ctx.live;
+    const settings = live.settings || {};
+    const pending = live.pending || {};
+    const canEditSecrets = !!live.canEditSecrets;
+    const canUsePrivileged = !!live.connected && !!live.authenticated;
+    const llmFields = [
+      { id: "groq", label: "Groq", sub: "Groq OpenAI-compatible API key", value: live.groqApiKey, onChange: live.setGroqApiKey, set: settings.groqApiKeySet, placeholder: maskPlaceholder(settings.groqApiKeyMasked, "gsk_...") },
+      { id: "gemini", label: "Gemini", sub: "Google Gemini API key", value: live.geminiApiKey, onChange: live.setGeminiApiKey, set: settings.geminiApiKeySet, placeholder: maskPlaceholder(settings.geminiApiKeyMasked, "AIza...") },
+      { id: "cerebras", label: "Cerebras", sub: "Cerebras API key", value: live.cerebrasApiKey, onChange: live.setCerebrasApiKey, set: settings.cerebrasApiKeySet, placeholder: maskPlaceholder(settings.cerebrasApiKeyMasked, "csk_...") },
+      { id: "nvidia", label: "NVIDIA NIM", sub: "NVIDIA NIM API key", value: live.nvidiaApiKey, onChange: live.setNvidiaApiKey, set: settings.nvidiaApiKeySet, placeholder: maskPlaceholder(settings.nvidiaApiKeyMasked, "nvapi-...") },
+      { id: "codex", label: "Codex", sub: "Codex API key", value: live.codexApiKey, onChange: live.setCodexApiKey, set: settings.codexApiKeySet, placeholder: maskPlaceholder(settings.codexApiKeyMasked, "sk-...") }
+    ];
+    const groqItems = live.groqModels.items || [];
+    const cerebrasItems = live.cerebrasModels.items || [];
+    const copilotItems = live.copilotModels.items || [];
+
     return React.createElement("div", null,
-      React.createElement("div", { className: "between", style: { marginBottom: 4 } },
-        React.createElement("div", { className: "card-title" }, t("Models & services")),
-        React.createElement("button", { className: "btn sm", onClick: () => ctx.toast("Add provider") }, I.plus({ size: 14 }), t("Add provider"))),
-      React.createElement("p", { className: "muted", style: { fontSize: 13, marginBottom: 12 } }, t("omnux routes each task to the best available model. Drag to set priority.")),
-      React.createElement("div", { className: "card" },
-        D.providers.map((p, i) => React.createElement("div", { key: p.id, className: "row", style: { padding: "14px 16px", borderTop: i ? "1px solid var(--border)" : "none", borderRadius: 0 } },
-          React.createElement("div", { className: "prov-logo", style: { background: p.color } }, p.glyph),
-          React.createElement("div", { style: { minWidth: 0 } },
-            React.createElement("div", { className: "prov-name" }, p.name),
-            React.createElement("div", { className: "faint mono", style: { fontSize: 11.5 } }, p.route + " · " + p.latency)),
-          React.createElement("div", { className: "spacer" }),
-          React.createElement("span", { className: "badge soft" }, p.kind === "cli" ? t("Local CLI") : t("API")),
-          React.createElement("span", { className: "badge " + (p.status === "online" ? "completed" : "automate"), style: { marginLeft: 8 } }, p.status === "online" ? t("Online") : t("Ready")),
-          React.createElement("button", { className: "icon-btn", style: { width: 32, height: 32, marginLeft: 8 }, onClick: () => ctx.toast("Configure " + p.name) }, I.settings({ size: 15 })),
+      React.createElement("div", { className: "between", style: { marginBottom: 4, gap: 12, alignItems: "flex-start" } },
+        React.createElement("div", null,
+          React.createElement("div", { className: "card-title" }, t("Models & services")),
+          React.createElement("p", { className: "muted", style: { fontSize: 13, marginTop: 4, lineHeight: 1.5 } }, "LLM 키와 모델 선택을 미들웨어 WebSocket 설정 계약으로 저장합니다.")),
+        React.createElement("button", { className: "btn sm", disabled: !live.connected, onClick: live.refreshAll }, I.refresh({ size: 14 }), "전체 새로고침")),
+      React.createElement(AuthPanel, { live }),
+      React.createElement(ResultNote, { result: live.settingsResult }),
+      React.createElement("div", { className: "card card-pad mt16" },
+        React.createElement("div", { className: "between", style: { gap: 12, alignItems: "flex-start", marginBottom: 8 } },
+          React.createElement("div", null,
+            React.createElement("div", { className: "card-title items-center gap8" }, I.key({ size: 17 }), "LLM API 키"),
+            React.createElement("div", { className: "muted", style: { fontSize: 13, marginTop: 3 } }, "빈 입력은 기존 저장값을 유지합니다. 실제 키 값은 화면에 다시 표시하지 않습니다.")),
+          React.createElement(PersistToggle, { live })),
+        llmFields.map((field) => React.createElement(SecretField, {
+          key: field.id,
+          label: field.label,
+          sub: field.sub,
+          value: field.value,
+          onChange: field.onChange,
+          placeholder: field.placeholder,
+          isSet: field.set,
+          disabled: pending.llm || pending.llmDelete
+        })),
+        React.createElement("div", { className: "items-center gap8 mt12", style: { flexWrap: "wrap", padding: "0 16px 16px" } },
+          React.createElement("button", { className: "btn primary", disabled: !canEditSecrets || pending.llm || pending.llmDelete, onClick: live.saveLlm }, pending.llm ? "저장 중..." : "키 저장"),
+          React.createElement("button", { className: "btn ghost", disabled: !canEditSecrets || pending.llm || pending.llmDelete, onClick: live.deleteLlm }, pending.llmDelete ? "삭제 중..." : "LLM 키 전체 삭제"),
+          !canEditSecrets ? React.createElement("span", { className: "muted", style: { fontSize: 12 } }, live.remoteDashboardClient ? "외부 접속 제한 모드" : "인증 필요") : null
         )),
-      ),
-      React.createElement("div", { className: "card card-pad mt16", style: { display: "flex", gap: 12, alignItems: "center" } },
-        React.createElement("span", { style: { color: "var(--accent)" } }, I.key({ size: 20 })),
-        React.createElement("div", { style: { flex: 1 } },
-          React.createElement("b", { style: { fontWeight: 700 } }, t("API keys are stored locally")),
-          React.createElement("div", { className: "muted", style: { fontSize: 13 } }, t("Keys never leave your machine. omnux is local-first by default."))),
-        React.createElement("button", { className: "btn", onClick: () => ctx.toast("Manage keys") }, t("Manage keys"))),
+      React.createElement("div", { className: "card card-pad mt16" },
+        React.createElement("div", { className: "between", style: { gap: 12, alignItems: "flex-start" } },
+          React.createElement("div", null,
+            React.createElement("div", { className: "card-title" }, "Groq 모델"),
+            React.createElement("div", { className: "muted", style: { fontSize: 13, marginTop: 3 } }, `현재 선택: ${live.groqModels.selected || "-"}`)),
+          badge(`${groqItems.length}개`, groqItems.length > 0)),
+        React.createElement("div", { className: "items-center gap8 mt12", style: { flexWrap: "wrap" } },
+          React.createElement("select", {
+            className: "field",
+            value: live.selectedGroqModel,
+            disabled: !canUsePrivileged || groqItems.length === 0,
+            onChange: (event) => live.setSelectedGroqModel(event.target.value),
+            style: { flex: "1 1 240px", minWidth: 0 }
+          },
+            groqItems.length === 0 ? React.createElement("option", { value: "" }, "모델 없음") : null,
+            groqItems.map((item) => React.createElement("option", { key: item.id, value: item.id }, item.id))),
+          React.createElement("button", { className: "btn sm", disabled: !canUsePrivileged || pending.groqRefresh, onClick: live.refreshGroqModels }, pending.groqRefresh ? "조회 중..." : "Groq 모델 새로고침"),
+          React.createElement("button", { className: "btn sm primary", disabled: !canUsePrivileged || pending.groqApply || !live.selectedGroqModel, onClick: live.applyGroqModel }, pending.groqApply ? "적용 중..." : "모델 적용")),
+        React.createElement(ModelList, { items: groqItems, selected: live.groqModels.selected })),
+      React.createElement("div", { className: "card card-pad mt16" },
+        React.createElement("div", { className: "between", style: { gap: 12, alignItems: "flex-start" } },
+          React.createElement("div", null,
+            React.createElement("div", { className: "card-title" }, "Cerebras 모델"),
+            React.createElement("div", { className: "muted", style: { fontSize: 13, marginTop: 3 } }, `현재 설정: ${live.cerebrasModels.selected || "-"}`)),
+          badge(`${cerebrasItems.length}개`, cerebrasItems.length > 0)),
+        React.createElement("div", { className: "items-center gap8 mt12", style: { flexWrap: "wrap" } },
+          React.createElement("button", { className: "btn sm", disabled: !canUsePrivileged || pending.cerebrasRefresh, onClick: live.refreshCerebrasModels }, pending.cerebrasRefresh ? "조회 중..." : "Cerebras 모델 새로고침"),
+          React.createElement("span", { className: "muted", style: { fontSize: 12 } }, "모델 적용은 미들웨어 provider 설정 파일을 기준으로 합니다.")),
+        React.createElement(ModelList, { items: cerebrasItems, selected: live.cerebrasModels.selected })),
+      React.createElement("div", { className: "card card-pad mt16" },
+        React.createElement("div", { className: "between", style: { gap: 12, alignItems: "flex-start" } },
+          React.createElement("div", null,
+            React.createElement("div", { className: "card-title" }, "Copilot 모델"),
+            React.createElement("div", { className: "muted", style: { fontSize: 13, marginTop: 3 } }, `현재 선택: ${live.copilotModels.selected || "-"}`)),
+          badge(`${copilotItems.length}개`, copilotItems.length > 0)),
+        React.createElement("div", { className: "items-center gap8 mt12", style: { flexWrap: "wrap" } },
+          React.createElement("select", {
+            className: "field",
+            value: live.selectedCopilotModel,
+            disabled: !canUsePrivileged || copilotItems.length === 0,
+            onChange: (event) => live.setSelectedCopilotModel(event.target.value),
+            style: { flex: "1 1 240px", minWidth: 0 }
+          },
+            copilotItems.length === 0 ? React.createElement("option", { value: "" }, "모델 없음") : null,
+            copilotItems.map((item) => React.createElement("option", { key: item.id, value: item.id }, item.id))),
+          React.createElement("button", { className: "btn sm", disabled: !canUsePrivileged || pending.copilotRefresh, onClick: live.refreshCopilotModels }, pending.copilotRefresh ? "조회 중..." : "Copilot 모델 새로고침"),
+          React.createElement("button", { className: "btn sm primary", disabled: !canUsePrivileged || pending.copilotApply || !live.selectedCopilotModel, onClick: live.applyCopilotModel }, pending.copilotApply ? "적용 중..." : "모델 적용")),
+        React.createElement(ModelList, { items: copilotItems, selected: live.copilotModels.selected })),
+      React.createElement(UsageSummary, { usage: live.usage || {} })
     );
   }
 
@@ -579,30 +777,112 @@
     );
   }
 
+  function cliLabel(status) {
+    if (!status) return "조회 전";
+    if (!status.installed) return "미설치";
+    return status.authenticated ? "인증됨" : "미인증";
+  }
+
+  function cliTone(status) {
+    if (!status) return "soft";
+    if (!status.installed) return "failed";
+    return status.authenticated ? "completed" : "needs_review";
+  }
+
+  function CliPanel({ title, icon, status, detailFallback, pendingStatus, pendingLogin, pendingLogout, onRefresh, onLogin, onLogout, loginLabel, disabled }) {
+    return React.createElement("div", { className: "card card-pad mt16" },
+      React.createElement("div", { className: "between", style: { gap: 12, alignItems: "flex-start" } },
+        React.createElement("div", { className: "items-center gap12", style: { alignItems: "flex-start" } },
+          React.createElement("div", { className: "row-ico" }, icon),
+          React.createElement("div", { style: { minWidth: 0 } },
+            React.createElement("div", { className: "card-title" }, title),
+            React.createElement("div", { className: "muted", style: { fontSize: 13, marginTop: 3, lineHeight: 1.5, wordBreak: "break-word" } }, status?.detail || detailFallback || "-"),
+            status?.mode ? React.createElement("div", { className: "mono faint", style: { fontSize: 11.5, marginTop: 6 } }, status.mode) : null)),
+        badge(cliLabel(status), !!status?.authenticated, cliTone(status))),
+      React.createElement("div", { className: "items-center gap8 mt12", style: { flexWrap: "wrap" } },
+        React.createElement("button", { className: "btn sm", disabled: disabled || pendingStatus, onClick: onRefresh }, pendingStatus ? "조회 중..." : "상태 조회"),
+        React.createElement("button", { className: "btn sm primary", disabled: disabled || pendingLogin, onClick: onLogin }, pendingLogin ? "시작 중..." : loginLabel),
+        onLogout ? React.createElement("button", { className: "btn sm ghost", disabled: disabled || pendingLogout, onClick: onLogout }, pendingLogout ? "처리 중..." : "로그아웃") : null,
+        disabled ? React.createElement("span", { className: "muted", style: { fontSize: 12 } }, "인증 또는 로컬 접속 필요") : null
+      ));
+  }
+
   function IntegrationsTab({ ctx }) {
+    const live = ctx.live;
+    const settings = live.settings || {};
+    const pending = live.pending || {};
+    const telegramReady = !!settings.telegramBotTokenSet && !!settings.telegramChatIdSet;
+    const canEditSecrets = !!live.canEditSecrets;
+    const canUseCli = !!live.connected && !!live.authenticated && !live.remoteDashboardClient;
+
     return React.createElement("div", null,
-      React.createElement("div", { className: "card-title", style: { marginBottom: 12 } }, t("Integrations")),
-      React.createElement("div", { className: "card card-pad", style: { marginBottom: 14 } },
-        React.createElement("div", { className: "items-center gap12" },
-          React.createElement("div", { className: "quick-ico", style: { background: "var(--accent-soft)", color: "var(--accent)" } }, I.telegram({ size: 22 })),
-          React.createElement("div", { style: { flex: 1 } },
-            React.createElement("div", { className: "items-center gap8" }, React.createElement("b", { style: { fontWeight: 700, fontSize: 15 } }, t("Telegram")), React.createElement("span", { className: "badge completed" }, t("Connected"))),
-            React.createElement("div", { className: "muted", style: { fontSize: 13, marginTop: 2 } }, t("Run omnux from a chat with your bot."))),
-          React.createElement(window.Toggle, { on: true, onClick: () => {} })),
-        React.createElement("div", { className: "mt16", style: { paddingTop: 14, borderTop: "1px solid var(--border)" } },
-          React.createElement("div", { className: "eyebrow", style: { marginBottom: 8 } }, t("Active commands")),
-          React.createElement("div", { className: "items-center gap8", style: { flexWrap: "wrap" } },
-            ["/morning-brief", "/repo-check", "/summarize"].map((c) => React.createElement("span", { key: c, className: "chip mono", style: { fontSize: 12.5 } }, c)))),
-      ),
-      React.createElement("div", { className: "card" },
-        [{ n: "GitHub", d: "Sync repos and pull requests.", i: "git", on: false },
-         { n: "Local shell", d: "Run commands on this machine.", i: "terminal", on: true }].map((x, i) =>
-          React.createElement("div", { key: x.n, className: "set-row", style: { padding: "16px", borderBottom: i ? "none" : "1px solid var(--border)" } },
-            React.createElement("div", { className: "items-center gap12" },
-              React.createElement("div", { className: "row-ico" }, I[x.i]({ size: 17 })),
-              React.createElement("div", { className: "sr-label" }, React.createElement("b", null, t(x.n)), React.createElement("span", null, t(x.d)))),
-            React.createElement("button", { className: "btn sm", onClick: () => ctx.toast(x.on ? "Manage " + x.n : "Connect " + x.n) }, x.on ? t("Manage") : t("Connect")))),
-      ),
+      React.createElement("div", { className: "between", style: { marginBottom: 4, gap: 12, alignItems: "flex-start" } },
+        React.createElement("div", null,
+          React.createElement("div", { className: "card-title" }, t("Integrations")),
+          React.createElement("p", { className: "muted", style: { fontSize: 13, marginTop: 4, lineHeight: 1.5 } }, "Telegram과 로컬 CLI 인증 상태를 실제 미들웨어 WebSocket으로 관리합니다.")),
+        React.createElement("button", { className: "btn sm", disabled: !live.connected, onClick: live.refreshAll }, I.refresh({ size: 14 }), "전체 새로고침")),
+      React.createElement(AuthPanel, { live }),
+      React.createElement(ResultNote, { result: live.settingsResult }),
+      React.createElement("div", { className: "card card-pad mt16" },
+        React.createElement("div", { className: "between", style: { gap: 12, alignItems: "flex-start", marginBottom: 8 } },
+          React.createElement("div", { className: "items-center gap12", style: { alignItems: "flex-start" } },
+            React.createElement("div", { className: "quick-ico", style: { background: "var(--accent-soft)", color: "var(--accent)" } }, I.telegram({ size: 22 })),
+            React.createElement("div", { style: { minWidth: 0 } },
+              React.createElement("div", { className: "card-title" }, "Telegram"),
+              React.createElement("div", { className: "muted", style: { fontSize: 13, marginTop: 3, lineHeight: 1.5 } }, "Bot Token과 Chat ID를 저장한 뒤 테스트 메시지를 보낼 수 있습니다."))),
+          React.createElement("div", { className: "items-center gap8", style: { flexWrap: "wrap", justifyContent: "flex-end" } },
+            badge(telegramReady ? "연동됨" : "미설정", telegramReady),
+            React.createElement(PersistToggle, { live }))),
+        React.createElement(SecretField, {
+          label: "Bot Token",
+          sub: "BotFather가 발급한 Telegram bot token",
+          value: live.telegramBotToken,
+          onChange: live.setTelegramBotToken,
+          placeholder: maskPlaceholder(settings.telegramBotTokenMasked, "123456:ABC..."),
+          isSet: settings.telegramBotTokenSet,
+          disabled: pending.telegram || pending.telegramDelete
+        }),
+        React.createElement(SecretField, {
+          label: "Chat ID",
+          sub: "메시지를 받을 chat id",
+          value: live.telegramChatId,
+          onChange: live.setTelegramChatId,
+          placeholder: maskPlaceholder(settings.telegramChatIdMasked, "-100..."),
+          isSet: settings.telegramChatIdSet,
+          disabled: pending.telegram || pending.telegramDelete
+        }),
+        React.createElement("div", { className: "items-center gap8 mt12", style: { flexWrap: "wrap", padding: "0 16px 16px" } },
+          React.createElement("button", { className: "btn primary", disabled: !canEditSecrets || pending.telegram || pending.telegramDelete, onClick: live.saveTelegram }, pending.telegram ? "저장 중..." : "저장"),
+          React.createElement("button", { className: "btn", disabled: !canEditSecrets || pending.telegramTest || !telegramReady, onClick: live.testTelegram }, pending.telegramTest ? "전송 중..." : "테스트 전송"),
+          React.createElement("button", { className: "btn ghost", disabled: !canEditSecrets || pending.telegramDelete, onClick: live.deleteTelegram }, pending.telegramDelete ? "삭제 중..." : "연동 삭제"),
+          !canEditSecrets ? React.createElement("span", { className: "muted", style: { fontSize: 12 } }, live.remoteDashboardClient ? "외부 접속 제한 모드" : "인증 필요") : null
+        )),
+      React.createElement(CliPanel, {
+        title: "Copilot CLI",
+        icon: I.git ? I.git({ size: 17 }) : I.terminal({ size: 17 }),
+        status: live.copilotStatus,
+        detailFallback: "GitHub Copilot CLI 인증 상태를 조회합니다.",
+        pendingStatus: pending.copilotStatus,
+        pendingLogin: pending.copilotLogin,
+        onRefresh: live.refreshCopilotStatus,
+        onLogin: live.startCopilotLogin,
+        loginLabel: "로그인 시작",
+        disabled: !canUseCli
+      }),
+      React.createElement(CliPanel, {
+        title: "Codex CLI",
+        icon: I.terminal({ size: 17 }),
+        status: live.codexStatus,
+        detailFallback: "Codex CLI 설치와 인증 상태를 조회합니다.",
+        pendingStatus: pending.codexStatus,
+        pendingLogin: pending.codexLogin,
+        pendingLogout: pending.codexLogout,
+        onRefresh: live.refreshCodexStatus,
+        onLogin: live.startCodexLogin,
+        onLogout: live.logoutCodex,
+        loginLabel: "로그인 시작",
+        disabled: !canUseCli
+      })
     );
   }
 
@@ -622,7 +902,7 @@
   }
 
   function SettingsPage({ ctx, payload }) {
-    const { tab, setTab, memory, permissions, perms, operations } = window.useSettingsPageState(ctx, payload);
+    const { tab, setTab, memory, permissions, perms, operations, live } = window.useSettingsPageState(ctx, payload);
     const tabs = [
       { id: "general", label: "General", icon: "sliders" },
       { id: "models", label: "Models & services", icon: "route" },
@@ -636,13 +916,13 @@
     return (
       React.createElement("div", { className: "page" },
         React.createElement("div", { className: "col scroll page-scroll" },
-          React.createElement("div", { style: { maxWidth: 920 } },
+          React.createElement("div", { className: "page-wide" },
             React.createElement("h1", { style: { fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 20 } }, t("Settings")),
             React.createElement("div", { className: "settings-layout", style: { display: "flex", gap: 28, alignItems: "flex-start" } },
               React.createElement("div", { className: "set-nav" },
                 tabs.map((tb) => React.createElement("button", { key: tb.id, className: tab === tb.id ? "on" : "", onClick: () => setTab(tb.id) },
                   React.createElement("span", { className: "items-center gap10" }, I[tb.icon]({ size: 16 }), t(tb.label))))),
-              React.createElement("div", { style: { flex: 1, minWidth: 0 } }, React.createElement(Body, { ctx: { ...ctx, memory, permissions, perms, operations } })),
+              React.createElement("div", { style: { flex: 1, minWidth: 0 } }, React.createElement(Body, { ctx: { ...ctx, memory, permissions, perms, operations, live } })),
             ),
           ),
         ),

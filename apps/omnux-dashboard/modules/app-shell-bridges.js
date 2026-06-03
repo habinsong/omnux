@@ -18,11 +18,14 @@
     }, [adapter]);
   }
 
-  function useOmnuxOpenProjectAction(ui, overlay) {
+  function useOmnuxOpenProjectAction(ui, overlay, send) {
     return useCallback((project) => {
+      if (project && project.projectKey && typeof send === "function") {
+        send({ type: "project_touch", projectKey: project.projectKey }, { queueIfClosed: true, silent: true });
+      }
       overlay.toast("Opened " + project.name);
       ui.setRoute("build");
-    }, [overlay.toast, ui.setRoute]);
+    }, [overlay.toast, send, ui.setRoute]);
   }
 
   Object.assign(window, {
