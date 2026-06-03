@@ -26,6 +26,7 @@
 | 자동 커밋/PR 생성 | ❌ | 검색 결과 0 |
 | Durable Workflow | ❌ | 로직 그래프는 있으나 체크포인트 복구 없음 |
 | OpenTelemetry 옵저버빌리티 | ✅ 1차 | `TelemetryTracer`, `FileTelemetryTraceStore`, `WsTelemetryCommandDispatcher` — ActivitySource + 로컬 스냅샷 |
+| 세션 리플레이 & 디버깅 | ✅ 1차 | `SessionReplayApplicationService`, `WsSessionReplayCommandDispatcher` — 대화/telemetry/agent bus 타임라인 스냅샷 |
 | 벡터 임베딩 시맨틱 검색 | ⏳ Phase 6-3 | 현재 FTS 유지, Phase 6-2(Ollama) 선행 후 sqlite-vec + Ollama embed로 추가 |
 | Nightly 자기 개선 | ❌ | 검색 결과 0 |
 
@@ -500,6 +501,14 @@
 ## 추천 기능 12: 에이전트 세션 리플레이 & 디버깅 (Session Replay & Debugging)
 
 ### 가치: ⭐⭐⭐
+
+### 상태: ✅ 1차 구현
+
+- `SessionReplayApplicationService`가 기존 `ConversationStore`, `TelemetryApplicationService`, `AgentCommunicationApplicationService`를 조합해 세션 타임라인을 생성한다.
+- `WsSessionReplayCommandDispatcher`가 `session_replay_get` WebSocket 요청을 처리한다.
+- 원문 프롬프트/응답을 별도 저장소에 중복 저장하지 않고, 기존 conversation 메시지와 safe telemetry metadata를 읽어 반환한다.
+- telemetry는 아직 conversationId를 직접 갖지 않으므로, conversation 시간창과 겹치는 LLM 호출만 `correlation=conversation_window`로 표시한다.
+- SQLite append-only 전체 결정 트리와 실시간 스트리밍은 다음 단계로 둔다.
 
 ### 문제
 

@@ -84,6 +84,7 @@ public sealed partial class WebSocketGateway
     private readonly WsPlanningCommandDispatcher _planningCommandDispatcher;
     private readonly WsTaskCommandDispatcher _taskCommandDispatcher;
     private readonly WsTelemetryCommandDispatcher _telemetryCommandDispatcher;
+    private readonly WsSessionReplayCommandDispatcher _sessionReplayCommandDispatcher;
     private readonly WsAgentCommandDispatcher _agentCommandDispatcher;
     private readonly WsRefactorCommandDispatcher _refactorCommandDispatcher;
     private readonly WsContextCommandDispatcher _contextCommandDispatcher;
@@ -147,6 +148,7 @@ public sealed partial class WebSocketGateway
         IPlanningApplicationService planService,
         ITaskGraphApplicationService taskGraphService,
         ITelemetryApplicationService telemetryService,
+        ISessionReplayApplicationService sessionReplayService,
         IAgentCommunicationApplicationService agentCommunicationService,
         IRefactorApplicationService refactorService,
         IContextApplicationService contextService,
@@ -263,6 +265,9 @@ public sealed partial class WebSocketGateway
         );
         _telemetryCommandDispatcher = new WsTelemetryCommandDispatcher(
             telemetryService
+        );
+        _sessionReplayCommandDispatcher = new WsSessionReplayCommandDispatcher(
+            sessionReplayService
         );
         _agentCommandDispatcher = new WsAgentCommandDispatcher(
             agentCommunicationService

@@ -822,6 +822,11 @@ internal static class Program
         );
         var telemetryTracer = new TelemetryTracer(new FileTelemetryTraceStore(pathResolver));
         var telemetryApplicationService = new TelemetryApplicationService(telemetryTracer);
+        var sessionReplayApplicationService = new SessionReplayApplicationService(
+            conversationStore,
+            telemetryApplicationService,
+            agentCommunicationApplicationService
+        );
         var settingsApplicationService = new SettingsApplicationService(
             runtimeSettings,
             routingPolicyResolver,
@@ -891,6 +896,7 @@ internal static class Program
             agentCommunicationApplicationService,
             telemetryTracer,
             telemetryApplicationService,
+            sessionReplayApplicationService,
             cleanupService,
             taskGraphApplicationService,
             memoryApplicationService,
@@ -944,6 +950,7 @@ internal static class Program
                 appServices.Plan,
                 appServices.TaskGraph,
                 appServices.Telemetry,
+                appServices.SessionReplay,
                 appServices.AgentCommunication,
                 appServices.Refactor,
                 appServices.Context,
@@ -982,6 +989,7 @@ internal static class Program
         AgentCommunicationApplicationService AgentCommunication,
         TelemetryTracer TelemetryTracer,
         TelemetryApplicationService Telemetry,
+        SessionReplayApplicationService SessionReplay,
         CleanupService Cleanup,
         TaskGraphApplicationService TaskGraph,
         MemoryApplicationService Memory,
