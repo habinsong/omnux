@@ -1,4 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { HomePage } from "./features/home/HomePage";
+import { ActivityPage } from "./features/activity/ActivityPage";
 import { AskPage } from "./features/ask/AskPage";
 import { BuildPage } from "./features/build/BuildPage";
 import { LogicPage } from "./features/logic/LogicPage";
@@ -7,12 +9,12 @@ import { ExplorePage } from "./features/explore/ExplorePage";
 import { OperationsPage } from "./features/ops/OperationsPage";
 import {
   DesktopNavigation,
-  type DesktopPageDefinition,
-  type DesktopPageId
+  type DesktopPageDefinition
 } from "./features/shell/DesktopNavigation";
 import { PageBoundary } from "./features/shell/PageBoundary";
 import { ShellOverviewPage } from "./features/shell/ShellOverviewPage";
 import { SettingsPage } from "./features/settings/SettingsPage";
+import { useDesktopNavigationStore } from "./features/shell/navigation-store";
 import { useMiddlewareBootstrapEvents } from "./use-middleware-bootstrap-events";
 import { useMiddlewareRuntimeProbe } from "./use-middleware-runtime-probe";
 import { useMiddlewareSessionBridge } from "./use-middleware-session";
@@ -28,9 +30,16 @@ function App() {
   useMiddlewareRuntimeProbe();
   useMiddlewareSessionBridge();
 
-  const [activePage, setActivePage] = useState<DesktopPageId>("shell");
+  const activePage = useDesktopNavigationStore((state) => state.activePage);
+  const setActivePage = useDesktopNavigationStore((state) => state.setActivePage);
   const pages = useMemo<DesktopPageDefinition[]>(
     () => [
+      {
+        id: "home",
+        label: "홈",
+        description: "바로 가기 · 상태",
+        render: () => <HomePage />
+      },
       {
         id: "shell",
         label: "셸",
@@ -78,6 +87,12 @@ function App() {
         label: "운영",
         description: "read-only 조회",
         render: () => <OperationsPage />
+      },
+      {
+        id: "activity",
+        label: "활동",
+        description: "이벤트 타임라인",
+        render: () => <ActivityPage />
       }
     ],
     []

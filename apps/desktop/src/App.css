@@ -697,3 +697,6 @@ body {
 .logic-edge .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #d7e5f6; }
 .logic-edge-arrow { color: #8bb6ff; font-weight: 800; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* Home 바로가기 그리드 */
+.home-quicknav { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
