@@ -9,13 +9,15 @@ import { Badge, Button } from "../../components/ui/primitives";
 
 type LocalLlmView = NonNullable<ReturnType<typeof useInsightsStore.getState>["localLlm"]>;
 type TerminalView = NonNullable<ReturnType<typeof useInsightsStore.getState>["terminal"]>;
+type McpView = NonNullable<ReturnType<typeof useInsightsStore.getState>["mcp"]>;
 
-function statusTone(status: string): "success" | "warning" | "destructive" | "primary" | "default" {
+function statusTone(status: string): "success" | "warning" | "destructive" | "primary" | "default" | "outline" {
   const v = status.toLowerCase();
   if (/(available|ok|ready|clean|ready_for_manual_routing)/.test(v)) return "success";
   if (/(discovered|ready_to_launch|snapshot_only|remote_unverified|skipped)/.test(v)) return "primary";
-  if (/(blocked|error|fail|unavailable)/.test(v)) return "destructive";
+  if (/(blocked|error|fail|unavailable|invalid)/.test(v)) return "destructive";
   if (/(unverified|pending|warn)/.test(v)) return "warning";
+  if (/(missing|empty|disabled)/.test(v)) return "outline";
   return "default";
 }
 
@@ -55,6 +57,70 @@ function Row({ left, right, sub }: { left: string; right: React.ReactNode; sub?:
 
 function Empty({ label }: { label: string }) {
   return <p className="py-4 text-center text-xs text-muted-foreground">{label}</p>;
+}
+
+function McpPanel({ mcp }: { mcp: McpView }) {
+  const readyCount = mcp.servers.filter((server) => server.readiness.status === "ready_to_launch").length;
+  return (
+    <>
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label="configs" value={mcp.configFiles.length} sub={`${mcp.configFiles.filter((file) => file.exists).length} found`} />
+        <Stat label="servers" value={mcp.totalServers} sub={`${readyCount} ready`} />
+        <Stat label="errors" value={mcp.errors.length} sub={mcp.scannedAtUtc || "scan time -"} />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" disabled>
+          <Play size={13} aria-hidden="true" /> 프로세스 시작
+        </Button>
+        <Button variant="outline" size="sm" disabled>
+          <Send size={13} aria-hidden="true" /> JSON-RPC
+        </Button>
+        <Button variant="outline" size="sm" disabled>
+          <Sparkles size={13} aria-hidden="true" /> Tool 주입
+        </Button>
+      </div>
+      <div className="grid grid-cols-1 gap-2 lg:grid-cols-[260px_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-1">
+          {mcp.configFiles.map((file) => (
+            <Row key={`${file.source}-${file.path}`} left={file.source} sub={file.error || file.path} right={<Badge tone={statusTone(file.status)}>{file.status}</Badge>} />
+          ))}
+          {mcp.configFiles.length === 0 ? <Empty label="MCP config 후보 없음" /> : null}
+          {mcp.errors.map((error) => (
+            <Row key={`${error.source}-${error.code}`} left={error.code} sub={error.message || error.path} right={<Badge tone="destructive">{error.source}</Badge>} />
+          ))}
+        </div>
+        <div className="min-w-0 space-y-2">
+          {mcp.servers.map((server) => (
+            <article key={server.serverId} className="rounded-md border border-border bg-card/60 px-2.5 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{server.name || server.serverId}</p>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {server.transport} · {server.command || server.url || "config"} · {server.message}
+                  </p>
+                </div>
+                <Badge tone={statusTone(server.readiness.status)}>{server.readiness.status || server.status}</Badge>
+              </div>
+              <div className="mt-1 flex min-w-0 flex-wrap gap-1">
+                {server.argsPreview.length > 0 ? <Badge tone="outline" className="max-w-full truncate">{server.argsPreview.join(" ")}</Badge> : null}
+                {server.workingDirectory ? <Badge tone="outline" className="max-w-full truncate">{server.workingDirectory}</Badge> : null}
+                {server.envKeys.slice(0, 4).map((key) => <Badge key={key} tone="warning" className="max-w-full truncate">{key}</Badge>)}
+                {!server.enabled ? <Badge tone="outline">disabled</Badge> : null}
+              </div>
+              {server.readiness.checks.length > 0 ? (
+                <div className="mt-1 space-y-1">
+                  {server.readiness.checks.slice(0, 3).map((check) => (
+                    <Row key={`${server.serverId}-${check.name}`} left={check.name} sub={check.message} right={<Badge tone={statusTone(check.status)}>{check.status}</Badge>} />
+                  ))}
+                </div>
+              ) : null}
+            </article>
+          ))}
+          {mcp.servers.length === 0 ? <Empty label={`발견된 MCP 서버 없음 (설정 파일 ${mcp.configFiles.length})`} /> : null}
+        </div>
+      </div>
+    </>
+  );
 }
 
 function LocalLlmPanel({ local }: { local: LocalLlmView }) {
@@ -244,12 +310,7 @@ export function InsightsPage() {
 
         <CardBoundary title="MCP 서버" card="operations" onError={recordCardError}>
           {store.mcp ? (
-            <div className="space-y-1">
-              {store.mcp.servers.map((sv) => (
-                <Row key={sv.serverId} left={sv.name || sv.serverId} sub={`${sv.transport} · ${sv.message || sv.readiness}`} right={<Badge tone={statusTone(sv.status)}>{sv.status}</Badge>} />
-              ))}
-              {store.mcp.servers.length === 0 ? <Empty label={`발견된 MCP 서버 없음 (설정 파일 ${store.mcp.configFiles.length})`} /> : null}
-            </div>
+            <McpPanel mcp={store.mcp} />
           ) : (
             <Empty label="새로고침하면 .mcp.json 서버 설정이 표시됩니다." />
           )}

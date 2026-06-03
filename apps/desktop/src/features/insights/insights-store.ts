@@ -9,8 +9,28 @@ type TelemetrySnapshot = {
   totalEvents: number;
 };
 type McpSnapshot = {
-  configFiles: Array<{ source: string; path: string; status: string; serverCount: number }>;
-  servers: Array<{ serverId: string; name: string; transport: string; status: string; message: string; readiness: string }>;
+  configFiles: Array<{ source: string; path: string; exists: boolean; status: string; serverCount: number; error: string }>;
+  servers: Array<{
+    serverId: string;
+    name: string;
+    source: string;
+    configPath: string;
+    transport: string;
+    command: string;
+    argsPreview: string[];
+    argumentCount: number;
+    url: string;
+    workingDirectory: string;
+    envKeys: string[];
+    envKeyCount: number;
+    enabled: boolean;
+    status: string;
+    message: string;
+    readiness: { status: string; checks: Array<{ name: string; status: string; message: string }> };
+  }>;
+  errors: Array<{ source: string; path: string; code: string; message: string }>;
+  totalServers: number;
+  scannedAtUtc: string;
 };
 type LocalLlmSnapshot = {
   endpoints: Array<{
@@ -151,8 +171,41 @@ export function useInsightsPageBridge() {
       if (message.type === "mcp_servers_snapshot") {
         useInsightsStore.setState({
           mcp: {
-            configFiles: arr(payload.configFiles).map((c) => ({ source: s(c.source), path: s(c.path), status: s(c.status), serverCount: n(c.serverCount) })),
-            servers: arr(payload.servers).map((sv) => ({ serverId: s(sv.serverId), name: s(sv.name), transport: s(sv.transport), status: s(sv.status), message: s(sv.message), readiness: s((sv.readiness as Record<string, unknown>)?.status) }))
+            configFiles: arr(payload.configFiles).map((c) => ({
+              source: s(c.source),
+              path: s(c.path),
+              exists: !!c.exists,
+              status: s(c.status),
+              serverCount: n(c.serverCount),
+              error: s(c.error)
+            })),
+            servers: arr(payload.servers).map((sv) => {
+              const readiness = (sv.readiness || {}) as Record<string, unknown>;
+              return {
+                serverId: s(sv.serverId),
+                name: s(sv.name),
+                source: s(sv.source),
+                configPath: s(sv.configPath),
+                transport: s(sv.transport),
+                command: s(sv.command),
+                argsPreview: Array.isArray(sv.argsPreview) ? sv.argsPreview.map(String) : [],
+                argumentCount: n(sv.argumentCount),
+                url: s(sv.url),
+                workingDirectory: s(sv.workingDirectory),
+                envKeys: Array.isArray(sv.envKeys) ? sv.envKeys.map(String) : [],
+                envKeyCount: n(sv.envKeyCount),
+                enabled: sv.enabled !== false,
+                status: s(sv.status),
+                message: s(sv.message),
+                readiness: {
+                  status: s(readiness.status),
+                  checks: arr(readiness.checks).map((check) => ({ name: s(check.name), status: s(check.status), message: s(check.message) }))
+                }
+              };
+            }),
+            errors: arr(payload.errors).map((error) => ({ source: s(error.source), path: s(error.path), code: s(error.code), message: s(error.message) })),
+            totalServers: n(payload.totalServers),
+            scannedAtUtc: s(payload.scannedAtUtc)
           }
         });
         return;
