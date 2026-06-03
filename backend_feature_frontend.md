@@ -196,6 +196,94 @@
   - 실제 Tree-sitter AST parser, JSON schema-aware 축약, LangGraph-style workflow 변경은 아직 하지 않는다.
   - 동작 변경 범위는 코딩 prompt 구성 시의 preview trimming에 한정한다.
 
+## 구현됨: 시맨틱 검색 readiness snapshot 1차
+
+- 후보 문서 항목: 추천 기능 7 `시맨틱 검색`, Phase 6-3 `AST 기반 하이브리드 RAG`
+- 백엔드 구현:
+  - `SemanticSearchReadinessService`
+  - `WsSemanticSearchCommandDispatcher`
+- WebSocket:
+  - 요청 타입: `semantic_search_readiness_get`
+  - 응답 타입: `semantic_search_readiness_snapshot`
+- 동작:
+  - 메모리 인덱스 DB 존재 여부를 확인한다.
+  - `sqlite3` CLI 해석 가능 여부를 확인한다.
+  - `chunks_fts` 테이블, `sqlite-vec` 함수 노출 여부를 읽기 전용으로 조회한다.
+  - 로컬 LLM discovery를 재사용해 Ollama/LM Studio endpoint와 embedding 모델 후보를 표시한다.
+  - `nomic-embed-text`, `mxbai-embed-large`, `bge`, `all-minilm`, `e5` 계열 이름은 자연어 검색 후보 모델로 분류한다.
+- 현재 안전 정책:
+  - `readOnly=true`
+  - `vectorSearchEnabled=false`
+  - `embeddingGenerationEnabled=false`
+  - `codeSearchRecommended=true`
+  - 대량 임베딩 생성, sqlite-vec schema migration, vector similarity query, 코드 검색 semantic rerank는 `skipped`로 반환한다.
+
+요청:
+
+```json
+{
+  "type": "semantic_search_readiness_get"
+}
+```
+
+응답 예시:
+
+```json
+{
+  "type": "semantic_search_readiness_snapshot",
+  "payload": {
+    "status": "fts_ast_primary",
+    "mode": "fts_ast_primary",
+    "readOnly": true,
+    "vectorSearchEnabled": false,
+    "embeddingGenerationEnabled": false,
+    "codeSearchRecommended": true,
+    "index": {
+      "dbExists": true,
+      "sqliteCliAvailable": true,
+      "ftsAvailable": true,
+      "sqliteVecAvailable": false,
+      "fileCount": 120,
+      "chunkCount": 840,
+      "embeddingCacheEntryCount": 0,
+      "chunkSources": [
+        { "source": "project", "count": 640 },
+        { "source": "sessions", "count": 200 }
+      ]
+    },
+    "embedding": {
+      "localEndpointAvailable": true,
+      "candidateModelAvailable": true,
+      "availableEndpointCount": 1,
+      "totalModelCount": 4,
+      "candidateModels": [
+        {
+          "endpointName": "ollama",
+          "endpointKind": "ollama",
+          "modelId": "nomic-embed-text:latest"
+        }
+      ]
+    },
+    "checks": [],
+    "recommendations": [],
+    "skipped": [
+      "embedding_generation",
+      "bulk_reindex",
+      "sqlite_vec_schema_migration",
+      "vector_similarity_query",
+      "code_search_semantic_rerank"
+    ],
+    "warnings": [],
+    "scannedAtUtc": "2026-06-04T00:00:00Z"
+  }
+}
+```
+
+- `status=blocked`: 메모리 인덱스 DB, sqlite3, FTS 중 필수 조건이 빠진 상태다.
+- `status=fts_ast_primary`: 현재 정상 기본값이다. 코드 검색은 FTS/Repomap 경로를 유지한다.
+- `status=semantic_prerequisites_ready`: sqlite-vec과 embedding 모델 후보가 모두 보이지만, 실제 벡터 검색은 아직 켜지지 않은 상태다.
+- 프론트는 `vectorSearchEnabled=false`인 동안 시맨틱 검색 실행/인덱싱 버튼을 비활성 처리한다.
+
 ## 구현됨: Durable Workflow recovery 후보 조회 1차
 
 - 후보 문서 항목: 추천 기능 3 `Durable Workflow 체크포인트`
@@ -1543,6 +1631,7 @@ agent bus를 시각화용 trace graph로 조회한다. 기존 agent bus 저장�
 - Git automation 패널은 `git_automation_snapshot_get`으로 현재 변경 파일, readiness, 커밋 메시지 초안을 표시한다. 실제 커밋/PR 버튼은 아직 백엔드 실행 API가 없으므로 비활성 상태로 둔다.
 - Self improvement 패널은 `self_improvement_snapshot_get`으로 workspace hygiene, 반복 bug_fix, hotspot review 제안을 표시한다. 모든 액션은 사용자 승인 UI가 생기기 전까지 보기 전용이다.
 - Local LLM 패널은 `local_llm_snapshot_get`으로 Ollama/LM Studio endpoint availability, 모델 목록, `offlineMode` readiness를 표시한다. 이 값은 라우팅 상태가 아니라 discovery/readiness로만 취급한다.
+- Semantic Search 패널은 `semantic_search_readiness_get`으로 FTS, sqlite-vec, local embedding 후보를 표시한다. `status=fts_ast_primary`는 정상 기본값이며 오류가 아니다.
 - Terminal 패널은 `terminal_capabilities_get`으로 shell/toolchain readiness를 표시한다. `ptySessionEnabled=false`인 동안 실제 terminal start/send/stop UI는 비활성 처리한다.
 
 ## 보류한 후보
@@ -1562,4 +1651,4 @@ agent bus를 시각화용 trace graph로 조회한다. 기존 agent bus 저장�
 - Nightly 자기 개선 자동 실행: 1차는 read-only proposal snapshot만 제공한다. 실제 야간 루틴 등록, LLM 선호도 분석, `SKILL.md` 자동 갱신은 사용자 승인/충돌 정책이 필요하다.
 - Local LLM 실제 라우팅/오프라인 차단: 1차는 endpoint/model discovery와 오프라인 모드 readiness audit만 제공한다. `LocalLlmProvider`, cloud provider 차단, fallback 라우팅, 모델 warmup은 기존 LLM 호출 경로 영향이 커서 별도 단계로 둔다.
 - Terminal PTY 세션/명령 스트리밍/자동 repair loop: 1차는 shell/toolchain capability snapshot만 제공한다. 실제 host terminal 제어는 안전 정책, 로그 보관, 취소/timeout, 승인 흐름이 필요해 별도 단계로 둔다.
-- 시맨틱 검색/Ollama embed: 후보 문서 결론대로 코드 검색용 우선순위는 낮다.
+- 시맨틱 검색/Ollama embed 실제 실행: 1차는 readiness snapshot만 제공한다. 후보 문서 결론대로 코드 검색용 우선순위는 낮고, 대량 임베딩 생성·벡터 DB migration·semantic rerank는 보류한다.
