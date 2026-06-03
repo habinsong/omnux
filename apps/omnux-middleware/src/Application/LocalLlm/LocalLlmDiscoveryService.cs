@@ -14,15 +14,18 @@ internal sealed class LocalLlmDiscoveryService
     private readonly HttpClient _httpClient;
     private readonly IReadOnlyList<LocalLlmEndpointConfig> _endpoints;
     private readonly Func<DateTimeOffset> _utcNow;
+    private readonly Func<string, string?> _envGet;
 
     public LocalLlmDiscoveryService(
         HttpClient? httpClient = null,
         IReadOnlyList<LocalLlmEndpointConfig>? endpoints = null,
-        Func<DateTimeOffset>? utcNow = null
+        Func<DateTimeOffset>? utcNow = null,
+        Func<string, string?>? envGet = null
     )
     {
         _httpClient = httpClient ?? SharedHttpClient;
-        _endpoints = endpoints ?? BuildDefaultEndpoints();
+        _envGet = envGet ?? Env.Get;
+        _endpoints = endpoints ?? BuildDefaultEndpoints(_envGet);
         _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
     }
 
@@ -45,14 +48,16 @@ internal sealed class LocalLlmDiscoveryService
             snapshots.Count(item => item.Status == "available"),
             snapshots.Sum(item => item.ModelCount),
             snapshots.Any(item => item.Status == "available" && item.ModelCount > 0),
+            LocalLlmOfflineModePolicy.Evaluate(snapshots, _envGet),
             warnings,
             _utcNow()
         );
     }
 
-    internal static IReadOnlyList<LocalLlmEndpointConfig> BuildDefaultEndpoints()
+    internal static IReadOnlyList<LocalLlmEndpointConfig> BuildDefaultEndpoints(Func<string, string?>? envGet = null)
     {
-        var configured = (Env.Get("OMNUX_LOCAL_LLM_ENDPOINTS") ?? string.Empty).Trim();
+        var get = envGet ?? Env.Get;
+        var configured = (get("OMNUX_LOCAL_LLM_ENDPOINTS") ?? string.Empty).Trim();
         if (!string.IsNullOrWhiteSpace(configured))
         {
             return configured

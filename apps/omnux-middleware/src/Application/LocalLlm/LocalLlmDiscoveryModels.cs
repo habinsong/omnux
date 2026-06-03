@@ -11,8 +11,23 @@ internal sealed record LocalLlmDiscoverySnapshot(
     int AvailableEndpointCount,
     int TotalModelCount,
     bool OfflineReady,
+    LocalLlmOfflineModeReadiness OfflineMode,
     IReadOnlyList<string> Warnings,
     DateTimeOffset ScannedAtUtc
+);
+
+internal sealed record LocalLlmOfflineModeReadiness(
+    bool Requested,
+    string Status,
+    IReadOnlyList<string> RequestedBy,
+    IReadOnlyList<string> CloudProviderKeysPresent,
+    IReadOnlyList<LocalLlmOfflineModeCheck> Checks
+);
+
+internal sealed record LocalLlmOfflineModeCheck(
+    string Name,
+    string Status,
+    string Message
 );
 
 internal sealed record LocalLlmEndpointSnapshot(
