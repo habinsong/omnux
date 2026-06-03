@@ -143,21 +143,24 @@
   - vector/semantic memory, cascading retrieval, ADR 저장소는 아직 붙이지 않았다.
   - 기존 `memory_search` 요청/응답 흐름은 유지하고 결과 item metadata만 확장했다.
 
-## 구현됨: 구조 인식 메모리 청킹 1차
+## 구현됨: 구조 인식 메모리 청킹 / Repomap snapshot 1차
 
 - 후보 문서 항목: 추천 기능 16 `Tree-sitter(AST) 기반 지식 그래프 및 지능형 청킹`
 - 백엔드 구현:
   - `MemoryChunkingPolicy`
   - `MemoryIndexDocumentSync` chunk 생성 분리
+  - `CodeRepomapSnapshotService`
+  - `WsCodeRepomapCommandDispatcher`
 - 동작:
   - 프로젝트 코드 파일은 C#/JS/MJS/TS/TSX/Python 선언 경계를 기준으로 chunk를 나눈다.
   - memory note와 conversation은 기존 sliding window chunk를 유지한다.
   - 큰 선언 블록은 기존 token/overlap 기준으로 다시 분할한다.
+  - WebSocket `code_repomap_snapshot_get`은 C#/JS/TS/Python 선언 signature를 파일별 구조 지도로 반환한다.
 - 프론트 영향:
-  - 새 요청 타입이나 응답 필드는 없다.
   - `memory_index_rebuild` 이후 `memory_search_result.results[].snippet/startLine/endLine`가 함수/클래스 경계에 더 가깝게 잡힌다.
+  - 구조 지도 패널은 `code_repomap_snapshot_get`으로 파일별 symbol 목록을 별도 조회한다.
 - 현재 안전 정책:
-  - 실제 Tree-sitter parser와 Repomap 주입은 아직 적용하지 않았다.
+  - 실제 Tree-sitter parser와 Repomap 프롬프트 자동 주입은 아직 적용하지 않았다.
   - 외부 parser package 없이 deterministic fallback만 사용한다.
 
 ## 구현됨: Durable Workflow recovery 후보 조회 1차
@@ -549,6 +552,64 @@ OMNUX_AGENT_SPAWN_WORKTREE_MODE=auto|on|enabled|true|1
 - `score`는 BM25 변환 점수에 tier confidence를 적용한 최종 점수다.
 - `disabled=true`면 `error`가 함께 올 수 있고, 이 경우 기존처럼 검색 비활성 상태로 처리한다.
 - 구조 인식 청킹은 인덱스 재생성 이후 반영된다. 프론트에서 즉시 확인하려면 기존 `memory_index_rebuild`를 먼저 호출한다.
+
+### `code_repomap_snapshot_get`
+
+workspace 코드 구조 지도를 조회한다. 외부 parser나 LLM 호출 없이 C#/JS/TS/Python 선언 라인을 읽기 전용으로 스캔한다.
+
+요청:
+
+```json
+{
+  "type": "code_repomap_snapshot_get",
+  "limit": 80
+}
+```
+
+응답:
+
+```json
+{
+  "type": "code_repomap_snapshot",
+  "payload": {
+    "status": "ok",
+    "workspaceRoot": "/abs/workspace",
+    "files": [
+      {
+        "path": "apps/demo/Sample.cs",
+        "language": "csharp",
+        "symbolCount": 2,
+        "symbols": [
+          {
+            "name": "Sample",
+            "kind": "class",
+            "signature": "public sealed class Sample",
+            "line": 3
+          },
+          {
+            "name": "First",
+            "kind": "method",
+            "signature": "public void First()",
+            "line": 8
+          }
+        ]
+      }
+    ],
+    "scannedFileCount": 1,
+    "mappedFileCount": 1,
+    "symbolCount": 2,
+    "truncated": false,
+    "warnings": [],
+    "scannedAtUtc": "2026-06-04T00:00:00Z"
+  }
+}
+```
+
+- `status`는 `ok`, `empty`, `error` 중 하나다.
+- `limit`은 최대 파일 수이며 기본값은 80, 상한은 300이다.
+- 스캔 범위는 workspace의 `apps`, `scripts`, `workspace` 하위 코드 파일이다.
+- `truncated=true`이면 `limit` 때문에 뒤 파일이 생략된 것이다.
+- 이 응답은 구조 지도 표시용이다. LLM 프롬프트 자동 주입은 아직 하지 않는다.
 
 ### `logic_graph_recovery_list`
 
@@ -1150,6 +1211,7 @@ Ollama/LM Studio 같은 로컬 LLM endpoint의 모델 discovery 스냅샷을 조
 - 리플레이 타임라인의 `correlation=conversation_window` telemetry는 시간창 기반 추정이므로, UI에서는 "관련 LLM 호출 후보"처럼 표시한다.
 - 메모리 검색 결과는 `memoryTier`를 배지로 표시하고, 오래된 `long_term` 결과도 score floor 정책으로 유지될 수 있음을 tooltip에 짧게 설명한다.
 - 메모리 인덱스 rebuild 후에는 `memory_search` snippet이 기존 라인 window보다 선언 단위에 가까워지므로, 코드 미리보기는 기존 `startLine/endLine` 표시를 그대로 사용한다.
+- Code Repomap 패널은 `code_repomap_snapshot_get`으로 파일별 symbol tree를 표시한다. `truncated=true`면 limit을 늘려 재조회할 수 있다.
 - 로직 그래프 화면은 시작 시 `logic_graph_recovery_list`를 호출해 재시작 후 남은 `running` 후보를 표시하고, 상세 확인은 기존 `logic_graph_run_get`으로 연다.
 - 활동/에이전트 패널에서 `agent_bus_get`을 주기 조회하거나 수동 새로고침한다.
 - 보드 영역은 `payload.board`를 `groupId/runId` 기준으로 묶어 표시한다.
@@ -1173,7 +1235,7 @@ Ollama/LM Studio 같은 로컬 LLM endpoint의 모델 discovery 스냅샷을 조
 - 세션 리플레이 append-only 결정 트리: 1차는 기존 저장소 조합 타임라인이다. LLM raw input/output, tool stdout/stderr 전체 저장은 개인정보/용량 정책이 필요해 보류한다.
 - Git worktree merge/cherry-pick/cleanup UI: 1차는 ACP 실행 CWD 격리까지만 구현했다. 완료 후 메인 브랜치 반영, 충돌 해결, 오래된 worktree 정리는 별도 백엔드 정책이 필요하다.
 - 계층적 메모리 deep archive/cascading retrieval/ADR 저장소: 1차는 FTS score와 metadata 확장까지만 구현했다. 실제 접근 이벤트 수집과 ADR 데이터 모델은 별도 설계가 필요하다.
-- Tree-sitter/Repomap 본도입: 1차는 외부 의존성 없는 선언 경계 청킹이다. 실제 AST parser, 언어별 grammar, Repomap 프롬프트 주입은 별도 검증 후 붙인다.
+- Tree-sitter/Repomap 본도입: 1차는 외부 의존성 없는 선언 경계 청킹과 read-only Repomap snapshot이다. 실제 AST parser, 언어별 grammar, Repomap 프롬프트 자동 주입은 별도 검증 후 붙인다.
 - MCP 서버 프로세스/JSON-RPC/tool registry 주입: 1차는 설정 discovery와 read-only readiness audit만 구현했다. 실제 실행은 서드파티 프로세스 권한/격리와 MCP handshake 정책이 필요해 보류한다.
 - 커밋 히스토리 LLM 학습/자동 주입: 1차는 읽기 전용 snapshot이다. LLM 요약, memory/skill 자동 저장, nightly 자기 개선은 사용자 변경 오염 위험이 있어 보류한다.
 - 자동 커밋/PR 실제 실행: 1차는 read-only snapshot만 제공한다. `git add`, `git commit`, branch 생성, `gh pr create`는 사용자 승인/충돌/권한 정책이 필요해 보류한다.
