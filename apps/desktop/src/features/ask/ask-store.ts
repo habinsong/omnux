@@ -3,8 +3,10 @@ import { create } from "zustand";
 import { requestDesktopAsk, requestDesktopExplore, requestDesktopSettings, subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
 import { requestDesktopInsights } from "../middleware/insights-gateway";
 import { requestDesktopRag } from "../middleware/rag-gateway";
+import { requestDesktopVision } from "../middleware/vision-gateway";
 import { requestConfirmDialog, requestPromptDialog } from "../dialog/dialog-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
+import { normalizeVisionPreflight, type AskVisionAttachment, type AskVisionPreflight } from "./ask-vision";
 import {
   buildRagExecution,
   normalizeMemoryRagExecution,
@@ -48,12 +50,15 @@ type AskState = {
   multiResult: AskMultiResult | null;
   ragPreflight: AskRagPreflight | null;
   ragExecution: AskRagExecution | null;
+  visionFiles: AskVisionAttachment[];
+  visionPreflight: AskVisionPreflight | null;
   activeConversationId: string | null;
   searchQuery: string;
   searchResults: Array<{ conversationId: string; title: string; snippet: string }>;
   input: string;
   pending: boolean;
   ragPending: boolean;
+  visionPending: boolean;
   loadingConversations: boolean;
   loadingMemoryNotes: boolean;
   searching: boolean;
@@ -72,6 +77,8 @@ type AskState = {
   runRagPreflight: () => void;
   runRagCandidate: (candidate: AskRagCandidate) => void;
   clearRagPreflight: () => void;
+  runVisionPreflight: () => void;
+  clearVisionPreflight: () => void;
   sendMessage: () => void;
 };
 
@@ -126,12 +133,15 @@ export const useAskStore = create<AskState>((set, get) => ({
   multiResult: null,
   ragPreflight: null,
   ragExecution: null,
+  visionFiles: [],
+  visionPreflight: null,
   activeConversationId: null,
   searchQuery: "",
   searchResults: [],
   input: "",
   pending: false,
   ragPending: false,
+  visionPending: false,
   loadingConversations: false,
   loadingMemoryNotes: false,
   searching: false,
@@ -244,6 +254,16 @@ export const useAskStore = create<AskState>((set, get) => ({
     }
   },
   clearRagPreflight: () => set({ ragPreflight: null, ragExecution: null, ragPending: false }),
+  runVisionPreflight: () => {
+    const attachments = get().visionFiles;
+    if (attachments.length === 0) return;
+    const text = String(get().input || "첨부 이미지를 UI 구현자가 바로 사용할 수 있게 분석해줘").trim();
+    set({ visionPending: true, visionPreflight: null, lastError: null });
+    if (!requestDesktopVision.preflight({ provider: "gemini", model: "gemini-2.5-pro", text, attachments })) {
+      set({ visionPending: false, lastError: "Vision preflight 요청을 전송하지 못했다." });
+    }
+  },
+  clearVisionPreflight: () => set({ visionFiles: [], visionPreflight: null, visionPending: false }),
   sendMessage: () => {
     const text = String(get().input || "").trim();
     if (!text) {
@@ -302,6 +322,15 @@ export function useAskPageBridge() {
         ragPending: false,
         ragPreflight: normalizeRagPreflight((message.payload || {}) as Record<string, unknown>),
         ragExecution: null,
+        lastError: null
+      });
+      return;
+    }
+
+    if (message.type === "clipboard_vision_preflight_result") {
+      useAskStore.setState({
+        visionPending: false,
+        visionPreflight: normalizeVisionPreflight((message.payload || {}) as Record<string, unknown>),
         lastError: null
       });
       return;
@@ -373,7 +402,7 @@ export function useAskPageBridge() {
     }
 
     if (message.type === "error") {
-      useAskStore.setState({ pending: false, ragPending: false, searching: false, loadingConversations: false, loadingMemoryNotes: false, lastError: String(message.message || "오류") });
+      useAskStore.setState({ pending: false, ragPending: false, visionPending: false, searching: false, loadingConversations: false, loadingMemoryNotes: false, lastError: String(message.message || "오류") });
     }
     });
   }, []);

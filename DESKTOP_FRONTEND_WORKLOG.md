@@ -82,9 +82,18 @@
 - 줄 수 기준: `InsightsPage.tsx` 86줄, `InsightsPanels.tsx` 392줄, `insights-store.ts` 371줄.
 - 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과.
 
+### Clipboard Vision preflight 연결
+
+- Ask 화면에 이미지 선택과 `Vision 점검` 액션을 추가했다.
+- `clipboard_vision_preflight`는 신규 `vision-gateway.ts`에서 등록하고, Ask store는 `clipboard_vision_preflight_result`를 받아 readiness 카드로 표시한다.
+- 이미지 파일 변환과 응답 정규화는 `ask-vision.ts`, 결과 카드는 `AskVisionPanel.tsx`로 분리해 `AskPage.tsx`를 363줄로 유지했다.
+- UI는 provider 후보, image payload 상태, skipped checks, warning, suggested prompt를 raw JSON 없이 표시한다.
+- 실제 Vision API 호출, 클립보드 감시, 코드 스캐폴딩, Canvas push는 백엔드 정책상 보류라 실행하지 않는다.
+- 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과, Ask 화면 브라우저 QA에서 `이미지`/`Vision 점검` 버튼 렌더링과 콘솔 오류 없음 확인.
+
 ## 다음 연결 후보
 
-- Insights 다음 연결 후보는 Local LLM 실제 라우팅 readiness, Self-RAG 실행 plan, Terminal PTY 승인 게이트 중 정책상 안전한 read-only/preview 단위부터 고른다.
+- 다음 연결 후보는 Local LLM 실제 라우팅 readiness, Self-RAG 실행 plan, Terminal PTY 승인 게이트 중 정책상 안전한 read-only/preview 단위부터 고른다.
 
 ## 주의
 
