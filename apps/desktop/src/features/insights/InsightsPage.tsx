@@ -7,13 +7,27 @@ import { useUiLogStore } from "../ui-log/ui-log-store";
 import { useInsightsPageBridge, useInsightsStore } from "./insights-store";
 import { Badge, Button, cn } from "../../components/ui/primitives";
 
+type LocalLlmView = NonNullable<ReturnType<typeof useInsightsStore.getState>["localLlm"]>;
+
 function statusTone(status: string): "success" | "warning" | "destructive" | "primary" | "default" {
   const v = status.toLowerCase();
   if (/(available|ok|ready|clean|ready_for_manual_routing)/.test(v)) return "success";
-  if (/(discovered|ready_to_launch|snapshot_only|remote_unverified)/.test(v)) return "primary";
+  if (/(discovered|ready_to_launch|snapshot_only|remote_unverified|skipped)/.test(v)) return "primary";
   if (/(blocked|error|fail|unavailable)/.test(v)) return "destructive";
   if (/(unverified|pending|warn)/.test(v)) return "warning";
   return "default";
+}
+
+function formatBytes(value: number): string {
+  if (!value) return "-";
+  const units = ["B", "KB", "MB", "GB"];
+  let size = value;
+  let unit = 0;
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024;
+    unit += 1;
+  }
+  return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
 function Stat({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
@@ -21,7 +35,7 @@ function Stat({ label, value, sub }: { label: string; value: string | number; su
     <div className="rounded-md border border-border bg-card/60 p-3">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="mt-0.5 font-mono text-lg font-semibold tabular-nums">{value}</div>
-      {sub ? <div className="text-[11px] text-muted-foreground">{sub}</div> : null}
+      {sub ? <div className="truncate text-[11px] text-muted-foreground">{sub}</div> : null}
     </div>
   );
 }
@@ -40,6 +54,68 @@ function Row({ left, right, sub }: { left: string; right: React.ReactNode; sub?:
 
 function Empty({ label }: { label: string }) {
   return <p className="py-4 text-center text-xs text-muted-foreground">{label}</p>;
+}
+
+function LocalLlmPanel({ local }: { local: LocalLlmView }) {
+  const models = local.endpoints.flatMap((endpoint) => endpoint.models.map((model) => ({ ...model, endpointName: endpoint.name })));
+  return (
+    <>
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label="endpoint" value={local.availableEndpointCount} sub={`${local.endpoints.length} scanned`} />
+        <Stat label="models" value={local.totalModelCount} sub={local.scannedAtUtc || "scan time -"} />
+        <Stat label="offline" value={local.offlineReady ? "ready" : "hold"} sub={local.offlineMode.status || "not_requested"} />
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone={local.offlineReady ? "success" : "warning"}>{local.offlineReady ? "offline ready" : "offline not ready"}</Badge>
+        <Badge tone={statusTone(local.offlineMode.status)}>{local.offlineMode.status || "not_requested"}</Badge>
+        <Badge tone={local.offlineMode.requested ? "primary" : "outline"}>{local.offlineMode.requested ? "requested" : "manual only"}</Badge>
+        {local.offlineMode.requestedBy.map((name) => <Badge key={name} tone="outline" className="max-w-full truncate font-mono">{name}</Badge>)}
+      </div>
+      <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+        <div className="min-w-0 space-y-1">
+          {local.endpoints.map((e) => (
+            <Row
+              key={e.name}
+              left={`${e.name} (${e.kind})`}
+              sub={e.error || `${e.baseUrl} · ${e.modelCount} models · ${e.elapsedMs}ms`}
+              right={<Badge tone={statusTone(e.status)}>{e.status}</Badge>}
+            />
+          ))}
+          {local.endpoints.length === 0 ? <Empty label="로컬 LLM endpoint 없음" /> : null}
+        </div>
+        <div className="min-w-0 space-y-1">
+          {local.offlineMode.checks.map((check) => (
+            <Row key={check.name} left={check.name} sub={check.message} right={<Badge tone={statusTone(check.status)}>{check.status}</Badge>} />
+          ))}
+          {local.offlineMode.cloudProviderKeysPresent.length > 0 ? (
+            <Row
+              left="cloud credentials"
+              sub={local.offlineMode.cloudProviderKeysPresent.join(", ")}
+              right={<Badge tone="warning">{local.offlineMode.cloudProviderKeysPresent.length}</Badge>}
+            />
+          ) : null}
+          {local.offlineMode.checks.length === 0 && local.offlineMode.cloudProviderKeysPresent.length === 0 ? <Empty label="오프라인 모드 체크 없음" /> : null}
+        </div>
+      </div>
+      {models.length > 0 ? (
+        <div className="space-y-1">
+          {models.slice(0, 8).map((model) => (
+            <Row
+              key={`${model.endpointName}-${model.id}`}
+              left={model.id}
+              sub={`${model.endpointName} · ${model.family || "family -"} · ${model.parameterSize || "size -"} · ${model.quantization || "quant -"}`}
+              right={<Badge tone="outline">{formatBytes(model.sizeBytes)}</Badge>}
+            />
+          ))}
+        </div>
+      ) : null}
+      {local.warnings.length > 0 ? (
+        <div className="flex min-w-0 flex-wrap gap-1">
+          {local.warnings.slice(0, 4).map((warning) => <Badge key={warning} tone="warning" className="max-w-full truncate">{warning}</Badge>)}
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 export function InsightsPage() {
@@ -131,19 +207,7 @@ export function InsightsPage() {
 
         <CardBoundary title="로컬 LLM (Ollama / LM Studio)" card="middleware" onError={recordCardError}>
           {store.localLlm ? (
-            <>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge tone={store.localLlm.availableEndpointCount > 0 ? "success" : "default"}>{store.localLlm.availableEndpointCount} endpoints</Badge>
-                <Badge tone="outline">{store.localLlm.totalModelCount} models</Badge>
-                <Badge tone={store.localLlm.offlineReady ? "success" : "warning"}>{store.localLlm.offlineReady ? "offline ready" : "offline X"}</Badge>
-              </div>
-              <div className="space-y-1">
-                {store.localLlm.endpoints.map((e) => (
-                  <Row key={e.name} left={`${e.name} (${e.kind})`} sub={`${e.baseUrl} · ${e.modelCount} models`} right={<Badge tone={statusTone(e.status)}>{e.status}</Badge>} />
-                ))}
-                {store.localLlm.endpoints.length === 0 ? <Empty label="로컬 LLM endpoint 없음" /> : null}
-              </div>
-            </>
+            <LocalLlmPanel local={store.localLlm} />
           ) : (
             <Empty label="새로고침하면 로컬 LLM endpoint·모델이 표시됩니다." />
           )}

@@ -13,10 +13,28 @@ type McpSnapshot = {
   servers: Array<{ serverId: string; name: string; transport: string; status: string; message: string; readiness: string }>;
 };
 type LocalLlmSnapshot = {
-  endpoints: Array<{ name: string; kind: string; baseUrl: string; status: string; modelCount: number }>;
+  endpoints: Array<{
+    name: string;
+    kind: string;
+    baseUrl: string;
+    status: string;
+    modelCount: number;
+    elapsedMs: number;
+    error: string;
+    models: Array<{ id: string; ownedBy: string; family: string; parameterSize: string; quantization: string; sizeBytes: number; modifiedAtUtc: string }>;
+  }>;
   availableEndpointCount: number;
   totalModelCount: number;
   offlineReady: boolean;
+  offlineMode: {
+    requested: boolean;
+    status: string;
+    requestedBy: string[];
+    cloudProviderKeysPresent: string[];
+    checks: Array<{ name: string; status: string; message: string }>;
+  };
+  warnings: string[];
+  scannedAtUtc: string;
 };
 type TerminalSnapshot = {
   status: string;
@@ -138,12 +156,39 @@ export function useInsightsPageBridge() {
         return;
       }
       if (message.type === "local_llm_snapshot") {
+        const offlineMode = (payload.offlineMode || {}) as Record<string, unknown>;
         useInsightsStore.setState({
           localLlm: {
-            endpoints: arr(payload.endpoints).map((e) => ({ name: s(e.name), kind: s(e.kind), baseUrl: s(e.baseUrl), status: s(e.status), modelCount: n(e.modelCount) })),
+            endpoints: arr(payload.endpoints).map((e) => ({
+              name: s(e.name),
+              kind: s(e.kind),
+              baseUrl: s(e.baseUrl),
+              status: s(e.status),
+              modelCount: n(e.modelCount),
+              elapsedMs: n(e.elapsedMs),
+              error: s(e.error),
+              models: arr(e.models).map((model) => ({
+                id: s(model.id),
+                ownedBy: s(model.ownedBy || model.owned_by),
+                family: s(model.family),
+                parameterSize: s(model.parameterSize),
+                quantization: s(model.quantization),
+                sizeBytes: n(model.sizeBytes),
+                modifiedAtUtc: s(model.modifiedAtUtc)
+              }))
+            })),
             availableEndpointCount: n(payload.availableEndpointCount),
             totalModelCount: n(payload.totalModelCount),
-            offlineReady: !!payload.offlineReady
+            offlineReady: !!payload.offlineReady,
+            offlineMode: {
+              requested: !!offlineMode.requested,
+              status: s(offlineMode.status),
+              requestedBy: Array.isArray(offlineMode.requestedBy) ? offlineMode.requestedBy.map(String) : [],
+              cloudProviderKeysPresent: Array.isArray(offlineMode.cloudProviderKeysPresent) ? offlineMode.cloudProviderKeysPresent.map(String) : [],
+              checks: arr(offlineMode.checks).map((check) => ({ name: s(check.name), status: s(check.status), message: s(check.message) }))
+            },
+            warnings: Array.isArray(payload.warnings) ? payload.warnings.map(String) : [],
+            scannedAtUtc: s(payload.scannedAtUtc)
           }
         });
         return;
