@@ -109,6 +109,24 @@
   - 프론트가 상세 재생이 필요할 때만 `includeText=true`를 요청한다.
   - telemetry는 현재 conversationId를 직접 저장하지 않으므로, conversation 시간창과 겹치는 LLM 호출을 `correlation=conversation_window`로 표시한다.
 
+## 구현됨: 계층적 메모리 검색 metadata 1차
+
+- 후보 문서 항목: 추천 기능 11 `계층적 메모리 아키텍처`
+- 백엔드 구현:
+  - `MemoryTierPolicy`
+  - `MemoryIndexSchemaBootstrap`의 `chunks.last_accessed_at`, `chunks.memory_tier`
+  - `MemoryIndexDocumentSync` 문서 mtime 기반 tier 저장
+  - `MemorySearchTool` tier-aware score 보정
+- 계층:
+  - `working`: 1시간 미만
+  - `short_term`: 24시간 미만
+  - `episodic`: 7일 미만
+  - `long_term`: 7일 이상 또는 timestamp 없음
+- 현재 안전 정책:
+  - 실제 파일 접근 이벤트를 추적해 `last_accessed_at`을 갱신하지는 않는다.
+  - vector/semantic memory, cascading retrieval, ADR 저장소는 아직 붙이지 않았다.
+  - 기존 `memory_search` 요청/응답 흐름은 유지하고 결과 item metadata만 확장했다.
+
 ## WebSocket 이벤트
 
 ### `telemetry_snapshot_get`
@@ -350,6 +368,48 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - `severity`는 `info`, `warning`, `error` 중 하나다. `auto-compress`, watchdog, breaker, failed lifecycle, timeout telemetry는 서버에서 자동 분류한다.
 - telemetry 이벤트는 원문 prompt/response를 포함하지 않는다.
 
+### `memory_search`
+
+메모리/세션/프로젝트 FTS 검색 결과를 조회한다. 계층적 메모리 1차 구현 후 결과 item에 tier metadata가 추가됐다.
+
+요청:
+
+```json
+{
+  "type": "memory_search",
+  "query": "MemorySearchTool tier score",
+  "maxResults": 6,
+  "minScore": 0.35
+}
+```
+
+응답:
+
+```json
+{
+  "type": "memory_search_result",
+  "query": "MemorySearchTool tier score",
+  "disabled": false,
+  "results": [
+    {
+      "path": "apps/omnux-middleware/src/MemorySearchTool.cs",
+      "startLine": 120,
+      "endLine": 150,
+      "snippet": "...",
+      "score": 0.8123,
+      "source": "project",
+      "memoryTier": "short_term",
+      "lastAccessedAtUnixMs": 1780500000000
+    }
+  ]
+}
+```
+
+- `memoryTier`는 `working`, `short_term`, `episodic`, `long_term` 중 하나다.
+- `lastAccessedAtUnixMs`는 현재 문서 mtime 기반 값이다. `0`이면 기존/미확인 row로 보면 된다.
+- `score`는 BM25 변환 점수에 tier confidence를 적용한 최종 점수다.
+- `disabled=true`면 `error`가 함께 올 수 있고, 이 경우 기존처럼 검색 비활성 상태로 처리한다.
+
 ### `agent_bus_get`
 
 에이전트 메시지/보드/생명주기 스냅샷 조회.
@@ -494,6 +554,7 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - 에이전트 상태 패널은 `sessions_spawn action=status`의 `watchdog` 필드를 보고 timeout/stale 이벤트를 표시한다.
 - 세션 상세/디버깅 패널은 `session_replay_get`을 호출해 대화, agent event, LLM 호출 metadata를 단일 타임라인으로 표시한다.
 - 리플레이 타임라인의 `correlation=conversation_window` telemetry는 시간창 기반 추정이므로, UI에서는 "관련 LLM 호출 후보"처럼 표시한다.
+- 메모리 검색 결과는 `memoryTier`를 배지로 표시하고, 오래된 `long_term` 결과도 score floor 정책으로 유지될 수 있음을 tooltip에 짧게 설명한다.
 - 활동/에이전트 패널에서 `agent_bus_get`을 주기 조회하거나 수동 새로고침한다.
 - 보드 영역은 `payload.board`를 `groupId/runId` 기준으로 묶어 표시한다.
 - 타임라인은 `payload.lifecycle`와 `payload.messages`를 시간순으로 합쳐 표시한다.
@@ -506,6 +567,7 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - 셀프 힐링 자동 kill/restart: 현재는 timeout/stale 감지와 상태 종료까지만 구현했다. 실제 프로세스 종료와 자동 재시작은 백엔드별 안전 정책이 필요해 별도 단계로 둔다.
 - Durable Workflow 체크포인트: 로직 그래프 런타임 재개 정책과 중복 실행 방지 규칙이 필요하다. 현재 기능과 독립된 저장소만 추가하면 실효성이 낮다.
 - 세션 리플레이 append-only 결정 트리: 1차는 기존 저장소 조합 타임라인이다. LLM raw input/output, tool stdout/stderr 전체 저장은 개인정보/용량 정책이 필요해 보류한다.
+- 계층적 메모리 deep archive/cascading retrieval/ADR 저장소: 1차는 FTS score와 metadata 확장까지만 구현했다. 실제 접근 이벤트 수집과 ADR 데이터 모델은 별도 설계가 필요하다.
 - MCP 서버 지원: 프로세스 생명주기와 JSON-RPC 스펙 구현이 필요해 높은 위험 작업이다.
 - 자동 커밋/PR 생성: 현재 워크트리가 대규모 변경 상태라 자동 커밋 계열 기능을 바로 붙이면 사용자 변경과 충돌할 수 있다.
 - Git Worktree 격리: 스폰 실행 경로와 롤백 정책을 함께 바꿔야 한다.

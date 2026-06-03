@@ -14,6 +14,7 @@
 | 스킬 자가 생성 | ✅ | `SkillCreateDirective` |
 | 로직 그래프 워크플로우 | ✅ | 노드 기반 비주얼 프로그래밍 런타임 |
 | FTS 코드베이스 인덱싱 | ✅ | `MemoryIndexDocumentSync` SQLite FTS |
+| 계층적 메모리 | ✅ 1차 | `MemoryTierPolicy`, `chunks.memory_tier/last_accessed_at`, tier-aware 검색 점수 |
 | 비용 제한 (Run Breaker) | ✅ | `AgentSpawnRunBreaker`, 60K 토큰/일 |
 | 검색 증거 검증 | ✅ | `SearchGuard`, `EvidencePack` |
 | 루틴 스케줄링 | ✅ | `RoutineSchedulePolicy` |
@@ -456,6 +457,14 @@
 ## 추천 기능 11: 계층적 메모리 아키텍처 (Tiered Memory System)
 
 ### 가치: ⭐⭐⭐⭐
+
+### 상태: ✅ 1차 구현
+
+- SQLite `chunks` 테이블에 `last_accessed_at`, `memory_tier` 컬럼을 추가했다.
+- `MemoryIndexDocumentSync`가 문서 mtime 기준으로 `working`, `short_term`, `episodic`, `long_term` 계층을 저장한다.
+- `MemorySearchTool`이 BM25 점수에 계층/시간 confidence를 적용하고, long-term 결과도 floor 이하로 사라지지 않게 보정한다.
+- WebSocket `memory_search_result.results[]`에 `memoryTier`, `lastAccessedAtUnixMs`를 내려 프론트에서 계층 배지/정렬 설명을 붙일 수 있다.
+- 실제 접근 이벤트 기반 갱신, cascading retrieval, ADR 저장소, vector/semantic memory는 별도 단계로 둔다.
 
 ### 문제
 
