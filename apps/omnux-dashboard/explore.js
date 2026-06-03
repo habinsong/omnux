@@ -128,14 +128,106 @@
     );
   }
 
+  function BrowserTab({ st }) {
+    const r = st.browserResult;
+    return h("div", null,
+      h("div", { className: "items-center gap8", style: { flexWrap: "wrap", marginBottom: 12 } },
+        h("button", { className: "btn sm", onClick: () => st.runBrowser("status"), disabled: st.browserLoading }, I.refresh({ size: 13 }), "상태"),
+        h("button", { className: "btn sm ghost", onClick: () => st.runBrowser("start"), disabled: st.browserLoading }, "시작"),
+        h("button", { className: "btn sm ghost", onClick: () => st.runBrowser("stop"), disabled: st.browserLoading }, "중지")
+      ),
+      h("div", { className: "items-center gap8", style: { marginBottom: 12 } },
+        h("input", {
+          className: "field", style: { flex: 1 },
+          value: st.browserUrl, placeholder: "https://… 열기",
+          onChange: (e) => st.setBrowserUrl(e.target.value),
+          onKeyDown: (e) => { if (e.key === "Enter") { e.preventDefault(); st.runBrowser("open", { url: st.browserUrl }); } }
+        }),
+        h("button", { className: "btn", onClick: () => st.runBrowser("open", { url: st.browserUrl }), disabled: st.browserLoading }, "열기")
+      ),
+      st.browserLoading
+        ? h("div", { className: "muted", style: { padding: "20px 4px", fontSize: 13 } }, "실행 중…")
+        : !r
+          ? h("div", { className: "empty", style: { padding: "28px 12px" } }, "상태를 눌러 브라우저 세션 정보를 확인하세요.")
+          : h("div", { className: "card card-pad", style: { background: "var(--surface-2)" } },
+              h("div", { className: "items-center gap8", style: { flexWrap: "wrap", marginBottom: 8 } },
+                h("span", { className: "badge " + (r.running ? "completed" : "soft") }, r.running ? "running" : "stopped"),
+                r.disabled ? h("span", { className: "badge needs_review" }, "disabled") : null,
+                r.adapter ? h("span", { className: "chip", style: { fontSize: 12 } }, r.adapter) : null
+              ),
+              r.activeUrl ? h("div", { className: "row-meta mono", style: { fontSize: 11.5, marginBottom: 8 } }, r.activeUrl) : null,
+              r.error ? h("div", { style: { color: "var(--red-text)", fontSize: 13, marginBottom: 8 } }, r.error) : null,
+              r.tabs.length === 0
+                ? h("div", { className: "muted", style: { fontSize: 13 } }, "열린 탭이 없습니다.")
+                : h("div", { style: { display: "flex", flexDirection: "column" } },
+                    r.tabs.map((tb, i) =>
+                      h("button", {
+                        key: tb.targetId || i, className: "row", style: { width: "100%", textAlign: "left" },
+                        onClick: () => st.runBrowser("focus", { targetId: tb.targetId })
+                      },
+                        h("div", { style: { minWidth: 0 } },
+                          h("div", { className: "row-title" }, tb.title || tb.url || "탭"),
+                          h("div", { className: "row-meta mono", style: { fontSize: 11.5 } }, tb.url || "")
+                        ),
+                        h("div", { className: "spacer" }),
+                        tb.active ? h("span", { className: "badge soft" }, "active") : null
+                      )
+                    )
+                  )
+            )
+    );
+  }
+
+  function CanvasTab({ st }) {
+    const r = st.canvasResult;
+    const snap = r && r.snapshot;
+    return h("div", null,
+      h("div", { className: "items-center gap8", style: { flexWrap: "wrap", marginBottom: 12 } },
+        h("button", { className: "btn sm", onClick: () => st.runCanvas("status"), disabled: st.canvasLoading }, I.refresh({ size: 13 }), "상태"),
+        h("button", { className: "btn sm ghost", onClick: () => st.runCanvas("present"), disabled: st.canvasLoading }, "표시"),
+        h("button", { className: "btn sm ghost", onClick: () => st.runCanvas("hide"), disabled: st.canvasLoading }, "숨김"),
+        h("button", { className: "btn sm ghost", onClick: () => st.runCanvas("snapshot"), disabled: st.canvasLoading }, "스냅샷")
+      ),
+      h("div", { className: "items-center gap8", style: { marginBottom: 12 } },
+        h("input", {
+          className: "field", style: { flex: 1 },
+          value: st.canvasUrl, placeholder: "https://… 이동",
+          onChange: (e) => st.setCanvasUrl(e.target.value),
+          onKeyDown: (e) => { if (e.key === "Enter") { e.preventDefault(); st.runCanvas("navigate", { url: st.canvasUrl }); } }
+        }),
+        h("button", { className: "btn", onClick: () => st.runCanvas("navigate", { url: st.canvasUrl }), disabled: st.canvasLoading }, "이동")
+      ),
+      st.canvasLoading
+        ? h("div", { className: "muted", style: { padding: "20px 4px", fontSize: 13 } }, "실행 중…")
+        : !r
+          ? h("div", { className: "empty", style: { padding: "28px 12px" } }, "상태를 눌러 캔버스 정보를 확인하세요.")
+          : h("div", { className: "card card-pad", style: { background: "var(--surface-2)" } },
+              h("div", { className: "items-center gap8", style: { flexWrap: "wrap", marginBottom: 8 } },
+                h("span", { className: "badge " + (r.visible ? "completed" : "soft") }, r.visible ? "visible" : "hidden"),
+                r.disabled ? h("span", { className: "badge needs_review" }, "disabled") : null,
+                r.adapter ? h("span", { className: "chip", style: { fontSize: 12 } }, r.adapter) : null
+              ),
+              r.url ? h("div", { className: "row-meta mono", style: { fontSize: 11.5, marginBottom: 8 } }, r.url) : null,
+              snap ? h("div", { className: "items-center gap8", style: { flexWrap: "wrap", marginBottom: 8 } },
+                h("span", { className: "chip", style: { fontSize: 12 } }, snap.format || "snapshot"),
+                h("span", { className: "chip", style: { fontSize: 12 } }, `${snap.width || 0}×${snap.height || 0}`)
+              ) : null,
+              r.evalResult ? h("pre", { style: { whiteSpace: "pre-wrap", margin: 0, fontSize: 12.5, color: "var(--text-2)" } }, r.evalResult) : null,
+              r.error ? h("div", { style: { color: "var(--red-text)", fontSize: 13 } }, r.error) : null
+            )
+    );
+  }
+
   function ExplorePage({ ctx, payload }) {
     const st = window.useExplorePageState(ctx, payload);
     const tabs = [
       { id: "search", label: "웹 검색" },
       { id: "fetch", label: "URL 가져오기" },
       { id: "sessions", label: "세션" },
+      { id: "browser", label: "브라우저" },
+      { id: "canvas", label: "캔버스" },
     ];
-    const Body = { search: SearchTab, fetch: FetchTab, sessions: SessionsTab }[st.tab] || SearchTab;
+    const Body = { search: SearchTab, fetch: FetchTab, sessions: SessionsTab, browser: BrowserTab, canvas: CanvasTab }[st.tab] || SearchTab;
     return h("div", { className: "page" },
       h("div", { className: "col scroll page-scroll" },
         h("div", { style: { maxWidth: 920 } },
