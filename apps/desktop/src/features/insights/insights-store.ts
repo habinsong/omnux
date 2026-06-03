@@ -3,12 +3,12 @@ import { create } from "zustand";
 import { subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
 import { requestDesktopInsights } from "../middleware/insights-gateway";
 
-type TelemetrySnapshot = {
+export type TelemetrySnapshot = {
   providers: Array<{ provider: string; eventCount: number; totalTokens: number; averageDurationMs: number; maxDurationMs: number }>;
   total: { eventCount: number; totalTokens: number; averageDurationMs: number };
   totalEvents: number;
 };
-type McpSnapshot = {
+export type McpSnapshot = {
   configFiles: Array<{ source: string; path: string; exists: boolean; status: string; serverCount: number; error: string }>;
   servers: Array<{
     serverId: string;
@@ -32,7 +32,7 @@ type McpSnapshot = {
   totalServers: number;
   scannedAtUtc: string;
 };
-type LocalLlmSnapshot = {
+export type LocalLlmSnapshot = {
   endpoints: Array<{
     name: string;
     kind: string;
@@ -56,7 +56,7 @@ type LocalLlmSnapshot = {
   warnings: string[];
   scannedAtUtc: string;
 };
-type TerminalSnapshot = {
+export type TerminalSnapshot = {
   status: string;
   ptySessionEnabled: boolean;
   shells: Array<{ name: string; kind: string; command: string; status: string; resolvedPath: string; message: string }>;
@@ -64,7 +64,7 @@ type TerminalSnapshot = {
   checks: Array<{ name: string; status: string; message: string }>;
   scannedAtUtc: string;
 };
-type GitTimeMachineSnapshot = {
+export type GitTimeMachineSnapshot = {
   branchName: string;
   headShortHash: string;
   isRepository: boolean;
@@ -72,7 +72,7 @@ type GitTimeMachineSnapshot = {
   changedFileCount: number;
   checkpoints: Array<{ shortHash: string; subject: string; authorName: string; authorDateUtc: string; isHead: boolean; rollbackCandidate: boolean }>;
 };
-type SemanticSnapshot = {
+export type SemanticSnapshot = {
   status: string;
   mode: string;
   vectorSearchEnabled: boolean;
@@ -81,7 +81,7 @@ type SemanticSnapshot = {
   index: { dbExists: boolean; sqliteCliAvailable: boolean; ftsAvailable: boolean; sqliteVecAvailable: boolean; fileCount: number; chunkCount: number; embeddingCacheEntryCount: number; chunkSources: Array<{ source: string; count: number }> };
   embedding: { localEndpointAvailable: boolean; candidateModelAvailable: boolean; candidateModels: Array<{ endpointName: string; modelId: string }> };
 };
-type RepomapSnapshot = {
+export type RepomapSnapshot = {
   status: string;
   scannedFileCount: number;
   mappedFileCount: number;
@@ -89,12 +89,12 @@ type RepomapSnapshot = {
   truncated: boolean;
   files: Array<{ path: string; language: string; symbolCount: number; symbols: Array<{ name: string; kind: string; signature: string; line: number }> }>;
 };
-type CommitLearningSnapshot = {
+export type CommitLearningSnapshot = {
   totalCommits: number;
   intents: Array<{ intent: string; commitCount: number; addedLines: number; deletedLines: number }>;
   hotspots: Array<{ path: string; changeCount: number; lastCommitShortHash: string; lastSubject: string }>;
 };
-type SelfImprovementSnapshot = {
+export type SelfImprovementSnapshot = {
   status: string;
   proposalCount: number;
   proposals: Array<{ proposalId: string; kind: string; priority: string; title: string; rationale: string; suggestedAction: string; requiresApproval: boolean }>;

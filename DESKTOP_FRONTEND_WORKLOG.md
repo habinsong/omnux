@@ -74,9 +74,17 @@
 - `ask-store.ts`를 479줄에서 380줄로 줄여 500줄 계약 여유를 확보했다.
 - `AskPage`의 `row-actions`와 `MarkdownMessage` 마커는 유지했다.
 
+### Insights panel 분리
+
+- `InsightsPage.tsx`에 몰려 있던 패널 JSX와 공용 `Stat`/`Row`/`Empty` 렌더러를 `InsightsPanels.tsx`로 분리했다.
+- `InsightsPage.tsx`는 페이지 헤더, 새로고침 액션, `CardBoundary` 배치만 담당하도록 줄였다.
+- 스냅샷 타입은 `insights-store.ts`에서 export해 패널 props가 store 계약을 그대로 따르게 했다.
+- 줄 수 기준: `InsightsPage.tsx` 86줄, `InsightsPanels.tsx` 392줄, `insights-store.ts` 371줄.
+- 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과.
+
 ## 다음 연결 후보
 
-- Insights page/panel 분리: `InsightsPage.tsx`가 444줄이라 다음 Insights 기능 전 분리 필요.
+- Insights 다음 연결 후보는 Local LLM 실제 라우팅 readiness, Self-RAG 실행 plan, Terminal PTY 승인 게이트 중 정책상 안전한 read-only/preview 단위부터 고른다.
 
 ## 주의
 
