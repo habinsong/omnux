@@ -179,6 +179,23 @@
   - 실제 Tree-sitter parser와 Repomap 프롬프트 자동 주입은 아직 적용하지 않았다.
   - 외부 parser package 없이 deterministic fallback만 사용한다.
 
+## 구현됨: 구조 보존 출력 트리밍 1차
+
+- 후보 문서 항목: Phase 6-9 `AI 코어 지능 고도화`
+- 백엔드 구현:
+  - `TextOutputTruncator.TruncatePreservingStructure`
+  - `CodingPromptPolicy`의 코딩 worker draft/code/stdout/stderr trimming 경로
+- 동작:
+  - 긴 텍스트를 단순 문자 위치가 아니라 안정적인 줄 경계에서 자른다.
+  - markdown code fence가 열린 상태로 잘리면 닫는 fence를 추가한다.
+  - 기존 truncation marker `...(truncated)`는 유지한다.
+- 프론트 영향:
+  - 새 WebSocket 타입은 없다.
+  - 코딩 루프/멀티 워커 prompt에 들어가는 이전 초안과 실행 로그가 중간 라인에서 덜 깨진다.
+- 현재 안전 정책:
+  - 실제 Tree-sitter AST parser, JSON schema-aware 축약, LangGraph-style workflow 변경은 아직 하지 않는다.
+  - 동작 변경 범위는 코딩 prompt 구성 시의 preview trimming에 한정한다.
+
 ## 구현됨: Durable Workflow recovery 후보 조회 1차
 
 - 후보 문서 항목: 추천 기능 3 `Durable Workflow 체크포인트`
@@ -1514,6 +1531,7 @@ agent bus를 시각화용 trace graph로 조회한다. 기존 agent bus 저장�
 - 메모리 검색 결과는 `memoryTier`를 배지로 표시하고, 오래된 `long_term` 결과도 score floor 정책으로 유지될 수 있음을 tooltip에 짧게 설명한다.
 - 메모리 인덱스 rebuild 후에는 `memory_search` snippet이 기존 라인 window보다 선언 단위에 가까워지므로, 코드 미리보기는 기존 `startLine/endLine` 표시를 그대로 사용한다.
 - Code Repomap 패널은 `code_repomap_snapshot_get`으로 파일별 symbol tree를 표시한다. `truncated=true`면 limit을 늘려 재조회할 수 있다.
+- 구조 보존 출력 트리밍은 백엔드 prompt 내부 품질 개선이라 별도 UI 연결은 없다. 다만 코딩 결과에서 `...(truncated)`가 보이면 기존처럼 축약 표시로 취급한다.
 - 로직 그래프 화면은 시작 시 `logic_graph_recovery_list`를 호출해 재시작 후 남은 `running` 후보를 표시하고, 상세 확인은 기존 `logic_graph_run_get`으로 연다.
 - 활동/에이전트 패널에서 `agent_bus_get`을 주기 조회하거나 수동 새로고침한다.
 - 보드 영역은 `payload.board`를 `groupId/runId` 기준으로 묶어 표시한다.

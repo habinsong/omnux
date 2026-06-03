@@ -72,8 +72,48 @@ public sealed class TextOutputTruncatorTests
     }
 
     [Fact]
+    public void TruncatePreservingStructureCutsAtStableLineBoundary()
+    {
+        var text = "{\n"
+                   + string.Join("\n", Enumerable.Range(1, 12).Select(index => $"  \"item{index}\": {index},"))
+                   + "\n  \"oversized\": \""
+                   + new string('x', 400)
+                   + "\"\n}";
+
+        var result = TextOutputTruncator.TruncatePreservingStructure(text, 220);
+
+        Assert.Contains("\"item12\": 12,", result);
+        Assert.DoesNotContain("\"oversized\"", result);
+        Assert.EndsWith("\n...(truncated)", result, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TruncatePreservingStructureClosesOpenMarkdownFence()
+    {
+        var text = "draft:\n```ts\nexport function demo() {\n  return \"" + new string('a', 400) + "\";\n}\n```";
+
+        var result = TextOutputTruncator.TruncatePreservingStructure(text, 160);
+
+        Assert.Equal(0, CountFenceMarkers(result) % 2);
+        Assert.EndsWith("\n...(truncated)", result, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DefaultTruncationMarkerExposed()
     {
         Assert.Equal("...(truncated)", TextOutputTruncator.DefaultTruncationMarker);
+    }
+
+    private static int CountFenceMarkers(string text)
+    {
+        var count = 0;
+        var index = 0;
+        while ((index = text.IndexOf("```", index, StringComparison.Ordinal)) >= 0)
+        {
+            count += 1;
+            index += 3;
+        }
+
+        return count;
     }
 }
