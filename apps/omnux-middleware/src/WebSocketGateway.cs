@@ -86,6 +86,7 @@ public sealed partial class WebSocketGateway
     private readonly WsTelemetryCommandDispatcher _telemetryCommandDispatcher;
     private readonly WsSessionReplayCommandDispatcher _sessionReplayCommandDispatcher;
     private readonly WsAgentCommandDispatcher _agentCommandDispatcher;
+    private readonly WsAgentWatchdogCommandDispatcher _agentWatchdogCommandDispatcher;
     private readonly WsMultiAgentTraceCommandDispatcher _multiAgentTraceCommandDispatcher;
     private readonly WsAgentWorktreeCommandDispatcher _agentWorktreeCommandDispatcher;
     private readonly WsMcpCommandDispatcher _mcpCommandDispatcher;
@@ -283,6 +284,11 @@ public sealed partial class WebSocketGateway
         );
         _agentCommandDispatcher = new WsAgentCommandDispatcher(
             agentCommunicationService
+        );
+        _agentWatchdogCommandDispatcher = new WsAgentWatchdogCommandDispatcher(
+            new AgentWatchdogInventorySnapshotService(
+                new FileAgentSpawnActiveRunStore(DefaultStatePathResolver.CreateDefault())
+            )
         );
         _multiAgentTraceCommandDispatcher = new WsMultiAgentTraceCommandDispatcher(
             new MultiAgentTraceSnapshotService(agentCommunicationService)
