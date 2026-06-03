@@ -829,6 +829,61 @@ Nightly/Adaptive Skills 후보의 1차 백엔드 계약이다. 현재는 읽기 
 - 모든 제안은 `requiresApproval=true`다. 백엔드는 이 요청에서 `SKILL.md`, memory note, 시스템 프롬프트, 루틴/크론을 생성하거나 수정하지 않는다.
 - `status=no_proposals`이면 표시할 제안이 없다는 뜻이며 실패가 아니다. 읽기 실패는 `warnings`에 들어간다.
 
+### `local_llm_snapshot_get`
+
+Ollama/LM Studio 같은 로컬 LLM endpoint의 모델 discovery 스냅샷을 조회한다. 실제 LLM 라우팅은 바꾸지 않는다.
+
+요청:
+
+```json
+{
+  "type": "local_llm_snapshot_get"
+}
+```
+
+응답:
+
+```json
+{
+  "type": "local_llm_snapshot",
+  "payload": {
+    "endpoints": [
+      {
+        "name": "ollama",
+        "kind": "ollama",
+        "baseUrl": "http://127.0.0.1:11434",
+        "status": "available",
+        "modelCount": 1,
+        "models": [
+          {
+            "id": "qwen2.5-coder:7b",
+            "ownedBy": "ollama",
+            "family": "qwen2",
+            "parameterSize": "7B",
+            "quantization": "Q4_K_M",
+            "sizeBytes": 4683072000,
+            "modifiedAtUtc": "2026-06-04T00:00:00Z"
+          }
+        ],
+        "error": "",
+        "elapsedMs": 12
+      }
+    ],
+    "availableEndpointCount": 1,
+    "totalModelCount": 1,
+    "offlineReady": true,
+    "warnings": [],
+    "scannedAtUtc": "2026-06-04T00:00:00Z"
+  }
+}
+```
+
+- 기본 endpoint는 Ollama `http://127.0.0.1:11434`와 OpenAI-compatible `http://127.0.0.1:1234`다.
+- `OMNUX_LOCAL_LLM_ENDPOINTS`가 있으면 comma-separated endpoint 목록을 사용한다. `11434`를 포함하면 `kind=ollama`, 그 외는 `openai_compatible`로 추정한다.
+- `status`는 `available`, `unavailable`, `error` 중 하나다.
+- `offlineReady=true`는 사용 가능한 endpoint가 있고 모델이 1개 이상 발견됐다는 뜻이다.
+- 이 요청은 모델 discovery만 수행한다. provider 자동 전환, 외부 트래픽 차단, 모델 warmup은 아직 실행하지 않는다.
+
 ### `agent_bus_get`
 
 에이전트 메시지/보드/생명주기 스냅샷 조회.
@@ -986,6 +1041,7 @@ Nightly/Adaptive Skills 후보의 1차 백엔드 계약이다. 현재는 읽기 
 - Worktree isolation은 새 WS 타입이 없다. 세션 결과 note와 child session timeline의 `sessions_spawn_worktree_*` / `sessions_spawn_acp_dispatch` metadata를 읽어 표시한다.
 - Git automation 패널은 `git_automation_snapshot_get`으로 현재 변경 파일, readiness, 커밋 메시지 초안을 표시한다. 실제 커밋/PR 버튼은 아직 백엔드 실행 API가 없으므로 비활성 상태로 둔다.
 - Self improvement 패널은 `self_improvement_snapshot_get`으로 workspace hygiene, 반복 bug_fix, hotspot review 제안을 표시한다. 모든 액션은 사용자 승인 UI가 생기기 전까지 보기 전용이다.
+- Local LLM 패널은 `local_llm_snapshot_get`으로 Ollama/LM Studio endpoint availability와 모델 목록을 표시한다. 이 값은 라우팅 상태가 아니라 discovery/readiness로만 취급한다.
 
 ## 보류한 후보
 
@@ -1002,4 +1058,5 @@ Nightly/Adaptive Skills 후보의 1차 백엔드 계약이다. 현재는 읽기 
 - 커밋 히스토리 LLM 학습/자동 주입: 1차는 읽기 전용 snapshot이다. LLM 요약, memory/skill 자동 저장, nightly 자기 개선은 사용자 변경 오염 위험이 있어 보류한다.
 - 자동 커밋/PR 실제 실행: 1차는 read-only snapshot만 제공한다. `git add`, `git commit`, branch 생성, `gh pr create`는 사용자 승인/충돌/권한 정책이 필요해 보류한다.
 - Nightly 자기 개선 자동 실행: 1차는 read-only proposal snapshot만 제공한다. 실제 야간 루틴 등록, LLM 선호도 분석, `SKILL.md` 자동 갱신은 사용자 승인/충돌 정책이 필요하다.
+- Local LLM 실제 라우팅/오프라인 차단: 1차는 endpoint/model discovery만 제공한다. `LocalLlmProvider`, cloud provider 차단, fallback 라우팅, 모델 warmup은 기존 LLM 호출 경로 영향이 커서 별도 단계로 둔다.
 - 시맨틱 검색/Ollama embed: 후보 문서 결론대로 코드 검색용 우선순위는 낮다.
