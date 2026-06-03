@@ -19,6 +19,22 @@
   - `agent_group_command`는 실제 프로세스 정지나 작업 취소를 실행하지 않는다.
   - 명령을 `kind=command` 메시지로 저장해 프론트/상위 오케스트레이터가 확인할 수 있게 한다.
 
+## 구현됨: 컨텍스트 적응형 압축 정책
+
+- 후보 문서 항목: 추천 기능 1 `컨텍스트 적응형 압축`
+- 백엔드 구현:
+  - `AdaptiveContextCompressionPolicy`
+  - 기존 `CommandService.Utils.MaybeCompressConversationAsync` 유지보수 훅 연동
+- 트리거:
+  - 추정 토큰이 보수적 컨텍스트 윈도우의 70% 이상
+  - 또는 `ConversationCompressChars` 문자 임계치 이상
+  - 또는 최근 유지 메시지 수 대비 장기 대화 메시지 수 초과
+- 저장/노출:
+  - 압축 요약은 기존 `MemoryNoteStore`에 저장된다.
+  - 대화에는 `meta=auto-compress` 시스템 메시지가 남는다.
+  - 시스템 메시지에는 `reason`, `estimated_tokens`, `threshold_tokens`가 포함된다.
+  - 프론트는 `get_conversation` 또는 대화 갱신 결과의 `conversation.messages`와 `linkedMemoryNotes`를 보면 압축 여부를 표시할 수 있다.
+
 ## WebSocket 이벤트
 
 ### `agent_bus_get`
