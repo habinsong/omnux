@@ -30,7 +30,7 @@ public sealed record GeminiUrlContextChatResponse(
 
 public sealed record OpenAiCompatibleStreamChunk(string Content, string FinishReason);
 
-public sealed class LlmRouter : IDisposable
+public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
 {
     private const int ChatContinuationRounds = 6;
     private const string CerebrasFallbackModel = "gpt-oss-120b";

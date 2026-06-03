@@ -640,7 +640,7 @@ public sealed partial class RoutineApplicationService
 
         if (string.Equals(mode, "gemini-url-single", StringComparison.Ordinal))
         {
-            var urlResult = await _llmGateway.GenerateGeminiUrlContextAnswerAsync(
+            var urlResult = await _searchGateway.GenerateGeminiUrlContextAnswerAsync(
                 taskRequest,
                 urls,
                 string.Empty,
@@ -660,7 +660,7 @@ public sealed partial class RoutineApplicationService
             return (output, failed ? "error" : "ok", failed ? output : null);
         }
 
-        var webResult = await _llmGateway.ComposeGroundedWebAnswerWithFallbackAsync(
+        var webResult = await _searchGateway.ComposeGroundedWebAnswerWithFallbackAsync(
             taskRequest,
             string.Empty,
             false,

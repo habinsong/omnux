@@ -9,7 +9,10 @@ internal interface IRoutineLlmGateway
         CancellationToken cancellationToken,
         int? maxOutputTokens = null
     );
+}
 
+internal interface IRoutineSearchGateway
+{
     Task<LlmSingleChatResult> GenerateGeminiUrlContextAnswerAsync(
         string input,
         IReadOnlyList<string> urls,
@@ -75,6 +78,7 @@ public sealed partial class RoutineApplicationService : IRoutineApplicationServi
     private readonly SessionSpawnTool _sessionSpawnTool;
     private readonly RoutineRegistry _routineRegistry;
     private readonly IRoutineLlmGateway _llmGateway;
+    private readonly IRoutineSearchGateway _searchGateway;
     private readonly IRoutineLogicGraphRunner _logicGraphRunner;
     private readonly string _routineStatePath;
     private readonly string _routinePromptDir;
@@ -97,6 +101,7 @@ public sealed partial class RoutineApplicationService : IRoutineApplicationServi
         SessionSpawnTool sessionSpawnTool,
         RoutineRegistry routineRegistry,
         IRoutineLlmGateway llmGateway,
+        IRoutineSearchGateway searchGateway,
         IRoutineLogicGraphRunner logicGraphRunner
     )
     {
@@ -113,6 +118,7 @@ public sealed partial class RoutineApplicationService : IRoutineApplicationServi
         _sessionSpawnTool = sessionSpawnTool;
         _routineRegistry = routineRegistry;
         _llmGateway = llmGateway;
+        _searchGateway = searchGateway;
         _logicGraphRunner = logicGraphRunner;
         _routineStatePath = _routineRegistry.StorePath;
         _routinePromptDir = _paths.RoutinePromptDir;
