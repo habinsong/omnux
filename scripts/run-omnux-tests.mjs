@@ -87,6 +87,11 @@ function main() {
     [toRelative(path.join(dashboardDir, "check-dashboard-server-message-router.mjs"))]
   );
   runStep(
+    "phase4 dashboard contract",
+    "node",
+    [toRelative(path.join(repoRoot, "scripts", "check-phase4-dashboard-contract.mjs"))]
+  );
+  runStep(
     "security boundary contract",
     "node",
     [toRelative(path.join(repoRoot, "scripts", "check-security-boundaries.mjs"))]

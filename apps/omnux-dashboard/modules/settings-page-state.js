@@ -391,17 +391,569 @@
     };
   }
 
+  function normalizeOpsArray(values) {
+    return Array.isArray(values) ? values.filter(Boolean) : [];
+  }
+
+  function upsertOpsItem(items, nextItem, idKey) {
+    if (!nextItem || !nextItem[idKey]) return normalizeOpsArray(items);
+    const next = normalizeOpsArray(items).slice();
+    const index = next.findIndex((item) => item && item[idKey] === nextItem[idKey]);
+    if (index >= 0) {
+      next[index] = nextItem;
+    } else {
+      next.unshift(nextItem);
+    }
+    return next;
+  }
+
+  function updateTaskInSnapshot(snapshot, graphId, task) {
+    if (!snapshot || !snapshot.graph || snapshot.graph.graphId !== graphId || !task || !task.taskId) {
+      return snapshot;
+    }
+
+    const nodes = Array.isArray(snapshot.graph.nodes) ? snapshot.graph.nodes.slice() : [];
+    const index = nodes.findIndex((item) => item && item.taskId === task.taskId);
+    if (index >= 0) {
+      nodes[index] = task;
+    } else {
+      nodes.push(task);
+    }
+
+    return {
+      ...snapshot,
+      graph: {
+        ...snapshot.graph,
+        nodes,
+        updatedAtUtc: task.updatedAtUtc || snapshot.graph.updatedAtUtc
+      }
+    };
+  }
+
+  function useSettingsOperationsState(ctx, active) {
+    const sendMessage = typeof ctx.send === "function" ? ctx.send : noop;
+    const toast = typeof ctx.toast === "function" ? ctx.toast : noop;
+    const [loaded, setLoaded] = useState(false);
+    const [doctor, setDoctor] = useState({
+      report: null,
+      pending: { run: false, last: false, fixPreview: false, fixApply: false },
+      lastError: "",
+      fixPreview: null,
+      fixApply: null,
+      previewId: ""
+    });
+    const [cleanup, setCleanup] = useState({
+      preview: null,
+      apply: null,
+      pending: { preview: false, apply: false },
+      lastError: "",
+      previewId: ""
+    });
+    const [plans, setPlans] = useState({
+      items: [],
+      loading: false,
+      selectedPlanId: "",
+      lastError: ""
+    });
+    const [tasks, setTasks] = useState({
+      items: [],
+      loading: false,
+      pending: false,
+      selectedGraphId: "",
+      selectedTaskId: "",
+      createPlanId: "",
+      snapshot: null,
+      output: null,
+      lastError: "",
+      lastMessage: ""
+    });
+
+    const sendOrToast = useCallback((payload) => {
+      const sent = sendMessage(payload, { queueIfClosed: true });
+      if (!sent) {
+        toast("미들웨어 연결이 필요합니다.");
+      }
+      return sent;
+    }, [sendMessage, toast]);
+
+    const refreshDoctorReport = useCallback(() => {
+      setDoctor((current) => ({
+        ...current,
+        pending: { ...current.pending, last: true },
+        lastError: ""
+      }));
+      if (!sendOrToast({ type: "doctor_get_last" })) {
+        setDoctor((current) => ({ ...current, pending: { ...current.pending, last: false } }));
+      }
+    }, [sendOrToast]);
+
+    const runDoctorReport = useCallback(() => {
+      setDoctor((current) => ({
+        ...current,
+        pending: { ...current.pending, run: true },
+        lastError: ""
+      }));
+      if (!sendOrToast({ type: "doctor_run" })) {
+        setDoctor((current) => ({ ...current, pending: { ...current.pending, run: false } }));
+      }
+    }, [sendOrToast]);
+
+    const previewDoctorFix = useCallback(() => {
+      setDoctor((current) => ({
+        ...current,
+        pending: { ...current.pending, fixPreview: true },
+        lastError: "",
+        fixApply: null
+      }));
+      if (!sendOrToast({ type: "doctor_fix_preview" })) {
+        setDoctor((current) => ({ ...current, pending: { ...current.pending, fixPreview: false } }));
+      }
+    }, [sendOrToast]);
+
+    const applyDoctorFix = useCallback(() => {
+      const previewId = doctor.previewId || doctor.fixPreview?.previewId || "";
+      if (!previewId) {
+        toast("doctor fix previewId가 필요합니다.");
+        return;
+      }
+      if (typeof window.confirm === "function" && !window.confirm("doctor 자동수정을 적용할까요?")) {
+        return;
+      }
+      setDoctor((current) => ({
+        ...current,
+        pending: { ...current.pending, fixApply: true },
+        lastError: ""
+      }));
+      if (!sendOrToast({ type: "doctor_fix_apply", previewId })) {
+        setDoctor((current) => ({ ...current, pending: { ...current.pending, fixApply: false } }));
+      }
+    }, [doctor.fixPreview, doctor.previewId, sendOrToast, toast]);
+
+    const previewCleanup = useCallback(() => {
+      setCleanup((current) => ({
+        ...current,
+        pending: { ...current.pending, preview: true },
+        lastError: "",
+        apply: null
+      }));
+      if (!sendOrToast({ type: "cleanup_preview" })) {
+        setCleanup((current) => ({ ...current, pending: { ...current.pending, preview: false } }));
+      }
+    }, [sendOrToast]);
+
+    const applyCleanup = useCallback(() => {
+      const previewId = cleanup.previewId || cleanup.preview?.previewId || "";
+      if (!previewId) {
+        toast("cleanup previewId가 필요합니다.");
+        return;
+      }
+      if (typeof window.confirm === "function" && !window.confirm("미리보기의 cleanup 후보를 삭제할까요?")) {
+        return;
+      }
+      setCleanup((current) => ({
+        ...current,
+        pending: { ...current.pending, apply: true },
+        lastError: ""
+      }));
+      if (!sendOrToast({ type: "cleanup_apply", previewId })) {
+        setCleanup((current) => ({ ...current, pending: { ...current.pending, apply: false } }));
+      }
+    }, [cleanup.preview, cleanup.previewId, sendOrToast, toast]);
+
+    const refreshPlans = useCallback(() => {
+      setPlans((current) => ({ ...current, loading: true, lastError: "" }));
+      if (!sendOrToast({ type: "plan_list" })) {
+        setPlans((current) => ({ ...current, loading: false }));
+      }
+    }, [sendOrToast]);
+
+    const refreshTaskGraphs = useCallback(() => {
+      setTasks((current) => ({ ...current, loading: true, lastError: "" }));
+      if (!sendOrToast({ type: "task_graph_list" })) {
+        setTasks((current) => ({ ...current, loading: false }));
+      }
+    }, [sendOrToast]);
+
+    const selectPlan = useCallback((planId) => {
+      const normalized = String(planId || "").trim();
+      setPlans((current) => ({ ...current, selectedPlanId: normalized }));
+      setTasks((current) => ({ ...current, createPlanId: normalized || current.createPlanId }));
+    }, []);
+
+    const setTaskCreatePlanId = useCallback((planId) => {
+      setTasks((current) => ({ ...current, createPlanId: String(planId || "") }));
+    }, []);
+
+    const loadTaskGraph = useCallback((graphId) => {
+      const normalized = String(graphId || "").trim();
+      if (!normalized) return;
+      setTasks((current) => ({
+        ...current,
+        selectedGraphId: normalized,
+        loading: true,
+        lastError: ""
+      }));
+      if (!sendOrToast({ type: "task_graph_get", graphId: normalized })) {
+        setTasks((current) => ({ ...current, loading: false }));
+      }
+    }, [sendOrToast]);
+
+    const createTaskGraph = useCallback(() => {
+      const planId = String(tasks.createPlanId || plans.selectedPlanId || "").trim();
+      if (!planId) {
+        toast("계획 ID가 필요합니다.");
+        return;
+      }
+      setTasks((current) => ({ ...current, pending: true, lastError: "" }));
+      if (!sendOrToast({ type: "task_graph_create", planId })) {
+        setTasks((current) => ({ ...current, pending: false }));
+      }
+    }, [plans.selectedPlanId, sendOrToast, tasks.createPlanId, toast]);
+
+    const runTaskGraph = useCallback((graphId) => {
+      const normalized = String(graphId || tasks.selectedGraphId || "").trim();
+      if (!normalized) {
+        toast("Task graph ID가 필요합니다.");
+        return;
+      }
+      if (typeof window.confirm === "function" && !window.confirm("Task graph를 실행할까요? 작업이 파일 변경을 수행할 수 있습니다.")) {
+        return;
+      }
+      setTasks((current) => ({ ...current, pending: true, lastError: "" }));
+      if (!sendOrToast({ type: "task_graph_run", graphId: normalized })) {
+        setTasks((current) => ({ ...current, pending: false }));
+      }
+    }, [sendOrToast, tasks.selectedGraphId, toast]);
+
+    const retryTask = useCallback((graphId, taskId) => {
+      const normalizedGraphId = String(graphId || tasks.selectedGraphId || "").trim();
+      const normalizedTaskId = String(taskId || tasks.selectedTaskId || "").trim();
+      if (!normalizedGraphId || !normalizedTaskId) {
+        toast("재시도할 Task graph와 task ID가 필요합니다.");
+        return;
+      }
+      if (typeof window.confirm === "function" && !window.confirm(`작업 ${normalizedTaskId}를 재시도할까요?`)) {
+        return;
+      }
+      setTasks((current) => ({ ...current, pending: true, lastError: "" }));
+      if (!sendOrToast({ type: "task_retry", graphId: normalizedGraphId, taskId: normalizedTaskId })) {
+        setTasks((current) => ({ ...current, pending: false }));
+      }
+    }, [sendOrToast, tasks.selectedGraphId, tasks.selectedTaskId, toast]);
+
+    const cancelTask = useCallback((graphId, taskId) => {
+      const normalizedGraphId = String(graphId || tasks.selectedGraphId || "").trim();
+      const normalizedTaskId = String(taskId || tasks.selectedTaskId || "").trim();
+      if (!normalizedGraphId || !normalizedTaskId) {
+        toast("취소할 Task graph와 task ID가 필요합니다.");
+        return;
+      }
+      setTasks((current) => ({ ...current, pending: true, lastError: "" }));
+      if (!sendOrToast({ type: "task_cancel", graphId: normalizedGraphId, taskId: normalizedTaskId })) {
+        setTasks((current) => ({ ...current, pending: false }));
+      }
+    }, [sendOrToast, tasks.selectedGraphId, tasks.selectedTaskId, toast]);
+
+    const loadTaskOutput = useCallback((graphId, taskId) => {
+      const normalizedGraphId = String(graphId || tasks.selectedGraphId || "").trim();
+      const normalizedTaskId = String(taskId || tasks.selectedTaskId || "").trim();
+      if (!normalizedGraphId || !normalizedTaskId) return;
+      setTasks((current) => ({
+        ...current,
+        selectedGraphId: normalizedGraphId,
+        selectedTaskId: normalizedTaskId,
+        lastError: ""
+      }));
+      sendOrToast({ type: "task_output_get", graphId: normalizedGraphId, taskId: normalizedTaskId });
+    }, [sendOrToast, tasks.selectedGraphId, tasks.selectedTaskId]);
+
+    useEffect(() => {
+      const onMessage = (event) => {
+        const msg = event.detail || {};
+        if (msg.type === "doctor_result") {
+          const found = !!msg.found;
+          setDoctor((current) => ({
+            ...current,
+            report: found ? (msg.report || null) : null,
+            pending: { ...current.pending, run: false, last: false },
+            lastError: found ? "" : "저장된 doctor 보고서가 없습니다."
+          }));
+        }
+        if (msg.type === "doctor_fix_result") {
+          const action = msg.action || "";
+          const result = {
+            ok: !!msg.ok,
+            action,
+            message: msg.message || "",
+            previewId: msg.previewId || "",
+            error: msg.error || "",
+            actions: normalizeOpsArray(msg.actions)
+          };
+          setDoctor((current) => ({
+            ...current,
+            fixPreview: action === "preview" ? result : current.fixPreview,
+            fixApply: action === "apply" ? result : current.fixApply,
+            previewId: result.previewId || current.previewId,
+            pending: {
+              ...current.pending,
+              fixPreview: action === "preview" ? false : current.pending.fixPreview,
+              fixApply: action === "apply" ? false : current.pending.fixApply
+            },
+            lastError: result.ok ? "" : (result.error || result.message || "doctor 자동수정 요청이 실패했습니다.")
+          }));
+          toast(result.message || (result.ok ? "doctor 자동수정 요청을 처리했습니다." : "doctor 자동수정 요청이 실패했습니다."));
+          if (action === "apply" && result.ok) {
+            sendMessage({ type: "doctor_run" }, { queueIfClosed: true });
+          }
+        }
+        if (msg.type === "cleanup_preview_result") {
+          const result = {
+            ok: !!msg.ok,
+            message: msg.message || "",
+            previewId: msg.previewId || "",
+            totalSizeBytes: Number(msg.totalSizeBytes) || 0,
+            error: msg.error || "",
+            candidates: normalizeOpsArray(msg.candidates)
+          };
+          setCleanup((current) => ({
+            ...current,
+            preview: result,
+            previewId: result.previewId || current.previewId,
+            pending: { ...current.pending, preview: false },
+            lastError: result.ok ? "" : (result.error || result.message || "cleanup 미리보기가 실패했습니다.")
+          }));
+          toast(result.message || (result.ok ? "cleanup 미리보기를 준비했습니다." : "cleanup 미리보기가 실패했습니다."));
+        }
+        if (msg.type === "cleanup_apply_result") {
+          const result = {
+            ok: !!msg.ok,
+            message: msg.message || "",
+            previewId: msg.previewId || "",
+            removedCount: Number(msg.removedCount) || 0,
+            removedSizeBytes: Number(msg.removedSizeBytes) || 0,
+            removedPaths: normalizeOpsArray(msg.removedPaths),
+            failedPaths: normalizeOpsArray(msg.failedPaths),
+            error: msg.error || ""
+          };
+          setCleanup((current) => ({
+            ...current,
+            apply: result,
+            pending: { ...current.pending, apply: false },
+            lastError: result.ok ? "" : (result.error || result.message || "cleanup 적용이 실패했습니다.")
+          }));
+          toast(result.message || (result.ok ? "cleanup 적용을 완료했습니다." : "cleanup 적용이 실패했습니다."));
+        }
+        if (msg.type === "plan_list_result") {
+          const payload = msg.payload || {};
+          const items = normalizeOpsArray(payload.items);
+          const selectedPlanId = items.some((item) => item.planId === plans.selectedPlanId)
+            ? plans.selectedPlanId
+            : (items[0]?.planId || "");
+          setPlans((current) => ({
+            ...current,
+            items,
+            loading: false,
+            selectedPlanId,
+            lastError: items.length === 0 ? "저장된 계획이 없습니다." : ""
+          }));
+          if (selectedPlanId) {
+            setTasks((current) => ({
+              ...current,
+              createPlanId: current.createPlanId || selectedPlanId
+            }));
+          }
+        }
+        if (msg.type === "plan_result") {
+          const snapshot = msg.payload?.snapshot || null;
+          if (snapshot?.plan) {
+            const plan = snapshot.plan;
+            const nextItem = {
+              planId: plan.planId,
+              title: plan.title || plan.planId,
+              objective: plan.objective || "",
+              status: plan.status || "",
+              updatedAtUtc: plan.updatedAtUtc || ""
+            };
+            setPlans((current) => ({
+              ...current,
+              items: upsertOpsItem(current.items, nextItem, "planId"),
+              selectedPlanId: plan.planId || current.selectedPlanId,
+              loading: false,
+              lastError: msg.payload?.ok === false ? (msg.payload?.message || "계획 요청이 실패했습니다.") : ""
+            }));
+          }
+        }
+        if (msg.type === "task_graph_list_result") {
+          const payload = msg.payload || {};
+          const items = normalizeOpsArray(payload.items);
+          const selectedGraphId = items.some((item) => item.graphId === tasks.selectedGraphId)
+            ? tasks.selectedGraphId
+            : (items[0]?.graphId || "");
+          setTasks((current) => ({
+            ...current,
+            items,
+            loading: false,
+            pending: false,
+            selectedGraphId,
+            snapshot: selectedGraphId && current.snapshot?.graph?.graphId === selectedGraphId
+              ? current.snapshot
+              : (selectedGraphId ? null : current.snapshot),
+            lastError: items.length === 0 ? "저장된 Task graph가 없습니다." : ""
+          }));
+          if (selectedGraphId) {
+            sendMessage({ type: "task_graph_get", graphId: selectedGraphId }, { queueIfClosed: true });
+          }
+        }
+        if (msg.type === "task_graph_result") {
+          const payload = msg.payload || {};
+          const snapshot = payload.snapshot || null;
+          const ok = payload.ok !== false;
+          const graph = snapshot?.graph || null;
+          const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+          const nextGraphId = graph?.graphId || tasks.selectedGraphId;
+          const nextTaskId = nodes.some((task) => task.taskId === tasks.selectedTaskId)
+            ? tasks.selectedTaskId
+            : (nodes[0]?.taskId || tasks.selectedTaskId);
+          setTasks((current) => {
+            const nextItem = graph
+              ? {
+                graphId: graph.graphId,
+                sourcePlanId: graph.sourcePlanId || "",
+                status: graph.status || "",
+                totalNodes: nodes.length,
+                completedNodes: nodes.filter((task) => `${task.status || ""}`.toLowerCase() === "completed").length,
+                failedNodes: nodes.filter((task) => `${task.status || ""}`.toLowerCase() === "failed").length,
+                runningNodes: nodes.filter((task) => `${task.status || ""}`.toLowerCase() === "running").length,
+                updatedAtUtc: graph.updatedAtUtc || ""
+              }
+              : null;
+            return {
+              ...current,
+              items: upsertOpsItem(current.items, nextItem, "graphId"),
+              loading: false,
+              pending: false,
+              selectedGraphId: nextGraphId,
+              selectedTaskId: nextTaskId,
+              snapshot: snapshot || current.snapshot,
+              createPlanId: ok && msg.action === "create" ? "" : current.createPlanId,
+              lastMessage: payload.message || "",
+              lastError: ok ? "" : (payload.message || "Task graph 요청이 실패했습니다.")
+            };
+          });
+          if (nextGraphId && nextTaskId) {
+            sendMessage({ type: "task_output_get", graphId: nextGraphId, taskId: nextTaskId }, { queueIfClosed: true });
+          }
+        }
+        if (msg.type === "task_output_result") {
+          const payload = msg.payload || {};
+          setTasks((current) => ({
+            ...current,
+            output: payload,
+            selectedGraphId: payload.graphId || current.selectedGraphId,
+            selectedTaskId: payload.taskId || current.selectedTaskId
+          }));
+        }
+        if (msg.type === "task_updated") {
+          const graphId = String(msg.graphId || "").trim();
+          const task = msg.task || null;
+          if (graphId && task?.taskId) {
+            setTasks((current) => ({
+              ...current,
+              snapshot: updateTaskInSnapshot(current.snapshot, graphId, task)
+            }));
+          }
+        }
+        if (msg.type === "task_log") {
+          const graphId = String(msg.graphId || "").trim();
+          const taskId = String(msg.taskId || "").trim();
+          const line = String(msg.line || "");
+          setTasks((current) => {
+            if (!graphId || !taskId || current.selectedGraphId !== graphId || current.selectedTaskId !== taskId) {
+              return current;
+            }
+            return {
+              ...current,
+              output: {
+                ...(current.output || {}),
+                graphId,
+                taskId,
+                stdout: `${current.output?.stdout || ""}${current.output?.stdout ? "\n" : ""}${line}`
+              }
+            };
+          });
+        }
+        if (msg.type === "error") {
+          setDoctor((current) => ({
+            ...current,
+            pending: { run: false, last: false, fixPreview: false, fixApply: false },
+            lastError: msg.message || current.lastError
+          }));
+          setCleanup((current) => ({
+            ...current,
+            pending: { preview: false, apply: false },
+            lastError: msg.message || current.lastError
+          }));
+          setPlans((current) => ({ ...current, loading: false, lastError: msg.message || current.lastError }));
+          setTasks((current) => ({
+            ...current,
+            loading: false,
+            pending: false,
+            lastError: msg.message || current.lastError
+          }));
+        }
+      };
+      window.addEventListener("omnux:message", onMessage);
+      return () => window.removeEventListener("omnux:message", onMessage);
+    }, [plans.selectedPlanId, sendMessage, tasks.selectedGraphId, tasks.selectedTaskId, toast]);
+
+    useEffect(() => {
+      if (!active || loaded) {
+        return;
+      }
+      setLoaded(true);
+      refreshDoctorReport();
+      refreshPlans();
+      refreshTaskGraphs();
+    }, [active, loaded, refreshDoctorReport, refreshPlans, refreshTaskGraphs]);
+
+    return {
+      loaded,
+      doctor,
+      cleanup,
+      plans,
+      tasks,
+      refreshDoctorReport,
+      runDoctorReport,
+      previewDoctorFix,
+      applyDoctorFix,
+      previewCleanup,
+      applyCleanup,
+      refreshPlans,
+      selectPlan,
+      refreshTaskGraphs,
+      setTaskCreatePlanId,
+      loadTaskGraph,
+      createTaskGraph,
+      runTaskGraph,
+      retryTask,
+      cancelTask,
+      loadTaskOutput
+    };
+  }
+
   function useSettingsPageState(ctx, payload) {
     const [tab, setTab] = useState((payload && payload.tab) || "general");
     const memory = useSettingsMemoryState(ctx);
     const permissions = useSettingsPermissionState();
+    const operations = useSettingsOperationsState(ctx, tab === "operations");
 
     return {
       tab,
       setTab,
       memory,
       permissions,
-      perms: SETTINGS_PERMS
+      perms: SETTINGS_PERMS,
+      operations
     };
   }
 
@@ -409,6 +961,7 @@
     SETTINGS_PERMS,
     useSettingsMemoryState,
     useSettingsPermissionState,
+    useSettingsOperationsState,
     useSettingsPageState
   });
 })();

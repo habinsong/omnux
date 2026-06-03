@@ -1027,6 +1027,33 @@ export function handleDashboardServerMessage(msg, context) {
     return true
   }
 
+  if (msg.type === "doctor_fix_result") {
+    const action = msg.action || "fix"
+    const result = {
+      ok: !!msg.ok,
+      action,
+      message: msg.message || "",
+      previewId: msg.previewId || "",
+      error: msg.error || "",
+      actions: Array.isArray(msg.actions) ? msg.actions : []
+    }
+    setters.setDoctorState((prev) => ({
+      ...prev,
+      pending: false,
+      lastAction: `fix_${action}`,
+      lastError: result.ok ? "" : (result.error || result.message || "doctor 자동수정 요청이 실패했습니다."),
+      receivedAt: new Date().toISOString(),
+      fixPreview: action === "preview" ? result : prev.fixPreview,
+      fixApply: action === "apply" ? result : prev.fixApply,
+      fixPreviewId: result.previewId || prev.fixPreviewId || ""
+    }))
+    pushToolResult(msg, context)
+    if (action === "apply" && result.ok) {
+      actions.requestDoctorLast(actions.send, { silent: true, queueIfClosed: false })
+    }
+    return true
+  }
+
   if (msg.type === "notebook_result") {
     const payload = msg.payload || {}
     const snapshot = payload.snapshot || null
