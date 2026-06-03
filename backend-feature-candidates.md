@@ -32,6 +32,7 @@
 | 프롬프트 캐싱 최적화 | ✅ 1차 | `PromptCachePolicy`, telemetry cache key/affinity/readiness 기록 |
 | 스마트 모델 라우팅 | ✅ 1차 | `ModelRoutingReadinessPolicy`, telemetry complexity/tier/cascade readiness 기록 |
 | 에이전트 권한 샌드박스 강화 | ✅ 1차 | `UniversalCodeExecutionSafetyPolicy`, `UniversalCodeRunner` bash/unknown shell preflight 차단 |
+| 커밋 히스토리 기반 학습 | ✅ 1차 | `GitCommitHistoryScanner`, `commit_learning_snapshot_get` — 읽기 전용 intent/hotspot 스냅샷 |
 | 벡터 임베딩 시맨틱 검색 | ⏳ Phase 6-3 | 현재 FTS 유지, Phase 6-2(Ollama) 선행 후 sqlite-vec + Ollama embed로 추가 |
 | Nightly 자기 개선 | ❌ | 검색 결과 0 |
 
@@ -615,6 +616,14 @@
 ## 추천 기능 14: 커밋 히스토리 기반 학습 (Commit-Driven Learning)
 
 ### 가치: ⭐⭐⭐
+
+### 상태: ✅ 1차 구현 / 자동 학습 주입 보류
+
+- `GitCommitHistoryScanner`가 `git log --numstat`를 읽기 전용으로 실행해 최근 커밋을 분석한다.
+- commit subject 기반 deterministic intent(`bug_fix`, `feature`, `refactor`, `test`, `docs`, `maintenance`, `performance`, `change`)를 산출한다.
+- 파일 변경 빈도 기반 hotspot, intent별 commit/라인 rollup을 만든다.
+- WebSocket `commit_learning_snapshot_get` 요청이 `commit_learning_snapshot`을 반환한다.
+- LLM 기반 의도 추론, memory/skill 자동 주입, nightly self-improvement는 사용자 변경을 오염시킬 수 있어 다음 단계로 둔다.
 
 ### 문제
 

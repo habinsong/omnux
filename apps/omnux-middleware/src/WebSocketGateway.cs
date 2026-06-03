@@ -87,6 +87,7 @@ public sealed partial class WebSocketGateway
     private readonly WsSessionReplayCommandDispatcher _sessionReplayCommandDispatcher;
     private readonly WsAgentCommandDispatcher _agentCommandDispatcher;
     private readonly WsMcpCommandDispatcher _mcpCommandDispatcher;
+    private readonly WsCommitLearningCommandDispatcher _commitLearningCommandDispatcher;
     private readonly WsRefactorCommandDispatcher _refactorCommandDispatcher;
     private readonly WsContextCommandDispatcher _contextCommandDispatcher;
     private readonly WsNotebookCommandDispatcher _notebookCommandDispatcher;
@@ -275,6 +276,9 @@ public sealed partial class WebSocketGateway
         );
         _mcpCommandDispatcher = new WsMcpCommandDispatcher(
             new McpConfigDiscoveryService(_paths.WorkspaceRootDir)
+        );
+        _commitLearningCommandDispatcher = new WsCommitLearningCommandDispatcher(
+            new GitCommitHistoryScanner(_paths.WorkspaceRootDir)
         );
         _refactorCommandDispatcher = new WsRefactorCommandDispatcher(
             refactorService
