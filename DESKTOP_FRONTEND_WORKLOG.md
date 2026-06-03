@@ -68,9 +68,15 @@
 - 서버별 transport, command/url, args preview, working directory, env key 이름, readiness check를 표시한다.
 - MCP process start, JSON-RPC handshake, tool registry 주입은 백엔드 정책상 보류 상태라 비활성 컨트롤로만 표시한다.
 
+### Ask RAG store 분리
+
+- `ask-store.ts`의 RAG 타입과 응답 정규화 로직을 `ask-rag.ts`로 분리했다.
+- `ask-store.ts`를 479줄에서 380줄로 줄여 500줄 계약 여유를 확보했다.
+- `AskPage`의 `row-actions`와 `MarkdownMessage` 마커는 유지했다.
+
 ## 다음 연결 후보
 
-- Ask/Insights store 파일 분리: `ask-store.ts`, `InsightsPage.tsx`가 500줄 제한에 가까워 다음 관련 작업 전 분리 필요.
+- Insights page/panel 분리: `InsightsPage.tsx`가 444줄이라 다음 Insights 기능 전 분리 필요.
 
 ## 주의
 
