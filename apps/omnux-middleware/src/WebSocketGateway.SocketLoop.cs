@@ -317,6 +317,16 @@ public sealed partial class WebSocketGateway
                     continue;
                 }
 
+                if (await _agentWorktreeCommandDispatcher.TryHandleAsync(
+                        message,
+                        socket,
+                        sendLock,
+                        cancellationToken
+                    ))
+                {
+                    continue;
+                }
+
                 if (await _mcpCommandDispatcher.TryHandleAsync(
                         message,
                         socket,

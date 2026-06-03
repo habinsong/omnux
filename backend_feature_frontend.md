@@ -565,6 +565,75 @@ OMNUX_AGENT_SPAWN_WORKTREE_MODE=auto|on|enabled|true|1
 - `worktree_path`는 로컬 절대 경로일 수 있으므로 일반 사용자용 카드에는 축약 표시하고, 복사 버튼은 디버그/개발자 화면에만 둔다.
 - merge/cherry-pick/cleanup 버튼은 아직 연결하지 않는다.
 
+### `agent_worktree_snapshot_get`
+
+에이전트 worktree inventory를 읽기 전용으로 조회한다.
+
+요청:
+
+```json
+{
+  "type": "agent_worktree_snapshot_get"
+}
+```
+
+응답:
+
+```json
+{
+  "type": "agent_worktree_snapshot",
+  "payload": {
+    "status": "dirty_worktrees",
+    "repositoryRoot": "/repo",
+    "worktreeRoot": "/home/user/.omnux/agent-worktrees",
+    "enabledFromEnvironment": true,
+    "readOnly": true,
+    "totalWorktreeCount": 2,
+    "cleanupCandidateCount": 1,
+    "worktrees": [
+      {
+        "name": "run123",
+        "path": "/home/user/.omnux/agent-worktrees/run123",
+        "status": "clean",
+        "pathExists": true,
+        "isGitWorktree": true,
+        "hasChanges": false,
+        "hasConflicts": false,
+        "branch": "",
+        "headShortHash": "abc1234",
+        "worktreeStatus": "",
+        "ageSeconds": 172800,
+        "lastWriteAgeSeconds": 172800,
+        "cleanupCandidate": true,
+        "cleanupReason": "clean_and_older_than_24h",
+        "mergeReadiness": {
+          "status": "ready_for_manual_review",
+          "blockers": []
+        }
+      }
+    ],
+    "checks": [],
+    "skipped": [
+      "git_worktree_remove",
+      "git_worktree_prune",
+      "git_merge",
+      "git_cherry_pick",
+      "filesystem_delete"
+    ],
+    "warnings": [],
+    "snapshotUtc": "2026-06-04T00:00:00Z"
+  }
+}
+```
+
+- `status=disabled`: env가 꺼져 있고 worktree root도 없는 기본 상태다.
+- `status=empty`: worktree root는 없거나 비어 있지만 기능 자체는 켤 수 있다.
+- `status=ok`: 모든 worktree가 clean이고 invalid/conflict가 없다.
+- `status=dirty_worktrees`: uncommitted change가 있는 worktree가 있다.
+- `status=review_required`: conflict 또는 git worktree가 아닌 디렉터리가 섞여 있다.
+- `cleanupCandidate=true`는 백엔드가 지워도 된다는 뜻이 아니라, clean + 24시간 이상 미사용 후보라는 표시다.
+- `readOnly=true`이고 `skipped`에 remove/prune/merge/cherry-pick/delete가 들어있는 동안 UI의 실행 버튼은 비활성 처리한다.
+
 ### `session_replay_get`
 
 세션 리플레이 타임라인을 조회한다.
@@ -1627,7 +1696,7 @@ agent bus를 시각화용 trace graph로 조회한다. 기존 agent bus 저장�
 - 그룹 제어 버튼은 우선 `agent_group_command`만 호출하고, 실제 강제 중단은 추후 백엔드 제어 훅이 추가된 뒤 연결한다.
 - MCP 설정 패널은 `mcp_servers_list`를 호출해 발견된 서버와 invalid/error config를 표시한다. `status=discovered`는 "연결 가능 후보"이지 "실행 중"이 아니다. `readiness.status=blocked`는 command/cwd/transport/URL 설정 오류로 표시하고, `remote_unverified`는 handshake 미실행 상태로 표시한다.
 - Commit learning 패널은 `commit_learning_snapshot_get`을 호출해 최근 커밋 intent 분포와 자주 바뀌는 파일 hotspot을 표시한다. intent는 heuristic이므로 자동 규칙 적용 근거가 아니라 관찰용으로 둔다.
-- Worktree isolation은 새 WS 타입이 없다. 세션 결과 note와 child session timeline의 `sessions_spawn_worktree_*` / `sessions_spawn_acp_dispatch` metadata를 읽어 표시한다.
+- Worktree isolation 운영 패널은 `agent_worktree_snapshot_get`으로 inventory를 조회한다. 세션 상세에서는 기존대로 `sessions_spawn_worktree_*` / `sessions_spawn_acp_dispatch` timeline도 함께 보여준다.
 - Git automation 패널은 `git_automation_snapshot_get`으로 현재 변경 파일, readiness, 커밋 메시지 초안을 표시한다. 실제 커밋/PR 버튼은 아직 백엔드 실행 API가 없으므로 비활성 상태로 둔다.
 - Self improvement 패널은 `self_improvement_snapshot_get`으로 workspace hygiene, 반복 bug_fix, hotspot review 제안을 표시한다. 모든 액션은 사용자 승인 UI가 생기기 전까지 보기 전용이다.
 - Local LLM 패널은 `local_llm_snapshot_get`으로 Ollama/LM Studio endpoint availability, 모델 목록, `offlineMode` readiness를 표시한다. 이 값은 라우팅 상태가 아니라 discovery/readiness로만 취급한다.
@@ -1642,7 +1711,7 @@ agent bus를 시각화용 trace graph로 조회한다. 기존 agent bus 저장�
 - 셀프 힐링 자동 kill/restart: 현재는 timeout/stale 감지와 상태 종료까지만 구현했다. 실제 프로세스 종료와 자동 재시작은 백엔드별 안전 정책이 필요해 별도 단계로 둔다.
 - Durable Workflow 자동 resume: 현재는 snapshot 저장과 recovery 후보 조회까지다. 중복 실행 방지와 side effect 정책이 정해진 뒤 재개 실행을 붙인다.
 - 세션 리플레이 append-only 결정 트리: 1차는 기존 저장소 조합 타임라인이다. LLM raw input/output, tool stdout/stderr 전체 저장은 개인정보/용량 정책이 필요해 보류한다.
-- Git worktree merge/cherry-pick/cleanup UI: 1차는 ACP 실행 CWD 격리까지만 구현했다. 완료 후 메인 브랜치 반영, 충돌 해결, 오래된 worktree 정리는 별도 백엔드 정책이 필요하다.
+- Git worktree merge/cherry-pick/cleanup 실행: 1차+는 ACP 실행 CWD 격리와 read-only inventory까지다. 완료 후 메인 브랜치 반영, 충돌 해결, 오래된 worktree 실제 제거는 별도 백엔드 정책이 필요하다.
 - 계층적 메모리 deep archive/cascading retrieval/ADR 저장소: 1차는 FTS score와 metadata 확장까지만 구현했다. 실제 접근 이벤트 수집과 ADR 데이터 모델은 별도 설계가 필요하다.
 - Tree-sitter/Repomap 본도입: 1차는 외부 의존성 없는 선언 경계 청킹과 read-only Repomap snapshot이다. 실제 AST parser, 언어별 grammar, Repomap 프롬프트 자동 주입은 별도 검증 후 붙인다.
 - MCP 서버 프로세스/JSON-RPC/tool registry 주입: 1차는 설정 discovery와 read-only readiness audit만 구현했다. 실제 실행은 서드파티 프로세스 권한/격리와 MCP handshake 정책이 필요해 보류한다.

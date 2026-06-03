@@ -25,7 +25,7 @@
 | 에이전트 간 메시지 패싱 | ✅ | `AgentCommunicationApplicationService`, `FileAgentCommunicationStore`, `WsAgentCommandDispatcher` |
 | 멀티 에이전트 Trace 시각화 | ✅ 1차 | `MultiAgentTraceSnapshotService`, `multi_agent_trace_snapshot_get` — agent bus 기반 agents/threads/edges/interventions 읽기 전용 투영 |
 | MCP 서버/클라이언트 | ✅ 1차+ | `McpConfigDiscoveryService`, `McpServerReadinessPolicy`, `mcp_servers_list` — 설정 discovery + read-only readiness audit, 프로세스/JSON-RPC는 보류 |
-| Git worktree 격리 | ✅ 1차 | `GitWorktreeIsolationManager`, `SessionSpawnTool` — ACP spawn opt-in worktree CWD 주입 |
+| Git worktree 격리 | ✅ 1차+ | `GitWorktreeIsolationManager`, `AgentWorktreeSnapshotService`, `agent_worktree_snapshot_get` — ACP spawn opt-in worktree CWD 주입 + 읽기 전용 inventory |
 | 셀프 힐링/워치독 | ✅ 1차 | `FileAgentSpawnActiveRunStore.EvaluateWatchdog`, 백그라운드 active-run timeout/stale 감지 |
 | 자동 커밋/PR 생성 | ✅ 1차 | `GitAutomationSnapshotService`, `git_automation_snapshot_get` — 읽기 전용 변경 감지/커밋 제안 |
 | Git 단위 타임머신 | ✅ 1차 | `GitTimeMachineSnapshotService`, `git_time_machine_snapshot_get` — 최근 체크포인트/롤백 readiness 읽기 전용 조회 |
@@ -400,7 +400,8 @@
 - ✅ 생성된 worktree 경로는 ACP dispatch payload의 `options.workspaceDirectory`로 전달되고, bundled Codex adapter는 해당 경로를 `codex exec -C` 기준 CWD로 사용한다.
 - ✅ child session timeline에 `sessions_spawn_worktree_ready` / `sessions_spawn_worktree_failed`와 `sessions_spawn_acp_dispatch` trace를 남긴다.
 - ✅ worktree 생성 실패 시 메인 workspace로 fallback하지 않고 spawn 실패로 처리한다. 격리 보장을 깨지 않기 위한 의도적 정책이다.
-- ⏳ 보류: 작업 완료 후 merge/cherry-pick, 자동 cleanup, ACP 외 subagent runtime 직접 연결, worktree 관리 UI.
+- ✅ `agent_worktree_snapshot_get`은 `<state>/agent-worktrees` 하위 worktree를 읽기 전용으로 나열하고 dirty/conflict/cleanup 후보를 반환한다.
+- ⏳ 보류: 작업 완료 후 merge/cherry-pick, 실제 자동 cleanup/remove/prune, ACP 외 subagent runtime 직접 연결.
 
 ### 개발 가이드 (Implementation Guide)
 - **대상 파일**: `SessionSpawnTool.cs`, `AcpSessionBindingAdapter.cs`, `tools/acp-adapter-codex-exec.js`
