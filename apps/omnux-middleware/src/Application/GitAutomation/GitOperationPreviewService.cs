@@ -13,16 +13,19 @@ internal sealed class GitOperationPreviewService
     private readonly string _repositoryRoot;
     private readonly FileGitOperationPreviewStore _previewStore;
     private readonly Func<DateTimeOffset> _utcNow;
+    private readonly string _githubCliExecutable;
 
     public GitOperationPreviewService(
         string repositoryRoot,
         FileGitOperationPreviewStore previewStore,
-        Func<DateTimeOffset>? utcNow = null
+        Func<DateTimeOffset>? utcNow = null,
+        string? githubCliExecutable = null
     )
     {
         _repositoryRoot = Path.GetFullPath(string.IsNullOrWhiteSpace(repositoryRoot) ? "." : repositoryRoot);
         _previewStore = previewStore;
         _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
+        _githubCliExecutable = string.IsNullOrWhiteSpace(githubCliExecutable) ? "gh" : githubCliExecutable;
     }
 
     public async Task<GitOperationPreviewResult> PreviewAsync(
@@ -76,6 +79,18 @@ internal sealed class GitOperationPreviewService
                 cancellationToken
             ).ConfigureAwait(false);
         }
+        else if (operation == GitOperationNames.OpenPullRequest)
+        {
+            normalizedRequest = await ValidateOpenPullRequestAsync(
+                normalizedRequest,
+                repository,
+                statusFiles,
+                checks,
+                blockers,
+                warnings,
+                cancellationToken
+            ).ConfigureAwait(false);
+        }
         else
         {
             ValidateCommitOperation(normalizedRequest, statusFiles, checks, blockers);
@@ -106,7 +121,11 @@ internal sealed class GitOperationPreviewService
             normalizedRequest.Paths,
             normalizedRequest.RemoteName,
             normalizedRequest.RemoteBranchName,
-            normalizedRequest.SetUpstream
+            normalizedRequest.SetUpstream,
+            normalizedRequest.PullRequestTitle,
+            normalizedRequest.PullRequestBody,
+            normalizedRequest.BaseBranchName,
+            normalizedRequest.Draft
         );
         var record = new GitOperationPreviewRecord(
             previewId,
@@ -201,6 +220,9 @@ internal sealed class GitOperationPreviewService
         var commitMessage = NormalizeCommitMessage(request.CommitMessage);
         var remoteName = (request.RemoteName ?? string.Empty).Trim();
         var remoteBranchName = (request.RemoteBranchName ?? string.Empty).Trim();
+        var pullRequestTitle = NormalizeSingleLine(request.PullRequestTitle);
+        var pullRequestBody = NormalizeMultiline(request.PullRequestBody);
+        var baseBranchName = (request.BaseBranchName ?? string.Empty).Trim();
         var paths = new List<string>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         if (operation is GitOperationNames.StageAndCommit or GitOperationNames.SnapshotCommit)
@@ -243,7 +265,11 @@ internal sealed class GitOperationPreviewService
             paths,
             remoteName,
             remoteBranchName,
-            request.SetUpstream
+            request.SetUpstream,
+            pullRequestTitle,
+            pullRequestBody,
+            baseBranchName,
+            request.Draft
         );
     }
 
@@ -419,6 +445,99 @@ internal sealed class GitOperationPreviewService
             RemoteName = remoteName,
             RemoteBranchName = remoteBranchName,
             SetUpstream = !upstream.HasUpstream
+        };
+    }
+
+    private async Task<GitOperationPreviewRequest> ValidateOpenPullRequestAsync(
+        GitOperationPreviewRequest request,
+        RepositoryState repository,
+        IReadOnlyList<GitOperationAffectedFile> statusFiles,
+        List<GitOperationCheck> checks,
+        List<string> blockers,
+        List<string> warnings,
+        CancellationToken cancellationToken
+    )
+    {
+        if (repository.BranchName == "HEAD" || string.IsNullOrWhiteSpace(repository.BranchName))
+        {
+            AddBlocked(checks, blockers, "detached_head", "detached HEAD 상태에서는 PR을 만들 수 없습니다.");
+            return request;
+        }
+
+        if (IsProtectedBranch(repository.BranchName))
+        {
+            AddBlocked(checks, blockers, "protected_branch_pull_request", "보호 브랜치에서는 PR 생성 operation을 허용하지 않습니다.");
+        }
+        else
+        {
+            checks.Add(new GitOperationCheck("protected_branch", "passed", "보호 브랜치가 아닙니다."));
+        }
+
+        if (string.IsNullOrWhiteSpace(request.PullRequestTitle))
+        {
+            AddBlocked(checks, blockers, "pull_request_title_required", "PR 제목이 필요합니다.");
+        }
+        else
+        {
+            checks.Add(new GitOperationCheck("pull_request_title", "passed", "PR 제목 확인 완료"));
+        }
+
+        var remotes = await ReadRemoteNamesAsync(cancellationToken).ConfigureAwait(false);
+        if (remotes.Count == 0)
+        {
+            AddBlocked(checks, blockers, "no_remote", "설정된 git remote가 없습니다.");
+            return request;
+        }
+
+        var upstream = await ReadUpstreamAsync(remotes, cancellationToken).ConfigureAwait(false);
+        if (!upstream.HasUpstream)
+        {
+            AddBlocked(checks, blockers, "branch_not_pushed", "PR 생성 전에 현재 브랜치를 remote에 push해야 합니다.");
+            return request;
+        }
+
+        if (upstream.BehindCount > 0)
+        {
+            AddBlocked(checks, blockers, "branch_behind_remote", "현재 브랜치가 upstream보다 뒤처져 있습니다.");
+        }
+
+        if (upstream.AheadCount > 0)
+        {
+            AddBlocked(checks, blockers, "branch_has_unpushed_commits", "PR 생성 전에 push하지 않은 커밋이 있습니다.");
+        }
+
+        if (upstream.BehindCount == 0 && upstream.AheadCount == 0)
+        {
+            checks.Add(new GitOperationCheck("upstream_synced", "passed", "현재 브랜치와 upstream이 동기화되어 있습니다."));
+        }
+
+        var baseBranchName = ResolvePullRequestBaseBranch(request.BaseBranchName);
+        if (string.IsNullOrWhiteSpace(baseBranchName))
+        {
+            AddBlocked(checks, blockers, "base_branch_required", "PR base branch가 필요합니다.");
+        }
+        else if (!IsSafeBranchNameShape(baseBranchName))
+        {
+            AddBlocked(checks, blockers, "invalid_base_branch_name", "base branch 이름 형식이 안전하지 않습니다.");
+        }
+        else
+        {
+            checks.Add(new GitOperationCheck("base_branch", "passed", $"base branch '{baseBranchName}' 확인 완료"));
+        }
+
+        await ValidateGitHubCliAsync(checks, blockers, cancellationToken).ConfigureAwait(false);
+
+        if (statusFiles.Count > 0)
+        {
+            warnings.Add("dirty_worktree");
+            checks.Add(new GitOperationCheck("dirty_worktree", "warning", "커밋되지 않은 변경은 PR 대상에 포함되지 않습니다."));
+        }
+
+        return request with
+        {
+            RemoteName = upstream.RemoteName,
+            RemoteBranchName = upstream.BranchName,
+            BaseBranchName = baseBranchName
         };
     }
 
@@ -627,6 +746,11 @@ internal sealed class GitOperationPreviewService
             return statusFiles;
         }
 
+        if (operation == GitOperationNames.OpenPullRequest)
+        {
+            return statusFiles;
+        }
+
         var selected = new HashSet<string>(paths, StringComparer.Ordinal);
         return statusFiles.Where(file => selected.Contains(file.Path)).ToArray();
     }
@@ -643,6 +767,12 @@ internal sealed class GitOperationPreviewService
         {
             var args = BuildPushArguments(request);
             return new[] { new GitOperationPlannedCommand("git", args, BuildDisplay(args)) };
+        }
+
+        if (request.Operation == GitOperationNames.OpenPullRequest)
+        {
+            var args = BuildPullRequestArguments(request);
+            return new[] { new GitOperationPlannedCommand("gh", args, BuildDisplay("gh", args)) };
         }
 
         var addArgs = new List<string> { "add", "--" };
@@ -665,6 +795,30 @@ internal sealed class GitOperationPreviewService
 
         args.Add(request.RemoteName);
         args.Add($"HEAD:{request.RemoteBranchName}");
+        return args;
+    }
+
+    private static IReadOnlyList<string> BuildPullRequestArguments(GitOperationPreviewRequest request)
+    {
+        var args = new List<string>
+        {
+            "pr",
+            "create",
+            "--base",
+            request.BaseBranchName,
+            "--head",
+            request.RemoteBranchName,
+            "--title",
+            request.PullRequestTitle,
+            "--body",
+            request.PullRequestBody
+        };
+
+        if (request.Draft)
+        {
+            args.Add("--draft");
+        }
+
         return args;
     }
 
@@ -787,6 +941,38 @@ internal sealed class GitOperationPreviewService
         return upstream.HasUpstream ? upstream.BranchName : currentBranchName;
     }
 
+    private static string ResolvePullRequestBaseBranch(string requestedBaseBranchName)
+    {
+        return string.IsNullOrWhiteSpace(requestedBaseBranchName)
+            ? string.Empty
+            : requestedBaseBranchName.Trim();
+    }
+
+    private async Task ValidateGitHubCliAsync(
+        List<GitOperationCheck> checks,
+        List<string> blockers,
+        CancellationToken cancellationToken
+    )
+    {
+        var version = await RunGhAsync(new[] { "--version" }, cancellationToken).ConfigureAwait(false);
+        if (version.ExitCode != 0)
+        {
+            AddBlocked(checks, blockers, "missing_github_cli", "GitHub CLI(gh)를 실행할 수 없습니다.");
+            return;
+        }
+
+        checks.Add(new GitOperationCheck("github_cli", "passed", "gh --version 확인 완료"));
+
+        var auth = await RunGhAsync(new[] { "auth", "status" }, cancellationToken).ConfigureAwait(false);
+        if (auth.ExitCode != 0)
+        {
+            AddBlocked(checks, blockers, "github_auth_unavailable", "gh auth status가 실패했습니다.");
+            return;
+        }
+
+        checks.Add(new GitOperationCheck("github_auth", "passed", "gh auth status 확인 완료"));
+    }
+
     private async Task<IReadOnlyList<GitOperationAffectedFile>> ReadStatusAsync(CancellationToken cancellationToken)
     {
         var status = await RunGitAsync(new[] { "status", "--porcelain=v1", "-uall" }, cancellationToken)
@@ -815,6 +1001,20 @@ internal sealed class GitOperationPreviewService
     {
         return GitAutomationProcessRunner.RunGitAsync(
             _repositoryRoot,
+            arguments,
+            GitTimeoutSeconds,
+            cancellationToken
+        );
+    }
+
+    private Task<GitAutomationProcessResult> RunGhAsync(
+        IReadOnlyList<string> arguments,
+        CancellationToken cancellationToken
+    )
+    {
+        return GitAutomationProcessRunner.RunAsync(
+            _repositoryRoot,
+            _githubCliExecutable,
             arguments,
             GitTimeoutSeconds,
             cancellationToken
@@ -981,6 +1181,23 @@ internal sealed class GitOperationPreviewService
             .Trim();
     }
 
+    private static string NormalizeSingleLine(string value)
+    {
+        return (value ?? string.Empty)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault() ?? string.Empty;
+    }
+
+    private static string NormalizeMultiline(string value)
+    {
+        return (value ?? string.Empty)
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Trim();
+    }
+
     private static bool IsSafeBranchNameShape(string branchName)
     {
         if (string.IsNullOrWhiteSpace(branchName) || branchName.Length > MaxBranchNameLength)
@@ -1074,7 +1291,12 @@ internal sealed class GitOperationPreviewService
 
     private static string BuildDisplay(IReadOnlyList<string> arguments)
     {
-        return "git " + string.Join(" ", arguments.Select(QuoteArgument));
+        return BuildDisplay("git", arguments);
+    }
+
+    private static string BuildDisplay(string executable, IReadOnlyList<string> arguments)
+    {
+        return executable + " " + string.Join(" ", arguments.Select(QuoteArgument));
     }
 
     private static string QuoteArgument(string argument)

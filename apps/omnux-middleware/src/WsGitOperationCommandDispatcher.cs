@@ -84,7 +84,11 @@ internal sealed class WsGitOperationCommandDispatcher
                 ReadStringArray(root, "paths", "selectedPaths"),
                 ReadString(root, "remoteName"),
                 ReadString(root, "remoteBranchName"),
-                ReadBool(root, "setUpstream") ?? false
+                ReadBool(root, "setUpstream") ?? false,
+                ReadString(root, "pullRequestTitle"),
+                ReadString(root, "pullRequestBody"),
+                ReadString(root, "baseBranchName"),
+                ReadBool(root, "draft") ?? false
             );
             return true;
         }

@@ -521,6 +521,166 @@ public sealed class GitOperationPreviewServiceTests
     }
 
     [Fact]
+    public async Task OpenPullRequestPreviewAndApplyUsesGitHubCli()
+    {
+        var parent = CreateTempRoot();
+        var root = Path.Combine(parent, "repo");
+        var remoteRoot = Path.Combine(parent, "remote.git");
+        try
+        {
+            Directory.CreateDirectory(root);
+            InitializeRepository(root);
+            var fakeGh = CreateFakeGh(parent, authOk: true);
+            await WriteTextAsync(root, "README.md", "readme\n");
+            RunGit(root, "add", "README.md");
+            RunGit(root, "commit", "-m", "docs: seed");
+            RunGit(root, "branch", "-M", "main");
+            RunGit(root, "init", "--bare", remoteRoot);
+            RunGit(root, "remote", "add", "origin", remoteRoot);
+            RunGit(root, "push", "-u", "origin", "HEAD:main");
+            RunGit(root, "checkout", "-b", "codex/pr-create");
+            await WriteTextAsync(root, "feature.txt", "feature\n");
+            RunGit(root, "add", "feature.txt");
+            RunGit(root, "commit", "-m", "test: add feature");
+            RunGit(root, "push", "-u", "origin", "HEAD:codex/pr-create");
+
+            var service = BuildService(root, out _, fakeGh);
+            var preview = await service.PreviewAsync(
+                new GitOperationPreviewRequest(
+                    GitOperationNames.OpenPullRequest,
+                    string.Empty,
+                    string.Empty,
+                    Array.Empty<string>(),
+                    PullRequestTitle: "test: add feature",
+                    PullRequestBody: "Body",
+                    BaseBranchName: "main"
+                ),
+                CancellationToken.None
+            );
+
+            Assert.True(preview.Ok);
+            Assert.NotNull(preview.Approval);
+            Assert.Equal("origin", preview.Approval!.RemoteName);
+            Assert.Equal("codex/pr-create", preview.Approval.RemoteBranchName);
+            Assert.Equal("main", preview.Approval.BaseBranchName);
+            Assert.Contains(preview.PlannedCommands, command => command.Display.Contains("gh pr create", StringComparison.Ordinal));
+
+            var apply = await service.ApplyAsync(
+                new GitOperationApplyRequest(preview.PreviewId, preview.Approval.ConfirmationToken, string.Empty),
+                new GitOperationExecutor(root, fakeGh),
+                CancellationToken.None
+            );
+
+            Assert.True(apply.Ok);
+            Assert.Contains(apply.ExecutedCommands, command =>
+                command.Executable == "gh"
+                && command.StdOut.Contains("https://github.example/owner/repo/pull/1", StringComparison.Ordinal)
+            );
+        }
+        finally
+        {
+            DeleteTempRoot(parent);
+        }
+    }
+
+    [Fact]
+    public async Task OpenPullRequestPreviewBlocksUnpushedCommits()
+    {
+        var parent = CreateTempRoot();
+        var root = Path.Combine(parent, "repo");
+        var remoteRoot = Path.Combine(parent, "remote.git");
+        try
+        {
+            Directory.CreateDirectory(root);
+            InitializeRepository(root);
+            var fakeGh = CreateFakeGh(parent, authOk: true);
+            await WriteTextAsync(root, "README.md", "readme\n");
+            RunGit(root, "add", "README.md");
+            RunGit(root, "commit", "-m", "docs: seed");
+            RunGit(root, "branch", "-M", "main");
+            RunGit(root, "init", "--bare", remoteRoot);
+            RunGit(root, "remote", "add", "origin", remoteRoot);
+            RunGit(root, "push", "-u", "origin", "HEAD:main");
+            RunGit(root, "checkout", "-b", "codex/pr-unpushed");
+            await WriteTextAsync(root, "feature.txt", "feature\n");
+            RunGit(root, "add", "feature.txt");
+            RunGit(root, "commit", "-m", "test: add feature");
+            RunGit(root, "push", "-u", "origin", "HEAD:codex/pr-unpushed");
+            await WriteTextAsync(root, "unpushed.txt", "local\n");
+            RunGit(root, "add", "unpushed.txt");
+            RunGit(root, "commit", "-m", "test: unpushed");
+
+            var service = BuildService(root, out _, fakeGh);
+            var preview = await service.PreviewAsync(
+                new GitOperationPreviewRequest(
+                    GitOperationNames.OpenPullRequest,
+                    string.Empty,
+                    string.Empty,
+                    Array.Empty<string>(),
+                    PullRequestTitle: "test: add feature",
+                    PullRequestBody: "Body",
+                    BaseBranchName: "main"
+                ),
+                CancellationToken.None
+            );
+
+            Assert.False(preview.Ok);
+            Assert.Contains("branch_has_unpushed_commits", preview.Blockers);
+        }
+        finally
+        {
+            DeleteTempRoot(parent);
+        }
+    }
+
+    [Fact]
+    public async Task OpenPullRequestPreviewBlocksMissingGitHubAuth()
+    {
+        var parent = CreateTempRoot();
+        var root = Path.Combine(parent, "repo");
+        var remoteRoot = Path.Combine(parent, "remote.git");
+        try
+        {
+            Directory.CreateDirectory(root);
+            InitializeRepository(root);
+            var fakeGh = CreateFakeGh(parent, authOk: false);
+            await WriteTextAsync(root, "README.md", "readme\n");
+            RunGit(root, "add", "README.md");
+            RunGit(root, "commit", "-m", "docs: seed");
+            RunGit(root, "branch", "-M", "main");
+            RunGit(root, "init", "--bare", remoteRoot);
+            RunGit(root, "remote", "add", "origin", remoteRoot);
+            RunGit(root, "push", "-u", "origin", "HEAD:main");
+            RunGit(root, "checkout", "-b", "codex/pr-auth");
+            await WriteTextAsync(root, "feature.txt", "feature\n");
+            RunGit(root, "add", "feature.txt");
+            RunGit(root, "commit", "-m", "test: add feature");
+            RunGit(root, "push", "-u", "origin", "HEAD:codex/pr-auth");
+
+            var service = BuildService(root, out _, fakeGh);
+            var preview = await service.PreviewAsync(
+                new GitOperationPreviewRequest(
+                    GitOperationNames.OpenPullRequest,
+                    string.Empty,
+                    string.Empty,
+                    Array.Empty<string>(),
+                    PullRequestTitle: "test: add feature",
+                    PullRequestBody: "Body",
+                    BaseBranchName: "main"
+                ),
+                CancellationToken.None
+            );
+
+            Assert.False(preview.Ok);
+            Assert.Contains("github_auth_unavailable", preview.Blockers);
+        }
+        finally
+        {
+            DeleteTempRoot(parent);
+        }
+    }
+
+    [Fact]
     public void WsDispatcherParsesPreviewPayloadAndFailsClosedApplyWithoutPreviewId()
     {
         var ok = WsGitOperationCommandDispatcher.TryBuildPreviewRequest(
@@ -553,10 +713,14 @@ public sealed class GitOperationPreviewServiceTests
         Assert.Equal("previewId is required", applyError);
     }
 
-    private static GitOperationPreviewService BuildService(string root, out FileGitOperationPreviewStore store)
+    private static GitOperationPreviewService BuildService(
+        string root,
+        out FileGitOperationPreviewStore store,
+        string? githubCliExecutable = null
+    )
     {
         store = new FileGitOperationPreviewStore(Path.Combine(root, ".git", "omnux-test-state", "git_operation_previews.json"));
-        return new GitOperationPreviewService(root, store);
+        return new GitOperationPreviewService(root, store, githubCliExecutable: githubCliExecutable);
     }
 
     private static void InitializeRepository(string root)
@@ -593,6 +757,69 @@ public sealed class GitOperationPreviewServiceTests
         var path = Path.Combine(root, relativePath);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         return File.WriteAllTextAsync(path, content);
+    }
+
+    private static string CreateFakeGh(string root, bool authOk)
+    {
+        var path = OperatingSystem.IsWindows()
+            ? Path.Combine(root, "fake-gh.cmd")
+            : Path.Combine(root, "fake-gh");
+        var content = OperatingSystem.IsWindows()
+            ? BuildFakeGhWindowsScript(authOk)
+            : BuildFakeGhUnixScript(authOk);
+        File.WriteAllText(path, content);
+        if (!OperatingSystem.IsWindows())
+        {
+            File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
+
+        return path;
+    }
+
+    private static string BuildFakeGhUnixScript(bool authOk)
+    {
+        var authBlock = authOk
+            ? "echo 'Logged in to github.com'; exit 0"
+            : "echo 'not logged in' >&2; exit 1";
+        return $"""
+                #!/bin/sh
+                if [ "$1" = "--version" ]; then
+                  echo "gh version fake"
+                  exit 0
+                fi
+                if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
+                  {authBlock}
+                fi
+                if [ "$1" = "pr" ] && [ "$2" = "create" ]; then
+                  echo "https://github.example/owner/repo/pull/1"
+                  exit 0
+                fi
+                echo "unexpected gh args: $*" >&2
+                exit 1
+                """;
+    }
+
+    private static string BuildFakeGhWindowsScript(bool authOk)
+    {
+        var authBlock = authOk
+            ? "echo Logged in to github.com\r\nexit /b 0"
+            : "echo not logged in 1>&2\r\nexit /b 1";
+        return $"""
+                @echo off
+                if "%1"=="--version" (
+                  echo gh version fake
+                  exit /b 0
+                )
+                if "%1"=="auth" if "%2"=="status" (
+                  {authBlock}
+                )
+                if "%1"=="pr" if "%2"=="create" (
+                  echo https://github.example/owner/repo/pull/1
+                  exit /b 0
+                )
+                echo unexpected gh args: %* 1>&2
+                exit /b 1
+                """;
     }
 
     private static string RunGit(string root, params string[] arguments)

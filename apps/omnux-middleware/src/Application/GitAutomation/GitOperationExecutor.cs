@@ -5,10 +5,12 @@ internal sealed class GitOperationExecutor
     private const int GitTimeoutSeconds = 20;
 
     private readonly string _repositoryRoot;
+    private readonly string _githubCliExecutable;
 
-    public GitOperationExecutor(string repositoryRoot)
+    public GitOperationExecutor(string repositoryRoot, string? githubCliExecutable = null)
     {
         _repositoryRoot = Path.GetFullPath(string.IsNullOrWhiteSpace(repositoryRoot) ? "." : repositoryRoot);
+        _githubCliExecutable = string.IsNullOrWhiteSpace(githubCliExecutable) ? "gh" : githubCliExecutable;
     }
 
     public async Task<GitOperationApplyResult> ExecuteAsync(
@@ -28,6 +30,10 @@ internal sealed class GitOperationExecutor
             {
                 BuildPushCommandSet(record)
             },
+            GitOperationNames.OpenPullRequest => new[]
+            {
+                BuildPullRequestCommandSet(record)
+            },
             _ => Array.Empty<IReadOnlyList<string>>()
         };
 
@@ -44,9 +50,10 @@ internal sealed class GitOperationExecutor
 
         foreach (var arguments in commandSets)
         {
-            var result = await RunGitAsync(arguments, cancellationToken).ConfigureAwait(false);
+            var executable = ResolveExecutable(record.Operation);
+            var result = await RunCommandAsync(executable, arguments, cancellationToken).ConfigureAwait(false);
             executed.Add(new GitOperationExecutedCommand(
-                "git",
+                executable == _githubCliExecutable ? "gh" : executable,
                 arguments,
                 result.ExitCode,
                 result.StdOut.Trim(),
@@ -102,6 +109,35 @@ internal sealed class GitOperationExecutor
         return args;
     }
 
+    private static IReadOnlyList<string> BuildPullRequestCommandSet(GitOperationPreviewRecord record)
+    {
+        var args = new List<string>
+        {
+            "pr",
+            "create",
+            "--base",
+            record.Request.BaseBranchName,
+            "--head",
+            record.Request.RemoteBranchName,
+            "--title",
+            record.Request.PullRequestTitle,
+            "--body",
+            record.Request.PullRequestBody
+        };
+
+        if (record.Request.Draft)
+        {
+            args.Add("--draft");
+        }
+
+        return args;
+    }
+
+    private string ResolveExecutable(string operation)
+    {
+        return operation == GitOperationNames.OpenPullRequest ? _githubCliExecutable : "git";
+    }
+
     private static GitOperationApplyResult BuildFailure(
         GitOperationPreviewRecord record,
         string blocker,
@@ -154,5 +190,22 @@ internal sealed class GitOperationExecutor
             GitTimeoutSeconds,
             cancellationToken
         );
+    }
+
+    private Task<GitAutomationProcessResult> RunCommandAsync(
+        string executable,
+        IReadOnlyList<string> arguments,
+        CancellationToken cancellationToken
+    )
+    {
+        return executable == "git"
+            ? RunGitAsync(arguments, cancellationToken)
+            : GitAutomationProcessRunner.RunAsync(
+                _repositoryRoot,
+                executable,
+                arguments,
+                GitTimeoutSeconds,
+                cancellationToken
+            );
     }
 }

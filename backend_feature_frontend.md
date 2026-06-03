@@ -6,9 +6,8 @@
 
 | lane | 대상 | 현재 판단 | 프론트 연결 기준 |
 |---|---|---|---|
-| `unlock_now` | Git operation: `create_branch`, `stage_and_commit`, `snapshot_commit`, `push_current_branch` | 공통 `preview → apply` 승인 게이트로 해제 | `git_operation_preview` 성공, `blockers=[]`, `requiresApproval=true`일 때만 apply 버튼 활성화 |
+| `unlock_now` | Git operation: `create_branch`, `stage_and_commit`, `snapshot_commit`, `push_current_branch`, `open_pull_request` | 공통 `preview → apply` 승인 게이트로 해제 | `git_operation_preview` 성공, `blockers=[]`, `requiresApproval=true`일 때만 apply 버튼 활성화 |
 | `unlock_now` | Git automation snapshot/readiness | 기존 read-only 조회 유지 | 변경 파일, 커밋 메시지 초안, remote readiness 표시. 실행은 `git_operation_*`로만 연결 |
-| `policy_required` | `open_pull_request` | GitHub auth/network/본문 생성 정책 필요 | PR 버튼은 표시 가능하지만 disabled. `publishReadiness`와 blocker만 보여준다 |
 | `policy_required` | `worktree_remove`, worktree cleanup/prune | 삭제/정리 정책 필요 | `agent_worktree_snapshot_get` inventory만 표시 |
 | `policy_required` | `rollback_checkpoint`, `git reset --hard`, `git clean -fd` | 파괴적 롤백 정책 필요 | `git_time_machine_snapshot_get` rollback 후보만 표시 |
 | `policy_required` | MCP 프로세스/JSON-RPC/tool registry 주입 | 서드파티 프로세스 격리/권한 정책 필요 | `mcp_servers_list` readiness만 표시 |
@@ -1288,7 +1287,7 @@ workspace 코드 구조 지도를 조회한다. 외부 parser나 LLM 호출 없�
 
 ### `git_operation_preview` / `git_operation_apply`
 
-Git operation을 `preview → apply` 승인 게이트로 실행한다. 현재 허용 operation은 `create_branch`, `stage_and_commit`, `snapshot_commit`, `push_current_branch`다.
+Git operation을 `preview → apply` 승인 게이트로 실행한다. 현재 허용 operation은 `create_branch`, `stage_and_commit`, `snapshot_commit`, `push_current_branch`, `open_pull_request`다.
 
 Preview 요청 예시:
 
@@ -1330,6 +1329,19 @@ Preview 요청 예시:
   "operation": "push_current_branch",
   "remoteName": "origin",
   "remoteBranchName": "codex/git-operation-gate"
+}
+```
+
+PR 생성 preview:
+
+```json
+{
+  "type": "git_operation_preview",
+  "operation": "open_pull_request",
+  "baseBranchName": "main",
+  "pullRequestTitle": "feat: add git operation gate",
+  "pullRequestBody": "Summary\n- add approval-gated git operations",
+  "draft": true
 }
 ```
 
@@ -1389,7 +1401,11 @@ Preview 응답:
       ],
       "remoteName": "",
       "remoteBranchName": "",
-      "setUpstream": false
+      "setUpstream": false,
+      "pullRequestTitle": "",
+      "pullRequestBody": "",
+      "baseBranchName": "",
+      "draft": false
     }
   }
 }
@@ -1425,7 +1441,11 @@ Apply 요청은 `previewId`만으로는 실패한다. 다음 둘 중 하나를 �
     ],
     "remoteName": "",
     "remoteBranchName": "",
-    "setUpstream": false
+    "setUpstream": false,
+    "pullRequestTitle": "",
+    "pullRequestBody": "",
+    "baseBranchName": "",
+    "draft": false
   }
 }
 ```
@@ -1470,6 +1490,9 @@ Apply 응답:
 - upstream 없는 최초 push는 `codex/` 브랜치만 허용하고 planned command에 `git push -u <remote> HEAD:<branch>`가 표시된다.
 - upstream이 있으면 behind 상태, push할 커밋 없음, 기존 upstream과 다른 target을 차단한다.
 - `warnings`에 `dirty_worktree`가 있으면 커밋되지 않은 변경은 push 대상이 아니라는 확인 문구를 보여준다.
+- `open_pull_request`는 preview에서 `gh --version`과 `gh auth status`를 실행한다. 실패하면 `missing_github_cli` 또는 `github_auth_unavailable` blocker가 온다.
+- `open_pull_request`는 upstream과 동기화된 현재 브랜치에서만 열린다. unpushed commit, behind 상태, detached/protected branch는 차단된다.
+- `open_pull_request`는 `baseBranchName`과 `pullRequestTitle`이 필요하다. 본문은 빈 문자열도 가능하며 `draft=true`면 planned command에 `--draft`가 붙는다.
 
 ### `git_time_machine_snapshot_get`
 
@@ -2086,7 +2109,7 @@ agent bus를 시각화용 trace graph로 조회한다. 기존 agent bus 저장�
 - MCP 설정 패널은 `mcp_servers_list`를 호출해 발견된 서버와 invalid/error config를 표시한다. `status=discovered`는 "연결 가능 후보"이지 "실행 중"이 아니다. `readiness.status=blocked`는 command/cwd/transport/URL 설정 오류로 표시하고, `remote_unverified`는 handshake 미실행 상태로 표시한다.
 - Commit learning 패널은 `commit_learning_snapshot_get`을 호출해 최근 커밋 intent 분포와 자주 바뀌는 파일 hotspot을 표시한다. intent는 heuristic이므로 자동 규칙 적용 근거가 아니라 관찰용으로 둔다.
 - Worktree isolation 운영 패널은 `agent_worktree_snapshot_get`으로 inventory를 조회한다. 세션 상세에서는 기존대로 `sessions_spawn_worktree_*` / `sessions_spawn_acp_dispatch` timeline도 함께 보여준다.
-- Git automation 패널은 `git_automation_snapshot_get`으로 현재 변경 파일, readiness, 커밋 메시지 초안을 표시한다. local branch/commit/push 버튼은 `git_operation_preview` 성공 후 `git_operation_apply`로 연결하고, PR 버튼은 아직 비활성 상태로 둔다.
+- Git automation 패널은 `git_automation_snapshot_get`으로 현재 변경 파일, readiness, 커밋 메시지 초안을 표시한다. branch/commit/push/PR 버튼은 `git_operation_preview` 성공 후 `git_operation_apply`로 연결한다.
 - Self improvement 패널은 `self_improvement_snapshot_get`으로 workspace hygiene, 반복 bug_fix, hotspot review 제안을 표시한다. 모든 액션은 사용자 승인 UI가 생기기 전까지 보기 전용이다.
 - Local LLM 패널은 `local_llm_snapshot_get`으로 Ollama/LM Studio endpoint availability, 모델 목록, `offlineMode` readiness를 표시한다. 이 값은 라우팅 상태가 아니라 discovery/readiness로만 취급한다.
 - Semantic Search 패널은 `semantic_search_readiness_get`으로 FTS, sqlite-vec, local embedding 후보를 표시한다. `status=fts_ast_primary`는 정상 기본값이며 오류가 아니다.
@@ -2107,7 +2130,7 @@ agent bus를 시각화용 trace graph로 조회한다. 기존 agent bus 저장�
 - LLM 기반 Self-RAG judge와 retrieved context 자동 주입: 1차는 deterministic preflight만 제공한다. 실제 검색 실행과 프롬프트 주입은 비용/품질/보안 정책을 분리한 뒤 붙인다.
 - MCP 서버 프로세스/JSON-RPC/tool registry 주입: 1차는 설정 discovery와 read-only readiness audit만 구현했다. 실제 실행은 서드파티 프로세스 권한/격리와 MCP handshake 정책이 필요해 보류한다.
 - 커밋 히스토리 LLM 학습/자동 주입: 1차는 읽기 전용 snapshot이다. LLM 요약, memory/skill 자동 저장, nightly 자기 개선은 사용자 변경 오염 위험이 있어 보류한다.
-- 자동 PR 실행: `create_branch`, `stage_and_commit`, `snapshot_commit`, `push_current_branch`는 승인 게이트로 열었다. `gh pr create`, GitHub auth/network 확인, PR 본문 생성, 자동 완료 훅은 별도 정책이 필요해 보류한다.
+- 자동 완료 훅/LLM 생성: `create_branch`, `stage_and_commit`, `snapshot_commit`, `push_current_branch`, `open_pull_request`는 승인 게이트로 열었다. 코딩 완료 시 자동 호출, LLM 커밋 메시지/PR 본문 생성은 별도 정책이 필요해 보류한다.
 - Nightly 자기 개선 자동 실행: 1차는 read-only proposal snapshot만 제공한다. 실제 야간 루틴 등록, LLM 선호도 분석, `SKILL.md` 자동 갱신은 사용자 승인/충돌 정책이 필요하다.
 - Local LLM 실제 라우팅/오프라인 차단: 1차는 endpoint/model discovery와 오프라인 모드 readiness audit만 제공한다. `LocalLlmProvider`, cloud provider 차단, fallback 라우팅, 모델 warmup은 기존 LLM 호출 경로 영향이 커서 별도 단계로 둔다.
 - Terminal PTY 세션/명령 스트리밍/자동 repair loop: 1차는 shell/toolchain capability snapshot만 제공한다. 실제 host terminal 제어는 안전 정책, 로그 보관, 취소/timeout, 승인 흐름이 필요해 별도 단계로 둔다.
