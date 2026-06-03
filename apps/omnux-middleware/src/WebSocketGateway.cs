@@ -83,6 +83,7 @@ public sealed partial class WebSocketGateway
     private readonly WsDoctorCommandDispatcher _doctorCommandDispatcher;
     private readonly WsPlanningCommandDispatcher _planningCommandDispatcher;
     private readonly WsTaskCommandDispatcher _taskCommandDispatcher;
+    private readonly WsTelemetryCommandDispatcher _telemetryCommandDispatcher;
     private readonly WsAgentCommandDispatcher _agentCommandDispatcher;
     private readonly WsRefactorCommandDispatcher _refactorCommandDispatcher;
     private readonly WsContextCommandDispatcher _contextCommandDispatcher;
@@ -145,6 +146,7 @@ public sealed partial class WebSocketGateway
         IDoctorApplicationService doctorService,
         IPlanningApplicationService planService,
         ITaskGraphApplicationService taskGraphService,
+        ITelemetryApplicationService telemetryService,
         IAgentCommunicationApplicationService agentCommunicationService,
         IRefactorApplicationService refactorService,
         IContextApplicationService contextService,
@@ -258,6 +260,9 @@ public sealed partial class WebSocketGateway
         );
         _taskCommandDispatcher = new WsTaskCommandDispatcher(
             taskGraphService
+        );
+        _telemetryCommandDispatcher = new WsTelemetryCommandDispatcher(
+            telemetryService
         );
         _agentCommandDispatcher = new WsAgentCommandDispatcher(
             agentCommunicationService

@@ -16,6 +16,61 @@ public sealed partial class CommandService
         Action<string>? streamCallback = null
     )
     {
+        var safeInput = input ?? string.Empty;
+        var normalized = NormalizeProvider(provider, allowAuto: false);
+        var requestedMaxOutputTokens = Math.Max(256, maxOutputTokens ?? _context.ChatMaxOutputTokens);
+        var requestedModel = normalized == "groq"
+            ? ResolveGroqModelForInput(safeInput, model)
+            : ResolveProviderModel(normalized, model);
+        using var telemetry = _telemetryTracer.StartLlmCall(new TelemetryLlmCallRequest(
+            normalized,
+            requestedModel,
+            safeInput.Length,
+            requestedMaxOutputTokens,
+            streamCallback != null,
+            "command_service"
+        ));
+
+        try
+        {
+            var result = await GenerateByProviderCoreAsync(
+                normalized,
+                model,
+                safeInput,
+                cancellationToken,
+                maxOutputTokens,
+                useRawCodexPrompt,
+                codexWorkingDirectoryOverride,
+                optimizeCodexForCoding,
+                streamCallback
+            );
+            telemetry.Complete(result.Provider, result.Model, result.Text, result.TokenUsage);
+            return result;
+        }
+        catch (OperationCanceledException ex)
+        {
+            telemetry.Fail(normalized, requestedModel, "timeout", ex.Message);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            telemetry.Fail(normalized, requestedModel, "error", ex.Message);
+            throw;
+        }
+    }
+
+    private async Task<LlmSingleChatResult> GenerateByProviderCoreAsync(
+        string provider,
+        string? model,
+        string input,
+        CancellationToken cancellationToken,
+        int? maxOutputTokens = null,
+        bool useRawCodexPrompt = false,
+        string? codexWorkingDirectoryOverride = null,
+        bool optimizeCodexForCoding = false,
+        Action<string>? streamCallback = null
+    )
+    {
         var normalized = NormalizeProvider(provider, allowAuto: false);
         var requestedMaxOutputTokens = Math.Max(256, maxOutputTokens ?? _context.ChatMaxOutputTokens);
         _llmRouter.ClearLastResponseTokenUsage();
