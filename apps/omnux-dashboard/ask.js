@@ -59,31 +59,77 @@
     );
   }
 
-  function RecentConversations({ ctx, conversations, onOpen }) {
+  function ConversationRow({ item, onOpen, onRename, onSaveMemory, onDelete }) {
+    return React.createElement("div", { className: "row", style: { display: "flex", alignItems: "center", gap: 8 } },
+      React.createElement("button", {
+        onClick: () => onOpen(item),
+        style: { flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 10, background: "transparent", border: "none", textAlign: "left", cursor: "pointer", padding: 0 },
+      },
+        React.createElement("div", { className: "row-ico" }, I.msg({ size: 16 })),
+        React.createElement("div", { style: { minWidth: 0 } },
+          React.createElement("div", { className: "row-title" }, item.title || "제목 없음"),
+          React.createElement("div", { className: "row-meta" }, item.preview || `${item.messageCount || 0}개 메시지`)
+        )
+      ),
+      React.createElement("span", { className: "badge soft" }, item.category || "일반"),
+      React.createElement("div", { className: "row-meta", style: { width: 48, textAlign: "right" } }, formatUpdated(item.updatedUtc)),
+      React.createElement("div", { className: "items-center gap8" },
+        React.createElement("button", { className: "btn sm ghost", title: "제목 변경", onClick: () => onRename(item) }, "이름"),
+        React.createElement("button", { className: "btn sm ghost", title: "이 대화를 메모리로 저장", onClick: () => onSaveMemory(item) }, I.save({ size: 13 })),
+        React.createElement("button", { className: "btn sm ghost", title: "대화 삭제", style: { color: "var(--red-text)" }, onClick: () => onDelete(item) }, I.x({ size: 13 }))
+      )
+    );
+  }
+
+  function RecentConversations({ ctx, conversations, onOpen, onNew, onRename, onSaveMemory, onDelete, onSearch, onClearSearch, searchQuery, setSearchQuery, searchResults, searching }) {
+    const hasSearch = (searchQuery || "").trim().length > 0;
     return React.createElement("div", { className: "card card-pad mt28" },
       React.createElement("div", { className: "between", style: { marginBottom: 10 } },
         React.createElement("div", { className: "card-title" }, "최근 대화"),
-        React.createElement("button", { className: "btn sm ghost", onClick: () => ctx.send({ type: "list_conversations", scope: "chat", mode: "single" }, { queueIfClosed: true }) }, I.refresh({ size: 14 }), "새로고침")
-      ),
-      conversations.length === 0
-        ? React.createElement("div", { className: "empty", style: { padding: "28px 12px" } }, "아직 불러온 대화가 없습니다.")
-        : conversations.slice(0, 5).map((item) =>
-          React.createElement("button", {
-            key: item.id,
-            className: "row",
-            style: { width: "100%", textAlign: "left" },
-            onClick: () => onOpen(item),
-          },
-            React.createElement("div", { className: "row-ico" }, I.msg({ size: 16 })),
-            React.createElement("div", { style: { minWidth: 0 } },
-              React.createElement("div", { className: "row-title" }, item.title || "제목 없음"),
-              React.createElement("div", { className: "row-meta" }, item.preview || `${item.messageCount || 0}개 메시지`)
-            ),
-            React.createElement("div", { className: "spacer" }),
-            React.createElement("span", { className: "badge soft" }, item.category || "일반"),
-            React.createElement("div", { className: "row-meta", style: { width: 54, textAlign: "right" } }, formatUpdated(item.updatedUtc))
-          )
+        React.createElement("div", { className: "items-center gap8" },
+          React.createElement("button", { className: "btn sm", onClick: onNew }, I.plus({ size: 14 }), "새 대화"),
+          React.createElement("button", { className: "btn sm ghost", onClick: () => ctx.send({ type: "list_conversations", scope: "chat", mode: "single" }, { queueIfClosed: true }) }, I.refresh({ size: 14 }), "새로고침")
         )
+      ),
+      React.createElement("div", { className: "items-center gap8", style: { marginBottom: 12 } },
+        React.createElement("span", { style: { color: "var(--text-2)" } }, I.search({ size: 15 })),
+        React.createElement("input", {
+          className: "field",
+          style: { flex: 1 },
+          value: searchQuery,
+          placeholder: "대화 검색 후 Enter",
+          onChange: (e) => setSearchQuery(e.target.value),
+          onKeyDown: (e) => { if (e.key === "Enter") { e.preventDefault(); onSearch(searchQuery); } },
+        }),
+        hasSearch ? React.createElement("button", { className: "btn sm ghost", onClick: onClearSearch }, I.x({ size: 14 })) : null
+      ),
+      searching
+        ? React.createElement("div", { className: "muted", style: { padding: "20px 4px", fontSize: 13 } }, "검색 중…")
+        : (hasSearch && Array.isArray(searchResults) && searchResults.length > 0)
+          ? React.createElement("div", { style: { display: "flex", flexDirection: "column" } },
+              React.createElement("div", { className: "eyebrow", style: { marginBottom: 6 } }, `검색 결과 ${searchResults.length}`),
+              searchResults.slice(0, 8).map((hit, i) =>
+                React.createElement("button", {
+                  key: `${hit.conversationId}-${i}`,
+                  className: "row",
+                  style: { width: "100%", textAlign: "left" },
+                  onClick: () => onOpen({ id: hit.conversationId, title: hit.title }),
+                },
+                  React.createElement("div", { className: "row-ico" }, I.search({ size: 15 })),
+                  React.createElement("div", { style: { minWidth: 0 } },
+                    React.createElement("div", { className: "row-title" }, hit.title || "제목 없음"),
+                    React.createElement("div", { className: "row-meta" }, hit.snippet || "")
+                  )
+                )
+              )
+            )
+          : (hasSearch
+              ? React.createElement("div", { className: "empty", style: { padding: "24px 12px" } }, "검색 결과가 없습니다.")
+              : conversations.length === 0
+                ? React.createElement("div", { className: "empty", style: { padding: "28px 12px" } }, "아직 불러온 대화가 없습니다.")
+                : conversations.slice(0, 6).map((item) =>
+                    React.createElement(ConversationRow, { key: item.id, item, onOpen, onRename, onSaveMemory, onDelete })
+                  ))
     );
   }
 
@@ -122,6 +168,16 @@
       conversations,
       memoryNotes,
       openConversation,
+      newConversation,
+      deleteConversation,
+      renameConversation,
+      saveConversationToMemory,
+      searchConversations,
+      clearSearch,
+      searchQuery,
+      setSearchQuery,
+      searchResults,
+      searching,
       send,
       empty
     } = window.useAskPageState(ctx, payload);
@@ -162,7 +218,13 @@
                     React.createElement("div", { className: "muted", style: { fontSize: 13 } }, "대화, 메모리, 파일을 함께 확인할 수 있습니다.")),
                   React.createElement("button", { className: "btn", onClick: () => ctx.toast("Attach a file to analyze") }, t("Attach file")),
                 ),
-                React.createElement(RecentConversations, { ctx, conversations, onOpen: openConversation }),
+                React.createElement(RecentConversations, {
+                  ctx, conversations, onOpen: openConversation,
+                  onNew: newConversation, onRename: renameConversation,
+                  onSaveMemory: saveConversationToMemory, onDelete: deleteConversation,
+                  onSearch: searchConversations, onClearSearch: clearSearch,
+                  searchQuery, setSearchQuery, searchResults, searching
+                }),
                 React.createElement(MemorySummary, { ctx, notes: memoryNotes }),
               ) : null,
 
