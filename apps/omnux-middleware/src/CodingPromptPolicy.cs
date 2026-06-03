@@ -289,13 +289,6 @@ internal static class CodingPromptPolicy
 
     private static string TrimForOutput(string text, int limit)
     {
-        var normalized = text ?? string.Empty;
-        var safeLimit = Math.Max(200, limit);
-        if (normalized.Length <= safeLimit)
-        {
-            return normalized;
-        }
-
-        return normalized[..safeLimit] + "...(truncated)";
+        return TextOutputTruncator.TruncatePreservingStructure(text, limit);
     }
 }
