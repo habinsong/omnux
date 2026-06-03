@@ -9,6 +9,11 @@ public sealed class TelemetryTracerTests
     {
         using var temp = TestStateDirectory.Create();
         var tracer = CreateTracer(temp.Path);
+        var promptCache = PromptCachePolicy.Analyze(
+            "gemini",
+            "gemini-test",
+            $"{string.Join('\n', Enumerable.Repeat("고정 프로젝트 문맥", 120))}\n\n사용자 입력:\n요청"
+        );
 
         using (var scope = tracer.StartLlmCall(new TelemetryLlmCallRequest(
                    "gemini",
@@ -16,7 +21,8 @@ public sealed class TelemetryTracerTests
                    PromptChars: 123,
                    MaxOutputTokens: 512,
                    Streaming: false,
-                   Source: "test"
+                   Source: "test",
+                   PromptCache: promptCache
                )))
         {
             scope.Complete(
@@ -42,8 +48,13 @@ public sealed class TelemetryTracerTests
         Assert.Equal("정상 응답 본문".Length, item.CompletionChars);
         Assert.Equal(512, item.MaxOutputTokens);
         Assert.Empty(item.Error);
+        Assert.True(item.PromptCacheEligible);
+        Assert.Equal(promptCache.CacheKey, item.PromptCacheKey);
+        Assert.Equal(promptCache.AffinityKey, item.PromptCacheAffinityKey);
+        Assert.Equal(promptCache.EstimatedStaticPrefixTokens, item.PromptCacheStaticTokens);
         Assert.Equal(15, snapshot.Total.TotalTokens);
         Assert.DoesNotContain("정상 응답 본문", TelemetryTraceJson.SerializeSnapshot(snapshot));
+        Assert.Contains("\"promptCacheEligible\":true", TelemetryTraceJson.SerializeSnapshot(snapshot));
     }
 
     [Fact]

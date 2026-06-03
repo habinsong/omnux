@@ -21,7 +21,16 @@ public sealed record TelemetryTraceEvent(
     string Error,
     DateTimeOffset StartedUtc,
     DateTimeOffset CompletedUtc
-);
+)
+{
+    public bool PromptCacheEligible { get; init; }
+    public string PromptCacheKey { get; init; } = string.Empty;
+    public string PromptCacheAffinityKey { get; init; } = string.Empty;
+    public int PromptCacheStaticChars { get; init; }
+    public long PromptCacheStaticTokens { get; init; }
+    public string PromptCacheStrategy { get; init; } = string.Empty;
+    public string PromptCacheReason { get; init; } = string.Empty;
+}
 
 public sealed record TelemetryTraceQuery(
     string? Provider = null,
@@ -72,7 +81,8 @@ internal sealed record TelemetryLlmCallRequest(
     int PromptChars,
     int MaxOutputTokens,
     bool Streaming,
-    string Source
+    string Source,
+    PromptCachePlan? PromptCache = null
 );
 
 public sealed class TelemetryTraceState
