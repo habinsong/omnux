@@ -22,7 +22,7 @@
 | 핸드오프 | ✅ | `WsNotebookCommandDispatcher` |
 | 컨텍스트 적응형 압축 | ✅ | `AdaptiveContextCompressionPolicy`, 토큰/문자/메시지 임계치 기반 자동 압축 |
 | 에이전트 간 메시지 패싱 | ✅ | `AgentCommunicationApplicationService`, `FileAgentCommunicationStore`, `WsAgentCommandDispatcher` |
-| MCP 서버/클라이언트 | ✅ 1차 | `McpConfigDiscoveryService`, `mcp_servers_list` — 설정 discovery만, 프로세스/JSON-RPC는 보류 |
+| MCP 서버/클라이언트 | ✅ 1차+ | `McpConfigDiscoveryService`, `McpServerReadinessPolicy`, `mcp_servers_list` — 설정 discovery + read-only readiness audit, 프로세스/JSON-RPC는 보류 |
 | Git worktree 격리 | ✅ 1차 | `GitWorktreeIsolationManager`, `SessionSpawnTool` — ACP spawn opt-in worktree CWD 주입 |
 | 셀프 힐링/워치독 | ✅ 1차 | `FileAgentSpawnActiveRunStore.EvaluateWatchdog`, 백그라운드 active-run timeout/stale 감지 |
 | 자동 커밋/PR 생성 | ✅ 1차 | `GitAutomationSnapshotService`, `git_automation_snapshot_get` — 읽기 전용 변경 감지/커밋 제안 |
@@ -198,13 +198,16 @@
 
 ### 가치: ⭐⭐⭐⭐
 
-### 상태: ✅ 1차 구현 / MCP 프로세스 실행 보류
+### 상태: ✅ 1차+ 구현 / MCP 프로세스 실행 보류
 
 - `McpConfigDiscoveryService`가 workspace의 `.mcp.json`, `.omni/mcp.json`, `.cursor/mcp.json`, `.codeium/windsurf/mcp_config.json`을 스캔한다.
+- `McpServerReadinessPolicy`가 서버별 실행 준비 상태를 읽기 전용으로 평가한다.
 - `mcpServers` 또는 `servers` object를 파싱해 서버 이름, transport, command/url, args preview, env key 목록, enabled/status를 반환한다.
 - env 값은 반환하지 않고, token/api-key/password/secret 계열 args와 URL query 값은 redaction한다.
+- 서버별 `readiness`를 반환한다. `stdio`는 command/cwd가 로컬 filesystem 또는 PATH에서 해석 가능한지만 확인하고, remote는 transport와 URL 문법만 확인한다.
+- `readiness.status`는 `ready_to_launch`, `remote_unverified`, `blocked`, `disabled` 중 하나다.
 - WebSocket `mcp_servers_list` 요청이 `mcp_servers_snapshot`을 반환한다.
-- 실제 MCP 서버 프로세스 start/stop, JSON-RPC handshake, tool registry 동적 주입은 서드파티 프로세스 권한/격리 정책이 필요해 다음 단계로 둔다.
+- 실제 MCP 서버 프로세스 start/stop, JSON-RPC handshake, tool registry 동적 주입, 주기적 네트워크 헬스체크는 서드파티 프로세스 권한/격리 정책이 필요해 다음 단계로 둔다.
 
 ### 문제
 
@@ -1012,7 +1015,7 @@
 - **MCP 서버 자동 발견**: `.omni/mcp.json`뿐 아니라 `.mcp.json`, `.cursor/mcp.json` 등 다른 도구의 설정도 자동 감지
 - **MCP 서버 샌드박스**: 서드파티 MCP 서버를 격리된 프로세스에서 실행. 악의적 툴이 메인 프로세스에 영향 주지 않도록
 - **MCP 툴 레지스트리**: 설치된 MCP 툴을 통합 관리하는 UI/WS 엔드포인트. 툴 활성화/비활성화, 권한 설정
-- **MCP 서버 헬스체크**: 등록된 MCP 서버의 연결 상태를 주기적으로 모니터링
+- **MCP 서버 헬스체크**: ✅ 1차 확장 완료. 현재는 프로세스/네트워크 호출 없이 설정 기반 read-only readiness audit만 제공한다. 주기적 handshake 모니터링은 보류.
 
 
 ### 개발 가이드 (Implementation Guide)

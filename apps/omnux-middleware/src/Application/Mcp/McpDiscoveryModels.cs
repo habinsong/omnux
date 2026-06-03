@@ -32,6 +32,18 @@ internal sealed record McpServerDiscovery(
     int EnvKeyCount,
     bool Enabled,
     string Status,
+    string Message,
+    McpServerReadiness Readiness
+);
+
+internal sealed record McpServerReadiness(
+    string Status,
+    IReadOnlyList<McpServerReadinessCheck> Checks
+);
+
+internal sealed record McpServerReadinessCheck(
+    string Name,
+    string Status,
     string Message
 );
 

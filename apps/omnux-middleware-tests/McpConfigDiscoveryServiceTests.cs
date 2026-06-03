@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Omnux.Middleware;
 
 namespace Omnux.Middleware.Tests;
@@ -53,12 +54,14 @@ public sealed class McpConfigDiscoveryServiceTests
             Assert.DoesNotContain("secret-value", string.Join(" ", filesystem.ArgsPreview));
             Assert.DoesNotContain("abc123", string.Join(" ", filesystem.ArgsPreview));
             Assert.Equal(new[] { "GITHUB_TOKEN", "PLAIN" }, filesystem.EnvKeys);
+            Assert.NotEmpty(filesystem.Readiness.Checks);
 
             var remote = Assert.Single(snapshot.Servers, server => server.Name == "remote");
             Assert.False(remote.Enabled);
             Assert.Equal("disabled", remote.Status);
             Assert.Equal("sse", remote.Transport);
             Assert.DoesNotContain("abc123", remote.Url);
+            Assert.Equal("disabled", remote.Readiness.Status);
         }
         finally
         {
@@ -112,6 +115,176 @@ public sealed class McpConfigDiscoveryServiceTests
             Assert.Equal("empty", server.Name);
             Assert.Equal("invalid", server.Status);
             Assert.Contains("missing command or url", server.Message);
+            Assert.Equal("blocked", server.Readiness.Status);
+        }
+        finally
+        {
+            TryDeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public async Task DiscoverReportsReadinessForResolvableStdioServer()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"omnux-mcp-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(Path.Combine(root, "tools"));
+        Directory.CreateDirectory(Path.Combine(root, "bin"));
+        var commandPath = Path.Combine(root, "bin", OperatingSystem.IsWindows() ? "fake-mcp.cmd" : "fake-mcp");
+        await File.WriteAllTextAsync(commandPath, string.Empty);
+        await File.WriteAllTextAsync(Path.Combine(root, ".mcp.json"), $$"""
+{
+  "mcpServers": {
+    "local": {
+      "command": {{JsonSerializer.Serialize(commandPath)}},
+      "cwd": "tools"
+    }
+  }
+}
+""");
+
+        try
+        {
+            var snapshot = new McpConfigDiscoveryService(root).Discover();
+
+            var server = Assert.Single(snapshot.Servers);
+            Assert.Equal("local", server.Name);
+            Assert.Equal("discovered", server.Status);
+            Assert.Equal("ready_to_launch", server.Readiness.Status);
+            Assert.Contains(server.Readiness.Checks, check =>
+                check.Name == "working_directory" && check.Status == "ok");
+            Assert.Contains(server.Readiness.Checks, check =>
+                check.Name == "command" && check.Status == "ok");
+        }
+        finally
+        {
+            TryDeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public async Task DiscoverBlocksMissingStdioCommand()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"omnux-mcp-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var missingCommandPath = Path.Combine(root, "missing-mcp");
+        await File.WriteAllTextAsync(Path.Combine(root, ".mcp.json"), $$"""
+{
+  "mcpServers": {
+    "local": {
+      "command": {{JsonSerializer.Serialize(missingCommandPath)}}
+    }
+  }
+}
+""");
+
+        try
+        {
+            var snapshot = new McpConfigDiscoveryService(root).Discover();
+
+            var server = Assert.Single(snapshot.Servers);
+            Assert.Equal("discovered", server.Status);
+            Assert.Equal("blocked", server.Readiness.Status);
+            Assert.Contains(server.Readiness.Checks, check =>
+                check.Name == "command" && check.Status == "failed");
+        }
+        finally
+        {
+            TryDeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public async Task DiscoverReportsRemoteReadinessWithoutHandshake()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"omnux-mcp-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        await File.WriteAllTextAsync(Path.Combine(root, ".mcp.json"), """
+{
+  "mcpServers": {
+    "remote": {
+      "url": "https://example.com/mcp",
+      "transport": "sse"
+    }
+  }
+}
+""");
+
+        try
+        {
+            var snapshot = new McpConfigDiscoveryService(root).Discover();
+
+            var server = Assert.Single(snapshot.Servers);
+            Assert.Equal("discovered", server.Status);
+            Assert.Equal("remote_unverified", server.Readiness.Status);
+            Assert.Contains(server.Readiness.Checks, check =>
+                check.Name == "url" && check.Status == "ok");
+            Assert.Contains(server.Readiness.Checks, check =>
+                check.Name == "handshake" && check.Status == "skipped");
+        }
+        finally
+        {
+            TryDeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public async Task DiscoverBlocksInvalidRemoteUrl()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"omnux-mcp-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        await File.WriteAllTextAsync(Path.Combine(root, ".mcp.json"), """
+{
+  "mcpServers": {
+    "remote": {
+      "url": "not-a-url",
+      "transport": "http"
+    }
+  }
+}
+""");
+
+        try
+        {
+            var snapshot = new McpConfigDiscoveryService(root).Discover();
+
+            var server = Assert.Single(snapshot.Servers);
+            Assert.Equal("discovered", server.Status);
+            Assert.Equal("blocked", server.Readiness.Status);
+            Assert.Contains(server.Readiness.Checks, check =>
+                check.Name == "url" && check.Status == "failed");
+        }
+        finally
+        {
+            TryDeleteDirectory(root);
+        }
+    }
+
+    [Fact]
+    public async Task DiscoverBlocksUnsupportedTransport()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"omnux-mcp-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        await File.WriteAllTextAsync(Path.Combine(root, ".mcp.json"), """
+{
+  "mcpServers": {
+    "remote": {
+      "url": "https://example.com/mcp",
+      "transport": "custom"
+    }
+  }
+}
+""");
+
+        try
+        {
+            var snapshot = new McpConfigDiscoveryService(root).Discover();
+
+            var server = Assert.Single(snapshot.Servers);
+            Assert.Equal("unknown", server.Transport);
+            Assert.Equal("blocked", server.Readiness.Status);
+            Assert.Contains(server.Readiness.Checks, check =>
+                check.Name == "transport" && check.Status == "failed");
         }
         finally
         {

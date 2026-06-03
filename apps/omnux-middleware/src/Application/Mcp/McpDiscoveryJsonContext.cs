@@ -9,6 +9,8 @@ namespace Omnux.Middleware;
 [JsonSerializable(typeof(McpDiscoverySnapshot))]
 [JsonSerializable(typeof(McpConfigFileDiscovery))]
 [JsonSerializable(typeof(McpServerDiscovery))]
+[JsonSerializable(typeof(McpServerReadiness))]
+[JsonSerializable(typeof(McpServerReadinessCheck))]
 [JsonSerializable(typeof(McpDiscoveryError))]
 internal partial class McpDiscoveryJsonContext : JsonSerializerContext
 {

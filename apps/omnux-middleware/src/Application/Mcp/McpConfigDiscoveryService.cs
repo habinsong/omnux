@@ -175,7 +175,11 @@ internal sealed class McpConfigDiscoveryService
                 0,
                 Enabled: false,
                 "invalid",
-                "server config must be an object"
+                "server config must be an object",
+                new McpServerReadiness(
+                    "blocked",
+                    new[] { new McpServerReadinessCheck("config", "failed", "server config must be an object") }
+                )
             );
         }
 
@@ -206,7 +210,16 @@ internal sealed class McpConfigDiscoveryService
             envKeys.Count,
             enabled,
             status,
-            ResolveMessage(status, transport)
+            ResolveMessage(status, transport),
+            McpServerReadinessPolicy.Evaluate(
+                enabled,
+                status,
+                transport,
+                command,
+                url,
+                workingDirectory,
+                configPath
+            )
         );
     }
 
