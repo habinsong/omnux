@@ -89,6 +89,7 @@ public sealed partial class WebSocketGateway
     private readonly WsMcpCommandDispatcher _mcpCommandDispatcher;
     private readonly WsCommitLearningCommandDispatcher _commitLearningCommandDispatcher;
     private readonly WsGitAutomationCommandDispatcher _gitAutomationCommandDispatcher;
+    private readonly WsSelfImprovementCommandDispatcher _selfImprovementCommandDispatcher;
     private readonly WsRefactorCommandDispatcher _refactorCommandDispatcher;
     private readonly WsContextCommandDispatcher _contextCommandDispatcher;
     private readonly WsNotebookCommandDispatcher _notebookCommandDispatcher;
@@ -283,6 +284,9 @@ public sealed partial class WebSocketGateway
         );
         _gitAutomationCommandDispatcher = new WsGitAutomationCommandDispatcher(
             new GitAutomationSnapshotService(_paths.WorkspaceRootDir)
+        );
+        _selfImprovementCommandDispatcher = new WsSelfImprovementCommandDispatcher(
+            new SelfImprovementSnapshotService(_paths.WorkspaceRootDir)
         );
         _refactorCommandDispatcher = new WsRefactorCommandDispatcher(
             refactorService

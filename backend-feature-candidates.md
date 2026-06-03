@@ -34,7 +34,7 @@
 | 에이전트 권한 샌드박스 강화 | ✅ 1차 | `UniversalCodeExecutionSafetyPolicy`, `UniversalCodeRunner` bash/unknown shell preflight 차단 |
 | 커밋 히스토리 기반 학습 | ✅ 1차 | `GitCommitHistoryScanner`, `commit_learning_snapshot_get` — 읽기 전용 intent/hotspot 스냅샷 |
 | 벡터 임베딩 시맨틱 검색 | ⏳ Phase 6-3 | 현재 FTS 유지, Phase 6-2(Ollama) 선행 후 sqlite-vec + Ollama embed로 추가 |
-| Nightly 자기 개선 | ❌ | 검색 결과 0 |
+| Nightly 자기 개선 | ✅ 1차 | `SelfImprovementSnapshotService`, `self_improvement_snapshot_get` — 읽기 전용 개선 제안 |
 
 ---
 
@@ -1016,6 +1016,13 @@
 ### develop.md 원문
 
 > 사용자의 코드 피드백과 교정(Correction) 패턴을 백그라운드 AI가 분석하여, `USER_PREFERENCE_SKILL.md`를 스스로 갱신하는 학습 루프 구축.
+
+### 상태: ✅ 1차 구현 / 자동 스킬 쓰기·야간 배치 보류
+
+- WebSocket `self_improvement_snapshot_get` 요청이 `self_improvement_snapshot`을 반환한다.
+- `GitAutomationSnapshotService`와 `GitCommitHistoryScanner`를 조합해 workspace hygiene, bug_fix 반복, hotspot review 제안을 만든다.
+- 모든 제안은 `requiresApproval=true`이며, 백엔드는 `SKILL.md`, memory note, 시스템 프롬프트, 크론/루틴을 자동 생성하거나 수정하지 않는다.
+- 실제 Nightly reflection, LLM preference 분석, `.omni/skills/user-preference.md` 자동 갱신은 사용자 변경 오염 위험이 있어 보류한다.
 
 ### 관련 기능 (이미 문서에 포함)
 
