@@ -27,6 +27,7 @@
 | Durable Workflow | ❌ | 로직 그래프는 있으나 체크포인트 복구 없음 |
 | OpenTelemetry 옵저버빌리티 | ✅ 1차 | `TelemetryTracer`, `FileTelemetryTraceStore`, `WsTelemetryCommandDispatcher` — ActivitySource + 로컬 스냅샷 |
 | 세션 리플레이 & 디버깅 | ✅ 1차 | `SessionReplayApplicationService`, `WsSessionReplayCommandDispatcher` — 대화/telemetry/agent bus 타임라인 스냅샷 |
+| 프롬프트 캐싱 최적화 | ✅ 1차 | `PromptCachePolicy`, telemetry cache key/affinity/readiness 기록 |
 | 벡터 임베딩 시맨틱 검색 | ⏳ Phase 6-3 | 현재 FTS 유지, Phase 6-2(Ollama) 선행 후 sqlite-vec + Ollama embed로 추가 |
 | Nightly 자기 개선 | ❌ | 검색 결과 0 |
 
@@ -606,6 +607,13 @@
 ## 추천 기능 15: 프롬프트 캐싱 최적화 (Prompt Cache Manager)
 
 ### 가치: ⭐⭐⭐
+
+### 상태: ✅ 1차 구현
+
+- `PromptCachePolicy`가 LLM 입력에서 `사용자 입력:` 등 안정적인 marker 앞의 정적 프리픽스를 추출한다.
+- 정적 프리픽스 hash 기반 `promptCacheKey`와 provider/model 단위 `promptCacheAffinityKey`를 생성한다.
+- `TelemetryTraceEvent`에 cache eligibility, static prefix chars/tokens, strategy/reason을 기록한다.
+- 실제 provider cache API 호출은 아직 하지 않는다. Anthropic/Gemini/OpenAI 계열의 계약 차이와 비용 정책을 분리 설계한 뒤 적용한다.
 
 ### 문제
 

@@ -53,6 +53,14 @@ internal sealed class TelemetryLlmCallScope : IDisposable
         _activity?.SetTag("gen_ai.request.max_tokens", Math.Max(0, request.MaxOutputTokens));
         _activity?.SetTag("omnux.source", NormalizeToken(request.Source));
         _activity?.SetTag("omnux.streaming", request.Streaming);
+        if (request.PromptCache != null)
+        {
+            _activity?.SetTag("omnux.prompt_cache.eligible", request.PromptCache.Eligible);
+            _activity?.SetTag("omnux.prompt_cache.key", request.PromptCache.CacheKey);
+            _activity?.SetTag("omnux.prompt_cache.affinity_key", request.PromptCache.AffinityKey);
+            _activity?.SetTag("omnux.prompt_cache.static_tokens", request.PromptCache.EstimatedStaticPrefixTokens);
+            _activity?.SetTag("omnux.prompt_cache.strategy", request.PromptCache.Strategy);
+        }
     }
 
     public void Complete(string provider, string model, string responseText, TokenUsage? usage)
@@ -123,6 +131,7 @@ internal sealed class TelemetryLlmCallScope : IDisposable
             _activity?.SetStatus(ActivityStatusCode.Error, Trim(error, 240));
         }
 
+        var promptCache = _request.PromptCache;
         var item = new TelemetryTraceEvent(
             $"telemetry_{completedUtc:yyyyMMddHHmmssfff}_{Guid.NewGuid():N}",
             OperationName,
@@ -144,7 +153,16 @@ internal sealed class TelemetryLlmCallScope : IDisposable
             normalizedStatus == "ok" ? string.Empty : Trim(error, 1_000),
             _startedUtc,
             completedUtc
-        );
+        )
+        {
+            PromptCacheEligible = promptCache?.Eligible ?? false,
+            PromptCacheKey = NormalizeToken(promptCache?.CacheKey),
+            PromptCacheAffinityKey = NormalizeToken(promptCache?.AffinityKey),
+            PromptCacheStaticChars = Math.Max(0, promptCache?.StaticPrefixChars ?? 0),
+            PromptCacheStaticTokens = Math.Max(0L, promptCache?.EstimatedStaticPrefixTokens ?? 0),
+            PromptCacheStrategy = NormalizeToken(promptCache?.Strategy).ToLowerInvariant(),
+            PromptCacheReason = NormalizeToken(promptCache?.Reason).ToLowerInvariant()
+        };
 
         try
         {

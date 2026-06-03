@@ -28,7 +28,8 @@ public sealed partial class CommandService
             safeInput.Length,
             requestedMaxOutputTokens,
             streamCallback != null,
-            "command_service"
+            "command_service",
+            PromptCachePolicy.Analyze(normalized, requestedModel, safeInput)
         ));
 
         try

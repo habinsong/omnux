@@ -304,7 +304,14 @@ public sealed class FileTelemetryTraceStore
             DurationMs = Math.Max(0L, item.DurationMs),
             Error = TrimForStorage(item.Error, MaxErrorChars),
             StartedUtc = startedUtc,
-            CompletedUtc = completedUtc
+            CompletedUtc = completedUtc,
+            PromptCacheEligible = item.PromptCacheEligible,
+            PromptCacheKey = NormalizeOptionalToken(item.PromptCacheKey).ToLowerInvariant(),
+            PromptCacheAffinityKey = NormalizeOptionalToken(item.PromptCacheAffinityKey).ToLowerInvariant(),
+            PromptCacheStaticChars = Math.Max(0, item.PromptCacheStaticChars),
+            PromptCacheStaticTokens = Math.Max(0L, item.PromptCacheStaticTokens),
+            PromptCacheStrategy = NormalizeOptionalToken(item.PromptCacheStrategy).ToLowerInvariant(),
+            PromptCacheReason = NormalizeOptionalToken(item.PromptCacheReason).ToLowerInvariant()
         };
     }
 
