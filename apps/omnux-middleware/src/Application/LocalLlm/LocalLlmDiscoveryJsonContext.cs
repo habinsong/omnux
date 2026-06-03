@@ -9,6 +9,8 @@ namespace Omnux.Middleware;
 [JsonSerializable(typeof(LocalLlmDiscoverySnapshot))]
 [JsonSerializable(typeof(LocalLlmEndpointSnapshot))]
 [JsonSerializable(typeof(LocalLlmModelInfo))]
+[JsonSerializable(typeof(LocalLlmOfflineModeReadiness))]
+[JsonSerializable(typeof(LocalLlmOfflineModeCheck))]
 internal partial class LocalLlmDiscoveryJsonContext : JsonSerializerContext
 {
 }

@@ -33,7 +33,7 @@
 | 스마트 모델 라우팅 | ✅ 1차 | `ModelRoutingReadinessPolicy`, telemetry complexity/tier/cascade readiness 기록 |
 | 에이전트 권한 샌드박스 강화 | ✅ 1차 | `UniversalCodeExecutionSafetyPolicy`, `UniversalCodeRunner` bash/unknown shell preflight 차단 |
 | 커밋 히스토리 기반 학습 | ✅ 1차 | `GitCommitHistoryScanner`, `commit_learning_snapshot_get` — 읽기 전용 intent/hotspot 스냅샷 |
-| 로컬 LLM/오프라인 모드 | ✅ 1차 | `LocalLlmDiscoveryService`, `local_llm_snapshot_get` — Ollama/LM Studio 모델 discovery |
+| 로컬 LLM/오프라인 모드 | ✅ 1차+ | `LocalLlmDiscoveryService`, `LocalLlmOfflineModePolicy`, `local_llm_snapshot_get` — 모델 discovery + 오프라인 모드 readiness audit |
 | 벡터 임베딩 시맨틱 검색 | ⏳ Phase 6-3 | 현재 FTS 유지, Phase 6-2(Ollama) 선행 후 sqlite-vec + Ollama embed로 추가 |
 | Nightly 자기 개선 | ✅ 1차 | `SelfImprovementSnapshotService`, `self_improvement_snapshot_get` — 읽기 전용 개선 제안 |
 
@@ -862,12 +862,14 @@
 
 > 외부 인터넷 통신을 100% 차단하고 Ollama, LM Studio 등 OpenAI-compatible 로컬 엔드포인트를 연결하여 완벽한 오프라인 보안 코딩 환경 구축.
 
-### 상태: ✅ 1차 구현 / 실제 라우팅·트래픽 차단 보류
+### 상태: ✅ 1차+ 구현 / 실제 라우팅·트래픽 차단 보류
 
 - WebSocket `local_llm_snapshot_get` 요청이 `local_llm_snapshot`을 반환한다.
 - 기본 probe는 Ollama `http://127.0.0.1:11434/api/tags`와 OpenAI-compatible `http://127.0.0.1:1234/v1/models`를 읽는다.
 - `OMNUX_LOCAL_LLM_ENDPOINTS`가 있으면 comma-separated endpoint 목록을 discovery 대상으로 사용한다.
 - 모델 ID, family, parameter size, quantization, size, modified time, endpoint availability를 반환한다.
+- `LocalLlmOfflineModePolicy`가 `OMNUX_OFFLINE_MODE`, `OMNUX_LOCAL_LLM_ONLY`, `OMNUX_DISABLE_CLOUD_LLM` 요청 여부와 로컬 모델 준비 상태를 읽기 전용으로 평가한다.
+- `offlineMode.cloudProviderKeysPresent`는 클라우드 key env var 이름만 반환하고 값은 반환하지 않는다.
 - 실제 `LocalLlmProvider`, provider 자동 전환, 외부 HTTP 차단, 모델 warmup은 기존 LLM 경로를 바꾸므로 보류한다.
 
 ### 경쟁사 현황

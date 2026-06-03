@@ -104,6 +104,74 @@ public sealed class LocalLlmDiscoveryServiceTests
         Assert.Equal("http_503", endpoint.Error);
     }
 
+    [Fact]
+    public async Task DiscoverAsyncReportsOfflineModeReadinessWhenRequested()
+    {
+        var endpoints = new[]
+        {
+            new LocalLlmEndpointConfig("ollama-test", "ollama", "http://local-ollama.test")
+        };
+        var client = new HttpClient(new StubHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""{"models":[{"name":"qwen2.5-coder:7b"}]}""")
+            }
+        ));
+
+        var snapshot = await new LocalLlmDiscoveryService(
+                client,
+                endpoints,
+                () => DateTimeOffset.Parse("2026-06-04T00:00:00Z"),
+                EnvMap(
+                    ("OMNUX_OFFLINE_MODE", "true"),
+                    ("OMNUX_GROQ_API_KEY_FILE", "/tmp/groq-key")
+                )
+            )
+            .DiscoverAsync(CancellationToken.None);
+
+        Assert.True(snapshot.OfflineMode.Requested);
+        Assert.Equal("ready_for_manual_routing", snapshot.OfflineMode.Status);
+        Assert.Equal(new[] { "OMNUX_OFFLINE_MODE" }, snapshot.OfflineMode.RequestedBy);
+        Assert.Equal(new[] { "OMNUX_GROQ_API_KEY_FILE" }, snapshot.OfflineMode.CloudProviderKeysPresent);
+        Assert.DoesNotContain("/tmp/groq-key", string.Join(" ", snapshot.OfflineMode.CloudProviderKeysPresent));
+        Assert.Contains(snapshot.OfflineMode.Checks, check =>
+            check.Name == "local_models" && check.Status == "ok");
+        Assert.Contains(snapshot.OfflineMode.Checks, check =>
+            check.Name == "traffic_guard" && check.Status == "skipped");
+    }
+
+    [Fact]
+    public async Task DiscoverAsyncBlocksOfflineModeWithoutLocalModels()
+    {
+        var endpoints = new[]
+        {
+            new LocalLlmEndpointConfig("down", "openai_compatible", "http://local-down.test")
+        };
+        var client = new HttpClient(new StubHttpMessageHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+        ));
+
+        var snapshot = await new LocalLlmDiscoveryService(
+                client,
+                endpoints,
+                () => DateTimeOffset.Parse("2026-06-04T00:00:00Z"),
+                EnvMap(("OMNUX_LOCAL_LLM_ONLY", "1"))
+            )
+            .DiscoverAsync(CancellationToken.None);
+
+        Assert.True(snapshot.OfflineMode.Requested);
+        Assert.Equal("blocked", snapshot.OfflineMode.Status);
+        Assert.Equal(new[] { "OMNUX_LOCAL_LLM_ONLY" }, snapshot.OfflineMode.RequestedBy);
+        Assert.Contains(snapshot.OfflineMode.Checks, check =>
+            check.Name == "local_models" && check.Status == "failed");
+    }
+
+    private static Func<string, string?> EnvMap(params (string Key, string Value)[] values)
+    {
+        var map = values.ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal);
+        return key => map.TryGetValue(key, out var value) ? value : null;
+    }
+
     private sealed class StubHttpMessageHandler : HttpMessageHandler
     {
         private readonly Func<HttpRequestMessage, HttpResponseMessage> _handler;
