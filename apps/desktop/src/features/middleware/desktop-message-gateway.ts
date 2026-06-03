@@ -39,7 +39,9 @@ export type DesktopRequestType =
   | "run_routine"
   | "delete_routine"
   | "create_routine"
-  | "preview_routine";
+  | "preview_routine"
+  | "coding_run_single"
+  | "refactor_restore";
 
 export type DesktopRequestPayload = Record<string, unknown> & {
   type: DesktopRequestType;
@@ -81,7 +83,9 @@ const DESKTOP_ALLOWED_REQUESTS = new Set<DesktopRequestType>([
   "run_routine",
   "delete_routine",
   "create_routine",
-  "preview_routine"
+  "preview_routine",
+  "coding_run_single",
+  "refactor_restore"
 ]);
 const DESKTOP_PUBLIC_REQUESTS = new Set<DesktopRequestType>([
   "request_otp",
@@ -299,3 +303,24 @@ function buildRoutineCreatePayload(form: RoutineCreateInput): Record<string, unk
     ...buildRoutineSchedulePayload(form)
   };
 }
+
+export const requestDesktopCoding = {
+  runSingle(input: string, conversationId?: string) {
+    const payload: Record<string, unknown> = {
+      type: "coding_run_single",
+      text: input.trim(),
+      scope: "coding",
+      mode: "single"
+    };
+    if (conversationId) {
+      payload.conversationId = conversationId;
+    }
+    return sendDesktopRequest(payload as DesktopRequestPayload);
+  }
+};
+
+export const requestDesktopRefactor = {
+  restore(rollbackId: string) {
+    return sendDesktopRequest({ type: "refactor_restore", rollbackId: rollbackId.trim() });
+  }
+};
