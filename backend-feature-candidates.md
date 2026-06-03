@@ -25,7 +25,7 @@
 | MCP 서버/클라이언트 | ✅ 1차 | `McpConfigDiscoveryService`, `mcp_servers_list` — 설정 discovery만, 프로세스/JSON-RPC는 보류 |
 | Git worktree 격리 | ✅ 1차 | `GitWorktreeIsolationManager`, `SessionSpawnTool` — ACP spawn opt-in worktree CWD 주입 |
 | 셀프 힐링/워치독 | ✅ 1차 | `FileAgentSpawnActiveRunStore.EvaluateWatchdog`, 백그라운드 active-run timeout/stale 감지 |
-| 자동 커밋/PR 생성 | ❌ | 검색 결과 0 |
+| 자동 커밋/PR 생성 | ✅ 1차 | `GitAutomationSnapshotService`, `git_automation_snapshot_get` — 읽기 전용 변경 감지/커밋 제안 |
 | Durable Workflow | ✅ 1차 | `LogicRunSnapshot` 지속 저장, `LogicRunRecoveryScanner`, `logic_graph_recovery_list` |
 | OpenTelemetry 옵저버빌리티 | ✅ 1차 | `TelemetryTracer`, `FileTelemetryTraceStore`, `WsTelemetryCommandDispatcher` — ActivitySource + 로컬 스냅샷 |
 | 세션 리플레이 & 디버깅 | ✅ 1차 | `SessionReplayApplicationService`, `WsSessionReplayCommandDispatcher` — 대화/telemetry/agent bus 타임라인 스냅샷 |
@@ -268,15 +268,23 @@
 
 낮음. git CLI + GitHub CLI 조합. 외부 의존성 git, gh.
 
+### 현재 구현 상태
+
+- ✅ 1차 구현: WebSocket `git_automation_snapshot_get` 요청이 `git_automation_snapshot`을 반환한다.
+- ✅ `git status --porcelain=v1 -uall`, `git diff --numstat HEAD`, `git diff --shortstat HEAD`를 읽어 staged/unstaged/untracked/conflicted 파일 수와 변경 파일 목록을 만든다.
+- ✅ LLM 호출 없이 heuristic 기반 `suggestedCommitMessage`, `suggestedBranchName`, `readiness`를 제공한다.
+- ✅ 기본 정책은 read-only다. `git commit`, 브랜치 생성, `gh pr create`, 파일 staging은 실행하지 않는다.
+- ⏳ 보류: 사용자 승인 플로우, 실제 커밋/브랜치/PR 생성, `CodingApplicationService` 완료 훅 자동 호출, LLM 커밋 메시지 생성.
+
 ### 참고
 
 - Open SWE: https://www.langchain.com/blog/open-swe-an-open-source-framework-for-internal-coding-agents
 
 
 ### 개발 가이드 (Implementation Guide)
-- **대상 파일**: `CodingLoopActionExecutor.cs`, `CommandService.CodingGateway.cs`
-- **신규 파일**: `GitAutomationService.cs`
-- **구현 방향**: 에이전트의 코딩 태스크 완료(Done) 시점에 `GitAutomationService`를 호출해 `git diff`를 가져옵니다. LLM을 통해 변경 사항을 요약하여 커밋 메시지를 생성한 뒤, `git commit` 및 `gh pr create`를 백그라운드 서브프로세스로 실행합니다.
+- **대상 파일**: `WebSocketGateway.cs`, `WebSocketGateway.SocketLoop.cs`
+- **신규 파일**: `Application/GitAutomation/*`, `WsGitAutomationCommandDispatcher.cs`
+- **구현 방향**: 1차는 위험한 쓰기 작업 없이 `GitAutomationSnapshotService`가 diff/status를 읽어 커밋 준비 상태를 만든다. 실제 `git commit` 및 `gh pr create`는 승인 UI와 충돌/권한 정책이 준비된 뒤 별도 단계에서 연결한다.
 
 ---
 

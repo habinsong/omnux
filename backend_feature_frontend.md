@@ -710,6 +710,74 @@ OMNUX_AGENT_SPAWN_WORKTREE_MODE=auto|on|enabled|true|1
 - `warnings`에 `git log` 실패, 저장소 아님, commit 없음 같은 읽기 실패 이유가 들어간다.
 - `intent`는 LLM 추론이 아닌 제목 기반 heuristic이다.
 
+### `git_automation_snapshot_get`
+
+현재 워크트리 변경사항과 커밋/PR 준비 상태를 읽기 전용으로 조회한다.
+
+요청:
+
+```json
+{
+  "type": "git_automation_snapshot_get",
+  "limit": 100
+}
+```
+
+응답:
+
+```json
+{
+  "type": "git_automation_snapshot",
+  "payload": {
+    "repositoryRoot": "/path/to/workspace",
+    "branchName": "main",
+    "headShortHash": "abcdef1",
+    "readOnly": true,
+    "hasChanges": true,
+    "isClean": false,
+    "changedFileCount": 3,
+    "stagedFileCount": 1,
+    "unstagedFileCount": 1,
+    "untrackedFileCount": 1,
+    "conflictedFileCount": 0,
+    "limit": 100,
+    "filesTruncated": false,
+    "files": [
+      {
+        "path": "apps/omnux-middleware/src/Foo.cs",
+        "indexStatus": " ",
+        "worktreeStatus": "M",
+        "category": "modified",
+        "staged": false,
+        "unstaged": true,
+        "untracked": false,
+        "addedLines": 4,
+        "deletedLines": 1
+      }
+    ],
+    "diffShortStat": "1 file changed, 4 insertions(+), 1 deletion(-)",
+    "suggestedCommitMessage": "chore(middleware): update backend changes",
+    "suggestedBranchName": "codex/middleware-changes",
+    "readiness": {
+      "status": "ready_for_review",
+      "commitRecommended": true,
+      "pullRequestRecommended": true,
+      "requiresApproval": true,
+      "blockers": []
+    },
+    "warnings": [],
+    "scannedAtUtc": "2026-06-04T00:00:00Z"
+  }
+}
+```
+
+- `limit`은 1~300으로 clamp된다.
+- `readOnly=true`가 현재 계약이다. 백엔드는 이 요청에서 `git add`, `git commit`, branch 생성, `gh pr create`를 실행하지 않는다.
+- `stagedFileCount`, `unstagedFileCount`, `untrackedFileCount`는 겹치지 않는 카운트다.
+- `changedFileCount`와 상태별 카운트는 전체 변경 기준이고, `files`만 `limit`으로 잘린다. 잘렸으면 `filesTruncated=true`다.
+- `readiness.status=blocked`이면 `conflictedFileCount > 0`이거나 `blockers`에 이유가 들어간다.
+- `suggestedCommitMessage`와 `suggestedBranchName`은 LLM이 아니라 파일 경로/status 기반 heuristic이다. 자동 실행 근거가 아니라 사용자 승인 UI의 초안으로만 사용한다.
+
 ### `agent_bus_get`
 
 에이전트 메시지/보드/생명주기 스냅샷 조회.
@@ -865,6 +933,7 @@ OMNUX_AGENT_SPAWN_WORKTREE_MODE=auto|on|enabled|true|1
 - MCP 설정 패널은 `mcp_servers_list`를 호출해 발견된 서버와 invalid/error config를 표시한다. `status=discovered`는 "연결 가능 후보"이지 "실행 중"이 아니다.
 - Commit learning 패널은 `commit_learning_snapshot_get`을 호출해 최근 커밋 intent 분포와 자주 바뀌는 파일 hotspot을 표시한다. intent는 heuristic이므로 자동 규칙 적용 근거가 아니라 관찰용으로 둔다.
 - Worktree isolation은 새 WS 타입이 없다. 세션 결과 note와 child session timeline의 `sessions_spawn_worktree_*` / `sessions_spawn_acp_dispatch` metadata를 읽어 표시한다.
+- Git automation 패널은 `git_automation_snapshot_get`으로 현재 변경 파일, readiness, 커밋 메시지 초안을 표시한다. 실제 커밋/PR 버튼은 아직 백엔드 실행 API가 없으므로 비활성 상태로 둔다.
 
 ## 보류한 후보
 
@@ -879,6 +948,5 @@ OMNUX_AGENT_SPAWN_WORKTREE_MODE=auto|on|enabled|true|1
 - Tree-sitter/Repomap 본도입: 1차는 외부 의존성 없는 선언 경계 청킹이다. 실제 AST parser, 언어별 grammar, Repomap 프롬프트 주입은 별도 검증 후 붙인다.
 - MCP 서버 프로세스/JSON-RPC/tool registry 주입: 1차는 설정 discovery만 구현했다. 실제 실행은 서드파티 프로세스 권한/격리와 MCP handshake 정책이 필요해 보류한다.
 - 커밋 히스토리 LLM 학습/자동 주입: 1차는 읽기 전용 snapshot이다. LLM 요약, memory/skill 자동 저장, nightly 자기 개선은 사용자 변경 오염 위험이 있어 보류한다.
-- 자동 커밋/PR 생성: 현재 워크트리가 대규모 변경 상태라 자동 커밋 계열 기능을 바로 붙이면 사용자 변경과 충돌할 수 있다.
-- Git Worktree 격리: 스폰 실행 경로와 롤백 정책을 함께 바꿔야 한다.
+- 자동 커밋/PR 실제 실행: 1차는 read-only snapshot만 제공한다. `git add`, `git commit`, branch 생성, `gh pr create`는 사용자 승인/충돌/권한 정책이 필요해 보류한다.
 - 시맨틱 검색/Ollama embed: 후보 문서 결론대로 코드 검색용 우선순위는 낮다.
