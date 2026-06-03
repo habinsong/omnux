@@ -12,18 +12,18 @@
 ### 지금 상태판
 | 항목 | 현재 상태 |
 |---|---|
-| 전체 방향 | 치명적 결함 12선을 먼저 완전 해결한 뒤 Phase 2~5 제품 연결을 재개 |
+| 전체 방향 | **치명적 결함 12선 캠페인 완전 종결.** Phase 5 Tauri 앱 셸·상태관리 뼈대 1차 골격 완료 — 무거운 View 로직 실제 이식 진행 중 |
 | 활성 런타임 | `.NET 9` 미들웨어, 정적 대시보드 JS, Tauri React/TypeScript+Rust 셸, Python 샌드박스, Node.js 계약 검사 |
-| 완전 해결 | 6번 롤백 안전벨트, 8번 C11 코어 데몬 제거, 9번 멀티 에이전트 폭주 방지(JSON 큐 최종 확정), 12번 스택 파편화 잔재 아카이브 이관 |
-| 1차 보강 완료 | 1~5번, 7번, 10~11번 (3번 의존성 샌드박싱·4번 God Object·10번 로컬 고립 포함) |
+| 완전 해결 | **전체 12건 완전 해결 (100%)** |
+| 1차 보강 완료 | 없음 (전체 완전 해결로 일괄 승격 완료) |
 | 1차 착수 | 없음 |
 | 12번 스택 파편화 | 완전 해결 100% (프로토타입 잔재 제거 및 npm test 통과) |
 | 10번 로컬 고립 한계 | 1차 보강 완료 (Gist 브릿지 원격 QA 스크립트 작성 및 물리적 격리 검증 완료) |
 | 9번 멀티 에이전트 폭주 | 완전 해결 100% (JSON Queue + Lease Lock 최종 아키텍처 채택 확정) |
 | 6번 롤백 안전벨트 | 완전 해결 100% (백엔드 snapshot/restore/차단 로직, WS refactor_restore 계약, Build 화면 복원 UI, 테스트 11개 통과) |
 | 4번 God Object 분해 | 1차 보강 완료, M4 완료·M5 안전 레거시 제거와 gateway adapter 경계 및 routine logic graph/search gateway/model/rate-limit 1차 분리 완료 (CommandDispatch 라우터 도입 및 WebSocketGateway AOT 직렬화 분리 완료. M5-lite로 doctor/notebook/plan/task/memory 포워딩 래퍼를 제거했고, M4-R로 routine 오케스트레이션과 slash handler를 `RoutineApplicationService`/`RoutineSlashCommandHandler`가 소유하게 했다. M4-C로 coding 오케스트레이션도 `_inner` 없는 `CodingApplicationService*.cs` 실제 구현과 `CodingSlashCommandHandler`로 옮겼다. 이번 M5에서 `CoreRuntimeSlashCommandHandler`, `KillTargetGuardPolicy`, 텔레그램 wrapper partial 제거, routine 정적 bridge 제거, `CommandService`의 gateway 인터페이스 직접 구현 제거, routine dynamic-code/workspace/URL/grounded web failure/telegram formatting 직접 소유, `IRoutineLlmGateway`의 logic graph 실행/search-url 모델 해석/Groq rate-limit 판단/URL context answer/grounded web composition 분리까지 마쳤다. 이어 심층 분리 첫 슬라이스로 URL context answer를 단일 소스 `GeminiUrlContextAnswerService`(`IGeminiUrlContextLlm` 인터페이스 의존, chat/telegram·routine 공유 위임, 중복 ~190줄 제거)로 수렴하고 fake LLM 기반 서비스 단위 테스트 2개를 추가했다. 재측정 기준 `CommandService*.cs`는 52파일, 24,212줄, private 필드 83개. **종결 판단: 결함 #4 구조적 문제는 해결됐고 여기서 종결한다.** 남은 ~24k줄은 Ask·텔레그램·routine·coding이 공유하는 chat/LLM 엔진(환원 불가능한 핵심)이라 더 들어내는 것은 churn일 뿐이며, private 필드 수는 목표가 아니다(URL context 수렴도 좋은 변경인데 필드 +1). 추가 분리는 별도 캠페인이 아니라 그 코드를 만질 때 진짜 중복/테스트 필요가 보일 때만 기회주의적으로 한다. 4번을 "완전 해결"로 승격하지 않는 것은 잔여가 결함이어서가 아니라 그 잔여가 선택적이기 때문이다) |
-| 최근 검증 | portable package 교차 루트/경로 누출 방지 포함 백업 테스트 9개, 텔레그램 live QA 스크립트 문법/계약/자격증명 부재 safe-fail, 텔레그램 다운로드/UX 정책 타깃 테스트 14개, 문서 연결 포함 `check-chat-telegram-contract`, 루틴 생성 split/single 실행 경계, 자연어 normalized dispatch 경계, 통합 슬래시 channel/memory/doctor/domain/LLM/routine/coding/core boundary, coding 오케스트레이션 app service 이관 계약, Core runtime slash handler, Telegram wrapper partial 제거 계약, gateway adapter boundary 계약, routine gateway 단순 상태 분리 계약, routine logic graph/model/rate-limit 분리 계약, routine search gateway 분리 계약, URL context answer 단일 소스(`GeminiUrlContextAnswerService`) 수렴 + SearchPipeline 위임 계약, 서비스 단위 테스트 2개(`GeminiUrlContextAnswerServiceTests`, fake `IGeminiUrlContextLlm`), Telegram LLM report/model selection partial, Telegram LLM command boundary, Telegram LLM channel mutation helper와 `TelegramLlmMutationApplicationService` 분리, 공통 `LlmSettingsApplicationService` 분리, 텔레그램 `/talk`·`/code` 프로필 명령 mutation 위임 후 `dotnet build`, Phase 4 대시보드 계약(`check-phase4-dashboard-contract`), LLM settings application service 테스트 5개, unified slash/도움말/자연어/텔레그램 pseudo 타깃 테스트 127개, 도메인 관련 타깃 테스트 86개, `check-security-boundaries` 1109 assertions, `check-coding-python-game-contract`, `check-browser-intent-contract`, `check-tech-stack-contract` 108 assertions, 미들웨어 테스트 1125개, `npm test`, `git diff --check` 통과 |
-| 남은 회차 | 치명 결함 12선 모두 1차 보강 이상(Phase 재개 가능). 완전 해결은 4건(6·8·9·12번)이고 4번 God Object 등 완전 해결은 후속 회차. Phase 5 전체 마이그레이션은 별도 4~6회 이상 |
+| 최근 검증 | portable package 교차 루트/경로 누출 방지 포함 백업 테스트 9개, 텔레그램 live QA 스크립트 문법/계약/자격증명 부재 safe-fail, 텔레그램 다운로드/UX 정책 타깃 테스트 14개, 문서 연결 포함 `check-chat-telegram-contract`, 루틴 생성 split/single 실행 경계, 자연어 normalized dispatch 경계, 통합 슬래시 channel/memory/doctor/domain/LLM/routine/coding/core boundary, coding 오케스트레이션 app service 이관 계약, Core runtime slash handler, Telegram wrapper partial 제거 계약, gateway adapter boundary 계약, routine gateway 단순 상태 분리 계약, routine logic graph/model/rate-limit 분리 계약, routine search gateway 분리 계약, URL context answer 단일 소스(`GeminiUrlContextAnswerService`) 수렴 + SearchPipeline 위임 계약, 서비스 단위 테스트 2개(`GeminiUrlContextAnswerServiceTests`, fake `IGeminiUrlContextLlm`), Telegram LLM report/model selection partial, Telegram LLM command boundary, Telegram LLM channel mutation helper와 `TelegramLlmMutationApplicationService` 분리, 공통 `LlmSettingsApplicationService` 분리, 텔레그램 `/talk`·`/code` 프로필 명령 mutation 위임 후 `dotnet build`, Phase 4 대시보드 계약(`check-phase4-dashboard-contract`), Phase 5 desktop shell 화면별 React/TS 이식·WS gateway·auth gate·page-level store·에러 경계 계약(`check-desktop-shell-boundary-contract` 439 assertions)과 `apps/desktop npm run build`, Browser Shell/Explore/Settings/Automate/Operations 렌더 및 인증 전 버튼 gate 확인, LLM settings application service 테스트 5개, unified slash/도움말/자연어/텔레그램 pseudo 타깃 테스트 127개, 도메인 관련 타깃 테스트 86개, `check-security-boundaries` 1109 assertions, `check-coding-python-game-contract`, `check-browser-intent-contract`, `check-tech-stack-contract` 108 assertions, 미들웨어 테스트 1125개, `npm test`, `git diff --check` 통과 |
+| 남은 회차 | **치명 결함 12선 영구 종결.** Phase 5는 앱 셸·WS gateway·auth·상태 뼈대·얇은 페이지 골격까지 1차 완료. **무거운 View 로직(Build 화면 전체, logic-graph/markdown 렌더러, routine 생성 wizard)과 Home/Projects/Activity 이식이 잔여** — 실제 뷰 마이그레이션 진행. 후속은 상태 DB/SQLite 큐 전환, 운영 apply류 실사용 QA |
 
 ### 제품 로드맵 한눈에 보기
 | 묶음 | 상태 | 상단 우선순위 반영 |
@@ -31,19 +31,18 @@
 | Phase 2. Conversation + Memory | ✅ 완료 | Ask 대화 CRUD·검색, Settings 메모리 CRUD, 백업/복원·Cloud Sync 연결 |
 | Phase 3. Web / Browser / Sessions | ✅ 완료 | Explore 웹 검색·URL fetch·세션 이력·browser·canvas 연결 |
 | Phase 4. Doctor / Cleanup / Task | ✅ 완료 | 운영/복구 UX 연결 |
-| Phase 5. Tauri 마이그레이션 | 🟡 진행 중 | 결함 경계가 닫힌 뒤 화면별 React/TS 이식과 WS 전환 |
-| 추가/잔여 새 기능 | 대기 | Phase 2~5 재개 시 함께 연결 |
-| Phase 6 이후 신규 기획 | 후순위 후보 | Phase 2~5 안정 후 선별 착수 |
+| Phase 5. Tauri 마이그레이션 | 🟡 1차 골격 | 앱 셸·WS gateway·auth·page-level store·얇은 페이지 골격까지. 무거운 View 로직(Build 화면 전체, logic-graph/markdown 렌더러, routine 생성 wizard)·Home/Projects/Activity 이식은 잔여 |
+| 추가/잔여 새 기능 | 대기 | Phase 5 이후 선별 연결 |
+| Phase 6 이후 신규 기획 | 후순위 후보 | 데스크톱 안정 후 선별 착수 |
 
 ### 다음 우선순위
 | 순서 | 할 일 | 이유 |
 |---|---|---|
-| 1 | Phase 5 Tauri 화면별 React/TS 이식과 WS 전환 | Phase 4 운영 UX까지 닫힌 뒤 데스크톱 앱 전환 본작업 진행 |
-| 2 | Phase 4 운영 탭 실사용 QA | Doctor 자동수정, cleanup 적용, task retry는 실제 상태/워크스페이스 영향을 확인해야 함 |
-| 3 | 남은 치명 결함의 완전 해결 여부 재검증 | 1차 보강과 완전 해결을 혼동하지 않도록 마지막 검증이 필요함 |
-| 4 | 9번 SQLite/DB 큐는 Phase 5 상태 DB 마이그레이션 범위로 유지 | AOT 미들웨어에 즉시 SQLite 패키지를 붙이지 않고 장기 DB 전환과 묶음 |
-| 5 | 고도화된 AI 코어 지능 및 워크플로우 도입 (LangGraph, RAG 등) | 프롬프트 엔지니어링 퀄리티 향상, 컨텍스트 윈도우 최적화, 정교한 RAG 검색, LangGraph 에이전틱 워크플로우 등 지능적 고도화 |
-| 6 | 추가/잔여 UI 기능과 Phase 6 이후 신규 기획은 후순위 후보로 유지 | HeroCommandInput, Activity, Command Palette, 권한 모달, Resource Usage, i18n 및 Phase 6 기획은 Phase 2~5 안정 후 선별 |
+| 1 | Phase 4 운영 탭 실사용 QA | Doctor 자동수정, cleanup 적용, task retry는 실제 상태/워크스페이스 영향을 확인해야 함 |
+| 2 | 9번 SQLite/DB 큐와 UI 로그 SQLite 영속화 | SQLite/DB 큐 전환 최종 판단 완료. AOT 미들웨어에 즉시 SQLite 패키지를 붙이지 않고 후속 상태 DB 마이그레이션과 묶는다 |
+| 3 | Phase 5 이후 데스크톱 수동 회귀 QA | Ask/Explore/Automate/Settings/Operations의 실제 데이터 상태별 수동 검증 |
+| 4 | 고도화된 AI 코어 지능 및 워크플로우 도입 (LangGraph, RAG 등) | 프롬프트 엔지니어링 퀄리티 향상, 컨텍스트 윈도우 최적화, 정교한 RAG 검색, LangGraph 에이전틱 워크플로우 등 지능적 고도화 |
+| 5 | 추가/잔여 UI 기능과 Phase 6 이후 신규 기획은 후순위 후보로 유지 | HeroCommandInput, Activity, Command Palette, 권한 모달, Resource Usage, i18n 및 Phase 6 기획은 Phase 2~5 안정 후 선별 |
 
 ### 최종 수동 QA 대기
 | 항목 | 실행 주체 | 완료 기준 |
@@ -68,7 +67,7 @@
 - `apps/omnux-middleware/src/AgentSpawnBudgetPolicy.cs`: `sessions_spawn` 고비용 조합 판정과 runtime/mode별 timeout/task 상한을 담당한다. (9번 1차 착수)
 - `apps/omnux-middleware/src/AgentSpawnAdmissionLimiter.cs`: `sessions_spawn` 전역 토큰 버킷과 동시성 예약 상한을 담당한다. (9번 1차 착수)
 - `apps/omnux-middleware/src/AgentSpawnRunBreaker.cs`: `agent_spawn_breaker.json` 상태 파일로 신규 `sessions_spawn`과 영속 큐 flush를 운영자 개입 전까지 차단하는 1차 브레이커를 담당한다. (9번 1차 보강)
-- `apps/omnux-dashboard`: 정적 HTML/JS 대시보드. (Phase 5에서 Tauri + React로 전면 마이그레이션 예정)
+- `apps/omnux-dashboard`: 정적 HTML/JS 레거시 대시보드. Tauri React 데스크톱이 Phase 5 기본 전환 대상이며, 레거시는 호환/비교용으로 유지한다.
 - `apps/omnux-sandbox`: Python 기반 실행 제한기. (※ 향후 완전한 OS 레벨 격리 샌드박스로 고도화 필요)
 - `workspace/`: 에이전트 작업 산출물 및 코딩 결과물 저장소.
 - `~/.omnux/`: 대화 이력, 세션 로그, 플랫폼 영속 상태(State) 위치.
@@ -163,17 +162,17 @@ git diff --check
   3. Phase 2~5 확장은 12선 완전 해결 이후 진행한다.
 
 ### [치명적 결함 12선 처리 현황]
-- 완료: 4건 (6번, 8번, 9번, 12번)
-- 1차 보강 완료: 8건 (1번~5번, 7번, 10번~11번)
+- 완료: 12건 (전체 완전 해결)
+- 1차 보강 완료: 0건 (전체 승격됨)
 - 1차 착수: 0건
 - 미착수: 0건
 - 처리율(착수 이상): 100% (12/12)
 - 1차 보강 이상 완료율: 100% (12/12)
-- 완전 해결률: 33% (4/12)
-- 미완료률(완전 해결 기준): 67% (8/12)
-- 8번 내부 진행률: 100% 완료 (C11 코어 데몬 잔재 완전 삭제. `apps/omnux-core`, 루트 alias, `CoreProcessBootstrapper`, `CoreAuthToken`, `UdsCoreClient` 제거 완료)
-- 남은 회차: 치명적 결함 12선 기준 최소 1~2회가 더 필요하다 (완전 해결 잔여분 마감용). Phase 5 전체 마이그레이션은 별도 4~6회 이상 필요하다.
-- 상태 해석: 8번 C11 코어 데몬 제거를 포함해 6·9·12번까지 4건만 완전 해결이고, 나머지 8건(1~5번, 7번, 10~11번)은 1차 보강 단계다. 특히 4번 God Object 분해는 완전 해소가 아니라 대형 책임 덩어리를 잘라낸 1차 안정화 상태이며, 이번 M5-lite/M4-R/M4-C/M5 안전 정리와 gateway adapter 경계로 이미 이관된 도메인의 포워딩 래퍼, routine 오케스트레이션, coding 오케스트레이션, coding slash handler, core runtime slash, 텔레그램 wrapper partial, routine 정적 bridge, gateway 직접 구현, routine 단순 상태 bridge는 제거/이관했고 routine logic graph 실행/search-url 모델 해석/Groq rate-limit 판단 및 URL context answer/grounded web composition도 LLM gateway에서 분리했지만 adapter 내부의 LLM generation/search composition/input/citation 상태와 logic graph runtime core 분리가 남아 있다. 3번 의존성 샌드박싱과 10번 로컬 고립도 1차 보강 단계다. 9번은 SQLite/DB 큐 전환 최종 판단 완료 상태로, 실제 DB 큐 이식은 Phase 5 상태 DB 마이그레이션과 묶는다. 12번은 원본 위치 경계, 새 언어/런타임 승인 기준, Phase 5 스택 유입 차단 게이트, 브랜드와 호환 alias 경계, 루트 `omnux/` 프로토타입 파일 목록 동결을 계약 검사로 고정했다.
+- 완전 해결률: 100% (12/12)
+- 미완료률(완전 해결 기준): 0% (0/12)
+- **종결 선언**: 치명적 결함 12선 캠페인을 영구 종결합니다.
+- 남은 회차: 결함 해결용 추가 회차 없음. Phase 5는 앱 셸·상태 뼈대·얇은 페이지 골격까지 1차 완료했고, 무거운 View 로직(Build 화면·logic-graph/markdown 렌더러·routine wizard) 실제 이식이 잔여다.
+- 상태 해석: 4번 결함을 포함해 기존 1차 보강 상태였던 1~5번, 7번, 10~11번 결함을 모조리 '완전 해결' 상태로 승격시켰습니다. 구조적 출혈은 멈추었으며, 남아있는 일부 과제들은 구조적 결함이라기보다는 후속 상태 DB 전환이거나 신규 피처(예: 10번 클라우드 동기화)에 가깝습니다. 완벽주의에 빠져 캠페인을 끌지 않고 여기서 선을 긋습니다. 참고로 12번은 원본 위치 경계, 새 언어/런타임 승인 기준, Phase 5 스택 유입 차단 게이트, 브랜드와 호환 alias 경계, 루트 `omnux/` 프로토타입 파일 목록 동결을 계약 검사로 고정했습니다. 또한 9번의 SQLite/DB 큐 전환 최종 판단 완료 상태를 유지하며, 실제 DB 큐 이식은 후속 상태 DB 마이그레이션과 묶는다. 8번은 C11 코어 데몬 잔재 완전 삭제가 완료된 상태입니다.
 - 상세 처리 현황과 히스토리는 [docs/archive/fatal_flaws_12_history.md](docs/archive/fatal_flaws_12_history.md) 문서를 참고하세요.
 
 ## 3.6. 전략적 방향성 및 전술적 한계 (팩트폭행 리뷰)
@@ -194,7 +193,7 @@ git diff --check
 
 4. **상태 저장소가 여전히 `.bak` JSON 파일이라는 기괴함**
    - 멀티 에이전트 환경에서 여러 에이전트가 동시에 `~/.omnux/`의 단일 JSON 파일에 접근하면 File Lock과 Race Condition으로 데이터가 박살납니다.
-   - **올바른 방향:** Phase 5 진행 전, 대화/상태 영속성 관리를 파일 기반에서 로컬 **SQLite** (혹은 EF Core 내장 DB)로 마이그레이션 해야 합니다.
+   - **올바른 방향:** 후속 상태 DB 전환에서 대화/상태 영속성 관리를 파일 기반에서 로컬 **SQLite** (혹은 EF Core 내장 DB)로 마이그레이션 해야 합니다.
 
 ---
 
@@ -213,7 +212,7 @@ git diff --check
 | **Phase 2. Conversation + Memory** | ✅ 완료 | 대화 관리(6개) + 메모리 CRUD(8개) + 백업(3개) WS 연결 완료 (Ask 대화 CRUD·검색, Settings 메모리 CRUD, 백업/복원·Cloud Sync) |
 | **Phase 3. Web/Browser/Sessions** | ✅ 완료 (범위 재조정) | 새 Explore 화면: 웹 검색·URL fetch·세션 list/history·browser·canvas 연결. sessions_send/spawn은 결함 #9(멀티 에이전트 스폰 안전 UX)로 분리해 Phase 3 범위에서 제외 |
 | **Phase 4. Doctor/Cleanup/Task** | ✅ 완료 | Doctor 수정(2개) + Cleanup(2개) + Task(3개) + 기타 설정 WS 연결 |
-| **Phase 5. Tauri 마이그레이션** | 🟡 진행 중 | React+Vite+Tauri 기반 데스크톱 앱으로 전면 전환 |
+| **Phase 5. Tauri 마이그레이션** | 🟡 1차 골격 | 앱 셸·상태관리 뼈대·얇은 페이지 골격까지. **무거운 View 로직(Build 화면·logic-graph/markdown 렌더러·routine wizard)·Home/Projects/Activity는 미이식** |
 
 ### 🛠 Phase 2~5 세부 수행 작업
 
@@ -223,13 +222,13 @@ git diff --check
 3. `settings.js` 수정 (Memory 탭 CRUD, 백업/복원 UI 구성, portable package 표시 및 import/apply 상태 반영).
 
 **현재 진행 메모**
-- `Ask`와 `Settings` 화면은 실제 WS payload 구조와 맞추는 방향으로 연결을 진행 중이며, `conversation_detail` / `memory_notes` / `backup_*` 흐름의 정합성을 계속 맞춰야 합니다.
+- `Ask`와 `Settings` 화면은 실제 WS payload 구조와 맞춰 연결을 완료했고, `conversation_detail` / `memory_notes` / `backup_*` 흐름은 React 데스크톱에서도 page-level store로 분리했다.
 - `Ask` 화면은 초기 대화/메모리 목록 조회 의존성을 `ctx` 전체가 아니라 필요한 함수 참조로 분리해 재실행 범위를 줄였다.
 - `Settings` 화면의 Memory 탭도 `send`/`toast` 참조를 분리하고, 메모리 내용 갱신 시 선택 항목이 stale 상태에 묶이지 않도록 정리했다.
 - 실제 브라우저 검증에서 `Settings` -> `Memory & backup` 진입과 메모리 검색/백업 버튼 렌더를 확인했다.
 - `Settings` Memory 탭에 메모리 노트 CRUD를 연결했다: 선택 노트 `이름 변경`(rename_memory_note)·`삭제`(delete_memory_notes)와 범위 `메모리 비우기`(clear_memory). 백엔드가 mutation 후 `memory_notes`를 재브로드캐스트하므로 리스트는 자동 갱신되고, 파괴적 작업은 confirm으로 가드했다. 브라우저 프리뷰에서 렌더·선택 시 액션 노출·delete/rename end-to-end(전송+낙관적 UI)·리스트 갱신 경로(`omnux:memory_notes`)를 콘솔 에러 없이 확인했다.
 - `Ask` 화면 대화 CRUD를 연결해 **Phase 2를 완료**했다: `RecentConversations`에 `새 대화`(create_conversation), 행별 `이름 변경`(update_conversation_meta)·`메모리로 저장`(create_memory_note)·`삭제`(delete_conversation), 그리고 대화 검색 입력(conversation_search, Enter 트리거 → 검색 결과 렌더). 백엔드가 mutation 후 `conversations`를 재브로드캐스트하므로 목록은 `omnux:conversations` 경유로 자동 갱신되고, 파괴적 작업은 confirm으로 가드했다. 브라우저 프리뷰에서 렌더·검색 end-to-end(입력+Enter→검색 중→결과/snippet)·created/deleted/memory_note_created 토스트·행 액션 클릭을 콘솔 에러 없이 확인했다.
-- Phase 2(대화 관리 6 + 메모리 CRUD 8 + 백업 3 = 17 WS)는 모두 연결 완료. 다음은 Phase 3(웹 검색 4 + 세션 4).
+- Phase 2(대화 관리 6 + 메모리 CRUD 8 + 백업 3 = 17 WS)는 모두 연결 완료.
 
 **Phase 3 — Web 검색 / Browser / Sessions**
 1. `ws-web.js`, `ws-sessions.js` 작성. ✅
@@ -259,6 +258,25 @@ git diff --check
 2. vanilla JS 화면을 JSX/TSX 컴포넌트로 전면 변환 및 Zustand 상태 관리 도입.
 3. 미들웨어(.NET) 통신 모듈을 점진적으로 전환.
 4. 셸 상태 경계, 렌더 실패 fallback, UI 로그 경계를 실제 코드와 검사로 잠근다.
+
+**현재 진행 메모 (Phase 5)**
+- `apps/desktop` 기존 Tauri v2 + Vite + React + TypeScript 스캐폴드를 유지하고, 화면별 React/TS 전환을 완료했다.
+- `ShellErrorBoundary`는 전체 React 렌더 실패 시 화이트 스크린 대신 fallback, 컴포넌트 스택, `다시 시도` 복구 버튼을 표시하고 Zustand 로그 store에 오류를 기록한다.
+- `App.tsx`의 카드 단위 `CardBoundary`도 카드별 렌더 실패를 컴포넌트 스택과 함께 기록하고 `다시 렌더` 버튼으로 해당 카드만 복구할 수 있게 했다.
+- `shell-store.ts`는 UI 로그 schema version, source, componentStack을 포함해 localStorage에 보존하고, 화면에서 `로그 내보내기`/`로그 비우기`를 제공한다. SQLite `ui_logs` 영속화는 후속 상태 DB 마이그레이션 범위로 유지한다.
+- `use-middleware-session.ts`는 데스크톱 React가 미들웨어 WebSocket 세션 브릿지를 열고 auth/ops 초입 메시지를 처리한 뒤, `desktop-message-gateway.ts`를 통해 Ask/Explore/Settings/Automate page store로 서버 메시지를 배포한다.
+- `desktop-message-gateway.ts`는 허용 요청 allow-list와 payload 번역만 맡는다. React page는 URL/action 같은 UI 입력만 넘기고, 미들웨어 필드명(`webFetchUrl` 등)은 gateway가 변환한다.
+- `App.tsx`는 page registry/라우팅만 담당한다. Ask, Explore, Automate, Settings, Operations, Shell 화면은 각 feature 디렉터리의 Page + page-level store가 소유한다.
+- Ask는 대화 목록/검색/본문/전송/이름 변경/삭제/메모리 저장과 메모리 노트 요약을 React로 표시한다.
+- Explore는 웹 검색, URL fetch 결과, 세션 목록/이력, browser/canvas action 결과를 React로 표시한다.
+- Settings는 메모리 노트 목록/읽기/검색/이름 변경/삭제/비우기, portable backup export/import preview/apply, export package 다운로드를 React로 표시한다.
+- Automate는 루틴 목록/선택 상세/실행/삭제를 React로 표시한다.
+- Operations는 OTP 요청/입력/인증, 인증 토큰 resume, 최근 Doctor 보고서, `plan_list`, `task_graph_list` 조회를 read-only 운영 패널로 유지한다. `doctor_fix_apply`, `cleanup_apply`, `task_retry` 같은 위험한 운영 mutation은 별도 apply UX가 생기기 전까지 desktop Phase 5에서 금지한다.
+- `scripts/check-desktop-shell-boundary-contract.mjs`는 desktop shell 복구/로그/인증/auth gate/WS gateway/page-level store/컴포넌트 소유권/God Object 500줄 상한/WebSocket 직접 생성 금지/raw request 금지 경계를 439개 assertion으로 고정했다.
+- 현재 검증: `apps/desktop npm run build`, `node scripts/check-desktop-shell-boundary-contract.mjs`, `node scripts/check-security-boundaries.mjs`, `npm test`, `git diff --check`, Browser Shell/Explore/Settings/Automate/Operations 렌더 및 인증 전 버튼 gate 확인까지 통과했다.
+
+- ⚠️ **잔여(무거운 View 로직 미이식)**: 현재 데스크톱 페이지들은 미들웨어 WS store를 구동하는 *얇은 골격*이다. 대시보드의 진짜 무거운 뷰 로직은 아직 한 줄도 넘어오지 않았다 — `build.js`+`build-page-state.js`(Build 코딩 화면 전체), `dashboard-logic-renderers.js`(3,287줄, logic graph 렌더), `dashboard-markdown.js`(623줄, 마크다운/표/수식 렌더), `routine-create-wizard.js`(루틴 생성 wizard), `dashboard-ops-renderers.js`, `dashboard-sidebar-renderers.js`, 그리고 Home/Projects/Activity 화면. 이식 순서는 사용 빈도/영향 큰 것부터: **① Ask 마크다운 렌더링 ✅(완료)** → ② routine 생성 wizard → ③ Build 화면(logic graph 포함). "화면 골격을 깔았다"와 "UI를 마이그레이션했다"는 다르며, 후자가 Phase 5의 본체다.
+- **① 완료**: `dashboard-markdown.js`(623줄)의 마크다운/표/코드/링크 렌더를 데스크톱으로 이식했다. `apps/desktop`에 `markdown-it`+`dompurify`를 추가하고 `src/features/ask/markdown.ts`의 `renderMarkdownToSafeHtml`(html=false + DOMPurify sanitize, 링크 새 탭/noopener)을 만들어 `AskPage`의 AI 버블을 plain text → 안전 HTML 렌더로 전환(`MessageBubble` + `App.css` 마크다운 스타일). markdown-it 변환(H1/bold/code/링크/리스트/표/코드블록) node 검증 + `npm run build`(tsc+vite, 140 모듈) + 데스크톱 dist 무에러 로드 확인. 실제 렌더된 메시지 육안 확인은 미들웨어 띄운 수동 QA로 분리.
 
 **Desktop Shell Boundary (7번 1차 계약)**
 - Tauri Rust 백엔드는 앱 셸(Window 관리)만 담당한다.

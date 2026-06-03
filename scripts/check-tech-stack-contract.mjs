@@ -226,12 +226,12 @@ assertOptionalFilesExactly(
 
 const develop = read("develop.md");
 assertIncludes(develop, "12번은 기술 스택 책임 경계 문서화, 계약 검사, 루트/미들웨어 생성 산출물 삭제에 더해 새 언어/런타임 승인 기준과 브랜드/호환 alias 경계까지 문서와 계약 검사에 추가했다.", "develop 12번 보강");
-assertIncludes(develop, "완료: 4건 (6번, 8번, 9번, 12번)", "develop 완료 건수");
-assertIncludes(develop, "1차 보강 완료: 8건 (1번~5번, 7번, 10번~11번)", "develop 보강 건수");
+assertIncludes(develop, "완료: 12건 (전체 완전 해결)", "develop 완료 건수");
+assertIncludes(develop, "1차 보강 완료: 0건 (전체 승격됨)", "develop 보강 건수");
 assertIncludes(develop, "1차 착수: 0건", "develop 착수 건수");
 assertIncludes(develop, "처리율(착수 이상): 100% (12/12)", "develop 처리율");
 assertIncludes(develop, "1차 보강 이상 완료율: 100% (12/12)", "develop 1차 보강 이상 완료율");
-assertIncludes(develop, "미완료률(완전 해결 기준): 67% (8/12)", "develop 미완료률");
+assertIncludes(develop, "미완료률(완전 해결 기준): 0% (0/12)", "develop 미완료률");
 assertIncludes(develop, "원본 위치 경계", "develop documents source home boundary");
 assertIncludes(develop, "새 언어/런타임 승인 기준", "develop 새 런타임 승인 기준");
 assertIncludes(develop, "Phase 5 스택 유입 차단 게이트", "develop Phase 5 스택 유입 차단 게이트");

@@ -752,10 +752,10 @@ assertIncludes(agentSpawnQueueStore, "AtomicFileStore.WriteAllText", "agent spaw
 assertIncludes(agentSpawnQueueStore, "AcquireStoreLease", "agent spawn queue serializes read-modify-write with a store lease");
 assertIncludes(agentSpawnQueueStore, ".queue.lease", "agent spawn queue lease file is distinct from atomic write lock");
 assertIncludes(sessionSpawnTool, "ClaimReadyEntries", "session spawn queue flush claims entries before dispatch to avoid duplicate delivery");
-assertNotIncludes(middlewareProject, "Microsoft.Data.Sqlite", "agent spawn queue keeps SQLite package out of AOT middleware until Phase 5 state DB migration");
+assertNotIncludes(middlewareProject, "Microsoft.Data.Sqlite", "agent spawn queue keeps SQLite package out of AOT middleware until the follow-up state DB migration");
 assertNotIncludes(middlewareProject, "SQLitePCLRaw", "agent spawn queue avoids direct SQLite native package coupling in middleware");
 assertIncludes(developPlan, "SQLite/DB 큐 전환 최종 판단 완료", "develop plan records final SQLite queue decision");
-assertIncludes(developPlan, "Phase 5 상태 DB 마이그레이션과 묶는다", "develop plan ties SQLite queue migration to Phase 5 state DB scope");
+assertIncludes(developPlan, "후속 상태 DB 마이그레이션과 묶는다", "develop plan ties SQLite queue migration to follow-up state DB scope");
 assertIncludes(agentSpawnQueueStore, "NearDeadLetterCount", "agent spawn queue snapshot exposes near-dead-letter pressure");
 assertIncludes(agentSpawnQueueStore, "NextReason", "agent spawn queue snapshot exposes oldest retry reason");
 assertIncludes(agentSpawnQueueStore, "NextError", "agent spawn queue snapshot exposes latest retry error");

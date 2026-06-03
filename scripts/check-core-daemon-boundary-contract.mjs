@@ -127,8 +127,8 @@ assertIncludes(
   "scripts\", \"check-core-daemon-boundary-contract.mjs",
   "npm test runs the core daemon boundary contract"
 );
-assertIncludes(developPlan, "8번 내부 진행률: 100% 완료", "develop plan records item 8 full completion");
+assertIncludes(developPlan, "완전 해결률: 100%", "develop plan records 100% complete rate");
 assertIncludes(developPlan, "C11 코어 데몬 잔재 완전 삭제", "develop plan records legacy core removal");
-assertIncludes(developPlan, "남은 회차: 치명적 결함 12선 기준 최소 1~2회", "develop plan updates remaining loop estimate");
+assertIncludes(developPlan, "치명적 결함 12선 캠페인을 영구 종결", "develop plan updates remaining loop estimate");
 
 process.stdout.write(`[core-daemon-boundary-contract] ok assertions=${assertionCount}\n`);
