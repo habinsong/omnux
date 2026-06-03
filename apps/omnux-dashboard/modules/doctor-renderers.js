@@ -60,6 +60,9 @@ export function renderDoctorPanel(props) {
 
   const report = doctorState.report || null;
   const checks = report && Array.isArray(report.checks) ? report.checks : [];
+  const fixPreview = doctorState.fixPreview || null;
+  const fixApply = doctorState.fixApply || null;
+  const fixActions = fixPreview && Array.isArray(fixPreview.actions) ? fixPreview.actions : [];
   const disabled = !authed || doctorState.pending || doctorState.loading;
 
   return e("section", { className: "panel settings-optimized-panel settings-doctor-panel doctor-panel" },
@@ -85,6 +88,30 @@ export function renderDoctorPanel(props) {
       : null,
     doctorState.lastError
       ? e("div", { className: "error-banner mt8" }, doctorState.lastError)
+      : null,
+    fixPreview
+      ? e("article", { className: "plan-detail-card mt8" },
+        e("div", { className: "plans-section-head" },
+          e("strong", null, "자동수정 미리보기"),
+          e("span", { className: `tool-status-chip ${fixPreview.ok ? "ok" : "error"}` }, fixPreview.ok ? "ready" : "error")
+        ),
+        e("div", { className: "doctor-check-summary" }, fixPreview.message || fixPreview.error || "-"),
+        fixActions.length > 0
+          ? e("ul", { className: "doctor-action-list" },
+            fixActions.map((action) => e("li", { key: action.actionId || action.target || action.description },
+              `${action.description || action.kind || "-"} · ${action.target || "-"} · ${action.status || (action.autoApply ? "auto" : "manual")}`
+            )))
+          : null
+      )
+      : null,
+    fixApply
+      ? e("article", { className: "plan-detail-card mt8" },
+        e("div", { className: "plans-section-head" },
+          e("strong", null, "자동수정 적용 결과"),
+          e("span", { className: `tool-status-chip ${fixApply.ok ? "ok" : "error"}` }, fixApply.ok ? "done" : "error")
+        ),
+        e("div", { className: "doctor-check-summary" }, fixApply.message || fixApply.error || "-")
+      )
       : null,
     report
       ? e("div", { className: "doctor-summary-grid" },

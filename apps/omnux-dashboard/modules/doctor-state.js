@@ -6,6 +6,9 @@ export function createDoctorState() {
     pending: false,
     lastAction: "",
     lastError: "",
-    receivedAt: ""
+    receivedAt: "",
+    fixPreview: null,
+    fixApply: null,
+    fixPreviewId: ""
   };
 }

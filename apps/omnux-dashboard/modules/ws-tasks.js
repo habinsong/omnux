@@ -14,8 +14,16 @@ export function requestTaskGraphRun(send, graphId, options = {}) {
   return send({ type: "task_graph_run", graphId }, options);
 }
 
+export function requestTaskGraphResume(send, graphId, options = {}) {
+  return send({ type: "task_resume", graphId }, options);
+}
+
 export function requestTaskCancel(send, graphId, taskId, options = {}) {
   return send({ type: "task_cancel", graphId, taskId }, options);
+}
+
+export function requestTaskRetry(send, graphId, taskId, options = {}) {
+  return send({ type: "task_retry", graphId, taskId }, options);
 }
 
 export function requestTaskOutput(send, graphId, taskId, options = {}) {

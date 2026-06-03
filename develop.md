@@ -22,30 +22,28 @@
 | 9번 멀티 에이전트 폭주 | 완전 해결 100% (JSON Queue + Lease Lock 최종 아키텍처 채택 확정) |
 | 6번 롤백 안전벨트 | 완전 해결 100% (백엔드 snapshot/restore/차단 로직, WS refactor_restore 계약, Build 화면 복원 UI, 테스트 11개 통과) |
 | 4번 God Object 분해 | 1차 보강 완료, M4 완료·M5 안전 레거시 제거와 gateway adapter 경계 및 routine logic graph/search gateway/model/rate-limit 1차 분리 완료 (CommandDispatch 라우터 도입 및 WebSocketGateway AOT 직렬화 분리 완료. M5-lite로 doctor/notebook/plan/task/memory 포워딩 래퍼를 제거했고, M4-R로 routine 오케스트레이션과 slash handler를 `RoutineApplicationService`/`RoutineSlashCommandHandler`가 소유하게 했다. M4-C로 coding 오케스트레이션도 `_inner` 없는 `CodingApplicationService*.cs` 실제 구현과 `CodingSlashCommandHandler`로 옮겼다. 이번 M5에서 `CoreRuntimeSlashCommandHandler`, `KillTargetGuardPolicy`, 텔레그램 wrapper partial 제거, routine 정적 bridge 제거, `CommandService`의 gateway 인터페이스 직접 구현 제거, routine dynamic-code/workspace/URL/grounded web failure/telegram formatting 직접 소유, `IRoutineLlmGateway`의 logic graph 실행/search-url 모델 해석/Groq rate-limit 판단/URL context answer/grounded web composition 분리까지 마쳤다. 이어 심층 분리 첫 슬라이스로 URL context answer를 단일 소스 `GeminiUrlContextAnswerService`(`IGeminiUrlContextLlm` 인터페이스 의존, chat/telegram·routine 공유 위임, 중복 ~190줄 제거)로 수렴하고 fake LLM 기반 서비스 단위 테스트 2개를 추가했다. 재측정 기준 `CommandService*.cs`는 52파일, 24,212줄, private 필드 83개. **종결 판단: 결함 #4 구조적 문제는 해결됐고 여기서 종결한다.** 남은 ~24k줄은 Ask·텔레그램·routine·coding이 공유하는 chat/LLM 엔진(환원 불가능한 핵심)이라 더 들어내는 것은 churn일 뿐이며, private 필드 수는 목표가 아니다(URL context 수렴도 좋은 변경인데 필드 +1). 추가 분리는 별도 캠페인이 아니라 그 코드를 만질 때 진짜 중복/테스트 필요가 보일 때만 기회주의적으로 한다. 4번을 "완전 해결"로 승격하지 않는 것은 잔여가 결함이어서가 아니라 그 잔여가 선택적이기 때문이다) |
-| 최근 검증 | portable package 교차 루트/경로 누출 방지 포함 백업 테스트 9개, 텔레그램 live QA 스크립트 문법/계약/자격증명 부재 safe-fail, 텔레그램 다운로드/UX 정책 타깃 테스트 14개, 문서 연결 포함 `check-chat-telegram-contract`, 루틴 생성 split/single 실행 경계, 자연어 normalized dispatch 경계, 통합 슬래시 channel/memory/doctor/domain/LLM/routine/coding/core boundary, coding 오케스트레이션 app service 이관 계약, Core runtime slash handler, Telegram wrapper partial 제거 계약, gateway adapter boundary 계약, routine gateway 단순 상태 분리 계약, routine logic graph/model/rate-limit 분리 계약, routine search gateway 분리 계약, URL context answer 단일 소스(`GeminiUrlContextAnswerService`) 수렴 + SearchPipeline 위임 계약, 서비스 단위 테스트 2개(`GeminiUrlContextAnswerServiceTests`, fake `IGeminiUrlContextLlm`), Telegram LLM report/model selection partial, Telegram LLM command boundary, Telegram LLM channel mutation helper와 `TelegramLlmMutationApplicationService` 분리, 공통 `LlmSettingsApplicationService` 분리, 텔레그램 `/talk`·`/code` 프로필 명령 mutation 위임 후 `dotnet build`, LLM settings application service 테스트 5개, unified slash/도움말/자연어/텔레그램 pseudo 타깃 테스트 127개, 도메인 관련 타깃 테스트 86개, `check-security-boundaries` 1109 assertions, `check-coding-python-game-contract`, `check-browser-intent-contract`, `check-tech-stack-contract` 108 assertions, 미들웨어 테스트 1125개, `npm test`, `git diff --check` 통과 |
+| 최근 검증 | portable package 교차 루트/경로 누출 방지 포함 백업 테스트 9개, 텔레그램 live QA 스크립트 문법/계약/자격증명 부재 safe-fail, 텔레그램 다운로드/UX 정책 타깃 테스트 14개, 문서 연결 포함 `check-chat-telegram-contract`, 루틴 생성 split/single 실행 경계, 자연어 normalized dispatch 경계, 통합 슬래시 channel/memory/doctor/domain/LLM/routine/coding/core boundary, coding 오케스트레이션 app service 이관 계약, Core runtime slash handler, Telegram wrapper partial 제거 계약, gateway adapter boundary 계약, routine gateway 단순 상태 분리 계약, routine logic graph/model/rate-limit 분리 계약, routine search gateway 분리 계약, URL context answer 단일 소스(`GeminiUrlContextAnswerService`) 수렴 + SearchPipeline 위임 계약, 서비스 단위 테스트 2개(`GeminiUrlContextAnswerServiceTests`, fake `IGeminiUrlContextLlm`), Telegram LLM report/model selection partial, Telegram LLM command boundary, Telegram LLM channel mutation helper와 `TelegramLlmMutationApplicationService` 분리, 공통 `LlmSettingsApplicationService` 분리, 텔레그램 `/talk`·`/code` 프로필 명령 mutation 위임 후 `dotnet build`, Phase 4 대시보드 계약(`check-phase4-dashboard-contract`), LLM settings application service 테스트 5개, unified slash/도움말/자연어/텔레그램 pseudo 타깃 테스트 127개, 도메인 관련 타깃 테스트 86개, `check-security-boundaries` 1109 assertions, `check-coding-python-game-contract`, `check-browser-intent-contract`, `check-tech-stack-contract` 108 assertions, 미들웨어 테스트 1125개, `npm test`, `git diff --check` 통과 |
 | 남은 회차 | 치명 결함 12선 모두 1차 보강 이상(Phase 재개 가능). 완전 해결은 4건(6·8·9·12번)이고 4번 God Object 등 완전 해결은 후속 회차. Phase 5 전체 마이그레이션은 별도 4~6회 이상 |
 
 ### 제품 로드맵 한눈에 보기
 | 묶음 | 상태 | 상단 우선순위 반영 |
 |---|---|---|
-| Phase 2. Conversation + Memory | 대기 | 치명 결함 완전 해결 후 최우선 제품 기능 연결 |
-| Phase 3. Web / Browser / Sessions | 대기 | Phase 2 완료 직후 연결 |
-| Phase 4. Doctor / Cleanup / Task | 대기 | 운영/복구 UX 연결 |
-| Phase 5. Tauri 마이그레이션 | 대기 | 결함 경계가 닫힌 뒤 화면별 React/TS 이식과 WS 전환 |
+| Phase 2. Conversation + Memory | ✅ 완료 | Ask 대화 CRUD·검색, Settings 메모리 CRUD, 백업/복원·Cloud Sync 연결 |
+| Phase 3. Web / Browser / Sessions | ✅ 완료 | Explore 웹 검색·URL fetch·세션 이력·browser·canvas 연결 |
+| Phase 4. Doctor / Cleanup / Task | ✅ 완료 | 운영/복구 UX 연결 |
+| Phase 5. Tauri 마이그레이션 | 🟡 진행 중 | 결함 경계가 닫힌 뒤 화면별 React/TS 이식과 WS 전환 |
 | 추가/잔여 새 기능 | 대기 | Phase 2~5 재개 시 함께 연결 |
 | Phase 6 이후 신규 기획 | 후순위 후보 | Phase 2~5 안정 후 선별 착수 |
 
 ### 다음 우선순위
 | 순서 | 할 일 | 이유 |
 |---|---|---|
-| 1 | Phase 2 Conversation + Memory + Backup WS 연결 마무리 | 치명 결함이 닫힌 뒤 Ask/Settings의 실제 데이터 연결을 재개 |
-| 2 | Phase 3 Web / Browser / Sessions 연결 | 대화/메모리 다음으로 검색, URL fetch, 세션 이력을 확장 |
-| 3 | Phase 4 Doctor / Cleanup / Task / Plans 잔여 연결 | 운영 점검, 자동 수정, 정리, 태스크 재시도 UX 완성 |
-| 4 | Phase 5 Tauri 화면별 React/TS 이식과 WS 전환 | 결함 경계가 닫힌 뒤 데스크톱 앱 전환 본작업 진행 |
-| 5 | 남은 치명 결함의 완전 해결 여부 재검증 | 1차 보강과 완전 해결을 혼동하지 않도록 마지막 검증이 필요함 |
-| 6 | 9번 SQLite/DB 큐는 Phase 5 상태 DB 마이그레이션 범위로 유지 | AOT 미들웨어에 즉시 SQLite 패키지를 붙이지 않고 장기 DB 전환과 묶음 |
-| 7 | 고도화된 AI 코어 지능 및 워크플로우 도입 (LangGraph, RAG 등) | 프롬프트 엔지니어링 퀄리티 향상, 컨텍스트 윈도우 최적화, 정교한 RAG 검색, LangGraph 에이전틱 워크플로우 등 지능적 고도화 |
-| 8 | 추가/잔여 UI 기능과 Phase 6 이후 신규 기획은 후순위 후보로 유지 | HeroCommandInput, Activity, Command Palette, 권한 모달, Resource Usage, i18n 및 Phase 6 기획은 Phase 2~5 안정 후 선별 |
+| 1 | Phase 5 Tauri 화면별 React/TS 이식과 WS 전환 | Phase 4 운영 UX까지 닫힌 뒤 데스크톱 앱 전환 본작업 진행 |
+| 2 | Phase 4 운영 탭 실사용 QA | Doctor 자동수정, cleanup 적용, task retry는 실제 상태/워크스페이스 영향을 확인해야 함 |
+| 3 | 남은 치명 결함의 완전 해결 여부 재검증 | 1차 보강과 완전 해결을 혼동하지 않도록 마지막 검증이 필요함 |
+| 4 | 9번 SQLite/DB 큐는 Phase 5 상태 DB 마이그레이션 범위로 유지 | AOT 미들웨어에 즉시 SQLite 패키지를 붙이지 않고 장기 DB 전환과 묶음 |
+| 5 | 고도화된 AI 코어 지능 및 워크플로우 도입 (LangGraph, RAG 등) | 프롬프트 엔지니어링 퀄리티 향상, 컨텍스트 윈도우 최적화, 정교한 RAG 검색, LangGraph 에이전틱 워크플로우 등 지능적 고도화 |
+| 6 | 추가/잔여 UI 기능과 Phase 6 이후 신규 기획은 후순위 후보로 유지 | HeroCommandInput, Activity, Command Palette, 권한 모달, Resource Usage, i18n 및 Phase 6 기획은 Phase 2~5 안정 후 선별 |
 
 ### 최종 수동 QA 대기
 | 항목 | 실행 주체 | 완료 기준 |
@@ -207,14 +205,14 @@ git diff --check
 
 ## 5. UI 전환 및 마이그레이션 진척도 (Phase 1~5)
 
-전체 WS 연결률: 69/93 (74%). Phase 1~4 완료 시 93/93 (100%). (sessions_send/spawn은 결함 #9 안전작업으로 별도 분리 — Phase 3 분모에서 제외)
+전체 WS 연결률: 93/93 (100%). Phase 1~4 완료. (sessions_send/spawn은 결함 #9 안전작업으로 별도 분리 — Phase 3 분모에서 제외)
 
 | 단계 (Phase) | 상태 | 목표 및 내용 |
 |---|---|---|
 | **Phase 1. Routine CRUD** | ✅ 완료 | Automate 화면 루틴 연결 완료 (`create`, `run`, `delete` 등) |
 | **Phase 2. Conversation + Memory** | ✅ 완료 | 대화 관리(6개) + 메모리 CRUD(8개) + 백업(3개) WS 연결 완료 (Ask 대화 CRUD·검색, Settings 메모리 CRUD, 백업/복원·Cloud Sync) |
 | **Phase 3. Web/Browser/Sessions** | ✅ 완료 (범위 재조정) | 새 Explore 화면: 웹 검색·URL fetch·세션 list/history·browser·canvas 연결. sessions_send/spawn은 결함 #9(멀티 에이전트 스폰 안전 UX)로 분리해 Phase 3 범위에서 제외 |
-| **Phase 4. Doctor/Cleanup/Task** | 🔴 대기 | Doctor 수정(2개) + Cleanup(2개) + Task(3개) + 기타 설정 WS 연결 |
+| **Phase 4. Doctor/Cleanup/Task** | ✅ 완료 | Doctor 수정(2개) + Cleanup(2개) + Task(3개) + 기타 설정 WS 연결 |
 | **Phase 5. Tauri 마이그레이션** | 🟡 진행 중 | React+Vite+Tauri 기반 데스크톱 앱으로 전면 전환 |
 
 ### 🛠 Phase 2~5 세부 수행 작업
@@ -245,8 +243,15 @@ git diff --check
 - **범위 재조정(사용자 합의)**: Phase 3의 "웹 4 + 세션 4 = 8" 산정에서 `sessions_send`/`sessions_spawn`은 멀티 에이전트 스폰(결함 #9)이라 비용 캡·브레이커 안전 UX와 묶어야 하는 별도 작업으로 분리했다. 따라서 Phase 3 분모를 6(web_search·web_fetch·browser·canvas·sessions_list·sessions_history)으로 재조정하고 ✅ 완료로 둔다. spawn/send는 결함 #9 트랙에서 안전장치와 함께 다룬다.
 
 **Phase 4 — Doctor 자동수정 / Cleanup / Task 잔여 처리**
-1. `ws-doctor.js`, `ws-cleanup.js`, `ws-tasks.js`, `ws-plans.js` 확장 작성.
-2. 문제 자동 수정(미리보기/적용), 시스템 클린업, 태스크 재시도 기능 연동.
+1. `ws-doctor.js`, `ws-cleanup.js`, `ws-tasks.js`, `ws-plans.js` 확장 작성. ✅
+2. 문제 자동 수정(미리보기/적용), 시스템 클린업, 태스크 재시도 기능 연동. ✅
+
+**현재 진행 메모 (Phase 4)**
+- 실제 Settings 화면에 `운영` 탭을 추가했다. 탭은 Doctor 자동수정(`doctor_run`/`doctor_get_last`/`doctor_fix_preview`/`doctor_fix_apply`), 시스템 클린업(`cleanup_preview`/`cleanup_apply`), Plans/Task graph(`plan_list`, `task_graph_list/get/create/run`, `task_output_get`, `task_retry`, `task_cancel`)을 한 곳에서 실행하고 결과를 표시한다.
+- `ws-doctor.js`는 doctor fix preview/apply 헬퍼를 제공하고, 새 `ws-cleanup.js`는 cleanup preview/apply 헬퍼를 제공한다. `ws-tasks.js`에는 task retry/resume 헬퍼를 추가했다.
+- `dashboard-server-message-router.mjs`는 `doctor_fix_result`를 도구 타임라인뿐 아니라 `doctorState.fixPreview/fixApply`에도 보존한다. `doctor-renderers.js`는 자동수정 미리보기/적용 결과를 표시한다.
+- `scripts/check-phase4-dashboard-contract.mjs`를 추가하고 `npm test` 파이프라인에 연결해 Phase 4 WS 헬퍼, 실제 Settings 운영 탭, 미들웨어 dispatcher 계약을 고정했다.
+- 현재 검증: `node --check` 대상 파일, `node scripts/check-phase4-dashboard-contract.mjs`, `node apps/omnux-dashboard/check-dashboard-server-message-router.mjs` 통과. 남은 것은 실제 미들웨어 연결 상태에서 Doctor fix apply, cleanup apply, task retry를 누르는 수동 QA다.
 
 **Phase 5 — Tauri 데스크톱 앱 마이그레이션**
 0. 사전 조건: `node scripts/check-desktop-shell-boundary-contract.mjs`가 통과하는 상태에서 진행한다.
