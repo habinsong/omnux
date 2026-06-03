@@ -439,13 +439,19 @@ public sealed partial class CommandService
         CancellationToken cancellationToken
     )
     {
-        var currentChars = _conversationStore.GetTotalCharacters(conversationId);
-        if (currentChars < Math.Max(2000, _context.ConversationCompressChars))
+        var thread = _conversationStore.Get(conversationId);
+        if (thread == null)
         {
             return null;
         }
 
-        var sourceText = _conversationStore.BuildCompressionSourceText(conversationId, _context.ConversationKeepRecentMessages);
+        var decision = AdaptiveContextCompressionPolicy.Evaluate(thread, _context);
+        if (!decision.ShouldCompress)
+        {
+            return null;
+        }
+
+        var sourceText = _conversationStore.BuildCompressionSourceText(conversationId, decision.KeepRecentMessages);
         if (string.IsNullOrWhiteSpace(sourceText))
         {
             return null;
@@ -471,6 +477,13 @@ public sealed partial class CommandService
                             3) 아직 남은 작업
                             4) 파일/경로/명령 관련 중요 사실
 
+                            [압축 트리거]
+                            reason={decision.Reason}
+                            messages={decision.MessageCount}
+                            chars={decision.TotalCharacters}
+                            estimated_tokens={decision.EstimatedTokens}
+                            threshold_tokens={decision.ThresholdTokens}
+
                             [대화 로그]
                             {sourceText}
                             """;
@@ -480,12 +493,6 @@ public sealed partial class CommandService
         if (string.IsNullOrWhiteSpace(summary))
         {
             summary = sourceText.Length > 2400 ? sourceText[..2400] + "\n...(truncated)" : sourceText;
-        }
-
-        var thread = _conversationStore.Get(conversationId);
-        if (thread == null)
-        {
-            return null;
         }
 
         var saved = _memoryNoteStore.Save(
@@ -499,8 +506,14 @@ public sealed partial class CommandService
         _conversationStore.AddLinkedMemoryNote(conversationId, saved.Name);
         _conversationStore.CompactWithSummary(
             conversationId,
-            _context.ConversationKeepRecentMessages,
-            $"자동 압축 완료. 메모리 노트 `{saved.Name}` 를 컨텍스트로 사용합니다."
+            decision.KeepRecentMessages,
+            $"자동 압축 완료(reason={decision.Reason}, estimated_tokens={decision.EstimatedTokens}, threshold_tokens={decision.ThresholdTokens}). 메모리 노트 `{saved.Name}` 를 컨텍스트로 사용합니다."
+        );
+        _auditLogger.Log(
+            "conversation",
+            "adaptive_context_compress",
+            "ok",
+            $"conversationId={NormalizeAuditToken(conversationId, "-")} reason={decision.Reason} chars={decision.TotalCharacters} tokens={decision.EstimatedTokens}/{decision.ThresholdTokens} keep={decision.KeepRecentMessages} note={NormalizeAuditToken(saved.Name, "-")}"
         );
         return saved;
     }
