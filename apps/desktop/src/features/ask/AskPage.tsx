@@ -223,7 +223,24 @@ export function AskPage() {
                         <span className="block truncate text-xs font-medium">{candidate.kind}</span>
                         <span className="block truncate text-[11px] text-muted-foreground">{candidate.reason}</span>
                       </span>
-                      <Badge tone={ragTone(candidate.priority)}>{candidate.suggestedRequestType || candidate.priority}</Badge>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <Badge tone={ragTone(candidate.priority)}>{candidate.suggestedRequestType || candidate.priority}</Badge>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={() => store.runRagCandidate(candidate)}
+                          disabled={
+                            !canRequest ||
+                            store.ragExecution?.loading ||
+                            candidate.kind === "none" ||
+                            !candidate.suggestedRequestType ||
+                            (candidate.suggestedRequestType === "session_replay_get" && !store.activeConversationId)
+                          }
+                        >
+                          조회
+                        </Button>
+                      </div>
                     </div>
                   ))}
                   {store.ragPreflight.candidates.length === 0 ? <p className="py-2 text-center text-xs text-muted-foreground">검색 후보 없음</p> : null}
@@ -231,6 +248,29 @@ export function AskPage() {
                 {store.ragPreflight.signals.length > 0 ? (
                   <div className="mt-2 flex flex-wrap gap-1">
                     {store.ragPreflight.signals.slice(0, 6).map((signal) => <Badge key={signal} tone="outline">{signal}</Badge>)}
+                  </div>
+                ) : null}
+                {store.ragExecution ? (
+                  <div className="mt-2 rounded-md border border-border bg-background/50 p-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge tone={ragTone(store.ragExecution.status)}>{store.ragExecution.status}</Badge>
+                      <Badge tone="outline">{store.ragExecution.requestType}</Badge>
+                      <Badge tone={ragTone(store.ragExecution.kind)}>{store.ragExecution.kind}</Badge>
+                      {store.ragExecution.loading ? <span className="flex items-center gap-1 text-[11px] text-muted-foreground"><Spinner size={12} /> 조회 중</span> : null}
+                    </div>
+                    {store.ragExecution.error ? <p className="mt-1 truncate text-xs text-destructive">{store.ragExecution.error}</p> : null}
+                    <div className="mt-2 space-y-1">
+                      {store.ragExecution.items.slice(0, 6).map((item) => (
+                        <div key={`${item.title}-${item.badge}`} className="flex items-center justify-between gap-2 rounded-md bg-muted/40 px-2 py-1.5">
+                          <span className="min-w-0">
+                            <span className="block truncate text-xs font-medium">{item.title}</span>
+                            <span className="block truncate text-[11px] text-muted-foreground">{item.detail || "detail -"}</span>
+                          </span>
+                          <Badge tone="outline">{item.badge || "-"}</Badge>
+                        </div>
+                      ))}
+                      {!store.ragExecution.loading && store.ragExecution.items.length === 0 ? <p className="py-2 text-center text-xs text-muted-foreground">조회 결과 없음</p> : null}
+                    </div>
                   </div>
                 ) : null}
               </div>
