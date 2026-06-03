@@ -5,6 +5,7 @@ import {
   subscribeDesktopMessages,
   type DesktopServerMessage
 } from "../middleware/desktop-message-gateway";
+import { requestDesktopLogicRecovery } from "../middleware/logic-gateway";
 import { requestConfirmDialog } from "../dialog/dialog-store";
 
 export type LogicGraphSummary = {
@@ -54,19 +55,35 @@ export type LogicRunSnapshot = {
   nodes: LogicRunNode[];
 };
 
+export type LogicRecoveryItem = {
+  runId: string;
+  graphId: string;
+  title: string;
+  status: string;
+  source: string;
+  completedNodeCount: number;
+  errorNodeCount: number;
+  pendingNodeCount: number;
+  lastEvent: string;
+};
+
 type LogicState = {
   graphs: LogicGraphSummary[];
+  recoveryItems: LogicRecoveryItem[];
   selectedGraphId: string;
   graph: LogicGraphDetail | null;
   graphJson: string;
   runInput: string;
   runSnapshot: LogicRunSnapshot | null;
   loadingList: boolean;
+  loadingRecovery: boolean;
   loadingGraph: boolean;
   running: boolean;
   lastError: string;
   loadGraphs: () => void;
+  loadRecovery: () => void;
   openGraph: (graphId: string) => void;
+  openRecoveryRun: (item: LogicRecoveryItem) => void;
   setGraphJson: (value: string) => void;
   setRunInput: (value: string) => void;
   saveGraph: () => void;
@@ -173,14 +190,35 @@ function normalizeSnapshot(value: unknown): LogicRunSnapshot | null {
   };
 }
 
+function normalizeRecoveryItems(value: unknown): LogicRecoveryItem[] {
+  return Array.isArray(value)
+    ? value.map((item) => {
+        const record = asRecord(item);
+        return {
+          runId: String(record.runId || ""),
+          graphId: String(record.graphId || ""),
+          title: String(record.title || "recoverable run"),
+          status: String(record.status || ""),
+          source: String(record.source || ""),
+          completedNodeCount: Number(record.completedNodeCount) || 0,
+          errorNodeCount: Number(record.errorNodeCount) || 0,
+          pendingNodeCount: Number(record.pendingNodeCount) || 0,
+          lastEvent: String(record.lastEvent || "")
+        };
+      }).filter((item) => item.runId)
+    : [];
+}
+
 export const useLogicStore = create<LogicState>((set, get) => ({
   graphs: [],
+  recoveryItems: [],
   selectedGraphId: "",
   graph: null,
   graphJson: "",
   runInput: "",
   runSnapshot: null,
   loadingList: false,
+  loadingRecovery: false,
   loadingGraph: false,
   running: false,
   lastError: "",
@@ -190,11 +228,24 @@ export const useLogicStore = create<LogicState>((set, get) => ({
       set({ loadingList: false, lastError: "logic graph 목록 요청을 전송하지 못했다." });
     }
   },
+  loadRecovery: () => {
+    set({ loadingRecovery: true, lastError: "" });
+    if (!requestDesktopLogicRecovery.list()) {
+      set({ loadingRecovery: false, lastError: "logic recovery 후보 요청을 전송하지 못했다." });
+    }
+  },
   openGraph: (graphId) => {
     if (!graphId) return;
     set({ selectedGraphId: graphId, loadingGraph: true, graph: null, graphJson: "", runSnapshot: null });
     if (!requestDesktopLogic.getGraph(graphId)) {
       set({ loadingGraph: false, lastError: "logic graph 조회 요청을 전송하지 못했다." });
+    }
+  },
+  openRecoveryRun: (item) => {
+    if (!item.runId) return;
+    set({ selectedGraphId: item.graphId, running: false, runSnapshot: null, lastError: "" });
+    if (!requestDesktopLogic.getRun(item.runId)) {
+      set({ lastError: "logic recovery run 조회 요청을 전송하지 못했다." });
     }
   },
   setGraphJson: (value) => set({ graphJson: value }),
@@ -259,6 +310,12 @@ export function useLogicPageBridge() {
         return;
       }
 
+      if (message.type === "logic_graph_recovery_list_result") {
+        const payload = asRecord(message.payload);
+        useLogicStore.setState({ recoveryItems: normalizeRecoveryItems(payload.items), loadingRecovery: false });
+        return;
+      }
+
       if (message.type === "logic_graph_run_result" || message.type === "logic_graph_run_event") {
         const snapshot = normalizeSnapshot(message.snapshot);
         useLogicStore.setState({
@@ -272,6 +329,7 @@ export function useLogicPageBridge() {
       if (message.type === "error") {
         useLogicStore.setState({
           loadingList: false,
+          loadingRecovery: false,
           loadingGraph: false,
           running: false,
           lastError: String(message.message || "오류")

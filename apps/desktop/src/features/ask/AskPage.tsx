@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Inbox, Plus, RefreshCw, Search, Send, Trash2 } from "lucide-react";
+import { BrainCircuit, Inbox, Plus, RefreshCw, Search, Send, Trash2, X } from "lucide-react";
 import { CardBoundary } from "../../CardBoundary";
 import { useDesktopAuthStore } from "../auth/auth-store";
 import { useDesktopShellStore } from "../../shell-store";
@@ -34,6 +34,16 @@ function formatTime(value: string) {
   const parsed = new Date(value || "");
   if (Number.isNaN(parsed.getTime())) return "";
   return parsed.toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function ragTone(value: string): "success" | "warning" | "destructive" | "primary" | "default" | "outline" {
+  const normalized = value.toLowerCase();
+  if (/(recommended|hybrid|memory|code|web|session|repomap)/.test(normalized)) return "primary";
+  if (/(none|no_retrieval|skipped)/.test(normalized)) return "outline";
+  if (/(blocked|error|fail)/.test(normalized)) return "destructive";
+  if (/(warn|pending)/.test(normalized)) return "warning";
+  if (/(ready|ok)/.test(normalized)) return "success";
+  return "default";
 }
 
 export function AskPage() {
@@ -183,9 +193,48 @@ export function AskPage() {
                 <Spinner size={13} /> 생성 중
               </span>
             ) : null}
+            <Button variant="outline" size="sm" onClick={store.runRagPreflight} disabled={!canRequest || store.ragPending || !store.input.trim()}>
+              <BrainCircuit size={14} aria-hidden="true" /> {store.ragPending ? "점검 중" : "검색 점검"}
+            </Button>
           </div>
 
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+            {store.ragPreflight ? (
+              <div className="rounded-lg border border-border bg-muted/30 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge tone={ragTone(store.ragPreflight.status)}>{store.ragPreflight.status || "preflight"}</Badge>
+                      <Badge tone={ragTone(store.ragPreflight.primaryStrategy)}>{store.ragPreflight.primaryStrategy || "none"}</Badge>
+                      <Badge tone={store.ragPreflight.retrievalRecommended ? "primary" : "outline"}>
+                        {store.ragPreflight.retrievalRecommended ? "retrieval" : "no retrieval"}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">{store.ragPreflight.queryPreview}</p>
+                  </div>
+                  <Button variant="ghost" size="icon" aria-label="RAG preflight 닫기" onClick={store.clearRagPreflight}>
+                    <X size={14} aria-hidden="true" />
+                  </Button>
+                </div>
+                <div className="mt-2 space-y-1">
+                  {store.ragPreflight.candidates.slice(0, 4).map((candidate) => (
+                    <div key={`${candidate.kind}-${candidate.suggestedRequestType}`} className="flex items-center justify-between gap-2 rounded-md border border-border bg-card/60 px-2.5 py-1.5">
+                      <span className="min-w-0">
+                        <span className="block truncate text-xs font-medium">{candidate.kind}</span>
+                        <span className="block truncate text-[11px] text-muted-foreground">{candidate.reason}</span>
+                      </span>
+                      <Badge tone={ragTone(candidate.priority)}>{candidate.suggestedRequestType || candidate.priority}</Badge>
+                    </div>
+                  ))}
+                  {store.ragPreflight.candidates.length === 0 ? <p className="py-2 text-center text-xs text-muted-foreground">검색 후보 없음</p> : null}
+                </div>
+                {store.ragPreflight.signals.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {store.ragPreflight.signals.slice(0, 6).map((signal) => <Badge key={signal} tone="outline">{signal}</Badge>)}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             {store.messages.map((message, index) => (
               <MessageBubble key={`${index}-${message.role}`} role={message.role} text={message.text} />
             ))}

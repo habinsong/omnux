@@ -37,16 +37,6 @@ export type DesktopRequestType =
   | "backup_import_preview"
   | "backup_import_apply"
   | "get_cerebras_models"
-  | "get_groq_models"
-  | "get_copilot_models"
-  | "set_groq_model"
-  | "set_copilot_model"
-  | "get_copilot_status"
-  | "get_codex_status"
-  | "get_usage_stats"
-  | "set_llm_credentials"
-  | "delete_llm_credentials"
-  | "start_copilot_login"
   | "web_search"
   | "web_fetch"
   | "sessions_list"
@@ -81,81 +71,35 @@ export type DesktopRequestPayload = Record<string, unknown> & {
 
 export type DesktopMessageListener = (message: DesktopServerMessage) => void;
 
-const DESKTOP_ALLOWED_REQUESTS = new Set<DesktopRequestType>([
-  "request_otp",
-  "resume_auth",
-  "auth",
-  "doctor_get_last",
-  "plan_list",
-  "task_graph_list",
-  "projects_list",
-  "project_create",
-  "project_update",
-  "project_delete",
-  "project_touch",
-  "list_conversations",
-  "get_conversation",
-  "create_conversation",
-  "update_conversation_meta",
-  "delete_conversation",
-  "conversation_search",
-  "llm_chat_single",
-  "llm_chat_orchestration",
-  "llm_chat_multi",
-  "list_memory_notes",
-  "read_memory_note",
-  "create_memory_note",
-  "delete_memory_notes",
-  "rename_memory_note",
-  "clear_memory",
-  "memory_search",
-  "backup_export_prepare",
-  "backup_import_preview",
-  "backup_import_apply",
-  "get_cerebras_models",
-  "get_groq_models",
-  "get_copilot_models",
-  "set_groq_model",
-  "set_copilot_model",
-  "get_copilot_status",
-  "get_codex_status",
-  "get_usage_stats",
-  "set_llm_credentials",
-  "delete_llm_credentials",
-  "start_copilot_login",
-  "web_search",
-  "web_fetch",
-  "sessions_list",
-  "sessions_history",
-  "sessions_send",
-  "sessions_spawn",
-  "browser",
-  "canvas",
-  "get_routines",
-  "run_routine",
-  "update_routine",
-  "toggle_routine",
-  "delete_routine",
-  "create_routine",
-  "preview_routine",
-  "coding_run_single",
-  "coding_run_orchestration",
-  "coding_run_multi",
-  "coding_execute_result",
-  "refactor_restore",
-  "logic_graph_list",
-  "logic_graph_get",
-  "logic_graph_save",
-  "logic_graph_delete",
-  "logic_graph_run",
-  "logic_graph_run_get",
-  "logic_graph_cancel"
+const DESKTOP_ALLOWED_REQUESTS = new Set<string>([
+  "request_otp", "resume_auth", "auth", "doctor_get_last", "plan_list", "task_graph_list",
+  "projects_list", "project_create", "project_update", "project_delete", "project_touch",
+  "list_conversations", "get_conversation", "create_conversation", "update_conversation_meta",
+  "delete_conversation", "conversation_search", "llm_chat_single", "llm_chat_orchestration", "llm_chat_multi",
+  "list_memory_notes", "read_memory_note", "create_memory_note", "delete_memory_notes", "rename_memory_note",
+  "clear_memory", "memory_search", "backup_export_prepare", "backup_import_preview", "backup_import_apply",
+  "get_cerebras_models", "web_search", "web_fetch", "sessions_list", "sessions_history", "sessions_send",
+  "sessions_spawn", "browser", "canvas", "get_routines", "run_routine", "update_routine", "toggle_routine",
+  "delete_routine", "create_routine", "preview_routine", "coding_run_single", "coding_run_orchestration",
+  "coding_run_multi", "coding_execute_result", "refactor_restore", "logic_graph_list", "logic_graph_get",
+  "logic_graph_save", "logic_graph_delete", "logic_graph_run", "logic_graph_run_get", "logic_graph_cancel"
 ]);
-const DESKTOP_PUBLIC_REQUESTS = new Set<DesktopRequestType>([
+const DESKTOP_PUBLIC_REQUESTS = new Set<string>([
   "request_otp",
   "resume_auth",
   "auth"
 ]);
+
+/**
+ * 도메인별 게이트웨이 파일(features/middleware/*-gateway.ts)이 자신의 요청 타입을
+ * allow-list에 등록한다. 보안 경계는 그대로: 외부 page/store는 sendDesktopRequest를
+ * 직접 호출하지 못하고(계약 검사) middleware 디렉터리 안에서만 사용한다.
+ */
+export function registerDesktopRequestTypes(...types: string[]): void {
+  for (const type of types) {
+    DESKTOP_ALLOWED_REQUESTS.add(type);
+  }
+}
 
 const listeners = new Set<DesktopMessageListener>();
 let sessionSocket: WebSocket | null = null;
@@ -175,7 +119,7 @@ export function subscribeDesktopMessages(listener: DesktopMessageListener) {
   };
 }
 
-export function sendDesktopRequest(payload: DesktopRequestPayload): boolean {
+export function sendDesktopRequest(payload: { type: string } & Record<string, unknown>): boolean {
   if (!DESKTOP_ALLOWED_REQUESTS.has(payload.type)) {
     useDesktopShellStore.getState().markBridgeStatus("error", "데스크톱 WS 게이트웨이에 등록되지 않은 요청이다.");
     return false;
@@ -368,51 +312,6 @@ export const requestDesktopSettings = {
   },
   cerebrasModels() {
     return sendDesktopRequest({ type: "get_cerebras_models" });
-  }
-};
-
-export interface LlmCredentialInput {
-  groqApiKey?: string;
-  geminiApiKey?: string;
-  cerebrasApiKey?: string;
-}
-
-export const requestDesktopLlm = {
-  groqModels() {
-    return sendDesktopRequest({ type: "get_groq_models" });
-  },
-  copilotModels() {
-    return sendDesktopRequest({ type: "get_copilot_models" });
-  },
-  setGroqModel(model: string) {
-    return sendDesktopRequest({ type: "set_groq_model", model: model.trim() });
-  },
-  setCopilotModel(model: string) {
-    return sendDesktopRequest({ type: "set_copilot_model", model: model.trim() });
-  },
-  copilotStatus() {
-    return sendDesktopRequest({ type: "get_copilot_status" });
-  },
-  codexStatus() {
-    return sendDesktopRequest({ type: "get_codex_status" });
-  },
-  usageStats() {
-    return sendDesktopRequest({ type: "get_usage_stats" });
-  },
-  startCopilotLogin() {
-    return sendDesktopRequest({ type: "start_copilot_login" });
-  },
-  setCredentials(keys: LlmCredentialInput, persist = true) {
-    return sendDesktopRequest({
-      type: "set_llm_credentials",
-      groqApiKey: keys.groqApiKey?.trim() || undefined,
-      geminiApiKey: keys.geminiApiKey?.trim() || undefined,
-      cerebrasApiKey: keys.cerebrasApiKey?.trim() || undefined,
-      persist
-    });
-  },
-  deleteCredentials(persist = false) {
-    return sendDesktopRequest({ type: "delete_llm_credentials", persist });
   }
 };
 

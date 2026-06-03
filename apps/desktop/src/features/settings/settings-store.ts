@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { create } from "zustand";
-import { requestDesktopLlm, requestDesktopSettings, subscribeDesktopMessages, type DesktopServerMessage, type LlmCredentialInput } from "../middleware/desktop-message-gateway";
+import { requestDesktopSettings, subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
+import { requestDesktopLlm, type LlmCredentialInput } from "../middleware/llm-gateway";
 import { requestConfirmDialog, requestPromptDialog } from "../dialog/dialog-store";
 
 type MemoryNoteItem = {
@@ -25,6 +26,15 @@ type SettingsState = {
   copilotModels: { selected: string; items: string[] };
   copilotStatus: { text: string; detail: string };
   codexStatus: { text: string; detail: string };
+  llmUsage: {
+    geminiTotalTokens: number;
+    geminiCostUsd: string;
+    copilotAvailable: boolean;
+    copilotPlan: string;
+    copilotUsedRequests: string;
+    copilotMonthlyQuota: string;
+    copilotPercentUsed: string;
+  } | null;
   llmMessage: string;
   lastMessage: string;
   loading: boolean;
@@ -65,6 +75,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   copilotModels: { selected: "", items: [] },
   copilotStatus: { text: "조회 전", detail: "-" },
   codexStatus: { text: "조회 전", detail: "-" },
+  llmUsage: null,
   llmMessage: "",
   lastMessage: "",
   loading: false,
@@ -347,6 +358,22 @@ export function useSettingsPageBridge() {
       useSettingsStore.setState({ llmMessage: message.ok ? `${provider} 모델을 ${String(message.model || "-")}로 적용했습니다.` : String(message.message || `${provider} 모델 적용 실패`) });
       if (message.type === "groq_model_set") requestDesktopLlm.groqModels();
       else requestDesktopLlm.copilotModels();
+      return;
+    }
+    if (message.type === "usage_stats") {
+      const gemini = (message.gemini || {}) as Record<string, unknown>;
+      const premium = (message.copilotPremium || {}) as Record<string, unknown>;
+      useSettingsStore.setState({
+        llmUsage: {
+          geminiTotalTokens: Number(gemini.total_tokens || 0),
+          geminiCostUsd: String(gemini.estimated_cost_usd || "0.000000"),
+          copilotAvailable: !!premium.available,
+          copilotPlan: String(premium.plan_name || "-"),
+          copilotUsedRequests: String(premium.used_requests || "0.0"),
+          copilotMonthlyQuota: String(premium.monthly_quota || "0.0"),
+          copilotPercentUsed: String(premium.percent_used || "0.00")
+        }
+      });
       return;
     }
     if (message.type === "copilot_login_result") {
