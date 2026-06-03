@@ -4,6 +4,7 @@ import { useDesktopShellStore } from "../../shell-store";
 import { useDesktopAuthStore } from "../auth/auth-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
 import { useAutomatePageBridge, useAutomateStore } from "./automate-store";
+import { RoutineCreateWizard } from "./RoutineCreateWizard";
 
 export function AutomatePage() {
   useAutomatePageBridge();
@@ -60,6 +61,10 @@ export function AutomatePage() {
             삭제
           </button>
         </div>
+      </CardBoundary>
+      <CardBoundary title="새 루틴" card="navigation" onError={recordCardError}>
+        <p className="routine-wizard-intro">단계별로 입력하면 누락 위험을 줄입니다. 미리보기로 스케줄/실행 경로를 사전 확인할 수 있습니다.</p>
+        <RoutineCreateWizard canRequest={canRequest} />
       </CardBoundary>
     </section>
   );

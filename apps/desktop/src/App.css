@@ -640,3 +640,40 @@ body {
     scroll-behavior: auto;
   }
 }
+
+/* routine 생성 wizard (dashboard routine-create-wizard.js 이식) */
+.routine-wizard-intro { color: #aab6c6; font-size: 13px; margin: 0 0 12px; line-height: 1.5; }
+.routine-wizard-stepnav { display: flex; gap: 8px; margin-bottom: 10px; }
+.routine-wizard-step {
+  flex: 1; display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 8px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #c6d3e0; font-size: 13px;
+}
+.routine-wizard-step.active { border-color: rgba(139, 182, 255, 0.6); color: #ecf4ff; background: rgba(139, 182, 255, 0.12); }
+.routine-wizard-step.done { color: #9fb3c8; }
+.routine-wizard-step:disabled { opacity: 0.45; cursor: not-allowed; }
+.routine-wizard-step-index {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1); font-size: 11px;
+}
+.routine-wizard-hint { color: #8c99a8; font-size: 12px; margin-bottom: 12px; }
+.routine-wizard-body { display: flex; flex-direction: column; gap: 12px; }
+.routine-field { display: flex; flex-direction: column; gap: 5px; }
+.routine-field-label { font-size: 12px; color: #aab6c6; }
+.routine-wizard-kinds { display: flex; flex-wrap: wrap; gap: 6px; }
+.routine-wizard-kinds .chip { cursor: pointer; }
+.routine-wizard-kinds .chip.active { background: rgba(139, 182, 255, 0.2); color: #ecf4ff; border-color: rgba(139, 182, 255, 0.5); }
+.routine-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #d4dde7; cursor: pointer; }
+.routine-wizard-preview {
+  margin-top: 12px; padding: 10px 12px; border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 13px; display: flex; flex-direction: column; gap: 6px;
+}
+.routine-wizard-preview.warn { border-color: rgba(255, 196, 0, 0.4); }
+.routine-wizard-preview > div { display: flex; justify-content: space-between; gap: 12px; }
+.routine-wizard-preview > div > span { color: #9fb3c8; }
+.routine-wizard-preview ul { margin: 4px 0 0; padding-left: 18px; color: #ffd27a; }
+.routine-wizard-preview-ok { color: #8fd6a0; }
