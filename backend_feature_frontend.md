@@ -2,6 +2,19 @@
 
 > 2026-06-04 기준. 프론트엔드에서 바로 연결할 수 있도록 새 백엔드 계약과 보류 판단을 기록한다.
 
+## Deferred Feature Matrix
+
+| lane | 대상 | 현재 판단 | 프론트 연결 기준 |
+|---|---|---|---|
+| `unlock_now` | Git local operation: `create_branch`, `stage_and_commit`, `snapshot_commit` | 공통 `preview → apply` 승인 게이트 1차로 해제 | `git_operation_preview` 성공, `blockers=[]`, `requiresApproval=true`일 때만 apply 버튼 활성화 |
+| `unlock_now` | Git automation snapshot/readiness | 기존 read-only 조회 유지 | 변경 파일, 커밋 메시지 초안, remote readiness 표시. 실행은 `git_operation_*`로만 연결 |
+| `policy_required` | `push_current_branch`, `open_pull_request` | remote/network/auth 정책 필요 | push/PR 버튼은 표시 가능하지만 disabled. `publishReadiness`와 blocker만 보여준다 |
+| `policy_required` | `worktree_remove`, worktree cleanup/prune | 삭제/정리 정책 필요 | `agent_worktree_snapshot_get` inventory만 표시 |
+| `policy_required` | `rollback_checkpoint`, `git reset --hard`, `git clean -fd` | 파괴적 롤백 정책 필요 | `git_time_machine_snapshot_get` rollback 후보만 표시 |
+| `policy_required` | MCP 프로세스/JSON-RPC/tool registry 주입 | 서드파티 프로세스 격리/권한 정책 필요 | `mcp_servers_list` readiness만 표시 |
+| `policy_required` | Terminal PTY 실행, Local LLM 실제 라우팅, Self-RAG 자동 주입 | 실행 권한/비용/품질 정책 필요 | capability/readiness/preflight만 표시 |
+| `architecture_deferred` | Tree-sitter 본도입, 코드 검색용 Vector DB, durable workflow auto resume | 구조 결정/의존성 검증 후 진행 | 현재 1차 snapshot/heuristic 결과만 표시 |
+
 ## 구현됨: 에이전트 통신 버스
 
 - 후보 문서 항목: 추천 기능 2 `인터-에이전트 메시지 패싱`
@@ -1256,7 +1269,8 @@ workspace 코드 구조 지도를 조회한다. 외부 parser나 LLM 호출 없�
 ```
 
 - `limit`은 1~300으로 clamp된다.
-- `readOnly=true`가 현재 계약이다. 백엔드는 이 요청에서 `git add`, `git commit`, branch 생성, `gh pr create`를 실행하지 않는다.
+- `readOnly=true`가 현재 계약이다. 이 요청은 조회만 수행하며 `git add`, `git commit`, branch 생성, `gh pr create`를 실행하지 않는다.
+- local branch/commit 실행은 별도 승인 게이트인 `git_operation_preview` / `git_operation_apply`로만 연결한다.
 - `stagedFileCount`, `unstagedFileCount`, `untrackedFileCount`는 겹치지 않는 카운트다.
 - `changedFileCount`는 `files`가 limit으로 잘려도 전체 변경 파일 수를 의미한다.
 - `remote.primaryRemoteUrl`과 `remote.pushRemoteUrl`은 HTTPS credential과 query string이 redaction된 값이다.
@@ -1271,6 +1285,160 @@ workspace 코드 구조 지도를 조회한다. 외부 parser나 LLM 호출 없�
 - `changedFileCount`와 상태별 카운트는 전체 변경 기준이고, `files`만 `limit`으로 잘린다. 잘렸으면 `filesTruncated=true`다.
 - `readiness.status=blocked`이면 `conflictedFileCount > 0`이거나 `blockers`에 이유가 들어간다.
 - `suggestedCommitMessage`와 `suggestedBranchName`은 LLM이 아니라 파일 경로/status 기반 heuristic이다. 자동 실행 근거가 아니라 사용자 승인 UI의 초안으로만 사용한다.
+
+### `git_operation_preview` / `git_operation_apply`
+
+Git local operation을 `preview → apply` 승인 게이트로 실행한다. 1차 허용 operation은 `create_branch`, `stage_and_commit`, `snapshot_commit`뿐이다.
+
+Preview 요청 예시:
+
+```json
+{
+  "type": "git_operation_preview",
+  "operation": "stage_and_commit",
+  "commitMessage": "feat: add git operation gate",
+  "paths": [
+    "apps/omnux-middleware/src/Application/GitAutomation/GitOperationPreviewService.cs"
+  ]
+}
+```
+
+브랜치 생성 preview:
+
+```json
+{
+  "type": "git_operation_preview",
+  "operation": "create_branch",
+  "branchName": "codex/git-operation-gate"
+}
+```
+
+Preview 응답:
+
+```json
+{
+  "type": "git_operation_preview_result",
+  "payload": {
+    "ok": true,
+    "status": "ready",
+    "previewId": "4f6a...",
+    "operation": "stage_and_commit",
+    "requiresApproval": true,
+    "expiresAtUtc": "2026-06-04T00:30:00Z",
+    "checks": [
+      { "code": "repository", "status": "passed", "message": "Git repository 확인 완료" },
+      { "code": "commit_message", "status": "passed", "message": "커밋 메시지 확인 완료" },
+      { "code": "approval_required", "status": "warning", "message": "apply 실행에는 confirmationToken 또는 동일 approval payload가 필요합니다." }
+    ],
+    "plannedCommands": [
+      {
+        "executable": "git",
+        "arguments": ["add", "--", "apps/omnux-middleware/src/Application/GitAutomation/GitOperationPreviewService.cs"],
+        "display": "git add -- apps/omnux-middleware/src/Application/GitAutomation/GitOperationPreviewService.cs"
+      },
+      {
+        "executable": "git",
+        "arguments": ["commit", "-m", "feat: add git operation gate"],
+        "display": "git commit -m \"feat: add git operation gate\""
+      }
+    ],
+    "affectedFiles": [
+      {
+        "path": "apps/omnux-middleware/src/Application/GitAutomation/GitOperationPreviewService.cs",
+        "indexStatus": " ",
+        "worktreeStatus": "M",
+        "category": "modified",
+        "staged": false,
+        "unstaged": true,
+        "untracked": false
+      }
+    ],
+    "blockers": [],
+    "warnings": [],
+    "approval": {
+      "previewId": "4f6a...",
+      "operation": "stage_and_commit",
+      "confirmationToken": "b44f...",
+      "repositoryRoot": "/path/to/workspace",
+      "headHash": "012345...",
+      "branchName": "main",
+      "targetBranchName": "",
+      "commitMessage": "feat: add git operation gate",
+      "paths": [
+        "apps/omnux-middleware/src/Application/GitAutomation/GitOperationPreviewService.cs"
+      ]
+    }
+  }
+}
+```
+
+Apply 요청은 `previewId`만으로는 실패한다. 다음 둘 중 하나를 반드시 같이 보낸다.
+
+```json
+{
+  "type": "git_operation_apply",
+  "previewId": "4f6a...",
+  "confirmationToken": "b44f..."
+}
+```
+
+또는 preview 응답의 `approval` 객체를 그대로 보낸다.
+
+```json
+{
+  "type": "git_operation_apply",
+  "previewId": "4f6a...",
+  "approval": {
+    "previewId": "4f6a...",
+    "operation": "stage_and_commit",
+    "confirmationToken": "b44f...",
+    "repositoryRoot": "/path/to/workspace",
+    "headHash": "012345...",
+    "branchName": "main",
+    "targetBranchName": "",
+    "commitMessage": "feat: add git operation gate",
+    "paths": [
+      "apps/omnux-middleware/src/Application/GitAutomation/GitOperationPreviewService.cs"
+    ]
+  }
+}
+```
+
+Apply 응답:
+
+```json
+{
+  "type": "git_operation_apply_result",
+  "payload": {
+    "ok": true,
+    "status": "applied",
+    "previewId": "4f6a...",
+    "operation": "stage_and_commit",
+    "message": "Git operation이 적용되었습니다.",
+    "checks": [
+      { "code": "git_operation_applied", "status": "passed", "message": "Git operation 실행 완료" }
+    ],
+    "executedCommands": [
+      { "executable": "git", "arguments": ["add", "--", "apps/omnux-middleware/src/Application/GitAutomation/GitOperationPreviewService.cs"], "exitCode": 0, "stdOut": "", "stdErr": "" },
+      { "executable": "git", "arguments": ["commit", "-m", "feat: add git operation gate"], "exitCode": 0, "stdOut": "[main abc123] feat: add git operation gate", "stdErr": "" }
+    ],
+    "blockers": [],
+    "snapshot": {
+      "headHash": "abcdef...",
+      "branchName": "main"
+    }
+  }
+}
+```
+
+프론트 버튼 기준:
+
+- `preview.payload.ok=true`, `blockers.length===0`, `requiresApproval=true`, `approval` 존재 시에만 apply 버튼을 활성화한다.
+- preview `status=blocked`이면 `checks`와 `blockers`를 표시하고 apply 버튼은 비활성화한다.
+- apply 실패 시에는 기존 preview를 재사용하지 말고 `git_automation_snapshot_get`을 재조회한 뒤 preview를 다시 만든다.
+- `create_branch`는 dirty worktree에서도 preview가 가능하지만 `warnings`에 `dirty_worktree`가 있으면 확인 문구를 보여준다.
+- `stage_and_commit`은 선택 파일만 staging한다. 프론트는 선택 목록에 repo 밖 경로, `../`, conflict file이 들어가지 않도록 사전 필터링하되 최종 차단은 백엔드가 수행한다.
+- `snapshot_commit`은 현재 브랜치에 local commit만 만든다. rollback, snapshot branch, reset/clean은 아직 연결하지 않는다.
 
 ### `git_time_machine_snapshot_get`
 
@@ -1887,7 +2055,7 @@ agent bus를 시각화용 trace graph로 조회한다. 기존 agent bus 저장�
 - MCP 설정 패널은 `mcp_servers_list`를 호출해 발견된 서버와 invalid/error config를 표시한다. `status=discovered`는 "연결 가능 후보"이지 "실행 중"이 아니다. `readiness.status=blocked`는 command/cwd/transport/URL 설정 오류로 표시하고, `remote_unverified`는 handshake 미실행 상태로 표시한다.
 - Commit learning 패널은 `commit_learning_snapshot_get`을 호출해 최근 커밋 intent 분포와 자주 바뀌는 파일 hotspot을 표시한다. intent는 heuristic이므로 자동 규칙 적용 근거가 아니라 관찰용으로 둔다.
 - Worktree isolation 운영 패널은 `agent_worktree_snapshot_get`으로 inventory를 조회한다. 세션 상세에서는 기존대로 `sessions_spawn_worktree_*` / `sessions_spawn_acp_dispatch` timeline도 함께 보여준다.
-- Git automation 패널은 `git_automation_snapshot_get`으로 현재 변경 파일, readiness, 커밋 메시지 초안을 표시한다. 실제 커밋/PR 버튼은 아직 백엔드 실행 API가 없으므로 비활성 상태로 둔다.
+- Git automation 패널은 `git_automation_snapshot_get`으로 현재 변경 파일, readiness, 커밋 메시지 초안을 표시한다. local branch/commit 버튼은 `git_operation_preview` 성공 후 `git_operation_apply`로 연결하고, push/PR 버튼은 아직 비활성 상태로 둔다.
 - Self improvement 패널은 `self_improvement_snapshot_get`으로 workspace hygiene, 반복 bug_fix, hotspot review 제안을 표시한다. 모든 액션은 사용자 승인 UI가 생기기 전까지 보기 전용이다.
 - Local LLM 패널은 `local_llm_snapshot_get`으로 Ollama/LM Studio endpoint availability, 모델 목록, `offlineMode` readiness를 표시한다. 이 값은 라우팅 상태가 아니라 discovery/readiness로만 취급한다.
 - Semantic Search 패널은 `semantic_search_readiness_get`으로 FTS, sqlite-vec, local embedding 후보를 표시한다. `status=fts_ast_primary`는 정상 기본값이며 오류가 아니다.
@@ -1908,7 +2076,7 @@ agent bus를 시각화용 trace graph로 조회한다. 기존 agent bus 저장�
 - LLM 기반 Self-RAG judge와 retrieved context 자동 주입: 1차는 deterministic preflight만 제공한다. 실제 검색 실행과 프롬프트 주입은 비용/품질/보안 정책을 분리한 뒤 붙인다.
 - MCP 서버 프로세스/JSON-RPC/tool registry 주입: 1차는 설정 discovery와 read-only readiness audit만 구현했다. 실제 실행은 서드파티 프로세스 권한/격리와 MCP handshake 정책이 필요해 보류한다.
 - 커밋 히스토리 LLM 학습/자동 주입: 1차는 읽기 전용 snapshot이다. LLM 요약, memory/skill 자동 저장, nightly 자기 개선은 사용자 변경 오염 위험이 있어 보류한다.
-- 자동 커밋/PR 실제 실행: 1차는 read-only snapshot만 제공한다. `git add`, `git commit`, branch 생성, `gh pr create`는 사용자 승인/충돌/권한 정책이 필요해 보류한다.
+- 자동 커밋/PR remote 실행: local `create_branch`, `stage_and_commit`, `snapshot_commit`은 승인 게이트 1차로 열었다. `git push`, `gh pr create`, remote auth/network 확인, 자동 완료 훅은 별도 정책이 필요해 보류한다.
 - Nightly 자기 개선 자동 실행: 1차는 read-only proposal snapshot만 제공한다. 실제 야간 루틴 등록, LLM 선호도 분석, `SKILL.md` 자동 갱신은 사용자 승인/충돌 정책이 필요하다.
 - Local LLM 실제 라우팅/오프라인 차단: 1차는 endpoint/model discovery와 오프라인 모드 readiness audit만 제공한다. `LocalLlmProvider`, cloud provider 차단, fallback 라우팅, 모델 warmup은 기존 LLM 호출 경로 영향이 커서 별도 단계로 둔다.
 - Terminal PTY 세션/명령 스트리밍/자동 repair loop: 1차는 shell/toolchain capability snapshot만 제공한다. 실제 host terminal 제어는 안전 정책, 로그 보관, 취소/timeout, 승인 흐름이 필요해 별도 단계로 둔다.

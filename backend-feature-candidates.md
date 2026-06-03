@@ -28,7 +28,7 @@
 | MCP 서버/클라이언트 | ✅ 1차+ | `McpConfigDiscoveryService`, `McpServerReadinessPolicy`, `mcp_servers_list` — 설정 discovery + read-only readiness audit, 프로세스/JSON-RPC는 보류 |
 | Git worktree 격리 | ✅ 1차+ | `GitWorktreeIsolationManager`, `AgentWorktreeSnapshotService`, `agent_worktree_snapshot_get` — ACP spawn opt-in worktree CWD 주입 + 읽기 전용 inventory |
 | 셀프 힐링/워치독 | ✅ 1차+ | `FileAgentSpawnActiveRunStore.EvaluateWatchdog`, `agent_watchdog_snapshot_get` — active-run timeout/stale 감지 + 읽기 전용 inventory |
-| 자동 커밋/PR 생성 | ✅ 1차+ | `GitAutomationSnapshotService`, `git_automation_snapshot_get` — 읽기 전용 변경 감지/커밋 제안 + remote/upstream/gh readiness |
+| 자동 커밋/PR 생성 | ✅ 실행 게이트 1차 | `GitAutomationSnapshotService`, `GitOperationPreviewService`, `git_automation_snapshot_get`, `git_operation_preview/apply` — local branch/commit만 승인 게이트로 실행 |
 | Git 단위 타임머신 | ✅ 1차 | `GitTimeMachineSnapshotService`, `git_time_machine_snapshot_get` — 최근 체크포인트/롤백 readiness 읽기 전용 조회 |
 | Durable Workflow | ✅ 1차 | `LogicRunSnapshot` 지속 저장, `LogicRunRecoveryScanner`, `logic_graph_recovery_list` |
 | OpenTelemetry 옵저버빌리티 | ✅ 1차 | `TelemetryTracer`, `FileTelemetryTraceStore`, `WsTelemetryCommandDispatcher` — ActivitySource + 로컬 스냅샷 |
@@ -287,8 +287,13 @@
 - ✅ GitHub CLI readiness를 `gh --version`까지만 확인해 `toolchain.gitHubCli`로 제공한다. `gh auth status`와 네트워크 확인은 실행하지 않는다.
 - ✅ `publishReadiness`가 push/PR 준비 상태를 `clean`, `missing_remote`, `needs_initial_push`, `missing_github_cli`, `ready_for_pull_request`, `blocked`로 구분한다.
 - ✅ credential이 포함된 HTTPS remote URL과 query string은 snapshot에서 redaction한다.
-- ✅ 기본 정책은 read-only다. `git commit`, 브랜치 생성, `gh pr create`, 파일 staging은 실행하지 않는다.
-- ⏳ 보류: 사용자 승인 플로우, 실제 staging/commit/branch/push/PR 생성, `gh auth status`, `CodingApplicationService` 완료 훅 자동 호출, LLM 커밋 메시지 생성.
+- ✅ `git_automation_snapshot_get`은 계속 read-only 조회 전용이다.
+- ✅ 실행 게이트 1차: WebSocket `git_operation_preview` / `git_operation_apply`가 `create_branch`, `stage_and_commit`, `snapshot_commit`을 local-only로 실행한다.
+- ✅ apply는 `previewId` 단독으로 실행하지 않고, preview가 발급한 `confirmationToken` 또는 동일 `approval` payload를 요구한다.
+- ✅ apply 직전 preview 당시 `HEAD`, branch, 선택 파일 status를 재검증한다. 변경되면 fail-closed로 차단한다.
+- ✅ `stage_and_commit`은 선택 경로만 `git add -- <path>`로 staging하고, repo 밖 경로/path traversal/conflict file을 차단한다.
+- ✅ `create_branch`는 `codex/` prefix 또는 snapshot 추천 safe branch만 허용하고, 기존 브랜치 충돌을 차단한다.
+- ⏳ 보류: `git push`, `gh pr create`, `gh auth status`, remote/network 확인, rollback 실행, worktree remove/cleanup, `CodingApplicationService` 완료 훅 자동 호출, LLM 커밋 메시지 생성.
 
 ### 참고
 
@@ -297,8 +302,8 @@
 
 ### 개발 가이드 (Implementation Guide)
 - **대상 파일**: `WebSocketGateway.cs`, `WebSocketGateway.SocketLoop.cs`
-- **신규 파일**: `Application/GitAutomation/*`, `WsGitAutomationCommandDispatcher.cs`
-- **구현 방향**: 1차는 위험한 쓰기 작업 없이 `GitAutomationSnapshotService`가 diff/status를 읽어 커밋 준비 상태를 만든다. 실제 `git commit` 및 `gh pr create`는 승인 UI와 충돌/권한 정책이 준비된 뒤 별도 단계에서 연결한다.
+- **신규 파일**: `Application/GitAutomation/*`, `WsGitAutomationCommandDispatcher.cs`, `WsGitOperationCommandDispatcher.cs`
+- **구현 방향**: 조회는 `GitAutomationSnapshotService`에 남기고, 실행은 `preview → apply` 승인 게이트로 분리한다. 1차 실행은 local branch/commit/snapshot commit만 허용하며, push/PR/rollback/worktree cleanup은 별도 정책 확정 후 2차로 연결한다.
 
 ---
 
@@ -991,13 +996,14 @@
 
 - **기능 5**: 자동 커밋/PR 생성
 
-### 상태: ✅ 1차 read-only snapshot 구현
+### 상태: ✅ 1차 read-only snapshot 구현 / local snapshot commit 게이트 1차
 
 - `git_time_machine_snapshot_get`은 현재 저장소의 branch/head, dirty/conflict 상태, 최근 commit checkpoint, rollback readiness를 읽기 전용으로 반환한다.
 - dirty worktree에서는 `manual_review_required`로 보고, merge conflict가 있으면 `blocked`로 보고한다.
 - checkpoint별 `current_head`, `history_rewrite_required`, `merge_commit` risk flag를 반환해 프론트가 롤백 후보를 안전하게 표시할 수 있게 했다.
 - `auto_snapshot_commit`, `snapshot_branch_creation`, `rollback_execution`, `worktree_clean`, `snapshot_gc`는 모두 `skipped` check로 반환한다.
-- 실제 `git commit`, `git reset --hard`, `git clean -fd`, snapshot branch 생성/삭제는 파괴적 상태 변경이라 승인/충돌/백업 정책이 확정될 때까지 보류한다.
+- 공통 Git 승인 게이트에서 `snapshot_commit`은 현재 브랜치에 local-only 커밋으로 1차 해제했다.
+- 자동 snapshot hook, `git reset --hard`, `git clean -fd`, snapshot branch 생성/삭제는 파괴적 상태 변경이라 승인/충돌/백업 정책이 확정될 때까지 보류한다.
 
 ### 추가 아이디어
 
