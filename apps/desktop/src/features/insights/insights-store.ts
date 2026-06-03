@@ -39,8 +39,10 @@ type LocalLlmSnapshot = {
 type TerminalSnapshot = {
   status: string;
   ptySessionEnabled: boolean;
-  shells: Array<{ name: string; command: string; status: string }>;
-  toolchains: Array<{ name: string; command: string; status: string }>;
+  shells: Array<{ name: string; kind: string; command: string; status: string; resolvedPath: string; message: string }>;
+  toolchains: Array<{ name: string; kind: string; command: string; status: string; resolvedPath: string; message: string }>;
+  checks: Array<{ name: string; status: string; message: string }>;
+  scannedAtUtc: string;
 };
 type GitTimeMachineSnapshot = {
   branchName: string;
@@ -198,8 +200,24 @@ export function useInsightsPageBridge() {
           terminal: {
             status: s(payload.status),
             ptySessionEnabled: !!payload.ptySessionEnabled,
-            shells: arr(payload.shells).map((sh) => ({ name: s(sh.name), command: s(sh.command), status: s(sh.status) })),
-            toolchains: arr(payload.toolchains).map((t) => ({ name: s(t.name), command: s(t.command), status: s(t.status) }))
+            shells: arr(payload.shells).map((sh) => ({
+              name: s(sh.name),
+              kind: s(sh.kind),
+              command: s(sh.command),
+              status: s(sh.status),
+              resolvedPath: s(sh.resolvedPath),
+              message: s(sh.message)
+            })),
+            toolchains: arr(payload.toolchains).map((t) => ({
+              name: s(t.name),
+              kind: s(t.kind),
+              command: s(t.command),
+              status: s(t.status),
+              resolvedPath: s(t.resolvedPath),
+              message: s(t.message)
+            })),
+            checks: arr(payload.checks).map((check) => ({ name: s(check.name), status: s(check.status), message: s(check.message) })),
+            scannedAtUtc: s(payload.scannedAtUtc)
           }
         });
         return;
