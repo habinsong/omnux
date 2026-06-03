@@ -28,7 +28,7 @@ public sealed class UniversalCodeRunner
         {
             "python" => await RunScriptAsync(runDir, "main.py", code, $"{QuoteShellCommand(_pythonBinary)} main.py", normalizedLanguage, cancellationToken),
             "javascript" => await RunScriptAsync(runDir, "main.js", code, "node main.js", normalizedLanguage, cancellationToken),
-            "bash" => await RunScriptAsync(runDir, "main.sh", code, "bash main.sh", normalizedLanguage, cancellationToken, chmodX: true),
+            "bash" => await RunScriptAsync(runDir, "main.sh", code, "bash main.sh", normalizedLanguage, cancellationToken, chmodX: true, safetyLanguage: "bash"),
             "c" => await RunCompiledAsync(runDir, "main.c", code, BuildNativeCompileCommand("cc", "main.c"), BuildNativeRunCommand(), normalizedLanguage, cancellationToken),
             "cpp" => await RunCompiledAsync(runDir, "main.cpp", code, BuildNativeCompileCommand("c++", "main.cpp", "-std=c++17"), BuildNativeRunCommand(), normalizedLanguage, cancellationToken),
             "csharp" => await RunCSharpAsync(runDir, code, cancellationToken),
@@ -36,7 +36,7 @@ public sealed class UniversalCodeRunner
             "kotlin" => await RunCompiledAsync(runDir, "Main.kt", code, "kotlinc Main.kt -include-runtime -d app.jar", "java -jar app.jar", normalizedLanguage, cancellationToken),
             "html" => await SaveStaticAsync(runDir, "index.html", code, normalizedLanguage, "HTML/CSS/JS는 실행 대신 파일로 저장했습니다."),
             "css" => await SaveStaticAsync(runDir, "styles.css", code, normalizedLanguage, "CSS는 실행 대신 파일로 저장했습니다."),
-            _ => await RunScriptAsync(runDir, "main.txt", code, "bash main.txt", "bash", cancellationToken, chmodX: true)
+            _ => await RunScriptAsync(runDir, "main.txt", code, "bash main.txt", "bash", cancellationToken, chmodX: true, safetyLanguage: "bash")
         };
     }
 
@@ -79,11 +79,19 @@ public sealed class UniversalCodeRunner
         string runCommand,
         string language,
         CancellationToken cancellationToken,
-        bool chmodX = false
+        bool chmodX = false,
+        string? safetyLanguage = null
     )
     {
         var path = Path.Combine(runDir, fileName);
-        await File.WriteAllTextAsync(path, code ?? string.Empty, cancellationToken);
+        var source = code ?? string.Empty;
+        await File.WriteAllTextAsync(path, source, cancellationToken);
+        var safety = UniversalCodeExecutionSafetyPolicy.EvaluateScript(safetyLanguage ?? language, source);
+        if (!safety.Allowed)
+        {
+            return BuildBlockedExecutionResult(language, runDir, path, runCommand, safety);
+        }
+
         if (chmodX && !OperatingSystem.IsWindows())
         {
             File.SetUnixFileMode(path,
@@ -167,6 +175,26 @@ public sealed class UniversalCodeRunner
             message,
             string.Empty,
             "skipped"
+        );
+    }
+
+    private static CodeExecutionResult BuildBlockedExecutionResult(
+        string language,
+        string runDir,
+        string entryFile,
+        string runCommand,
+        UniversalCodeExecutionSafetyDecision safety
+    )
+    {
+        return new CodeExecutionResult(
+            language,
+            runDir,
+            entryFile,
+            runCommand,
+            126,
+            string.Empty,
+            $"execution blocked by safety policy: {safety.Reason}; {safety.Message}",
+            "blocked"
         );
     }
 
