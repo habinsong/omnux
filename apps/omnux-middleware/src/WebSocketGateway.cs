@@ -87,6 +87,7 @@ public sealed partial class WebSocketGateway
     private readonly WsSessionReplayCommandDispatcher _sessionReplayCommandDispatcher;
     private readonly WsAgentCommandDispatcher _agentCommandDispatcher;
     private readonly WsMultiAgentTraceCommandDispatcher _multiAgentTraceCommandDispatcher;
+    private readonly WsAgentWorktreeCommandDispatcher _agentWorktreeCommandDispatcher;
     private readonly WsMcpCommandDispatcher _mcpCommandDispatcher;
     private readonly WsCommitLearningCommandDispatcher _commitLearningCommandDispatcher;
     private readonly WsGitAutomationCommandDispatcher _gitAutomationCommandDispatcher;
@@ -284,6 +285,12 @@ public sealed partial class WebSocketGateway
         );
         _multiAgentTraceCommandDispatcher = new WsMultiAgentTraceCommandDispatcher(
             new MultiAgentTraceSnapshotService(agentCommunicationService)
+        );
+        _agentWorktreeCommandDispatcher = new WsAgentWorktreeCommandDispatcher(
+            new AgentWorktreeSnapshotService(
+                _paths.WorkspaceRootDir,
+                DefaultStatePathResolver.CreateDefault().ResolveStateDirectoryPath("agent-worktrees")
+            )
         );
         _mcpCommandDispatcher = new WsMcpCommandDispatcher(
             new McpConfigDiscoveryService(_paths.WorkspaceRootDir)
