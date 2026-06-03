@@ -57,6 +57,7 @@ public sealed partial class WebSocketGateway
     private readonly IConversationApplicationService _conversationService;
     private readonly IMemoryApplicationService _memoryService;
     private readonly IToolApplicationService _toolService;
+    private readonly IProjectApplicationService _projectService;
     private readonly IRoutineApplicationService _routineService;
     private readonly ILogicApplicationService _logicService;
     private readonly IPlanningApplicationService _planService;
@@ -76,22 +77,28 @@ public sealed partial class WebSocketGateway
     private readonly WsSetupCommandDispatcher _setupCommandDispatcher;
     private readonly WsConversationMemoryDispatcher _conversationMemoryDispatcher;
     private readonly WsToolCommandDispatcher _toolCommandDispatcher;
+    private readonly WsProjectCommandDispatcher _projectCommandDispatcher;
     private readonly WsRoutineCommandDispatcher _routineCommandDispatcher;
     private readonly WsLogicCommandDispatcher _logicCommandDispatcher;
     private readonly WsDoctorCommandDispatcher _doctorCommandDispatcher;
     private readonly WsPlanningCommandDispatcher _planningCommandDispatcher;
     private readonly WsTaskCommandDispatcher _taskCommandDispatcher;
+    private readonly WsAgentCommandDispatcher _agentCommandDispatcher;
     private readonly WsRefactorCommandDispatcher _refactorCommandDispatcher;
     private readonly WsContextCommandDispatcher _contextCommandDispatcher;
     private readonly WsNotebookCommandDispatcher _notebookCommandDispatcher;
     private readonly WsAiCommandDispatcher _aiCommandDispatcher;
     private readonly Dictionary<string, RateWindow> _sessionRateMap = new();
     private readonly object _rateLock = new();
+    private readonly object _requestTasksLock = new();
+    private readonly HashSet<Task> _requestTasks = new();
     private readonly object _gatewayHealthLock = new();
     private long _webSocketAcceptedCount;
     private long _webSocketRoundTripCount;
     private long _lastWebSocketAcceptedUnixMs;
     private long _lastWebSocketRoundTripUnixMs;
+    private int _activeWebSocketConnections;
+    private int _activeHttpRequests;
     private string _gatewayHealthStatus = "starting";
     private string _gatewayListenerPrefix = string.Empty;
     private bool _gatewayListenerBound;
@@ -132,11 +139,13 @@ public sealed partial class WebSocketGateway
         IConversationApplicationService conversationService,
         IMemoryApplicationService memoryService,
         IToolApplicationService toolService,
+        IProjectApplicationService projectService,
         IRoutineApplicationService routineService,
         ILogicApplicationService logicService,
         IDoctorApplicationService doctorService,
         IPlanningApplicationService planService,
         ITaskGraphApplicationService taskGraphService,
+        IAgentCommunicationApplicationService agentCommunicationService,
         IRefactorApplicationService refactorService,
         IContextApplicationService contextService,
         INotebookApplicationService notebookService,
@@ -163,6 +172,7 @@ public sealed partial class WebSocketGateway
         _conversationService = conversationService;
         _memoryService = memoryService;
         _toolService = toolService;
+        _projectService = projectService;
         _routineService = routineService;
         _logicService = logicService;
         _planService = planService;
@@ -231,6 +241,9 @@ public sealed partial class WebSocketGateway
             SendWebSearchResultAsync,
             SendWebFetchResultAsync
         );
+        _projectCommandDispatcher = new WsProjectCommandDispatcher(
+            projectService
+        );
         _routineCommandDispatcher = new WsRoutineCommandDispatcher(
             routineService
         );
@@ -245,6 +258,9 @@ public sealed partial class WebSocketGateway
         );
         _taskCommandDispatcher = new WsTaskCommandDispatcher(
             taskGraphService
+        );
+        _agentCommandDispatcher = new WsAgentCommandDispatcher(
+            agentCommunicationService
         );
         _refactorCommandDispatcher = new WsRefactorCommandDispatcher(
             refactorService

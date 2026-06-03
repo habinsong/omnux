@@ -230,7 +230,7 @@
     const Body = { search: SearchTab, fetch: FetchTab, sessions: SessionsTab, browser: BrowserTab, canvas: CanvasTab }[st.tab] || SearchTab;
     return h("div", { className: "page" },
       h("div", { className: "col scroll page-scroll" },
-        h("div", { style: { maxWidth: 920 } },
+        h("div", { className: "page-wide" },
           h("h1", { style: { fontSize: 24, fontWeight: 800, letterSpacing: "-0.02em", marginBottom: 4 } }, "탐색"),
           h("p", { className: "muted", style: { fontSize: 14, marginBottom: 18 } }, "웹 검색, URL 본문 가져오기, 세션 이력을 한 화면에서 확인합니다."),
           h("div", { className: "seg", style: { marginBottom: 18, display: "inline-flex" } },

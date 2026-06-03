@@ -12,6 +12,11 @@ export type DesktopRequestType =
   | "doctor_get_last"
   | "plan_list"
   | "task_graph_list"
+  | "projects_list"
+  | "project_create"
+  | "project_update"
+  | "project_delete"
+  | "project_touch"
   | "list_conversations"
   | "get_conversation"
   | "create_conversation"
@@ -19,6 +24,8 @@ export type DesktopRequestType =
   | "delete_conversation"
   | "conversation_search"
   | "llm_chat_single"
+  | "llm_chat_orchestration"
+  | "llm_chat_multi"
   | "list_memory_notes"
   | "read_memory_note"
   | "create_memory_note"
@@ -29,23 +36,44 @@ export type DesktopRequestType =
   | "backup_export_prepare"
   | "backup_import_preview"
   | "backup_import_apply"
+  | "get_cerebras_models"
+  | "get_groq_models"
+  | "get_copilot_models"
+  | "set_groq_model"
+  | "set_copilot_model"
+  | "get_copilot_status"
+  | "get_codex_status"
+  | "get_usage_stats"
+  | "set_llm_credentials"
+  | "delete_llm_credentials"
+  | "start_copilot_login"
   | "web_search"
   | "web_fetch"
   | "sessions_list"
   | "sessions_history"
+  | "sessions_send"
+  | "sessions_spawn"
   | "browser"
   | "canvas"
   | "get_routines"
   | "run_routine"
+  | "update_routine"
+  | "toggle_routine"
   | "delete_routine"
   | "create_routine"
   | "preview_routine"
   | "coding_run_single"
+  | "coding_run_orchestration"
+  | "coding_run_multi"
+  | "coding_execute_result"
   | "refactor_restore"
   | "logic_graph_list"
   | "logic_graph_get"
+  | "logic_graph_save"
+  | "logic_graph_delete"
   | "logic_graph_run"
-  | "logic_graph_run_get";
+  | "logic_graph_run_get"
+  | "logic_graph_cancel";
 
 export type DesktopRequestPayload = Record<string, unknown> & {
   type: DesktopRequestType;
@@ -60,6 +88,11 @@ const DESKTOP_ALLOWED_REQUESTS = new Set<DesktopRequestType>([
   "doctor_get_last",
   "plan_list",
   "task_graph_list",
+  "projects_list",
+  "project_create",
+  "project_update",
+  "project_delete",
+  "project_touch",
   "list_conversations",
   "get_conversation",
   "create_conversation",
@@ -67,6 +100,8 @@ const DESKTOP_ALLOWED_REQUESTS = new Set<DesktopRequestType>([
   "delete_conversation",
   "conversation_search",
   "llm_chat_single",
+  "llm_chat_orchestration",
+  "llm_chat_multi",
   "list_memory_notes",
   "read_memory_note",
   "create_memory_note",
@@ -77,23 +112,44 @@ const DESKTOP_ALLOWED_REQUESTS = new Set<DesktopRequestType>([
   "backup_export_prepare",
   "backup_import_preview",
   "backup_import_apply",
+  "get_cerebras_models",
+  "get_groq_models",
+  "get_copilot_models",
+  "set_groq_model",
+  "set_copilot_model",
+  "get_copilot_status",
+  "get_codex_status",
+  "get_usage_stats",
+  "set_llm_credentials",
+  "delete_llm_credentials",
+  "start_copilot_login",
   "web_search",
   "web_fetch",
   "sessions_list",
   "sessions_history",
+  "sessions_send",
+  "sessions_spawn",
   "browser",
   "canvas",
   "get_routines",
   "run_routine",
+  "update_routine",
+  "toggle_routine",
   "delete_routine",
   "create_routine",
   "preview_routine",
   "coding_run_single",
+  "coding_run_orchestration",
+  "coding_run_multi",
+  "coding_execute_result",
   "refactor_restore",
   "logic_graph_list",
   "logic_graph_get",
+  "logic_graph_save",
+  "logic_graph_delete",
   "logic_graph_run",
-  "logic_graph_run_get"
+  "logic_graph_run_get",
+  "logic_graph_cancel"
 ]);
 const DESKTOP_PUBLIC_REQUESTS = new Set<DesktopRequestType>([
   "request_otp",
@@ -197,8 +253,49 @@ export const requestDesktopAsk = {
   createMemoryNote(conversationId: string, compactConversation = false) {
     return sendDesktopRequest({ type: "create_memory_note", conversationId, compactConversation });
   },
+  chat(mode: "single" | "orchestration" | "multi", text: string, conversationId?: string | null) {
+    const type =
+      mode === "orchestration"
+        ? "llm_chat_orchestration"
+        : mode === "multi"
+          ? "llm_chat_multi"
+          : "llm_chat_single";
+    return sendDesktopRequest({ type, text, scope: "chat", mode, conversationId: conversationId || undefined });
+  },
   chatSingle(text: string, conversationId?: string | null) {
-    return sendDesktopRequest({ type: "llm_chat_single", text, scope: "chat", mode: "single", conversationId: conversationId || undefined });
+    return requestDesktopAsk.chat("single", text, conversationId);
+  }
+};
+
+export const requestDesktopProjects = {
+  listProjects() {
+    return sendDesktopRequest({ type: "projects_list" });
+  },
+  createProject(name: string, filePath: string, description: string, color: string) {
+    return sendDesktopRequest({
+      type: "project_create",
+      title: name.trim() || undefined,
+      filePath: filePath.trim(),
+      message: description.trim() || undefined,
+      category: color.trim() || undefined
+    });
+  },
+  updateProject(projectKey: string, name: string, filePath: string, description: string, color: string, isMain = false) {
+    return sendDesktopRequest({
+      type: "project_update",
+      projectKey: projectKey.trim(),
+      title: name.trim() || undefined,
+      filePath: filePath.trim() || undefined,
+      message: description.trim(),
+      category: color.trim() || undefined,
+      enabled: isMain ? true : undefined
+    });
+  },
+  deleteProject(projectKey: string) {
+    return sendDesktopRequest({ type: "project_delete", projectKey: projectKey.trim() });
+  },
+  touchProject(projectKey: string) {
+    return sendDesktopRequest({ type: "project_touch", projectKey: projectKey.trim() });
   }
 };
 
@@ -214,6 +311,24 @@ export const requestDesktopExplore = {
   },
   sessionsHistory(sessionKey: string, limit = 50) {
     return sendDesktopRequest({ type: "sessions_history", sessionKey, limit });
+  },
+  sessionsSend(sessionKey: string, message: string, timeoutSeconds = 60) {
+    return sendDesktopRequest({ type: "sessions_send", sessionKey, message, timeoutSeconds });
+  },
+  sessionsSpawn(task: string, runtime = "acp", mode = "run", label = "", runTimeoutSeconds = 900, thread = true) {
+    return sendDesktopRequest({
+      type: "sessions_spawn",
+      spawnTask: task,
+      runtime,
+      mode,
+      label: label.trim() || undefined,
+      runTimeoutSeconds,
+      timeoutSeconds: runTimeoutSeconds,
+      thread
+    });
+  },
+  sessionsSpawnStatus() {
+    return sendDesktopRequest({ type: "sessions_spawn", action: "status" });
   },
   browser(action: string, extra: Record<string, unknown> = {}) {
     return sendDesktopRequest({ type: "browser", ...normalizeToolActionPayload(action, extra) });
@@ -250,6 +365,54 @@ export const requestDesktopSettings = {
   },
   backupImportApply(previewId: string, overwrite = false) {
     return sendDesktopRequest({ type: "backup_import_apply", previewId, overwrite });
+  },
+  cerebrasModels() {
+    return sendDesktopRequest({ type: "get_cerebras_models" });
+  }
+};
+
+export interface LlmCredentialInput {
+  groqApiKey?: string;
+  geminiApiKey?: string;
+  cerebrasApiKey?: string;
+}
+
+export const requestDesktopLlm = {
+  groqModels() {
+    return sendDesktopRequest({ type: "get_groq_models" });
+  },
+  copilotModels() {
+    return sendDesktopRequest({ type: "get_copilot_models" });
+  },
+  setGroqModel(model: string) {
+    return sendDesktopRequest({ type: "set_groq_model", model: model.trim() });
+  },
+  setCopilotModel(model: string) {
+    return sendDesktopRequest({ type: "set_copilot_model", model: model.trim() });
+  },
+  copilotStatus() {
+    return sendDesktopRequest({ type: "get_copilot_status" });
+  },
+  codexStatus() {
+    return sendDesktopRequest({ type: "get_codex_status" });
+  },
+  usageStats() {
+    return sendDesktopRequest({ type: "get_usage_stats" });
+  },
+  startCopilotLogin() {
+    return sendDesktopRequest({ type: "start_copilot_login" });
+  },
+  setCredentials(keys: LlmCredentialInput, persist = true) {
+    return sendDesktopRequest({
+      type: "set_llm_credentials",
+      groqApiKey: keys.groqApiKey?.trim() || undefined,
+      geminiApiKey: keys.geminiApiKey?.trim() || undefined,
+      cerebrasApiKey: keys.cerebrasApiKey?.trim() || undefined,
+      persist
+    });
+  },
+  deleteCredentials(persist = false) {
+    return sendDesktopRequest({ type: "delete_llm_credentials", persist });
   }
 };
 
@@ -263,11 +426,17 @@ export const requestDesktopRoutine = {
   deleteRoutine(routineId: string) {
     return sendDesktopRequest({ type: "delete_routine", routineId });
   },
+  toggleRoutine(routineId: string, enabled: boolean) {
+    return sendDesktopRequest({ type: "toggle_routine", routineId, enabled });
+  },
   previewRoutine(form: RoutineCreateInput) {
     return sendDesktopRequest({ type: "preview_routine", ...buildRoutinePreviewPayload(form) });
   },
   createRoutine(form: RoutineCreateInput) {
     return sendDesktopRequest({ type: "create_routine", ...buildRoutineCreatePayload(form) });
+  },
+  updateRoutine(routineId: string, form: RoutineCreateInput) {
+    return sendDesktopRequest({ type: "update_routine", routineId, ...buildRoutineCreatePayload(form), runImmediately: false });
   }
 };
 
@@ -313,17 +482,33 @@ function buildRoutineCreatePayload(form: RoutineCreateInput): Record<string, unk
 }
 
 export const requestDesktopCoding = {
-  runSingle(input: string, conversationId?: string) {
+  run(mode: "single" | "orchestration" | "multi", input: string, conversationId?: string) {
+    const type =
+      mode === "orchestration"
+        ? "coding_run_orchestration"
+        : mode === "multi"
+          ? "coding_run_multi"
+          : "coding_run_single";
     const payload: Record<string, unknown> = {
-      type: "coding_run_single",
+      type,
       text: input.trim(),
       scope: "coding",
-      mode: "single"
+      mode
     };
     if (conversationId) {
       payload.conversationId = conversationId;
     }
     return sendDesktopRequest(payload as DesktopRequestPayload);
+  },
+  runSingle(input: string, conversationId?: string) {
+    return requestDesktopCoding.run("single", input, conversationId);
+  },
+  executeLatest(conversationId: string, standardInput?: string) {
+    return sendDesktopRequest({
+      type: "coding_execute_result",
+      conversationId: conversationId.trim(),
+      standardInput: standardInput || undefined
+    });
   }
 };
 
@@ -340,14 +525,23 @@ export const requestDesktopLogic = {
   getGraph(graphId: string) {
     return sendDesktopRequest({ type: "logic_graph_get", graphId: graphId.trim() });
   },
+  saveGraph(graphId: string, logicGraphJson: string) {
+    return sendDesktopRequest({ type: "logic_graph_save", graphId: graphId.trim() || undefined, logicGraphJson });
+  },
+  deleteGraph(graphId: string) {
+    return sendDesktopRequest({ type: "logic_graph_delete", graphId: graphId.trim() });
+  },
   runGraph(graphId: string, runInput?: string) {
     const payload: Record<string, unknown> = { type: "logic_graph_run", graphId: graphId.trim() };
     if (runInput && runInput.trim()) {
-      payload.runInput = runInput.trim();
+      payload.logicRunInput = runInput.trim();
     }
     return sendDesktopRequest(payload as DesktopRequestPayload);
   },
   getRun(logicRunId: string) {
     return sendDesktopRequest({ type: "logic_graph_run_get", logicRunId: logicRunId.trim() });
+  },
+  cancelRun(logicRunId: string) {
+    return sendDesktopRequest({ type: "logic_graph_cancel", logicRunId: logicRunId.trim() });
   }
 };

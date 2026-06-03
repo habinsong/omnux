@@ -1,14 +1,31 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { useDesktopAuthStore } from "./features/auth/auth-store";
 import { useOpsPageStore } from "./features/ops/ops-store";
 import { useDesktopShellStore } from "./shell-store";
 import { ShellFault } from "./ShellFault";
+import { Badge, Button, Input } from "./components/ui/primitives";
 import {
   requestDesktopDoctorLast,
   requestDesktopOpsSnapshot,
   requestDesktopOtp,
   submitDesktopOtp
 } from "./use-middleware-session";
+
+function statusTone(status: string): "success" | "warning" | "destructive" | "default" {
+  if (/(connected|authenticated|ok|ready)/i.test(status)) return "success";
+  if (/(error|fail|blocked|disconnected)/i.test(status)) return "destructive";
+  if (/(connecting|waiting|pending)/i.test(status)) return "warning";
+  return "default";
+}
+
+function KV({ k, children }: { k: string; children: ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-3 border-b border-border py-2 text-xs last:border-0">
+      <dt className="shrink-0 text-muted-foreground">{k}</dt>
+      <dd className="flex min-w-0 flex-col items-end gap-0.5 text-right text-foreground">{children}</dd>
+    </div>
+  );
+}
 
 export function ReadOnlyWsPanel() {
   const bridge = useDesktopShellStore((state) => state.bridge);
@@ -22,92 +39,54 @@ export function ReadOnlyWsPanel() {
     setOtp("");
   }, [otp]);
 
+  const detail = (text?: string | null) => (text ? <span className="max-w-[220px] truncate text-[10px] text-muted-foreground">{text}</span> : null);
+
   return (
-    <>
+    <div className="space-y-3">
       {bridge.lastError ? <ShellFault label={bridge.lastError} /> : null}
       {doctor.lastError ? <ShellFault label={doctor.lastError} /> : null}
       {ops.lastError ? <ShellFault label={ops.lastError} /> : null}
-      <dl className="status-list">
-        <div>
-          <dt>bridge</dt>
-          <dd>
-            <span className={`status-pill status-${bridge.status}`}>{bridge.status}</span>
-          </dd>
-        </div>
-        <div>
-          <dt>auth</dt>
-          <dd>
-            <span className={`status-pill status-${auth.status}`}>{auth.status}</span>
-            <span className="status-detail">{auth.lastMessage || "세션 이벤트 대기"}</span>
-          </dd>
-        </div>
-        <div>
-          <dt>session</dt>
-          <dd>{auth.sessionId || "-"}</dd>
-        </div>
-        <div>
-          <dt>expires</dt>
-          <dd>{auth.expiresAtLocal || auth.expiresAtUtc || "-"}</dd>
-        </div>
-        <div>
-          <dt>doctor</dt>
-          <dd>
-            {doctor.loading ? "조회 중..." : doctor.summary || "조회 전"}
-            {doctor.reportId ? <span className="status-detail">{doctor.reportId}</span> : null}
-          </dd>
-        </div>
-        <div>
-          <dt>plans</dt>
-          <dd>
-            {ops.loadingPlans ? "조회 중..." : `${ops.planCount}건`}
-            {ops.latestPlanTitle ? <span className="status-detail">{ops.latestPlanTitle}</span> : null}
-          </dd>
-        </div>
-        <div>
-          <dt>tasks</dt>
-          <dd>
-            {ops.loadingTaskGraphs ? "조회 중..." : `${ops.taskGraphCount}건`}
-            {ops.latestTaskGraphStatus ? <span className="status-detail">{ops.latestTaskGraphStatus}</span> : null}
-          </dd>
-        </div>
+      <dl>
+        <KV k="bridge"><Badge tone={statusTone(bridge.status)}>{bridge.status}</Badge></KV>
+        <KV k="auth">
+          <Badge tone={statusTone(auth.status)}>{auth.status}</Badge>
+          {detail(auth.lastMessage || "세션 이벤트 대기")}
+        </KV>
+        <KV k="session"><span className="font-mono">{auth.sessionId || "-"}</span></KV>
+        <KV k="expires"><span className="font-mono">{auth.expiresAtLocal || auth.expiresAtUtc || "-"}</span></KV>
+        <KV k="doctor">
+          <span>{doctor.loading ? "조회 중..." : doctor.summary || "조회 전"}</span>
+          {detail(doctor.reportId)}
+        </KV>
+        <KV k="plans">
+          <span>{ops.loadingPlans ? "조회 중..." : `${ops.planCount}건`}</span>
+          {detail(ops.latestPlanTitle)}
+        </KV>
+        <KV k="tasks">
+          <span>{ops.loadingTaskGraphs ? "조회 중..." : `${ops.taskGraphCount}건`}</span>
+          {detail(ops.latestTaskGraphStatus)}
+        </KV>
       </dl>
-      <div className="auth-controls">
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={bridge.status !== "connected" || auth.otpRequestStatus === "pending"}
-          onClick={requestDesktopOtp}
-        >
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="primary" size="sm" disabled={bridge.status !== "connected" || auth.otpRequestStatus === "pending"} onClick={requestDesktopOtp}>
           {auth.otpRequestStatus === "pending" ? "OTP 요청 중..." : "OTP 요청"}
-        </button>
-        <input
-          className="otp-input"
+        </Button>
+        <Input
+          className="h-8 w-28 text-center font-mono tracking-widest"
           inputMode="numeric"
           maxLength={6}
           placeholder="OTP 6자리"
           value={otp}
           onChange={(event) => setOtp(event.target.value)}
         />
-        <button className="secondary-button" type="button" disabled={bridge.status !== "connected"} onClick={authenticateWithOtp}>
-          인증
-        </button>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={auth.status !== "authenticated" || doctor.loading}
-          onClick={requestDesktopDoctorLast}
-        >
+        <Button variant="outline" size="sm" disabled={bridge.status !== "connected"} onClick={authenticateWithOtp}>인증</Button>
+        <Button variant="outline" size="sm" disabled={auth.status !== "authenticated" || doctor.loading} onClick={requestDesktopDoctorLast}>
           최근 Doctor 보고서
-        </button>
-        <button
-          className="secondary-button"
-          type="button"
-          disabled={auth.status !== "authenticated" || ops.loadingPlans || ops.loadingTaskGraphs}
-          onClick={requestDesktopOpsSnapshot}
-        >
+        </Button>
+        <Button variant="outline" size="sm" disabled={auth.status !== "authenticated" || ops.loadingPlans || ops.loadingTaskGraphs} onClick={requestDesktopOpsSnapshot}>
           운영 목록 조회
-        </button>
+        </Button>
       </div>
-    </>
+    </div>
   );
 }

@@ -42,7 +42,7 @@ assertIncludes(threadRenderer, "onSaveAssistantMessageToNotebook", "대화 답�
 assertIncludes(workspaceRenderer, "appendLatestCodingResultToNotebook", "코딩 결과 노트북 저장 버튼");
 assertIncludes(appShellRender, "ask: window.AskPage", "새 Home 중심 앱의 Ask 화면 라우팅");
 assertIncludes(ask, "Ask about a file", "새 Ask 화면 파일 질의 진입점");
-assertIncludes(ask, "Saved to project", "새 Ask 화면 저장 액션");
+assertIncludes(ask, "create_memory_note", "새 Ask 화면 저장 액션");
 assertIncludes(ask, "Compare models", "새 Ask 화면 모델 비교 진입점");
 assertIncludes(telegram, "TryBuildLastTelegramAssistantNotebookAppend", "텔레그램 최근 답변 저장");
 assertIncludes(telegramCoding, "TryBuildLatestTelegramCodingNotebookAppend", "텔레그램 코딩 결과 저장");

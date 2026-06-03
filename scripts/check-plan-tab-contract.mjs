@@ -25,12 +25,13 @@ const telegram = read("apps/omnux-middleware/src/CommandService.Telegram.Convers
 const telegramCoding = read("apps/omnux-middleware/src/CommandService.Telegram.Coding.cs");
 
 assert.match(appShellRender, /build: window\.BuildPage/, "새 Home 중심 앱은 Build 화면을 라우팅해야 합니다.");
-assert.match(buildPageState, /const PLAN = \[/, "새 Build 화면에는 계획 preview 데이터가 있어야 합니다.");
+assert.match(buildPageState, /type: 'coding_run_single'/, "새 Build 화면은 실제 코딩 실행 요청을 보내야 합니다.");
+assert.match(buildPageState, /msg\.type === 'coding_progress'/, "새 Build 화면은 코딩 진행 이벤트를 처리해야 합니다.");
+assert.match(buildPageState, /msg\.type === 'coding_result'/, "새 Build 화면은 코딩 결과 이벤트를 처리해야 합니다.");
 assert.match(buildPageState, /setStage\('planning'\)/, "새 Build 화면은 계획 생성 상태를 가져야 합니다.");
-assert.match(build, /t\('Generate plan'\)/, "새 Build 화면은 계획 생성 버튼을 제공해야 합니다.");
-assert.match(buildPageState, /ctx\.requestPermission\(\{/, "새 Build 화면은 적용 전 권한 모달을 호출해야 합니다.");
-assert.match(build, /t\('Preview'\)/, "새 Build 화면은 변경 preview 액션을 제공해야 합니다.");
-assert.match(build, /t\('Apply changes'\)/, "새 Build 화면은 적용 액션을 제공해야 합니다.");
+assert.match(build, /'코딩 실행'/, "새 Build 화면은 코딩 실행 버튼을 제공해야 합니다.");
+assert.match(buildPageState, /type: 'command', text: 'npm test'/, "새 Build 화면은 실제 체크 명령을 실행해야 합니다.");
+assert.match(build, /변경 파일/, "새 Build 화면은 변경 파일 목록을 표시해야 합니다.");
 
 assert.match(composer, /createPlanFromCurrentInput\("chat:single"\)/, "대화 단일 입력창에서 계획 전환을 제공해야 합니다.");
 assert.match(composer, /createPlanFromCurrentInput\("coding:single"\)/, "코딩 단일 입력창에서 계획 전환을 제공해야 합니다.");

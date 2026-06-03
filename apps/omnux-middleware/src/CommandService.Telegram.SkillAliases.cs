@@ -122,7 +122,7 @@ public sealed partial class CommandService
                 sb.Append('"').Append(EscapeJsonString(kv.Value)).Append('"');
             }
             sb.Append("}");
-            File.WriteAllText(SkillAliasesStatePath, sb.ToString(), Encoding.UTF8);
+            AtomicFileStore.WriteAllText(SkillAliasesStatePath, sb.ToString(), ownerOnly: true);
         }
         catch (Exception ex)
         {

@@ -8,7 +8,7 @@
     window.useOmnuxKeyboardBridge(overlay);
 
     const send = window.useOmnuxSendBridge(window.OMNUX_ADAPTER);
-    const openProject = window.useOmnuxOpenProjectAction(ui, overlay);
+    const openProject = window.useOmnuxOpenProjectAction(ui, overlay, send);
     const ctx = window.buildOmnuxPageContext({ ui, overlay, domain, send, openProject });
 
     return window.buildOmnuxShellRenderState({ ui, overlay, domain, send, ctx });

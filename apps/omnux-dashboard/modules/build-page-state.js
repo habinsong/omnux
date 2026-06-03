@@ -1,38 +1,29 @@
 /* omnux — build page state */
 (function () {
   const { useState, useEffect, useCallback } = React;
-  const D = window.OMNUX_DATA;
 
-  const PLAN = [
-    'Find files that mention "Omni-node"',
-    'Rename Omni-node → omnux',
-    'Update the product description',
-    'Run build & doc checks',
-    'Generate a change summary',
-  ];
-
-  const DIFF = [
-    { file: 'README.md', lines: [
-      { n: 1, t: '# Omni-node', k: 'del' },
-      { n: 1, t: '# omnux', k: 'add' },
-      { n: 3, t: 'A local-first command center for AI agents.', k: 'del' },
-      { n: 3, t: 'A local-first command center for AI agents, code,', k: 'add' },
-      { n: 4, t: 'routines, and LLM orchestration.', k: 'add' },
-    ] },
-    { file: 'package.json', lines: [
-      { n: 2, t: '  "name": "omninode",', k: 'del' },
-      { n: 2, t: '  "name": "omnux",', k: 'add' },
-      { n: 4, t: '  "description": "Omni-node desktop app",', k: 'del' },
-      { n: 4, t: '  "description": "omnux — local-first AI command center",', k: 'add' },
-    ] },
-  ];
+  function firstProject(ctx) {
+    const item = Array.isArray(ctx.runtime?.projects) && ctx.runtime.projects.length > 0
+      ? ctx.runtime.projects[0]
+      : null;
+    return item
+      ? {
+        name: item.name || 'Project',
+        path: item.path || '-',
+        color: item.color || '#2563EB',
+      }
+      : { name: '등록된 프로젝트 없음', path: '-', color: '#2563EB' };
+  }
 
   function useBuildPageState(ctx, payload) {
-    const [project] = useState(D.projects[0]);
+    const project = firstProject(ctx);
     const [req, setReq] = useState((payload && payload.input) || '');
-    const [stage, setStage] = useState('compose'); // compose | planning | plan | applying | applied
+    const [stage, setStage] = useState('compose'); // compose | planning | result
     const [showDetails, setShowDetails] = useState(false);
     const [showCheck, setShowCheck] = useState(!!(payload && payload.check));
+    const [checkOutput, setCheckOutput] = useState('');
+    const [progress, setProgress] = useState('');
+    const [result, setResult] = useState(null);
     const [rollbackId, setRollbackId] = useState((payload && payload.rollbackId) || '');
     const [rollbackStatus, setRollbackStatus] = useState({
       pending: false,
@@ -54,6 +45,28 @@
     useEffect(() => {
       const onMessage = (event) => {
         const msg = event.detail || {};
+        if (msg.type === 'coding_progress') {
+          setStage('planning');
+          setProgress([msg.stageTitle || msg.phase, msg.message].filter(Boolean).join(' · ') || '실행 중…');
+          return;
+        }
+
+        if (msg.type === 'coding_result') {
+          setStage('result');
+          setProgress('');
+          setResult(msg);
+          if (msg.summary) {
+            ctx.toast('코딩 결과를 받았습니다.');
+          }
+          return;
+        }
+
+        if (msg.type === 'command_result') {
+          setShowCheck(true);
+          setCheckOutput(msg.text || '');
+          return;
+        }
+
         if (msg.type !== 'refactor_result' || msg.action !== 'restore') {
           return;
         }
@@ -81,25 +94,35 @@
 
     const genPlan = useCallback(() => {
       if (!req.trim()) return;
+      if (!ctx.runtime || !ctx.runtime.connected) {
+        ctx.toast('미들웨어 연결이 필요합니다.');
+        return;
+      }
       setStage('planning');
-      setTimeout(() => setStage('plan'), 1100);
-    }, [req]);
-
-    const apply = useCallback(() => {
-      ctx.requestPermission({
-        title: 'omnux wants to change files',
+      setProgress('코딩 실행 요청 전송…');
+      setResult(null);
+      const sent = ctx.send({
+        type: 'coding_run_single',
+        text: req.trim(),
+        scope: 'coding',
+        mode: 'single',
         project: project.name,
-        actions: ['Replace legacy Omni-node branding with omnux', 'Update the product description'],
-        files: DIFF.map((d) => d.file),
-        onAllow: () => {
-          setStage('applying');
-          setTimeout(() => {
-            setStage('applied');
-            ctx.toast('Applied · 2 files changed');
-          }, 1200);
-        },
-      });
-    }, [ctx, project.name]);
+      }, { queueIfClosed: true });
+      if (!sent) {
+        setStage('compose');
+        setProgress('');
+        ctx.toast('미들웨어 연결이 필요합니다.');
+      }
+    }, [ctx, project.name, req]);
+
+    const runCheck = useCallback(() => {
+      setShowCheck(true);
+      setCheckOutput('npm test 실행 요청 전송…');
+      if (!ctx.send({ type: 'command', text: 'npm test' }, { queueIfClosed: true })) {
+        setCheckOutput('미들웨어 연결이 필요합니다.');
+        ctx.toast('미들웨어 연결이 필요합니다.');
+      }
+    }, [ctx]);
 
     const restoreRollback = useCallback(() => {
       const normalizedRollbackId = rollbackId.trim();
@@ -150,6 +173,12 @@
       'Fix the type error in main.ts',
     ];
 
+    const changedFiles = Array.isArray(result?.changedFiles) ? result.changedFiles : [];
+    const plan = [
+      result?.summary || progress || '요청을 입력하고 코딩 실행을 시작하세요.',
+      ...changedFiles.map((path) => `변경 파일: ${path}`),
+    ].filter(Boolean);
+
     return {
       project,
       req,
@@ -165,16 +194,17 @@
       rollbackStatus,
       restoreRollback,
       genPlan,
-      apply,
+      runCheck,
       examples,
-      plan: PLAN,
-      diff: DIFF,
+      progress,
+      result,
+      checkOutput,
+      plan,
+      diff: changedFiles.map((file) => ({ file, lines: [] })),
     };
   }
 
   Object.assign(window, {
     useBuildPageState,
-    BUILD_PLAN: PLAN,
-    BUILD_DIFF: DIFF,
   });
 })();

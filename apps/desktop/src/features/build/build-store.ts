@@ -16,10 +16,16 @@ export type RollbackStatus = {
   changedPaths: string[];
 };
 
+export type CodingMode = "single" | "orchestration" | "multi";
+
 type ConversationRecord = { id?: string; messages?: unknown[] };
 
 type BuildState = {
   codingInput: string;
+  codingMode: CodingMode;
+  standardInput: string;
+  executionMessage: string;
+  executionOutput: string;
   running: boolean;
   progress: string;
   messages: BuildMessage[];
@@ -28,8 +34,11 @@ type BuildState = {
   rollbackId: string;
   rollbackStatus: RollbackStatus;
   setCodingInput: (value: string) => void;
+  setCodingMode: (value: CodingMode) => void;
+  setStandardInput: (value: string) => void;
   setRollbackId: (value: string) => void;
   runCoding: () => void;
+  executeLatest: () => void;
   clearResult: () => void;
   restoreRollback: () => void;
 };
@@ -46,6 +55,10 @@ const IDLE_ROLLBACK: RollbackStatus = { pending: false, ok: null, message: "", c
 
 export const useBuildStore = create<BuildState>((set, get) => ({
   codingInput: "",
+  codingMode: "single",
+  standardInput: "",
+  executionMessage: "",
+  executionOutput: "",
   running: false,
   progress: "",
   messages: [],
@@ -54,6 +67,8 @@ export const useBuildStore = create<BuildState>((set, get) => ({
   rollbackId: "",
   rollbackStatus: { ...IDLE_ROLLBACK },
   setCodingInput: (value) => set({ codingInput: value }),
+  setCodingMode: (value) => set({ codingMode: value }),
+  setStandardInput: (value) => set({ standardInput: value }),
   setRollbackId: (value) => set({ rollbackId: value }),
   runCoding: () => {
     const input = get().codingInput.trim();
@@ -66,13 +81,24 @@ export const useBuildStore = create<BuildState>((set, get) => ({
       lastError: "",
       messages: [...get().messages, { role: "user", text: input }]
     });
-    if (!requestDesktopCoding.runSingle(input, get().conversationId || undefined)) {
+    if (!requestDesktopCoding.run(get().codingMode, input, get().conversationId || undefined)) {
       set({ running: false, progress: "", lastError: "코딩 실행 요청을 전송하지 못했다." });
     } else {
       set({ codingInput: "" });
     }
   },
-  clearResult: () => set({ messages: [], progress: "", conversationId: "" }),
+  executeLatest: () => {
+    const conversationId = get().conversationId.trim();
+    if (!conversationId) {
+      set({ executionMessage: "실행할 코딩 conversationId가 필요하다." });
+      return;
+    }
+    set({ executionMessage: "최신 코딩 결과 실행 요청 중…", executionOutput: "" });
+    if (!requestDesktopCoding.executeLatest(conversationId, get().standardInput)) {
+      set({ executionMessage: "코딩 결과 실행 요청을 전송하지 못했다." });
+    }
+  },
+  clearResult: () => set({ messages: [], progress: "", conversationId: "", executionMessage: "", executionOutput: "" }),
   restoreRollback: () => {
     const rollbackId = get().rollbackId.trim();
     if (!rollbackId) {
@@ -108,6 +134,15 @@ export function useBuildPageBridge() {
           messages: Array.isArray(conversation.messages)
             ? conversation.messages.map((item) => normalizeMessage(item))
             : useBuildStore.getState().messages
+        });
+        return;
+      }
+
+      if (message.type === "coding_execute_result") {
+        const execution = (message.execution as Record<string, unknown> | undefined) || {};
+        useBuildStore.setState({
+          executionMessage: String(message.message || (message.ok ? "실행 완료" : "실행 실패")),
+          executionOutput: String(execution.output || execution.stdOut || execution.stdout || execution.stdErr || execution.stderr || "")
         });
         return;
       }

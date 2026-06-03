@@ -1,32 +1,39 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
+import { Inbox, Plus, RefreshCw, Search, Send, Trash2 } from "lucide-react";
 import { CardBoundary } from "../../CardBoundary";
 import { useDesktopAuthStore } from "../auth/auth-store";
 import { useDesktopShellStore } from "../../shell-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
 import { useAskPageBridge, useAskStore } from "./ask-store";
-import { renderMarkdownToSafeHtml } from "./markdown";
+import { MarkdownMessage } from "./MarkdownMessage";
+import { Badge, Button, EmptyState, Input, Spinner, Textarea, cn } from "../../components/ui/primitives";
+
+const SELECT_CLASS =
+  "h-9 rounded-md border border-input bg-transparent px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
 
 function MessageBubble({ role, text }: { role: string; text: string }) {
-  const html = useMemo(() => (role === "user" ? "" : renderMarkdownToSafeHtml(text)), [role, text]);
   if (role === "user") {
-    return <div className="bubble-user">{text}</div>;
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-sm bg-primary px-3.5 py-2 text-sm text-primary-foreground">
+          {text}
+        </div>
+      </div>
+    );
   }
-  return <div className="bubble-ai markdown" dangerouslySetInnerHTML={{ __html: html }} />;
+  return (
+    <div className="flex justify-start">
+      <div className="prose-omnux max-w-[85%] rounded-2xl rounded-bl-sm border border-border bg-card px-3.5 py-2">
+        <MarkdownMessage text={text} />
+      </div>
+    </div>
+  );
 }
 
 function formatTime(value: string) {
   const parsed = new Date(value || "");
-  if (Number.isNaN(parsed.getTime())) {
-    return "";
-  }
-
-  return parsed.toLocaleString("ko-KR", {
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false
-  });
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
 export function AskPage() {
@@ -37,15 +44,17 @@ export function AskPage() {
   const store = useAskStore();
   const canRequest = bridgeStatus === "connected" && authStatus === "authenticated";
   const displayedConversations = store.searchQuery
-    ? store.searchResults.map((item) => ({
-        id: item.conversationId,
-        title: item.title,
-        preview: item.snippet,
-        updatedUtc: "",
-        messageCount: 0,
-        project: "",
-        category: ""
-      })).filter((item) => item.id)
+    ? store.searchResults
+        .map((item) => ({
+          id: item.conversationId,
+          title: item.title,
+          preview: item.snippet,
+          updatedUtc: "",
+          messageCount: 0,
+          project: "",
+          category: ""
+        }))
+        .filter((item) => item.id)
     : store.conversations;
 
   useEffect(() => {
@@ -57,115 +66,174 @@ export function AskPage() {
   }, [canRequest]);
 
   return (
-    <section className="grid">
-      <CardBoundary title="대화 목록" card="navigation" onError={recordCardError}>
-        {store.lastError ? <div className="section-error">{store.lastError}</div> : null}
-        <div className="log-toolbar">
-          <button className="secondary-button" type="button" onClick={store.createConversation} disabled={!canRequest}>
-            새 대화
-          </button>
-          <button className="secondary-button" type="button" onClick={store.loadConversations} disabled={!canRequest}>
-            새로고침
-          </button>
-        </div>
-        <input
-          className="otp-input"
-          style={{ width: "100%", marginTop: 12 }}
-          value={store.searchQuery}
-          placeholder="대화 검색 후 Enter"
-          onChange={(event) => useAskStore.setState({ searchQuery: event.target.value })}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              if (canRequest) {
-                store.searchConversations(store.searchQuery);
-              }
-            }
-          }}
-        />
-        <div className="log-toolbar" style={{ marginTop: 12 }}>
-          <button className="secondary-button" type="button" onClick={() => store.searchConversations(store.searchQuery)} disabled={!canRequest}>
-            검색
-          </button>
-          <button className="secondary-button" type="button" onClick={store.clearSearch}>
-            검색 해제
-          </button>
-        </div>
-        <div className="event-log" style={{ marginTop: 12 }}>
-          {displayedConversations.map((item) => (
-            <article key={item.id} className={item.id === store.activeConversationId ? "row active" : "row"}>
-              <button className="row-main" type="button" onClick={() => store.openConversation(item)} disabled={!canRequest}>
-                <span className="row-title">{item.title}</span>
-                <span className="row-meta">{item.preview || `${item.messageCount}개 메시지`}</span>
-                <span className="row-meta">{formatTime(item.updatedUtc) || item.category || "대화"}</span>
+    <div className="flex h-[calc(100vh-8.5rem)] min-h-[560px] flex-col gap-4">
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight">질문</h1>
+        <p className="text-sm text-muted-foreground">대화, 메모리, 모델 라우팅을 한 화면에서 확인합니다.</p>
+      </div>
+
+      <section className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+        {/* 대화 목록 */}
+        <CardBoundary title="대화 목록" card="navigation" onError={recordCardError}>
+          {store.lastError ? (
+            <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{store.lastError}</p>
+          ) : null}
+          <div className="flex gap-2">
+            <Button variant="primary" size="sm" className="flex-1" onClick={store.createConversation} disabled={!canRequest}>
+              <Plus size={15} aria-hidden="true" /> 새 대화
+            </Button>
+            <Button variant="outline" size="icon" aria-label="새로고침" onClick={store.loadConversations} disabled={!canRequest}>
+              <RefreshCw size={15} aria-hidden="true" />
+            </Button>
+          </div>
+
+          <div className="relative">
+            <Search size={15} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Input
+              className="pl-8"
+              value={store.searchQuery}
+              placeholder="대화 검색 후 Enter"
+              onChange={(event) => useAskStore.setState({ searchQuery: event.target.value })}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  if (canRequest) store.searchConversations(store.searchQuery);
+                }
+              }}
+            />
+            {store.searchQuery ? (
+              <button
+                type="button"
+                onClick={store.clearSearch}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
+              >
+                해제
               </button>
-              <div className="row-actions">
-                <button className="inline-button" type="button" onClick={() => store.renameConversation(item)} disabled={!canRequest}>
-                  이름
-                </button>
-                <button className="inline-button" type="button" onClick={() => store.saveConversationToMemory(item)} disabled={!canRequest}>
-                  메모리
-                </button>
-                <button className="inline-danger-button" type="button" onClick={() => store.deleteConversation(item)} disabled={!canRequest}>
-                  삭제
-                </button>
+            ) : null}
+          </div>
+
+          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+            {displayedConversations.map((item) => {
+              const active = item.id === store.activeConversationId;
+              return (
+                <div
+                  key={item.id}
+                  className={cn(
+                    "group rounded-md border px-2 py-2 transition-colors duration-200",
+                    active ? "border-primary/40 bg-accent" : "border-transparent hover:bg-accent/60"
+                  )}
+                >
+                  <button type="button" className="flex w-full flex-col text-left" onClick={() => store.openConversation(item)} disabled={!canRequest}>
+                    <span className="truncate text-sm font-medium">{item.title}</span>
+                    <span className="truncate text-[11px] text-muted-foreground">{item.preview || `${item.messageCount}개 메시지`}</span>
+                    <span className="truncate text-[10px] text-muted-foreground">{formatTime(item.updatedUtc) || item.category || "대화"}</span>
+                  </button>
+                  <div className="row-actions mt-1.5 flex gap-1 opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                    <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={() => store.renameConversation(item)} disabled={!canRequest}>
+                      이름
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={() => store.saveConversationToMemory(item)} disabled={!canRequest}>
+                      메모리
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-[11px] text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => store.deleteConversation(item)}
+                      disabled={!canRequest}
+                    >
+                      <Trash2 size={13} aria-hidden="true" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+            {displayedConversations.length === 0 ? (
+              <EmptyState icon={Inbox} title="대화 없음" description={canRequest ? "새 대화를 시작해 보세요." : "미들웨어에 연결되면 대화가 표시됩니다."} />
+            ) : null}
+          </div>
+
+          <div className="border-t border-border pt-2">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>메모리</span>
+              <span>{store.loadingMemoryNotes ? "조회 중" : `${store.memoryNotes.length}건`}</span>
+            </div>
+            <div className="mt-1.5 space-y-1">
+              {store.memoryNotes.slice(0, 3).map((note) => (
+                <div key={note.name} className="rounded-md bg-muted/40 px-2 py-1.5">
+                  <p className="truncate text-xs font-medium">{note.name}</p>
+                  <p className="truncate text-[11px] text-muted-foreground">{note.excerpt || "메모리 노트"}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardBoundary>
+
+        {/* 대화 본문 */}
+        <CardBoundary title="대화 본문" card="operations" onError={recordCardError}>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="outline">세션 {store.activeConversationId || "-"}</Badge>
+            <select className={SELECT_CLASS} value={store.chatMode} onChange={(event) => store.setChatMode(event.target.value as typeof store.chatMode)}>
+              <option value="single">single</option>
+              <option value="orchestration">orchestration</option>
+              <option value="multi">multi</option>
+            </select>
+            {store.pending ? (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Spinner size={13} /> 생성 중
+              </span>
+            ) : null}
+          </div>
+
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+            {store.messages.map((message, index) => (
+              <MessageBubble key={`${index}-${message.role}`} role={message.role} text={message.text} />
+            ))}
+            {store.messages.length === 0 ? (
+              <EmptyState icon={Send} title="메시지를 입력해 대화를 시작하세요" description="single·orchestration·multi 모드로 모델 라우팅을 비교할 수 있습니다." />
+            ) : null}
+
+            {store.multiResult ? (
+              <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+                {store.multiResult.summary ? (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground">요약</p>
+                    <p className="text-sm">{store.multiResult.summary}</p>
+                  </div>
+                ) : null}
+                {store.multiResult.providers.map((item) => (
+                  <div key={item.key} className="rounded-md border border-border bg-card p-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">{item.label}</span>
+                      <Badge tone="primary">{item.model || "model -"}</Badge>
+                    </div>
+                    <p className="prose-omnux mt-1 text-sm text-muted-foreground">{item.text || "응답 없음"}</p>
+                  </div>
+                ))}
               </div>
-            </article>
-          ))}
-          {displayedConversations.length === 0 ? <div className="empty">대화 없음</div> : null}
-        </div>
-        <dl className="status-list compact-list">
-          <div><dt>memory</dt><dd>{store.loadingMemoryNotes ? "조회 중" : `${store.memoryNotes.length}건`}</dd></div>
-        </dl>
-        <div className="event-log">
-          {store.memoryNotes.slice(0, 4).map((note) => (
-            <article key={note.name} className="desktop-tab">
-              <span>{note.name}</span>
-              <small>{note.excerpt || "메모리 노트"}</small>
-            </article>
-          ))}
-        </div>
-      </CardBoundary>
-      <CardBoundary title="대화 본문" card="operations" onError={recordCardError}>
-        <div className="status-list">
-          <div>
-            <dt>session</dt>
-            <dd>{store.activeConversationId || "-"}</dd>
+            ) : null}
           </div>
-          <div>
-            <dt>pending</dt>
-            <dd>{store.pending ? "yes" : "no"}</dd>
+
+          <div className="flex items-end gap-2 border-t border-border pt-3">
+            <Textarea
+              className="min-h-[60px]"
+              rows={2}
+              value={store.input}
+              placeholder="메시지를 입력하고 Enter (Shift+Enter 줄바꿈)"
+              onChange={(event) => useAskStore.setState({ input: event.target.value })}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  if (canRequest) store.sendMessage();
+                }
+              }}
+            />
+            <Button variant="primary" size="icon" aria-label="전송" onClick={store.sendMessage} disabled={!store.input.trim() || !canRequest}>
+              <Send size={17} aria-hidden="true" />
+            </Button>
           </div>
-        </div>
-        <div className="event-log" style={{ maxHeight: 360, overflow: "auto" }}>
-          {store.messages.map((message, index) => (
-            <MessageBubble key={`${index}-${message.role}`} role={message.role} text={message.text} />
-          ))}
-        </div>
-        <textarea
-          className="field"
-          style={{ width: "100%", minHeight: 110, marginTop: 12 }}
-          value={store.input}
-          placeholder="메시지를 입력하고 Enter"
-          onChange={(event) => useAskStore.setState({ input: event.target.value })}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              if (canRequest) {
-                store.sendMessage();
-              }
-            }
-          }}
-        />
-        <div className="log-toolbar" style={{ marginTop: 12 }}>
-          <button className="secondary-button" type="button" onClick={store.sendMessage} disabled={!store.input.trim() || !canRequest}>
-            전송
-          </button>
-          <button className="secondary-button" type="button" onClick={() => store.setInput("")}>
-            비우기
-          </button>
-        </div>
-      </CardBoundary>
-    </section>
+        </CardBoundary>
+      </section>
+    </div>
   );
 }

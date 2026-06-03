@@ -1,0 +1,615 @@
+apps/desktop/vite.config.ts:
+  Classes:
+  Methods: host
+
+apps/desktop/src/App.tsx:
+  Classes: DesktopPageDefinition
+  Methods: pageWideClass, App, activePage, setActivePage, activityBadge
+
+apps/desktop/src/shell-store.ts:
+  Classes: MiddlewareConnectionStatus, DesktopRuntimePhase, ProbeEndpointStatus, MiddlewareBootstrapPhase, DesktopWsBridgeStatus
+  Methods: recordShellLog, syncMiddlewareStatus, syncRuntimeContract, useDesktopShellStore, delay
+
+apps/desktop/src/use-middleware-session.ts:
+  Classes: ServerMessage
+  Methods: stringValue, booleanValue, numberValue, objectPayload, handleAuthRequired
+
+apps/desktop/src/use-middleware-runtime-probe.ts:
+  Classes: HttpProbeResult
+  Methods: clearRetryTimer, resolveReconnectDelayMs, scheduleRetry, probeHttpEndpoint, runProbe
+
+apps/desktop/src/ShellErrorBoundary.tsx:
+  Classes: ShellErrorBoundary, ErrorInfo, ReactNode, ShellErrorBoundaryProps, ShellErrorBoundaryState
+  Methods:
+
+apps/desktop/src/use-middleware-bootstrap-events.ts:
+  Classes: MiddlewareBootstrapPhase, MiddlewareBootstrapEvent
+  Methods: normalizeBootstrapEvent, useMiddlewareBootstrapEvents, disposed, payload
+
+apps/desktop/src/ShellFault.tsx:
+  Classes: ShellFaultProps
+  Methods: ShellFault
+
+apps/desktop/src/CardBoundary.tsx:
+  Classes: CardBoundary, ErrorInfo, ReactNode, ShellCard, CardBoundaryProps
+  Methods:
+
+apps/desktop/src/ReadOnlyWsPanel.tsx:
+  Classes:
+  Methods: ReadOnlyWsPanel, bridge, auth, doctor, ops
+
+apps/desktop/src/features/middleware/desktop-message-gateway.ts:
+  Classes: RoutineCreateInput, DesktopServerMessage, DesktopRequestType, DesktopRequestPayload, DesktopMessageListener
+  Methods: bindDesktopSessionSocket, publishDesktopMessage, subscribeDesktopMessages, sendDesktopRequest, normalizeToolActionPayload
+
+apps/desktop/src/features/settings/settings-store.ts:
+  Classes: DesktopServerMessage, MemoryNoteItem, SettingsState
+  Methods: normalizeServerList, useSettingsPageBridge, useSettingsStore, confirmed, query
+
+apps/desktop/src/features/settings/SettingsPage.tsx:
+  Classes:
+  Methods: SettingsPage, bridgeStatus, authStatus, recordCardError, fileInputRef
+
+apps/desktop/src/features/home/HomePage.tsx:
+  Classes: ShellLogEntry, ProjectItem, QuickAction
+  Methods: greeting, formatLogTime, formatProjectTime, logStatusClass, HomePage
+
+apps/desktop/src/features/ask/ask-store.ts:
+  Classes: DesktopServerMessage, AskConversationItem, AskMessage, AskChatMode, AskMultiResult
+  Methods: normalizeMessage, normalizeConversation, normalizeMultiResult, useAskPageBridge, definitions
+
+apps/desktop/src/features/ask/AskPage.tsx:
+  Classes:
+  Methods: MessageBubble, formatTime, AskPage, bridgeStatus, authStatus
+
+apps/desktop/src/features/ask/MarkdownMessage.tsx:
+  Classes:
+  Methods: safeHref, MarkdownMessage
+
+apps/desktop/src/features/auth/auth-store.ts:
+  Classes: DesktopAuthStatus, DesktopOtpRequestStatus, DesktopAuthContract, AuthResultPayload, DesktopAuthState
+  Methods: readSavedAuthToken, saveAuthSession, clearAuthSession, useDesktopAuthStore
+
+apps/desktop/src/features/activity/ActivityPage.tsx:
+  Classes: ShellLogLevel, LevelFilter
+  Methods: formatLogTime, formatDay, levelBadge, ActivityIcon, ActivityPage
+
+apps/desktop/src/features/shell/DesktopNavigation.tsx:
+  Classes: DesktopPageId, DesktopPageDefinition, DesktopNavigationProps
+  Methods: DesktopNavigation
+
+apps/desktop/src/features/shell/navigation-store.ts:
+  Classes: NavigationState
+  Methods: useDesktopNavigationStore
+
+apps/desktop/src/features/shell/ShellOverviewPage.tsx:
+  Classes:
+  Methods: ShellOverviewPage, recordCardError
+
+apps/desktop/src/features/shell/ShellStatusCards.tsx:
+  Classes:
+  Methods: ShellBoundarySummary, MiddlewareContractCard, RuntimeContractCard, AuthReadOnlyCard, middleware
+
+apps/desktop/src/features/shell/DesktopTopBar.tsx:
+  Classes: DesktopTopBarProps
+  Methods: runtimeStatusLabel, DesktopTopBar, bridgeStatus, authStatus
+
+apps/desktop/src/features/shell/PageBoundary.tsx:
+  Classes: PageBoundary, ErrorInfo, ReactNode, PageBoundaryProps, PageBoundaryState
+  Methods:
+
+apps/desktop/src/features/projects/ProjectsPage.tsx:
+  Classes: ProjectItem
+  Methods: formatDate, ProjectCard, ProjectsPage, parsed, bridgeStatus
+
+apps/desktop/src/features/projects/projects-store.ts:
+  Classes: DesktopServerMessage, ProjectItem, ProjectForm, ProjectsState
+  Methods: normalizeProject, formFromProject, useProjectsPageBridge, useProjectsStore, form
+
+apps/desktop/src/features/logic/logic-store.ts:
+  Classes: DesktopServerMessage, LogicGraphSummary, LogicNode, LogicEdge, LogicGraphDetail
+  Methods: asRecord, normalizeSummaries, normalizeGraph, normalizeSnapshot, useLogicPageBridge
+
+apps/desktop/src/features/logic/LogicPage.tsx:
+  Classes:
+  Methods: nodeTitle, LogicPage, bridgeStatus, authStatus, recordCardError
+
+apps/desktop/src/features/explore/explore-types.ts:
+  Classes: WebSearchResult, WebFetchResult, SessionsHistoryResult, SessionsSendResult, SessionsSpawnResult
+  Methods:
+
+apps/desktop/src/features/explore/ExplorePage.tsx:
+  Classes: ComponentProps, ExploreStoreSnapshot, CardErrorHandler
+  Methods: EmptyState, SearchPanel, FetchPanel, SessionsPanel, BrowserPanel
+
+apps/desktop/src/features/explore/explore-store.ts:
+  Classes: DesktopServerMessage, ExploreState
+  Methods: normalizeServerList, normalizeNumber, normalizeNullableNumber, normalizeNullableBoolean, normalizeRecord
+
+apps/desktop/src/features/dialog/dialog-store.ts:
+  Classes: DialogTone, BaseDialogRequest, ConfirmDialogRequest, PromptDialogRequest, DesktopDialogRequest
+  Methods: nextId, settleDesktopDialog, requestConfirmDialog, requestPromptDialog, useDesktopDialogStore
+
+apps/desktop/src/features/dialog/DesktopDialogHost.tsx:
+  Classes:
+  Methods: DesktopDialogHost, request, handleKeyDown, submit
+
+apps/desktop/src/features/automate/automate-store.ts:
+  Classes: DesktopServerMessage, RoutineCreateInput, RoutineItem, RoutineCreateForm, RoutinePreview
+  Methods: normalizeList, useAutomatePageBridge, useAutomateStore, confirmed, next
+
+apps/desktop/src/features/automate/RoutineCreateWizard.tsx:
+  Classes:
+  Methods: RoutineCreateWizard, form, preview, creating, patch
+
+apps/desktop/src/features/automate/AutomatePage.tsx:
+  Classes:
+  Methods: messageLooksDangerous, AutomatePage, bridgeStatus, authStatus, recordCardError
+
+apps/desktop/src/features/ops/ops-store.ts:
+  Classes: DesktopDoctorSnapshot, DesktopOpsSnapshot, DoctorResultPayload, OpsPageState
+  Methods: stringFromUnknown, useOpsPageStore, latestPlanTitle, latestTaskGraphStatus
+
+apps/desktop/src/features/ops/OperationsPage.tsx:
+  Classes:
+  Methods: OperationsPage, recordCardError
+
+apps/desktop/src/features/ui-log/UiLogPanel.tsx:
+  Classes:
+  Methods: formatLogTime, UiLogPanel, logs, clearLogs, serializedLogs
+
+apps/desktop/src/features/ui-log/ui-log-store.ts:
+  Classes: ShellLogLevel, ShellCard, ShellLogSource, ShellLogEntry, RecordLogOptions
+  Methods: createLog, pushLog, normalizeSavedLog, readSavedLogs, saveLogs
+
+apps/omnux-sandbox/executor.py:
+  Classes:
+  Methods: _apply_limits, _build_child_env, _run_script, _safe_preexec, _load_script
+
+apps/omnux-dashboard/shell.js:
+  Classes:
+  Methods: Sidebar, TopBar, Badge, StatusBadge, TypeBadge
+
+apps/omnux-dashboard/chat-multi-utils.js:
+  Classes:
+  Methods: toText, toMetaText, normalizeChatMultiResultMessage, toProviderDisplayName, formatModelDisplayName
+
+apps/omnux-dashboard/ask.js:
+  Classes:
+  Methods: formatUpdated, ChatMessage, CompareView, ConversationRow, RecentConversations
+
+apps/omnux-dashboard/icons.js:
+  Classes:
+  Methods: S
+
+apps/omnux-dashboard/check-guard-regression-workflow-artifacts.js:
+  Classes:
+  Methods: parseArgs, readText, readJson, assertIncludesAll, assertNoDirectGeminiKeyInjection
+
+apps/omnux-dashboard/check-chat-multi-browser-e2e.js:
+  Classes:
+  Methods: ensureRuntimeLayout, buildMiddlewareEnv, consumeLines, startMiddleware, waitForCondition
+
+apps/omnux-dashboard/palette.js:
+  Classes:
+  Methods: CommandPalette, PermissionModal, Toasts, t, lastGroup
+
+apps/omnux-dashboard/check-p3-expanded-corpus-regression.js:
+  Classes:
+  Methods: parseArgs, readText, assertIncludesAll, checkMemoryContracts, checkInjectionPath
+
+apps/omnux-dashboard/check-guard-sample-readiness.js:
+  Classes:
+  Methods: parseArgs, resolveStatePath, readJson, normalizeChannel, isSeedEntry
+
+apps/omnux-dashboard/check-p7-fail-closed-count-lock-bundle.js:
+  Classes:
+  Methods: parseArgs, readJson, isSeedEntry, summarizeTimeline, hasCountLockTermination
+
+apps/omnux-dashboard/check-guard-retry-timeline-api-priority.js:
+  Classes:
+  Methods: failures, result
+
+apps/omnux-dashboard/check-chat-multi-utils.js:
+  Classes:
+  Methods: extractGatewayMultiResultKeys, assertGatewayContract, assertTokenUsageRendererContract, run, missingKeys
+
+apps/omnux-dashboard/worker.js:
+  Classes:
+  Methods: nowString, pushLog
+
+apps/omnux-dashboard/bootstrap.js:
+  Classes:
+  Methods: showFallback, escapeHtml, loadScript, loadReactRuntime, loadAppScripts
+
+apps/omnux-dashboard/build.js:
+  Classes:
+  Methods: DetailToggle, BuildPage, t
+
+apps/omnux-dashboard/check-p7-release-checklist.js:
+  Classes:
+  Methods: parseArgs, readText, assertIncludesAll, checkExecutionSpec, checkReleaseDocs
+
+apps/omnux-dashboard/automate.js:
+  Classes:
+  Methods: PermPill, AutomationCard, CreatePanel, ConfirmDeleteModal, AutomatePage
+
+apps/omnux-dashboard/home.js:
+  Classes:
+  Methods: runtimeProjects, runtimeActivities, HeroInput, QuickStart, ContinueList
+
+apps/omnux-dashboard/check-guard-threshold-lock.js:
+  Classes:
+  Methods: parseArgs, escapeRegex, numberPattern, readSnapshot, buildRequiredPatterns
+
+apps/omnux-dashboard/check-ops-flow-performance.js:
+  Classes:
+  Methods: buildOpsFlowItems, buildOpsDomainStats, filterOpsFlowItems, percentile, summarize
+
+apps/omnux-dashboard/projects.js:
+  Classes:
+  Methods: projectFromRuntime, getProjects, refreshProjects, addProject, deleteProject
+
+apps/omnux-dashboard/check-p7-security-checklist.js:
+  Classes:
+  Methods: parseArgs, readText, assertIncludesAll, checkExternalContentBoundary, checkLogClassification
+
+apps/omnux-dashboard/data.js:
+  Classes:
+  Methods: classifyIntent
+
+apps/omnux-dashboard/check-guard-retry-timeline-browser-e2e.js:
+  Classes:
+  Methods: ensureRuntimeLayout, buildSeedEntries, isSeedEntry, loadExistingGuardRetryTimelineState, seedGuardRetryTimelineState
+
+apps/omnux-dashboard/check-p7-nuget-audit-policy.js:
+  Classes:
+  Methods: parseArgs, readText, assertIncludesAll, extractBlock, checkStartupProbePolicy
+
+apps/omnux-dashboard/runtime-adapter.js:
+  Classes:
+  Methods: snapshot, emit, pushEvent, summarizeMessage, handleMessage
+
+apps/omnux-dashboard/i18n.js:
+  Classes: error
+  Methods: t
+
+apps/omnux-dashboard/explore.js:
+  Classes:
+  Methods: SearchTab, FetchTab, SessionsTab, BrowserTab, CanvasTab
+
+apps/omnux-dashboard/app.js:
+  Classes: AppErrorBoundary
+  Methods: App, message
+
+apps/omnux-dashboard/settings.js:
+  Classes:
+  Methods: Row, formatBytes, formatOpsTime, statusBadgeClass, shortText
+
+apps/omnux-dashboard/check-p7-recovery-checklist.js:
+  Classes:
+  Methods: parseArgs, readText, assertIncludesAll, checkRollbackPolicy, checkRuntimeIsolation
+
+apps/omnux-dashboard/modules/app-shell-ui-state.js:
+  Classes:
+  Methods: useOmnuxUiState
+
+apps/omnux-dashboard/modules/app-shell-events.js:
+  Classes:
+  Methods: wireRuntimeSubscription, wireRoutineEvents, wireConversationEvents, wireMemoryEvents, wireKeyboardShortcuts
+
+apps/omnux-dashboard/modules/ws-conversations.js:
+  Classes:
+  Methods: requestConversations, requestCreateConversation, requestConversation, requestDeleteConversation, requestUpdateConversationMeta
+
+apps/omnux-dashboard/modules/dashboard-logic-renderers.js:
+  Classes:
+  Methods: stopLogicCanvasEvent, clamp, truncateText, getLogicPortPosition, buildLogicCurvePath
+
+apps/omnux-dashboard/modules/app-shell-bridges.js:
+  Classes:
+  Methods: useOmnuxKeyboardBridge, useOmnuxSendBridge, useOmnuxOpenProjectAction
+
+apps/omnux-dashboard/modules/app-shell-overlays.js:
+  Classes:
+  Methods: useOmnuxPaletteOverlayState, useOmnuxPermissionOverlayState, useOmnuxActivityOverlayState, useOmnuxToastOverlayState, useOmnuxOverlayState
+
+apps/omnux-dashboard/modules/ws-client.js:
+  Classes:
+  Methods: resolveStorage, getSavedAuthToken, getSavedAuthExpiry, persistAuthSession, clearPersistedAuthSession
+
+apps/omnux-dashboard/modules/ws-sessions.js:
+  Classes:
+  Methods: requestSessionsList, requestSessionHistory
+
+apps/omnux-dashboard/modules/coding-state.js:
+  Classes:
+  Methods: createCodingState
+
+apps/omnux-dashboard/modules/ws-web.js:
+  Classes:
+  Methods: requestWebSearch, requestWebFetch
+
+apps/omnux-dashboard/modules/app-shell-domain-stores.js:
+  Classes:
+  Methods: useOmnuxRuntimeStore, useOmnuxRoutineStore, useOmnuxConversationStore, useOmnuxMemoryStore, activeConversationIdRef
+
+apps/omnux-dashboard/modules/plans-state.js:
+  Classes:
+  Methods: createPlansState
+
+apps/omnux-dashboard/modules/ws-logic.js:
+  Classes:
+  Methods: requestLogicGraphList, requestLogicGraphGet, requestLogicPathList, requestLogicGraphSave, requestLogicGraphDelete
+
+apps/omnux-dashboard/modules/dashboard-shell-renderers.js:
+  Classes:
+  Methods: startWorkspaceResize, renderKeyboardIcon, renderChevronDownIcon, renderGlobalNav, renderModeTabs
+
+apps/omnux-dashboard/modules/notebooks-state.js:
+  Classes:
+  Methods: createNotebooksState
+
+apps/omnux-dashboard/modules/explore-page-state.js:
+  Classes:
+  Methods: useExplorePageState, runWebSearch, runWebFetch, loadSessions, openSession
+
+apps/omnux-dashboard/modules/dashboard-settings-renderers.js:
+  Classes:
+  Methods: renderNotebookRootPanel, renderAutomationRootPanel, renderSettingsPanel, navItems, statusTone
+
+apps/omnux-dashboard/modules/dashboard-derived-state.js:
+  Classes:
+  Methods: createProviderRuntimeSeed, buildToolResultStats, buildProviderRuntimeStats, createGuardChannelStat, toTopRows
+
+apps/omnux-dashboard/modules/routine-state.js:
+  Classes:
+  Methods: createRoutineOutputPreviewState, createRoutineProgressState, createRoutineState
+
+apps/omnux-dashboard/modules/dashboard-workspace-renderers.js:
+  Classes:
+  Methods: renderPaperclipIcon, renderSendIcon, renderMicIcon, renderThinkPlusIcon, renderRoutineIcon
+
+apps/omnux-dashboard/modules/ws-refactor.js:
+  Classes:
+  Methods: requestRefactorRead, requestRefactorPreview, requestRefactorApply, requestRefactorRestore, requestLspRename
+
+apps/omnux-dashboard/modules/dashboard-message-handlers.js:
+  Classes:
+  Methods: summarizeRoutineStatusMessage, shouldAutoShowCodingLogs, createCodingRuntimeState, normalizeWorkspaceSnapshotPath, resolveCodingPreviewPath
+
+apps/omnux-dashboard/modules/app-shell-state.js:
+  Classes:
+  Methods: useOmnuxAppState
+
+apps/omnux-dashboard/modules/routine-utils.js:
+  Classes:
+  Methods: normalizeRoutineAgentToolProfile, formatRoutineAgentToolProfileLabel, isRoutineDesktopControlSupportedClient, getViewportSnapshot, getRoutineLocalTimezone
+
+apps/omnux-dashboard/modules/routine-create-wizard.js:
+  Classes:
+  Methods: createRoutineCreateWizard, RoutineCreateWizard, goTo, goNext, goBack
+
+apps/omnux-dashboard/modules/ws-backup.js:
+  Classes:
+  Methods: requestBackupExport, requestBackupImportPreview, requestBackupImportApply
+
+apps/omnux-dashboard/modules/doctor-renderers.js:
+  Classes:
+  Methods: formatDoctorTimestamp, resolveDoctorTone, resolveDoctorLabel, buildCountCard, renderDoctorPanel
+
+apps/omnux-dashboard/modules/refactor-renderers.js:
+  Classes:
+  Methods: clampPreviewText, getModeLabel, getModeDescription, getPreviewActionLabel, buildRefactorStatus
+
+apps/omnux-dashboard/modules/refactor-state.js:
+  Classes:
+  Methods: createRefactorState
+
+apps/omnux-dashboard/modules/doctor-state.js:
+  Classes:
+  Methods: createDoctorState
+
+apps/omnux-dashboard/modules/ws-context.js:
+  Classes:
+  Methods: requestContextScan, requestSkillsList, requestCommandsList, requestSkillGet, requestSkillSave
+
+apps/omnux-dashboard/modules/app-shell-navigation-state.js:
+  Classes:
+  Methods: useOmnuxNavigationState
+
+apps/omnux-dashboard/modules/dashboard-thread-renderers.js:
+  Classes:
+  Methods: renderThreadInfoPanel, renderThreadModebar, renderThreadHeader, normalizeInlineCarouselIndex, InlineResultCarousel
+
+apps/omnux-dashboard/modules/chat-state.js:
+  Classes:
+  Methods: createConversationState, createChatState
+
+apps/omnux-dashboard/modules/ws-memory.js:
+  Classes:
+  Methods: requestMemoryNotes, requestReadMemoryNote, requestCreateMemoryNote, requestDeleteMemoryNotes, requestRenameMemoryNote
+
+apps/omnux-dashboard/modules/ws-routing.js:
+  Classes:
+  Methods: requestRoutingPolicyGet, requestRoutingPolicySave, requestRoutingPolicyReset, requestRoutingDecisionGetLast
+
+apps/omnux-dashboard/modules/dashboard-formatters.js:
+  Classes:
+  Methods: hashText, toneForCategory, localUtcOffsetLabel, pad2, buildTimeWindowKeys
+
+apps/omnux-dashboard/modules/routine-stats.js:
+  Classes:
+  Methods: computeRoutineStats
+
+apps/omnux-dashboard/modules/app-shell-render.js:
+  Classes:
+  Methods: resolveOmnuxPage, buildOmnuxAppView, Page
+
+apps/omnux-dashboard/modules/task-graph-renderers.js:
+  Classes:
+  Methods: formatTaskTimestamp, formatTaskRelative, trimText, resolveTaskTone, formatTaskStatusLabel
+
+apps/omnux-dashboard/modules/dashboard-ui-helpers.js:
+  Classes:
+  Methods: autoResizeComposerTextarea, createResponsiveSectionTabsRenderer, renderResponsiveSectionTabs
+
+apps/omnux-dashboard/modules/routine-progress-renderer.js:
+  Classes:
+  Methods: clampPercent, formatElapsed, ensureProgressComponent, RoutineProgress, renderRoutineProgressPanel
+
+apps/omnux-dashboard/modules/routing-policy-state.js:
+  Classes:
+  Methods: createRoutingPolicyState
+
+apps/omnux-dashboard/modules/ws-tasks.js:
+  Classes:
+  Methods: requestTaskGraphList, requestTaskGraphGet, requestTaskGraphCreate, requestTaskGraphRun, requestTaskGraphResume
+
+apps/omnux-dashboard/modules/settings-state.js:
+  Classes:
+  Methods: createAuthMetaState, createSettingsState, createGeminiUsageState, createCopilotPremiumUsageState, createCopilotLocalUsageState
+
+apps/omnux-dashboard/modules/command-palette-state.js:
+  Classes:
+  Methods: buildCommandPaletteCommands, useCommandPaletteState, filtered, text, choose
+
+apps/omnux-dashboard/modules/dashboard-attachments.js:
+  Classes:
+  Methods: hasDraggedFiles, parseWebUrls, buildRichInputPayload, clearAttachmentDraft, formatBytes
+
+apps/omnux-dashboard/modules/app-shell-context.js:
+  Classes:
+  Methods: buildOmnuxPageContext, buildOmnuxShellRenderState
+
+apps/omnux-dashboard/modules/dashboard-routine-renderers.js:
+  Classes:
+  Methods: ensureWizardComponent, renderRoutineScheduleBuilder, renderRoutineExecutionModeBuilder, renderRoutineRunHistory, renderRoutineTab
+
+apps/omnux-dashboard/modules/app-shell-summary.js:
+  Classes:
+  Methods: buildConversationSummary, upsertConversationSummary, index
+
+apps/omnux-dashboard/modules/dashboard-observability.js:
+  Classes:
+  Methods: inferToolResultGroup, inferToolResultDomain, inferToolResultAction, inferToolResultStatus, normalizeProviderName
+
+apps/omnux-dashboard/modules/dashboard-model-data.js:
+  Classes:
+  Methods: toProviderLabel, buildDashboardModelOptionSets, buildSettingsModelTableState, groqModelOptions, copilotModelOptions
+
+apps/omnux-dashboard/modules/error-messages.js:
+  Classes:
+  Methods: mapErrorMessage, formatErrorBanner
+
+apps/omnux-dashboard/modules/notebooks-renderers.js:
+  Classes:
+  Methods: formatNotebookTimestamp, formatNotebookRelative, formatNotebookSize, trimNotebookText, mergeNotebookDraft
+
+apps/omnux-dashboard/modules/dashboard-sidebar-renderers.js:
+  Classes:
+  Methods: renderConversationPanel, renderMemoryPicker, folderSelected, itemSelected, checked
+
+apps/omnux-dashboard/modules/task-graph-state.js:
+  Classes:
+  Methods: createTaskGraphState
+
+apps/omnux-dashboard/modules/plans-renderers.js:
+  Classes:
+  Methods: formatPlanTimestamp, formatPlanRelative, resolvePlanTone, normalizeStatusLabel, formatPlanModeLabel
+
+apps/omnux-dashboard/modules/ws-cleanup.js:
+  Classes:
+  Methods: requestCleanupPreview, requestCleanupApply
+
+apps/omnux-dashboard/modules/context-renderers.js:
+  Classes:
+  Methods: formatContextTimestamp, formatContextAction, renderInstructionSourcesTable, renderSkillTable, renderCommandTable
+
+apps/omnux-dashboard/modules/routine-defensive-ui.js:
+  Classes:
+  Methods: confirmThenRun, buildDeleteRoutineHandler, renderRoutineTestSplitMenu, label, validItems
+
+apps/omnux-dashboard/modules/ws-doctor.js:
+  Classes:
+  Methods: requestDoctorRun, requestDoctorLast, requestDoctorFixPreview, requestDoctorFixApply
+
+apps/omnux-dashboard/modules/app-shell-preference-state.js:
+  Classes:
+  Methods: useOmnuxPreferenceState, setTheme, toggleTheme, setAdvanced, setLang
+
+apps/omnux-dashboard/modules/dashboard-ops-renderers.js:
+  Classes:
+  Methods: renderToolControlPanel, renderSection, renderTableCard, renderDisclosure, renderControlGroup
+
+apps/omnux-dashboard/modules/dashboard-composer-renderers.js:
+  Classes:
+  Methods: renderCerebrasOptions, renderCerebrasWorkerOptions, renderLanguageOptions, renderComposerSupportDocks, readTokenTotal
+
+apps/omnux-dashboard/modules/automate-page-state.js:
+  Classes:
+  Methods: routineToTrigger, routineToCard, useCreateAutomationPanelState, useAutomatePageState, t
+
+apps/omnux-dashboard/modules/build-page-state.js:
+  Classes: error
+  Methods: firstProject, useBuildPageState, onMessage, genPlan, runCheck
+
+apps/omnux-dashboard/modules/ws-notebooks.js:
+  Classes:
+  Methods: normalizeProjectKey, requestNotebookGet, requestNotebookAppend, requestHandoffCreate
+
+apps/omnux-dashboard/modules/dashboard-chat-multi.js:
+  Classes:
+  Methods: toText, toMetaText, normalizeChatMultiResultMessage, toProviderDisplayName, formatModelDisplayName
+
+apps/omnux-dashboard/modules/ws-routines.js:
+  Classes:
+  Methods: requestRoutines, requestRoutineSchedulerStatus, requestPreviewRoutine, requestCreateRoutine, requestUpdateRoutine
+
+apps/omnux-dashboard/modules/routine-form-fields.js:
+  Classes:
+  Methods: clampNumber, renderRoutineRetryAndNotifyFields, notifyPolicy
+
+apps/omnux-dashboard/modules/activity-page-state.js:
+  Classes:
+  Methods: useActivityPageState, items, days
+
+apps/omnux-dashboard/modules/skills-renderers.js:
+  Classes:
+  Methods: renderSkillsRoot, renderSkillSidebar, renderSkillEditorPanel, renderSkillEditorForm, renderMetric
+
+apps/omnux-dashboard/modules/app-shell-domain-state.js:
+  Classes:
+  Methods: useOmnuxDomainState
+
+apps/omnux-dashboard/modules/ask-page-state.js:
+  Classes:
+  Methods: normalizeConversationMessage, useAskPageState, openConversation, newConversation, deleteConversation
+
+apps/omnux-dashboard/modules/ws-plans.js:
+  Classes:
+  Methods: requestPlanList, requestPlanGet, requestPlanCreate, requestPlanReview, requestPlanApprove
+
+apps/omnux-dashboard/modules/settings-page-state.js:
+  Classes:
+  Methods: normalizeStringArray, bytesToBase64, downloadBackupPackage, useSettingsMemoryState, useSettingsPermissionState
+
+apps/omnux-dashboard/modules/context-state.js:
+  Classes:
+  Methods: createContextState
+
+apps/omnux-dashboard/modules/routing-policy-renderers.js:
+  Classes:
+  Methods: formatTimestamp, resolveDraftValue, renderRoutingPolicyPanel, disabled, overrideChain
+
+apps/omnux-dashboard/modules/app-shell-persistence.js:
+  Classes:
+  Methods: readTheme, readLang, readAdvanced, writeTheme, writeLang
+
+apps/omnux-dashboard/modules/logic-state.js:
+  Classes:
+  Methods: section, field, createEmptyLogicGraph, getLogicNodeMinimumSize, normalizeLogicNodeSize
+
+apps/omnux-dashboard/modules/dashboard-markdown.js:
+  Classes:
+  Methods: escapeHtml, countMatches, canonicalizeMarkdownTableRow, canonicalizeMarkdownTableSeparatorLine, normalizeMarkdownTableBlocks

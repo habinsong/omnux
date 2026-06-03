@@ -59,7 +59,7 @@ public sealed class SyncConfigurationStore : ISyncConfigurationStore
             }
 
             var json = JsonSerializer.Serialize(config, OmniJsonContext.Default.SyncConfiguration);
-            File.WriteAllText(_configFilePath, json);
+            AtomicFileStore.WriteAllText(_configFilePath, json, ownerOnly: true);
         }
     }
 }

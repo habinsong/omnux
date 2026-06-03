@@ -125,7 +125,7 @@
     return (
       React.createElement('div', { className: 'page' },
         React.createElement('div', { className: 'col scroll page-scroll' },
-          React.createElement('div', { style: { maxWidth: 900 } },
+          React.createElement('div', { className: 'page-wide' },
             React.createElement('div', { className: 'between' },
               React.createElement('div', null,
                 React.createElement('h1', { style: { fontSize: 24, fontWeight: 800, letterSpacing: '-0.02em' } }, t('Automate')),

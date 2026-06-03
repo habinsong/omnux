@@ -137,7 +137,7 @@ public sealed class SkillCreateDirective
 
                 Directory.CreateDirectory(skillDir);
                 var content = BuildSkillFileContent(trimmedName, trimmedDescription, body);
-                File.WriteAllText(skillFilePath, content, new UTF8Encoding(false));
+                AtomicFileStore.WriteAllText(skillFilePath, content, ownerOnly: true);
                 createdCount += 1;
                 createdPaths.Add(skillFilePath);
 

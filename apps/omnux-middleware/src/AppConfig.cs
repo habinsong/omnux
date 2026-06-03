@@ -89,6 +89,8 @@ public sealed class AppConfig
     public int WebDefaultNewsCount { get; init; } = 10;
     public int WebDefaultListCount { get; init; } = 5;
     public int WebSocketCommandsPerMinute { get; init; } = 30;
+    public int WebSocketMaxConnections { get; init; } = 16;
+    public int HttpMaxConcurrentRequests { get; init; } = 64;
     public int MetricsPushIntervalSec { get; init; } = 2;
     public int CommandMaxLength { get; init; } = 800;
     public int WebSocketMaxMessageBytes { get; init; } = DefaultWebSocketMaxMessageBytes;
@@ -181,6 +183,8 @@ public sealed class AppConfig
         WebSocketPort,
         WebSocketCommandsPerMinute,
         WebSocketMaxMessageBytes,
+        WebSocketMaxConnections,
+        HttpMaxConcurrentRequests,
         EnableHealthEndpoint,
         EnableGatewayStartupProbe,
         GatewayStartupProbeDelayMs,
@@ -391,6 +395,8 @@ public sealed class AppConfig
             WebDefaultListCount = Math.Clamp(GetIntEnv("OMNUX_WEB_DEFAULT_LIST_COUNT", 5), 1, 20),
             WebSocketMaxMessageBytes = Math.Clamp(GetIntEnv("OMNUX_WS_MAX_MESSAGE_BYTES", DefaultWebSocketMaxMessageBytes), 64 * 1024, 256 * 1024 * 1024),
             WebSocketCommandsPerMinute = Math.Clamp(GetIntEnv("OMNUX_WS_COMMANDS_PER_MINUTE", 30), 1, 1000),
+            WebSocketMaxConnections = Math.Clamp(GetIntEnv("OMNUX_WS_MAX_CONNECTIONS", 16), 1, 1024),
+            HttpMaxConcurrentRequests = Math.Clamp(GetIntEnv("OMNUX_HTTP_MAX_CONCURRENT_REQUESTS", 64), 1, 2048),
             MetricsPushIntervalSec = Math.Clamp(GetIntEnv("OMNUX_METRICS_PUSH_INTERVAL_SEC", 2), 1, 60),
             CommandMaxLength = Math.Clamp(GetIntEnv("OMNUX_COMMAND_MAX_LENGTH", 800), 1, 8192),
             AuditLogPath = GetStringEnv("OMNUX_AUDIT_LOG_PATH", pathResolver.ResolveStateFilePath("audit.log")),
@@ -596,6 +602,8 @@ public sealed record GatewayOptions(
     int WebSocketPort,
     int WebSocketCommandsPerMinute,
     int WebSocketMaxMessageBytes,
+    int WebSocketMaxConnections,
+    int HttpMaxConcurrentRequests,
     bool EnableHealthEndpoint,
     bool EnableGatewayStartupProbe,
     int GatewayStartupProbeDelayMs,

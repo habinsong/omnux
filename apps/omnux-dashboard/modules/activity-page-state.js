@@ -1,7 +1,6 @@
 /* omnux — activity page state */
 (function () {
   const { useState } = React;
-  const D = window.OMNUX_DATA;
 
   const ACTIVITY_FILTERS = [
     { id: 'all', label: 'All' },
@@ -14,7 +13,19 @@
   function useActivityPageState(ctx, payload) {
     const [filter, setFilter] = useState('all');
     const liveEvents = Array.isArray(ctx.runtime?.events) ? ctx.runtime.events : [];
-    const items = D.activities.filter((activity) => filter === 'all' || activity.type === filter);
+    const today = new Date().toLocaleDateString();
+    const items = liveEvents.map((event) => ({
+      id: event.id,
+      day: today,
+      title: event.title || event.type || 'event',
+      summary: event.detail || '-',
+      project: 'runtime',
+      when: event.when || '',
+      status: event.status === 'failed' ? 'failed' : event.status === 'running' ? 'running' : 'completed',
+      type: event.type || 'run',
+      detail: event.detail || event.title || '',
+      files: [],
+    })).filter((activity) => filter === 'all' || activity.type === filter);
     const days = [...new Set(items.map((activity) => activity.day))];
 
     return {

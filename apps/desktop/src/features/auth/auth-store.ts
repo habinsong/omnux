@@ -29,10 +29,12 @@ type AuthResultPayload = {
 
 type DesktopAuthState = {
   auth: DesktopAuthContract;
+  markSessionPending: () => void;
   markAuthRequired: (sessionId: string, telegramConfigured: boolean, remoteDashboardClient: boolean) => void;
   markOtpRequestPending: () => void;
   markOtpRequestResult: (ok: boolean, message: string) => void;
   markAuthResult: (payload: AuthResultPayload) => void;
+  markUnauthorized: (message?: string) => void;
 };
 
 const AUTH_TOKEN_KEY = "omnux_auth_token";
@@ -98,6 +100,16 @@ export const useDesktopAuthStore = create<DesktopAuthState>((set) => ({
     otpRequestStatus: "idle",
     lastMessage: savedAuth.token ? "저장된 인증 토큰 resume 대기" : null
   },
+  markSessionPending: () =>
+    set((state) => ({
+      auth: {
+        ...state.auth,
+        status: "required",
+        sessionId: null,
+        otpRequestStatus: "idle",
+        lastMessage: state.auth.authToken ? "저장된 인증 토큰 resume 대기" : "세션 인증 확인 중"
+      }
+    })),
   markAuthRequired: (sessionId, telegramConfigured, remoteDashboardClient) =>
     set((state) => {
       useUiLogStore.getState().recordLog("info", "미들웨어가 OTP 인증을 요구했다.", { source: "auth" });
@@ -158,6 +170,23 @@ export const useDesktopAuthStore = create<DesktopAuthState>((set) => ({
           ttlHours: payload.ok ? payload.ttlHours || state.auth.ttlHours : null,
           remoteDashboardClient: payload.remoteDashboardClient ?? state.auth.remoteDashboardClient,
           otpRequestStatus: payload.ok ? "idle" : state.auth.otpRequestStatus,
+          lastMessage: message
+        }
+      };
+    }),
+  markUnauthorized: (message = "인증 세션이 만료되었다.") =>
+    set((state) => {
+      clearAuthSession();
+      useUiLogStore.getState().recordLog("warn", message, { source: "auth" });
+      return {
+        auth: {
+          ...state.auth,
+          status: "required",
+          authToken: null,
+          expiresAtUtc: null,
+          expiresAtLocal: null,
+          ttlHours: null,
+          otpRequestStatus: "idle",
           lastMessage: message
         }
       };

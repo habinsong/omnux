@@ -26,7 +26,7 @@ public sealed record BrowserToolResult(
     string? Error
 );
 
-public sealed class BrowserTool
+public sealed class BrowserTool : IDisposable
 {
     private const int DefaultTabLimit = 20;
     private const int MaxTabLimit = 100;
@@ -335,6 +335,19 @@ process.on("SIGTERM", async () => {
         _mode = ResolveMode(Env.Get("OMNUX_BROWSER_TOOL_MODE"));
         _headless = ResolveBool(Env.Get("OMNUX_BROWSER_HEADLESS"), fallback: true);
         _projectRoot = ResolveProjectRoot(config);
+    }
+
+    public void Dispose()
+    {
+        lock (_lock)
+        {
+            foreach (var state in _profiles.Values)
+            {
+                DisposePlaywrightHelper(state);
+            }
+
+            _profiles.Clear();
+        }
     }
 
     public BrowserToolResult Execute(
@@ -989,26 +1002,48 @@ process.on("SIGTERM", async () => {
         startInfo.Environment["OMNUX_BROWSER_HEADLESS"] = _headless ? "true" : "false";
 
         var process = new Process { StartInfo = startInfo };
+        var started = false;
         try
         {
-            process.Start();
+            started = process.Start();
+            if (!started)
+            {
+                throw new InvalidOperationException("node helper process did not start.");
+            }
+
+            process.ErrorDataReceived += (_, args) =>
+            {
+                if (!string.IsNullOrWhiteSpace(args.Data))
+                {
+                    state.LastHelperError = TrimError(args.Data);
+                }
+            };
+            process.BeginErrorReadLine();
+            state.HelperProcess = process;
+            state.LastHelperError = null;
+            state.Running = true;
         }
         catch (Win32Exception ex)
         {
+            process.Dispose();
             throw new InvalidOperationException("node executable was not found.", ex);
         }
-
-        process.ErrorDataReceived += (_, args) =>
+        catch
         {
-            if (!string.IsNullOrWhiteSpace(args.Data))
+            try
             {
-                state.LastHelperError = TrimError(args.Data);
+                if (started && !process.HasExited)
+                {
+                    process.Kill(entireProcessTree: true);
+                }
             }
-        };
-        process.BeginErrorReadLine();
-        state.HelperProcess = process;
-        state.LastHelperError = null;
-        state.Running = true;
+            catch
+            {
+            }
+
+            process.Dispose();
+            throw;
+        }
     }
 
     private static bool IsPlaywrightHelperAlive(BrowserProfileState state)

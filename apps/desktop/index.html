@@ -5,6 +5,21 @@
     <link rel="icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Omnux Desktop</title>
+    <script>
+      // FOUC 방지: 저장된 테마를 페인트 전에 적용 (기본 glass = 클래스 없음)
+      (function () {
+        try {
+          var t = localStorage.getItem("omnux-theme");
+          var root = document.documentElement;
+          root.classList.remove("dark", "theme-light");
+          if (t === "dark") root.classList.add("dark");
+          else if (t === "light") root.classList.add("theme-light");
+          // glass(기본)은 클래스 없이 :root 토큰 사용
+        } catch (e) {
+          /* localStorage 불가 시 glass 유지 */
+        }
+      })();
+    </script>
   </head>
 
   <body>

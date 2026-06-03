@@ -14,6 +14,7 @@ public sealed partial class WebSocketGateway
         var sendLock = new SemaphoreSlim(1, 1);
         var streamCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Task? streamTask = null;
+        var connectionSlotAcquired = false;
 
         try
         {
@@ -24,6 +25,15 @@ public sealed partial class WebSocketGateway
                 context.Response.OutputStream.Close();
                 return;
             }
+
+            if (!TryAcquireWebSocketConnectionSlot())
+            {
+                context.Response.StatusCode = (int)HttpStatusCode.TooManyRequests;
+                context.Response.ContentLength64 = 0;
+                context.Response.OutputStream.Close();
+                return;
+            }
+            connectionSlotAcquired = true;
 
             var wsContext = await context.AcceptWebSocketAsync(subProtocol: null);
             socket = wsContext.WebSocket;
@@ -206,6 +216,16 @@ public sealed partial class WebSocketGateway
                     continue;
                 }
 
+                if (await _projectCommandDispatcher.TryHandleAsync(
+                        message,
+                        socket,
+                        sendLock,
+                        cancellationToken
+                    ))
+                {
+                    continue;
+                }
+
                 if (await _routineCommandDispatcher.TryHandleAsync(
                         message,
                         socket,
@@ -248,6 +268,16 @@ public sealed partial class WebSocketGateway
                 }
 
                 if (await _taskCommandDispatcher.TryHandleAsync(
+                        message,
+                        socket,
+                        sendLock,
+                        cancellationToken
+                    ))
+                {
+                    continue;
+                }
+
+                if (await _agentCommandDispatcher.TryHandleAsync(
                         message,
                         socket,
                         sendLock,
@@ -342,6 +372,10 @@ public sealed partial class WebSocketGateway
             socket?.Dispose();
             sendLock.Dispose();
             streamCts.Dispose();
+            if (connectionSlotAcquired)
+            {
+                ReleaseWebSocketConnectionSlot();
+            }
         }
     }
 
@@ -413,6 +447,23 @@ public sealed partial class WebSocketGateway
         {
             _sessionRateMap.Remove(sessionId);
         }
+    }
+
+    private bool TryAcquireWebSocketConnectionSlot()
+    {
+        var active = Interlocked.Increment(ref _activeWebSocketConnections);
+        if (active <= Math.Max(1, _gatewayOptions.WebSocketMaxConnections))
+        {
+            return true;
+        }
+
+        Interlocked.Decrement(ref _activeWebSocketConnections);
+        return false;
+    }
+
+    private void ReleaseWebSocketConnectionSlot()
+    {
+        Interlocked.Decrement(ref _activeWebSocketConnections);
     }
 
     private static bool IsRemoteDashboardClient(HttpListenerContext context)

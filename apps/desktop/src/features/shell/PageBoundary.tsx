@@ -45,7 +45,7 @@ export class PageBoundary extends Component<PageBoundaryProps, PageBoundaryState
   render() {
     if (this.state.message) {
       return (
-        <section className="page-fallback">
+        <section className="p-2">
           <ShellFault
             label={`${this.props.page} 화면 렌더 실패: ${this.state.message}`}
             stack={this.state.componentStack}

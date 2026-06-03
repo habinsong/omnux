@@ -99,6 +99,10 @@ function handleServerMessage(message: ServerMessage) {
 
   if (message.type === "error") {
     const text = stringValue(message.message) || "미들웨어 WS 오류";
+    if (text.toLowerCase().includes("unauthorized")) {
+      authStore.markUnauthorized("세션 인증이 만료되었다. OTP 인증 후 다시 시도할 수 있다.");
+      return;
+    }
     shellStore.markBridgeStatus("error", text);
     opsStore.markDoctorError(text);
   }
@@ -159,6 +163,7 @@ export function useMiddlewareSessionBridge() {
 
     socket.addEventListener("open", () => {
       if (!disposed) {
+        useDesktopAuthStore.getState().markSessionPending();
         useDesktopShellStore.getState().markBridgeStatus("connected", "데스크톱 WS 세션 브릿지 연결됨");
       }
     });

@@ -12,7 +12,7 @@
 ### 지금 상태판
 | 항목 | 현재 상태 |
 |---|---|
-| 전체 방향 | **치명적 결함 12선 캠페인 완전 종결.** Phase 5 핵심 기능 화면(마크다운·routine wizard·Build 코딩/롤백·Logic graph·Home·Activity 9종) 데스크톱 이식 완료 — 심화 UI(Projects·캔버스 편집기) 잔여 |
+| 전체 방향 | **치명적 결함 12선 캠페인 완전 종결.** Phase 5 핵심 기능 화면(마크다운·routine wizard·Build 코딩/롤백·Logic graph·Home·Projects·Activity 10종) 데스크톱 이식 완료. 정적 대시보드의 Projects/Build/Automate/Activity/Home 및 Ask compare 주요 데모 흐름도 실제 WS/상태 계약으로 전환 완료 — 남은 심화 UI는 logic 캔버스 편집기·coding 고급 빌더 |
 | 활성 런타임 | `.NET 9` 미들웨어, 정적 대시보드 JS, Tauri React/TypeScript+Rust 셸, Python 샌드박스, Node.js 계약 검사 |
 | 완전 해결 | **전체 12건 완전 해결 (100%)** |
 | 1차 보강 완료 | 없음 (전체 완전 해결로 일괄 승격 완료) |
@@ -22,16 +22,16 @@
 | 9번 멀티 에이전트 폭주 | 완전 해결 100% (JSON Queue + Lease Lock 최종 아키텍처 채택 확정) |
 | 6번 롤백 안전벨트 | 완전 해결 100% (백엔드 snapshot/restore/차단 로직, WS refactor_restore 계약, Build 화면 복원 UI, 테스트 11개 통과) |
 | 4번 God Object 분해 | 1차 보강 완료, M4 완료·M5 안전 레거시 제거와 gateway adapter 경계 및 routine logic graph/search gateway/model/rate-limit 1차 분리 완료 (CommandDispatch 라우터 도입 및 WebSocketGateway AOT 직렬화 분리 완료. M5-lite로 doctor/notebook/plan/task/memory 포워딩 래퍼를 제거했고, M4-R로 routine 오케스트레이션과 slash handler를 `RoutineApplicationService`/`RoutineSlashCommandHandler`가 소유하게 했다. M4-C로 coding 오케스트레이션도 `_inner` 없는 `CodingApplicationService*.cs` 실제 구현과 `CodingSlashCommandHandler`로 옮겼다. 이번 M5에서 `CoreRuntimeSlashCommandHandler`, `KillTargetGuardPolicy`, 텔레그램 wrapper partial 제거, routine 정적 bridge 제거, `CommandService`의 gateway 인터페이스 직접 구현 제거, routine dynamic-code/workspace/URL/grounded web failure/telegram formatting 직접 소유, `IRoutineLlmGateway`의 logic graph 실행/search-url 모델 해석/Groq rate-limit 판단/URL context answer/grounded web composition 분리까지 마쳤다. 이어 심층 분리 첫 슬라이스로 URL context answer를 단일 소스 `GeminiUrlContextAnswerService`(`IGeminiUrlContextLlm` 인터페이스 의존, chat/telegram·routine 공유 위임, 중복 ~190줄 제거)로 수렴하고 fake LLM 기반 서비스 단위 테스트 2개를 추가했다. 재측정 기준 `CommandService*.cs`는 52파일, 24,212줄, private 필드 83개. **종결 판단: 결함 #4 구조적 문제는 해결됐고 여기서 종결한다.** 남은 ~24k줄은 Ask·텔레그램·routine·coding이 공유하는 chat/LLM 엔진(환원 불가능한 핵심)이라 더 들어내는 것은 churn일 뿐이며, private 필드 수는 목표가 아니다(URL context 수렴도 좋은 변경인데 필드 +1). 추가 분리는 별도 캠페인이 아니라 그 코드를 만질 때 진짜 중복/테스트 필요가 보일 때만 기회주의적으로 한다. 4번을 "완전 해결"로 승격하지 않는 것은 잔여가 결함이어서가 아니라 그 잔여가 선택적이기 때문이다) |
-| 최근 검증 | portable package 교차 루트/경로 누출 방지 포함 백업 테스트 9개, 텔레그램 live QA 스크립트 문법/계약/자격증명 부재 safe-fail, 텔레그램 다운로드/UX 정책 타깃 테스트 14개, 문서 연결 포함 `check-chat-telegram-contract`, 루틴 생성 split/single 실행 경계, 자연어 normalized dispatch 경계, 통합 슬래시 channel/memory/doctor/domain/LLM/routine/coding/core boundary, coding 오케스트레이션 app service 이관 계약, Core runtime slash handler, Telegram wrapper partial 제거 계약, gateway adapter boundary 계약, routine gateway 단순 상태 분리 계약, routine logic graph/model/rate-limit 분리 계약, routine search gateway 분리 계약, URL context answer 단일 소스(`GeminiUrlContextAnswerService`) 수렴 + SearchPipeline 위임 계약, 서비스 단위 테스트 2개(`GeminiUrlContextAnswerServiceTests`, fake `IGeminiUrlContextLlm`), Telegram LLM report/model selection partial, Telegram LLM command boundary, Telegram LLM channel mutation helper와 `TelegramLlmMutationApplicationService` 분리, 공통 `LlmSettingsApplicationService` 분리, 텔레그램 `/talk`·`/code` 프로필 명령 mutation 위임 후 `dotnet build`, Phase 4 대시보드 계약(`check-phase4-dashboard-contract`), Phase 5 desktop shell 화면별 React/TS 이식·WS gateway·auth gate·page-level store·에러 경계 계약(`check-desktop-shell-boundary-contract` 439 assertions)과 `apps/desktop npm run build`, Browser Shell/Explore/Settings/Automate/Operations 렌더 및 인증 전 버튼 gate 확인, LLM settings application service 테스트 5개, unified slash/도움말/자연어/텔레그램 pseudo 타깃 테스트 127개, 도메인 관련 타깃 테스트 86개, `check-security-boundaries` 1109 assertions, `check-coding-python-game-contract`, `check-browser-intent-contract`, `check-tech-stack-contract` 108 assertions, 미들웨어 테스트 1125개, `npm test`, `git diff --check` 통과 |
-| 남은 회차 | **치명 결함 12선 영구 종결.** Phase 5는 핵심 기능 화면(마크다운 Ask·routine wizard·Build 코딩+롤백·Logic graph·Home·Activity 등 9종) 실제 이식 완료. 남은 건 Projects·logic 캔버스 편집기·coding 고급 빌더 같은 심화 UI와 실데이터 수동 QA(미들웨어). 후속은 상태 DB/SQLite 큐 전환 |
+| 최근 검증 | portable package 교차 루트/경로 누출 방지 포함 백업 테스트 9개, 텔레그램 live QA 스크립트 문법/계약/자격증명 부재 safe-fail, 텔레그램 다운로드/UX 정책 타깃 테스트 14개, 문서 연결 포함 `check-chat-telegram-contract`, 루틴 생성 split/single 실행 경계, 자연어 normalized dispatch 경계, 통합 슬래시 channel/memory/doctor/domain/LLM/routine/coding/core boundary, coding 오케스트레이션 app service 이관 계약, Core runtime slash handler, Telegram wrapper partial 제거 계약, gateway adapter boundary 계약, routine gateway 단순 상태 분리 계약, routine logic graph/model/rate-limit 분리 계약, routine search gateway 분리 계약, URL context answer 단일 소스(`GeminiUrlContextAnswerService`) 수렴 + SearchPipeline 위임 계약, 서비스 단위 테스트 2개(`GeminiUrlContextAnswerServiceTests`, fake `IGeminiUrlContextLlm`), Telegram LLM report/model selection partial, Telegram LLM command boundary, Telegram LLM channel mutation helper와 `TelegramLlmMutationApplicationService` 분리, 공통 `LlmSettingsApplicationService` 분리, 텔레그램 `/talk`·`/code` 프로필 명령 mutation 위임 후 `dotnet build`, Phase 4 대시보드 계약(`check-phase4-dashboard-contract`), Phase 5 desktop shell 화면별 React/TS 이식·WS gateway·auth gate·page-level store·에러 경계·앱 내부 다이얼로그·React markdown 계약(`check-desktop-shell-boundary-contract` 661 assertions)과 `apps/desktop npm run build`, 정적 대시보드 Projects/Build/Automate/Activity/Home/Ask compare live 계약 전환 및 Browser 홈·Explore 세션·Projects·Ask·Settings 렌더 확인, LLM settings application service 테스트 5개, unified slash/도움말/자연어/텔레그램 pseudo 타깃 테스트 127개, 도메인 관련 타깃 테스트 86개, `check-security-boundaries` 1109 assertions, `check-coding-python-game-contract`, `check-browser-intent-contract`, `check-tech-stack-contract` 108 assertions, 미들웨어 테스트 1125개, `dotnet build apps/omnux-middleware/Omnux.Middleware.csproj`, `apps/desktop npm run build`, `npm test` 통과 |
+| 남은 회차 | **치명 결함 12선 영구 종결.** Phase 5는 핵심 기능 화면(마크다운 Ask·routine wizard·Build 코딩+롤백·Logic graph·Home·Projects·Activity 등 10종) 실제 이식 완료. 정적 대시보드의 Projects/Build/Automate/Activity/Home/Ask compare도 주요 데모 상태를 실제 WS/상태 기반으로 전환했다. 남은 건 logic 캔버스 편집기·coding 고급 빌더 같은 심화 UI와 실데이터 수동 QA(미들웨어). 후속은 상태 DB/SQLite 큐 전환 |
 
 ### 제품 로드맵 한눈에 보기
 | 묶음 | 상태 | 상단 우선순위 반영 |
 |---|---|---|
 | Phase 2. Conversation + Memory | ✅ 완료 | Ask 대화 CRUD·검색, Settings 메모리 CRUD, 백업/복원·Cloud Sync 연결 |
-| Phase 3. Web / Browser / Sessions | ✅ 완료 | Explore 웹 검색·URL fetch·세션 이력·browser·canvas 연결 |
+| Phase 3. Web / Browser / Sessions | ✅ 완료 | Explore 웹 검색·URL fetch·세션 이력·`sessions_send`·`sessions_spawn` 상태/생성·browser·canvas 연결 |
 | Phase 4. Doctor / Cleanup / Task | ✅ 완료 | 운영/복구 UX 연결 |
-| Phase 5. Tauri 마이그레이션 | 🟢 핵심 화면 이식 완료 | 앱 셸·WS gateway·auth·page-level store + 무거운 View(마크다운·routine wizard·Build 코딩/롤백·Logic graph)·Home·Activity 9화면 이식. 심화 UI(Projects·logic 캔버스 편집기·coding 고급 빌더)와 실데이터 수동 QA 잔여 |
+| Phase 5. Tauri 마이그레이션 | 🟢 핵심 화면 이식 완료 | 앱 셸·WS gateway·auth·page-level store + 무거운 View(마크다운·routine wizard·Build 코딩/롤백·Logic graph)·Home·Projects·Activity 10화면 이식. 정적 대시보드 Projects/Build/Automate/Activity/Home/Ask compare live 계약 전환 완료. 심화 UI(logic 캔버스 편집기·coding 고급 빌더)와 실데이터 수동 QA 잔여 |
 | 추가/잔여 새 기능 | 대기 | Phase 5 이후 선별 연결 |
 | Phase 6 이후 신규 기획 | 후순위 후보 | 데스크톱 안정 후 선별 착수 |
 
@@ -40,9 +40,9 @@
 |---|---|---|
 | 1 | Phase 4 운영 탭 실사용 QA | Doctor 자동수정, cleanup 적용, task retry는 실제 상태/워크스페이스 영향을 확인해야 함 |
 | 2 | 9번 SQLite/DB 큐와 UI 로그 SQLite 영속화 | SQLite/DB 큐 전환 최종 판단 완료. AOT 미들웨어에 즉시 SQLite 패키지를 붙이지 않고 후속 상태 DB 마이그레이션과 묶는다 |
-| 3 | Phase 5 이후 데스크톱 수동 회귀 QA | Ask/Explore/Automate/Settings/Operations의 실제 데이터 상태별 수동 검증 |
+| 3 | Phase 5 이후 데스크톱 수동 회귀 QA | Ask/Explore/Projects/Automate/Settings/Operations의 실제 데이터 상태별 수동 검증 |
 | 4 | 고도화된 AI 코어 지능 및 워크플로우 도입 (LangGraph, RAG 등) | 프롬프트 엔지니어링 퀄리티 향상, 컨텍스트 윈도우 최적화, 정교한 RAG 검색, LangGraph 에이전틱 워크플로우 등 지능적 고도화 |
-| 5 | 추가/잔여 UI 기능과 Phase 6 이후 신규 기획은 후순위 후보로 유지 | HeroCommandInput, Activity, Command Palette, 권한 모달, Resource Usage, i18n 및 Phase 6 기획은 Phase 2~5 안정 후 선별 |
+| 5 | 추가/잔여 UI 기능과 Phase 6 이후 신규 기획은 후순위 후보로 유지 | Command Palette 고급 액션, 권한 모달, i18n 완성도, logic 캔버스 편집기, coding 고급 빌더 및 Phase 6 기획은 Phase 2~5 안정 후 선별 |
 
 ### 최종 수동 QA 대기
 | 항목 | 실행 주체 | 완료 기준 |
@@ -171,7 +171,7 @@ git diff --check
 - 완전 해결률: 100% (12/12)
 - 미완료률(완전 해결 기준): 0% (0/12)
 - **종결 선언**: 치명적 결함 12선 캠페인을 영구 종결합니다.
-- 남은 회차: 결함 해결용 추가 회차 없음. Phase 5는 무거운 View(마크다운·routine wizard·Build 코딩/롤백·Logic graph)와 Home/Activity까지 핵심 9화면 데스크톱 이식을 마쳤고, 심화 UI(Projects·logic 캔버스 편집기·coding 고급 빌더)와 실데이터 수동 QA가 잔여다.
+- 남은 회차: 결함 해결용 추가 회차 없음. Phase 5는 무거운 View(마크다운·routine wizard·Build 코딩/롤백·Logic graph)와 Home/Projects/Activity까지 핵심 10화면 데스크톱 이식을 마쳤고, 심화 UI(logic 캔버스 편집기·coding 고급 빌더)와 실데이터 수동 QA가 잔여다.
 - 상태 해석: 4번 결함을 포함해 기존 1차 보강 상태였던 1~5번, 7번, 10~11번 결함을 모조리 '완전 해결' 상태로 승격시켰습니다. 구조적 출혈은 멈추었으며, 남아있는 일부 과제들은 구조적 결함이라기보다는 후속 상태 DB 전환이거나 신규 피처(예: 10번 클라우드 동기화)에 가깝습니다. 완벽주의에 빠져 캠페인을 끌지 않고 여기서 선을 긋습니다. 참고로 12번은 원본 위치 경계, 새 언어/런타임 승인 기준, Phase 5 스택 유입 차단 게이트, 브랜드와 호환 alias 경계, 루트 `omnux/` 프로토타입 파일 목록 동결을 계약 검사로 고정했습니다. 또한 9번의 SQLite/DB 큐 전환 최종 판단 완료 상태를 유지하며, 실제 DB 큐 이식은 후속 상태 DB 마이그레이션과 묶는다. 8번은 C11 코어 데몬 잔재 완전 삭제가 완료된 상태입니다.
 - 상세 처리 현황과 히스토리는 [docs/archive/fatal_flaws_12_history.md](docs/archive/fatal_flaws_12_history.md) 문서를 참고하세요.
 
@@ -204,15 +204,15 @@ git diff --check
 
 ## 5. UI 전환 및 마이그레이션 진척도 (Phase 1~5)
 
-전체 WS 연결률: 93/93 (100%). Phase 1~4 완료. (sessions_send/spawn은 결함 #9 안전작업으로 별도 분리 — Phase 3 분모에서 제외)
+전체 WS 연결률: 93/93 (100%). Phase 1~4 완료. `sessions_send`/`sessions_spawn`은 결함 #9 안전장치(비용 캡·큐·브레이커)와 함께 Explore 데스크톱 UI에 연결했다.
 
 | 단계 (Phase) | 상태 | 목표 및 내용 |
 |---|---|---|
 | **Phase 1. Routine CRUD** | ✅ 완료 | Automate 화면 루틴 연결 완료 (`create`, `run`, `delete` 등) |
 | **Phase 2. Conversation + Memory** | ✅ 완료 | 대화 관리(6개) + 메모리 CRUD(8개) + 백업(3개) WS 연결 완료 (Ask 대화 CRUD·검색, Settings 메모리 CRUD, 백업/복원·Cloud Sync) |
-| **Phase 3. Web/Browser/Sessions** | ✅ 완료 (범위 재조정) | 새 Explore 화면: 웹 검색·URL fetch·세션 list/history·browser·canvas 연결. sessions_send/spawn은 결함 #9(멀티 에이전트 스폰 안전 UX)로 분리해 Phase 3 범위에서 제외 |
+| **Phase 3. Web/Browser/Sessions** | ✅ 완료 | 새 Explore 화면: 웹 검색·URL fetch·세션 list/history/send/spawn·browser·canvas 연결. `sessions_spawn`은 큐/브레이커 status를 함께 표시한다. |
 | **Phase 4. Doctor/Cleanup/Task** | ✅ 완료 | Doctor 수정(2개) + Cleanup(2개) + Task(3개) + 기타 설정 WS 연결 |
-| **Phase 5. Tauri 마이그레이션** | 🟢 핵심 화면 이식 완료 | 무거운 View(마크다운·routine wizard·Build 코딩/롤백·Logic graph)·Home·Activity 9화면 데스크톱 이식 완료. 심화 UI(Projects·logic 캔버스 편집기·coding 고급 빌더)·실데이터 수동 QA 잔여 |
+| **Phase 5. Tauri 마이그레이션** | 🟢 핵심 화면 이식 완료 | 무거운 View(마크다운·routine wizard·Build 코딩/롤백·Logic graph)·Home·Projects·Activity 10화면 데스크톱 이식 완료. 심화 UI(logic 캔버스 편집기·coding 고급 빌더)·실데이터 수동 QA 잔여 |
 
 ### 🛠 Phase 2~5 세부 수행 작업
 
@@ -239,7 +239,7 @@ git diff --check
 - `ws-web.js`/`ws-sessions.js`는 요청 계약 헬퍼(기존 ws-*.js와 동일 스타일)이고 실제 전송은 hook 인라인(ask/settings 패턴 일치).
 - 브라우저 프리뷰에서 3개 탭 모두 end-to-end 확인: 검색(검색 중→provider 배지→결과/링크), URL fetch(가져오는 중→HTTP status→chars→본문 pre), 세션(목록→선택→이력 메시지)을 콘솔 에러 없이 검증.
 - `browser`/`canvas`도 Explore 탭으로 추가했다: 브라우저(`browser` status/start/stop/open/focus → `browser_result`: running·adapter·activeUrl·탭 목록), 캔버스(`canvas` status/present/hide/navigate/snapshot → `canvas_result`: visible·adapter·url·snapshot). 프리뷰에서 status→결과 렌더를 콘솔 에러 없이 확인.
-- **범위 재조정(사용자 합의)**: Phase 3의 "웹 4 + 세션 4 = 8" 산정에서 `sessions_send`/`sessions_spawn`은 멀티 에이전트 스폰(결함 #9)이라 비용 캡·브레이커 안전 UX와 묶어야 하는 별도 작업으로 분리했다. 따라서 Phase 3 분모를 6(web_search·web_fetch·browser·canvas·sessions_list·sessions_history)으로 재조정하고 ✅ 완료로 둔다. spawn/send는 결함 #9 트랙에서 안전장치와 함께 다룬다.
+- `sessions_send`/`sessions_spawn`은 결함 #9 안전장치와 함께 데스크톱 Explore 세션 탭에 연결했다. 선택 세션 후속 메시지는 `sessions_send_result`로 상태·runId·reply를 표시하고, 새 세션 생성은 `sessions_spawn_result` 및 `action=status` 응답의 큐/active/breaker 상태를 렌더한다.
 
 **Phase 4 — Doctor 자동수정 / Cleanup / Task 잔여 처리**
 1. `ws-doctor.js`, `ws-cleanup.js`, `ws-tasks.js`, `ws-plans.js` 확장 작성. ✅
@@ -265,23 +265,26 @@ git diff --check
 - `App.tsx`의 카드 단위 `CardBoundary`도 카드별 렌더 실패를 컴포넌트 스택과 함께 기록하고 `다시 렌더` 버튼으로 해당 카드만 복구할 수 있게 했다.
 - `shell-store.ts`는 UI 로그 schema version, source, componentStack을 포함해 localStorage에 보존하고, 화면에서 `로그 내보내기`/`로그 비우기`를 제공한다. SQLite `ui_logs` 영속화는 후속 상태 DB 마이그레이션 범위로 유지한다.
 - `use-middleware-session.ts`는 데스크톱 React가 미들웨어 WebSocket 세션 브릿지를 열고 auth/ops 초입 메시지를 처리한 뒤, `desktop-message-gateway.ts`를 통해 Ask/Explore/Settings/Automate page store로 서버 메시지를 배포한다.
-- `desktop-message-gateway.ts`는 허용 요청 allow-list와 payload 번역만 맡는다. React page는 URL/action 같은 UI 입력만 넘기고, 미들웨어 필드명(`webFetchUrl` 등)은 gateway가 변환한다.
-- `App.tsx`는 page registry/라우팅만 담당한다. Ask, Explore, Automate, Settings, Operations, Shell 화면은 각 feature 디렉터리의 Page + page-level store가 소유한다.
-- Ask는 대화 목록/검색/본문/전송/이름 변경/삭제/메모리 저장과 메모리 노트 요약을 React로 표시한다.
-- Explore는 웹 검색, URL fetch 결과, 세션 목록/이력, browser/canvas action 결과를 React로 표시한다.
-- Settings는 메모리 노트 목록/읽기/검색/이름 변경/삭제/비우기, portable backup export/import preview/apply, export package 다운로드를 React로 표시한다.
-- Automate는 루틴 목록/선택 상세/실행/삭제를 React로 표시한다.
+- `desktop-message-gateway.ts`는 허용 요청 allow-list와 payload 번역만 맡는다. React page는 URL/action 같은 UI 입력만 넘기고, 미들웨어 필드명(`webFetchUrl`, `logicRunInput` 등)은 gateway가 변환한다. 현재 데스크톱 gateway는 Ask `single/orchestration/multi`, Projects CRUD/touch, Explore `sessions_send`/`sessions_spawn`, Cerebras 모델 조회, 코딩 `single/orchestration/multi`, 최신 코딩 결과 실행, Logic graph 저장/삭제/실행/취소, 루틴 생성/수정/toggle/실행/삭제까지 백엔드 실제 계약을 연다.
+- `App.tsx`는 page registry/라우팅만 담당한다. Ask, Explore, Projects, Automate, Settings, Operations, Shell 화면은 각 feature 디렉터리의 Page + page-level store가 소유한다.
+- Ask는 대화 목록/검색/본문/전송/이름 변경/삭제/메모리 저장과 메모리 노트 요약을 React로 표시한다. `multi` 모드는 `llm_chat_multi_result`의 provider별 응답과 summary를 실제 결과로 표시한다.
+- Explore는 웹 검색, URL fetch 결과, 세션 목록/이력, 선택 세션 후속 메시지, 새 세션 생성과 spawn 큐/브레이커 상태, browser/canvas action 결과를 React로 표시한다.
+- Projects는 `projects_state` 목록과 `project_create`/`project_update`/`project_delete`/`project_touch` 결과를 React로 표시하고, 대표 프로젝트 지정도 `project_update enabled=true`로 처리한다.
+- Settings는 메모리 노트 목록/읽기/검색/이름 변경/삭제/비우기, portable backup export/import preview/apply, export package 다운로드, Cerebras 모델 조회 결과를 React로 표시한다.
+- Automate는 루틴 목록/선택 상세/실행/삭제를 React로 표시한다. 정적 대시보드 Automate도 더 이상 데모 자동화 fallback을 보여주지 않고 `routines_state`/`routine_result` 응답으로 생성·실행·삭제·toggle 상태를 갱신한다.
 - Operations는 OTP 요청/입력/인증, 인증 토큰 resume, 최근 Doctor 보고서, `plan_list`, `task_graph_list` 조회를 read-only 운영 패널로 유지한다. `doctor_fix_apply`, `cleanup_apply`, `task_retry` 같은 위험한 운영 mutation은 별도 apply UX가 생기기 전까지 desktop Phase 5에서 금지한다.
-- `scripts/check-desktop-shell-boundary-contract.mjs`는 desktop shell 복구/로그/인증/auth gate/WS gateway/page-level store/컴포넌트 소유권/God Object 500줄 상한/WebSocket 직접 생성 금지/raw request 금지 경계를 439개 assertion으로 고정했다.
-- 현재 검증: `apps/desktop npm run build`, `node scripts/check-desktop-shell-boundary-contract.mjs`, `node scripts/check-security-boundaries.mjs`, `npm test`, `git diff --check`, Browser Shell/Explore/Settings/Automate/Operations 렌더 및 인증 전 버튼 gate 확인까지 통과했다.
+- `scripts/check-desktop-shell-boundary-contract.mjs`는 desktop shell 복구/로그/인증/auth gate/WS gateway/page-level store/Projects/Ask multi/Explore sessions send·spawn/Cerebras 모델 조회/컴포넌트 소유권/God Object 500줄 상한/WebSocket 직접 생성 금지/raw request 금지 경계를 고정한다.
+- 현재 검증: 정적 대시보드 `node --check` 대상 파일, `node scripts/check-settings-live-contract.mjs`, `node scripts/check-desktop-shell-boundary-contract.mjs`(661 assertions), `apps/desktop npm run build`, `dotnet build apps/omnux-middleware/Omnux.Middleware.csproj`, `npm test`, `git diff --check` 통과. Browser로 데스크톱 Home 로드, Explore 세션 탭(`sessions_send`/`sessions_spawn`/spawn status), Projects 등록/수정/대표 지정 UI, Ask multi 선택지, Settings Cerebras 모델 카드 렌더와 콘솔 오류 없음까지 확인했다. 이번 추가 보강에서는 데스크톱 `window.alert/confirm/prompt`와 `dangerouslySetInnerHTML`/HTML 문자열 마크다운 렌더 경로를 계약으로 금지했다.
 
 - ⚠️ **잔여(무거운 View 로직 미이식)**: 현재 데스크톱 페이지들은 미들웨어 WS store를 구동하는 *얇은 골격*이다. 대시보드의 진짜 무거운 뷰 로직은 아직 한 줄도 넘어오지 않았다 — `build.js`+`build-page-state.js`(Build 코딩 화면 전체), `dashboard-logic-renderers.js`(3,287줄, logic graph 렌더), `dashboard-markdown.js`(623줄, 마크다운/표/수식 렌더), `routine-create-wizard.js`(루틴 생성 wizard), `dashboard-ops-renderers.js`, `dashboard-sidebar-renderers.js`, 그리고 Home/Projects/Activity 화면. 이식 순서는 사용 빈도/영향 큰 것부터: **① Ask 마크다운 렌더링 ✅** → **② routine 생성 wizard ✅** → **③a Build 코딩 실행+롤백 ✅** → **③b logic graph 뷰 ✅**(구조적 노드/엣지/run 뷰). "화면 골격을 깔았다"와 "UI를 마이그레이션했다"는 다르며, 후자가 Phase 5의 본체다.
-- **① 완료**: `dashboard-markdown.js`(623줄)의 마크다운/표/코드/링크 렌더를 데스크톱으로 이식했다. `apps/desktop`에 `markdown-it`+`dompurify`를 추가하고 `src/features/ask/markdown.ts`의 `renderMarkdownToSafeHtml`(html=false + DOMPurify sanitize, 링크 새 탭/noopener)을 만들어 `AskPage`의 AI 버블을 plain text → 안전 HTML 렌더로 전환(`MessageBubble` + `App.css` 마크다운 스타일). markdown-it 변환(H1/bold/code/링크/리스트/표/코드블록) node 검증 + `npm run build`(tsc+vite, 140 모듈) + 데스크톱 dist 무에러 로드 확인. 실제 렌더된 메시지 육안 확인은 미들웨어 띄운 수동 QA로 분리.
+- **① 완료**: `dashboard-markdown.js`(623줄)의 마크다운/표/코드/링크 렌더를 데스크톱으로 이식했다. 현재 데스크톱은 `react-markdown` + `remark-gfm` 기반 `MarkdownMessage` 컴포넌트로 Ask/Build 응답을 렌더하며, `dangerouslySetInnerHTML`/HTML 문자열 주입/`markdown-it`/`dompurify` 경로는 제거했다. 링크는 React 컴포넌트에서 새 탭/noopener로 제한한다. 실제 렌더된 메시지 육안 확인은 미들웨어 띄운 수동 QA로 분리.
 - **② 완료**: `routine-create-wizard.js`(+schedule/execution builder 일부)를 데스크톱으로 이식했다. gateway에 `create_routine`/`preview_routine`를 추가(allow-list + 폼→미들웨어 필드 변환 `buildRoutine*Payload`), `automate-store`에 `createForm`/`preview`/`creating` 상태와 `patchCreateForm`/`toggleWeekday`/`previewRoutine`/`createRoutine` + `routine_preview` 처리, `RoutineCreateWizard.tsx`로 3-step(요청→스케줄→고급) progressive-disclosure 폼(스케줄 kind/시각/요일/일자, runImmediately/notifyTelegram, 미리보기 패널)을 구현했다. 프리뷰에서 step gating(요청 5자 검증)·스케줄 종류·요일 칩·고급 체크박스를 콘솔 에러 없이 확인. 실제 생성/미리보기 응답 렌더는 미들웨어 수동 QA로 분리. (executionMode/agent provider·model·toolProfile 등 고급 실행 빌더는 후속.)
-- **③a 완료**: 데스크톱에 Build 화면 자체가 없어서 신규로 추가했다. **단, 대시보드 build.js/build-page-state.js는 대부분 mock(`PLAN`/`DIFF` 하드코딩, `genPlan`/`apply`는 setTimeout 가짜)**이고 유일한 실제 WS는 `refactor_restore`뿐이라, mock을 베끼지 않고 **실제 동작하는 Build 페이지**를 만들었다: 코딩 실행(`coding_run_single`→`coding_result`를 ① 마크다운 렌더러로 표시 + `coding_progress` 상태)과 Safe Refactor 롤백 복원(`refactor_restore`→`refactor_result`, 결함 #6). gateway에 두 요청을 추가(allow-list + `requestDesktopCoding`/`requestDesktopRefactor`), `build-store.ts` + `BuildPage.tsx` + nav/App 등록(`DesktopPageId`에 `build` 추가). 프리뷰에서 nav 7화면·코딩 입력/실행·롤백 입력/복원 렌더를 콘솔 에러 없이 확인, 빌드(tsc+vite, 143 모듈)·desktop-shell 계약·npm test green. 실제 코딩 실행/롤백 응답 렌더는 미들웨어 수동 QA.
+- **③a 완료**: 데스크톱에 Build 화면 자체가 없어서 신규로 추가했다. 정적 대시보드 `build.js`/`build-page-state.js`도 기존 `PLAN`/`DIFF` 하드코딩, `setTimeout` 기반 생성/적용 가짜 흐름을 제거했다. 현재 Build는 실제 `coding_run_single`/`coding_progress`/`coding_result`, `command` 기반 `npm test`, `refactor_restore` 롤백 복원을 표시한다. 데스크톱 Build는 `coding_run_single`뿐 아니라 `coding_run_orchestration`, `coding_run_multi`, `coding_execute_result`까지 열어 최신 코딩 결과 실행도 지원한다. 프리뷰에서 nav·코딩 입력/실행·롤백 입력/복원 렌더를 콘솔 에러 없이 확인했고, 빌드와 `npm test`가 green이다. 실제 코딩 실행/롤백 응답 렌더는 미들웨어 수동 QA.
 - **③b 남음**: `dashboard-logic-renderers.js`(3,287줄) logic graph 렌더가 진짜 최대 덩어리로 남아 있다. 데스크톱에 logic graph 화면/뷰가 없어 신규 페이지 + 노드/엣지 렌더 이식이 필요한 1~2 세션 작업.
-- **③b 완료**: 데스크톱에 없던 Logic 화면을 신규 추가했다. `logic_graph_list`/`get`/`run`/`run_get` WS를 gateway에 추가(`requestDesktopLogic`), `logic-store.ts`(그래프 summary/노드/엣지/run snapshot 정규화) + `LogicPage.tsx`(그래프 목록 → 선택 시 노드(type/title/config)·엣지(source→target) 구조 렌더 + 실행 → run snapshot 노드별 상태) + nav/App 등록(`DesktopPageId`에 `logic`). 프리뷰에서 nav 8화면·목록/구조 카드·빈 상태 렌더를 콘솔 에러 없이 확인, 빌드(tsc+vite, 145 모듈)·계약·npm test green. **정직한 한계**: 대시보드 `dashboard-logic-renderers.js`(3,287줄)는 드래그 가능한 SVG 캔버스 그래프 에디터인데, 데스크톱은 동일 데이터(노드/엣지/run)를 **구조적 리스트 뷰**로 렌더한다(읽기/실행 가능, 시각 캔버스 편집기는 아님). 실제 그래프 데이터 렌더는 미들웨어 수동 QA.
-- **Phase 5 뷰 이식 요약**: 지적된 무거운 뷰(마크다운·routine wizard·Build/코딩·logic graph)를 데스크톱에 실제로 올렸고(①②③a③b), 후속 보조 화면 Home(네비 허브)·Activity(이벤트 타임라인)도 추가했다. 이제 **핵심 기능 화면(Home/Ask/Build/Logic/Explore/Automate/Settings/운영/활동) 9종이 모두 데스크톱에서 동작**한다. 남은 건 Projects(정적 — 로컬 폴더 프로젝트 백엔드 생긴 뒤)·logic 캔버스 편집기·coding 고급 빌더 같은 심화 UI와, 모든 화면의 실제 데이터 렌더 수동 QA(미들웨어 필요).
+- **③b 완료**: 데스크톱에 없던 Logic 화면을 신규 추가했다. `logic_graph_list`/`get`/`run`/`run_get` WS를 gateway에 추가(`requestDesktopLogic`), `logic-store.ts`(그래프 summary/노드/엣지/run snapshot 정규화) + `LogicPage.tsx`(그래프 목록 → 선택 시 노드(type/title/config)·엣지(source→target) 구조 렌더 + 실행 → run snapshot 노드별 상태) + nav/App 등록(`DesktopPageId`에 `logic`). 이번 live 전환 회차에는 데스크톱 gateway/store에 `logic_graph_save`, `logic_graph_delete`, `logic_graph_cancel`, `logicRunInput` 전송을 추가해 읽기/실행만 가능하던 상태를 저장/삭제/입력/취소까지 확장했다. 프리뷰에서 nav 8화면·목록/구조 카드·빈 상태 렌더를 콘솔 에러 없이 확인, 빌드(tsc+vite)·계약·npm test green. **정직한 한계**: 대시보드 `dashboard-logic-renderers.js`(3,287줄)는 드래그 가능한 SVG 캔버스 그래프 에디터인데, 데스크톱은 동일 데이터(노드/엣지/run)를 **구조적 리스트 뷰**로 렌더한다(읽기/저장/삭제/실행 가능, 시각 캔버스 편집기는 아님). 실제 그래프 데이터 렌더는 미들웨어 수동 QA.
+- **Projects live 전환 완료**: 백엔드에 `ProjectApplicationService`와 `WsProjectCommandDispatcher`를 추가해 `projects_list`, `project_create`, `project_update`, `project_delete`, `project_touch`를 제공한다. 프로젝트 상태는 `~/.omnux/projects.json`에 저장되며 등록 경로는 실제 존재하는 로컬 폴더로 검증한다. 정적 대시보드 Projects/Home/Build와 데스크톱 Projects는 `projects_state`를 사용하고, 프로젝트 열기는 `project_touch`로 마지막 사용 시각을 갱신한다.
+- **Home/Activity/Resource live 전환 완료**: Home의 Active Projects/Continue/Recent Activity/Resource Usage는 더 이상 `data.js`의 데모 projects/activities/continueItems를 쓰지 않는다. 프로젝트는 `projects_state`, 활동은 런타임 WS 이벤트, 리소스는 `metrics`/`metrics_stream` 및 `get_metrics`를 사용한다.
+- **Phase 5 뷰 이식 요약**: 지적된 무거운 뷰(마크다운·routine wizard·Build/코딩·logic graph)를 데스크톱에 실제로 올렸고(①②③a③b), 후속 보조 화면 Home(네비 허브)·Projects(프로젝트 CRUD)·Activity(이벤트 타임라인)도 추가했다. 이제 **핵심 기능 화면(Home/Ask/Build/Logic/Explore/Automate/Projects/Settings/운영/활동) 10종이 모두 데스크톱에서 동작**한다. 정적 대시보드도 Projects/Build/Automate/Activity/Home/Ask compare의 주요 데모 상태를 실제 WS/상태 기반으로 전환했다. 남은 건 logic 캔버스 편집기·coding 고급 빌더 같은 심화 UI와, 모든 화면의 실제 데이터 렌더 수동 QA(미들웨어 필요).
 
 **Desktop Shell Boundary (7번 1차 계약)**
 - Tauri Rust 백엔드는 앱 셸(Window 관리)만 담당한다.
@@ -292,10 +295,10 @@ git diff --check
 
 ### 🆕 추가/잔여 새 기능 (치명 결함 이후 UI 연결)
 - **HeroCommandInput**: 실제 intent 라우팅 완벽 구현.
-- **Activity 화면**: 실제 Run 데이터 연결.
+- **Activity 화면**: 런타임 WS 이벤트 기반 표시 완료. 별도 Run artifact 상세 연결은 후속.
 - **Command Palette**: ⌘K 액션 실행 완벽 연동.
 - **권한 모달**: 보안 승인/거부 처리 로직 연결.
-- **Resource Usage**: 시스템 메트릭 카드 연동.
+- **Resource Usage**: `metrics`/`metrics_stream` 및 `get_metrics` 기반 카드 연동 완료.
 - **i18n**: 완전 다국어 지원.
 
 ---

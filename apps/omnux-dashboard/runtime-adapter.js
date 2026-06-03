@@ -9,6 +9,13 @@
     url: '',
     settings: null,
     usage: null,
+    copilotStatus: null,
+    codexStatus: null,
+    groqModels: null,
+    cerebrasModels: null,
+    copilotModels: null,
+    settingsResult: null,
+    otpResult: null,
     metrics: null,
     lastMessageType: '',
     events: [],
@@ -87,6 +94,7 @@
 
     if (msg.type === 'auth_required') {
       state.authRequired = true;
+      state.authenticated = false;
       state.sessionId = msg.sessionId || state.sessionId;
       const remoteDashboardClient = helpers.ws?.isRemoteDashboardHost?.(window.location) || false;
       const token = helpers.ws?.getSavedAuthToken?.() || '';
@@ -101,8 +109,16 @@
       } else if (!msg.ok) {
         helpers.ws?.clearPersistedAuthSession?.();
       }
+      if (msg.ok) {
+        send({ type: 'get_routines' }, { queueIfClosed: true, silent: true });
+        send({ type: 'list_conversations', scope: 'chat', mode: 'single' }, { queueIfClosed: true, silent: true });
+        send({ type: 'list_memory_notes' }, { queueIfClosed: true, silent: true });
+        helpers.ws?.flushQueuedPayloads?.(socket, outboundQueue);
+      }
     } else if (msg.type === 'settings_state') {
       state.settings = msg;
+    } else if (msg.type === 'settings_result') {
+      state.settingsResult = msg;
     } else if (msg.type === 'routines_state') {
       var routineItems = Array.isArray(msg.items) ? msg.items : [];
       window.dispatchEvent(new CustomEvent('omnux:routines', { detail: routineItems }));
@@ -119,8 +135,32 @@
       /* individual note mutations — handled by list refresh */
     } else if (msg.type === 'usage_stats') {
       state.usage = msg;
+    } else if (msg.type === 'copilot_status') {
+      state.copilotStatus = msg;
+    } else if (msg.type === 'copilot_login_result') {
+      state.copilotStatus = { ...(state.copilotStatus || {}), ...msg };
+    } else if (msg.type === 'codex_status') {
+      state.codexStatus = msg;
+    } else if (msg.type === 'codex_login_result' || msg.type === 'codex_logout_result') {
+      state.codexStatus = { ...(state.codexStatus || {}), ...msg };
+    } else if (msg.type === 'groq_models') {
+      state.groqModels = msg;
+    } else if (msg.type === 'groq_model_set') {
+      state.groqModels = { ...(state.groqModels || {}), selected: msg.model || state.groqModels?.selected || '' };
+    } else if (msg.type === 'cerebras_models') {
+      state.cerebrasModels = msg;
+    } else if (msg.type === 'copilot_models') {
+      state.copilotModels = msg;
+    } else if (msg.type === 'copilot_model_set') {
+      state.copilotModels = { ...(state.copilotModels || {}), selected: msg.model || state.copilotModels?.selected || '' };
+    } else if (msg.type === 'otp_request_result') {
+      state.otpResult = msg;
     } else if (msg.type === 'metrics' || msg.type === 'metrics_stream') {
       state.metrics = msg.payload || msg;
+    } else if (msg.type === 'error' && `${msg.message || ''}`.toLowerCase().includes('unauthorized')) {
+      state.authRequired = true;
+      state.authenticated = false;
+      helpers.ws?.clearPersistedAuthSession?.();
     }
 
     summarizeMessage(msg);
@@ -162,10 +202,6 @@
       state.connected = true;
       hasOpenedSocket = true;
       send({ type: 'ping' });
-      send({ type: 'get_routines' });
-      send({ type: 'list_conversations', scope: 'chat', mode: 'single' });
-      send({ type: 'list_memory_notes' });
-      helpers.ws?.flushQueuedPayloads?.(socket, outboundQueue);
       emit();
     });
 

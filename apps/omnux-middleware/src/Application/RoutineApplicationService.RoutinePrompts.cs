@@ -14,7 +14,7 @@ public sealed partial class RoutineApplicationService
 
             if (!File.Exists(systemPromptPath))
             {
-                File.WriteAllText(
+                AtomicFileStore.WriteAllText(
                     systemPromptPath,
                     """
                     # Routine System Prompt
@@ -27,13 +27,13 @@ public sealed partial class RoutineApplicationService
                     - 제약: macOS/Linux 모두 동작 가능한 방식 우선, 외부 의존 최소화.
                     - 보안: 파괴적 명령 금지, 사용자 경로 외 쓰기 금지, 민감정보 출력 금지.
                     """,
-                    new UTF8Encoding(false)
+                    ownerOnly: false
                 );
             }
 
             if (!File.Exists(baseConfigPath))
             {
-                File.WriteAllText(
+                AtomicFileStore.WriteAllText(
                     baseConfigPath,
                     """
                     # 기본 구성
@@ -43,7 +43,7 @@ public sealed partial class RoutineApplicationService
                     4. 네트워크/외부 사이트 접근이 실패하면 stderr 또는 stdout에 원인과 대체 안내를 짧게 남긴다.
                     5. 사용자가 적은 요청 원문에 스케줄 표현이 섞여 있어도, 구현은 순수 작업 내용만 수행한다.
                     """,
-                    new UTF8Encoding(false)
+                    ownerOnly: false
                 );
             }
         }

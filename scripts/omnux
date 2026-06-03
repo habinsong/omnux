@@ -198,8 +198,12 @@ port_in_use_by_other_process() {
 
 wait_for_ready() {
   local pid="$1"
-  local attempts=60
+  local attempts="${OMNUX_CLI_READY_TIMEOUT_SEC:-${OMNINODE_CLI_READY_TIMEOUT_SEC:-180}}"
   local step=0
+
+  if ! [[ "$attempts" =~ ^[0-9]+$ ]] || [ "$attempts" -le 0 ]; then
+    attempts=180
+  fi
 
   while [ "$step" -lt "$attempts" ]; do
     if ! is_pid_alive "$pid"; then
@@ -218,7 +222,7 @@ wait_for_ready() {
 
   printf '\n' >&2
   tail -n 40 "$LOG_FILE" >&2 || true
-  fail "서버가 $(current_base_url) 에서 준비 상태가 되지 않았습니다. 로그: $LOG_FILE"
+  fail "서버가 ${attempts}초 안에 $(current_base_url) 에서 준비 상태가 되지 않았습니다. 로그: $LOG_FILE"
 }
 
 write_start_metadata() {
