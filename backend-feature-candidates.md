@@ -22,7 +22,7 @@
 | 에이전트 간 메시지 패싱 | ✅ | `AgentCommunicationApplicationService`, `FileAgentCommunicationStore`, `WsAgentCommandDispatcher` |
 | MCP 서버/클라이언트 | ❌ | CodexCliWrapper에 MCP 문자열만 존재 |
 | Git worktree 격리 | ❌ | 검색 결과 0 |
-| 셀프 힐링/워치독 | ❌ | 검색 결과 0 |
+| 셀프 힐링/워치독 | ✅ 1차 | `FileAgentSpawnActiveRunStore.EvaluateWatchdog`, 백그라운드 active-run timeout/stale 감지 |
 | 자동 커밋/PR 생성 | ❌ | 검색 결과 0 |
 | Durable Workflow | ❌ | 로직 그래프는 있으나 체크포인트 복구 없음 |
 | OpenTelemetry 옵저버빌리티 | ✅ 1차 | `TelemetryTracer`, `FileTelemetryTraceStore`, `WsTelemetryCommandDispatcher` — ActivitySource + 로컬 스냅샷 |

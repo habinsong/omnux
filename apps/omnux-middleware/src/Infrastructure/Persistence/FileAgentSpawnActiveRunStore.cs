@@ -180,6 +180,23 @@ public sealed class FileAgentSpawnActiveRunStore
         }
     }
 
+    public AgentSpawnWatchdogSnapshot EvaluateWatchdog(DateTimeOffset nowUtc)
+    {
+        using var lease = AcquireStoreLease();
+        lock (_lock)
+        {
+            var state = LoadUnsafe();
+            var events = ApplyWatchdogUnsafe(state, nowUtc);
+            PruneCompletedUnsafe(state);
+            if (events.Count > 0)
+            {
+                SaveUnsafe(state);
+            }
+
+            return BuildWatchdogSnapshotUnsafe(state, events, nowUtc);
+        }
+    }
+
     private bool MutateActive(string? id, DateTimeOffset nowUtc, Action<AgentSpawnActiveRunEntry> apply)
     {
         return Mutate(id, nowUtc, entry =>
@@ -339,6 +356,102 @@ public sealed class FileAgentSpawnActiveRunStore
         }
     }
 
+    private static List<AgentSpawnWatchdogEvent> ApplyWatchdogUnsafe(
+        AgentSpawnActiveRunState state,
+        DateTimeOffset nowUtc
+    )
+    {
+        var events = new List<AgentSpawnWatchdogEvent>();
+        foreach (var entry in state.Runs.Where(IsActive))
+        {
+            var startedUtc = entry.StartedUtc == default ? nowUtc : entry.StartedUtc;
+            var heartbeatUtc = entry.LastHeartbeatUtc == default ? startedUtc : entry.LastHeartbeatUtc;
+            var ageSeconds = Math.Max(0, (int)(nowUtc - startedUtc).TotalSeconds);
+            var heartbeatAgeSeconds = Math.Max(0, (int)(nowUtc - heartbeatUtc).TotalSeconds);
+            var previousState = NormalizeToken(entry.State, "active");
+
+            if (entry.RunTimeoutSeconds > 0 && ageSeconds > entry.RunTimeoutSeconds)
+            {
+                events.Add(MarkWatchdogTerminal(
+                    entry,
+                    nowUtc,
+                    previousState,
+                    "timeout",
+                    "run_timeout",
+                    $"active run exceeded run timeout ({entry.RunTimeoutSeconds} seconds)",
+                    ageSeconds,
+                    heartbeatAgeSeconds
+                ));
+                continue;
+            }
+
+            if (nowUtc - heartbeatUtc > StaleActiveWindow)
+            {
+                events.Add(MarkWatchdogTerminal(
+                    entry,
+                    nowUtc,
+                    previousState,
+                    "stale",
+                    "heartbeat_timeout",
+                    "active run heartbeat expired",
+                    ageSeconds,
+                    heartbeatAgeSeconds
+                ));
+            }
+        }
+
+        return events;
+    }
+
+    private static AgentSpawnWatchdogEvent MarkWatchdogTerminal(
+        AgentSpawnActiveRunEntry entry,
+        DateTimeOffset nowUtc,
+        string previousState,
+        string state,
+        string reason,
+        string message,
+        int ageSeconds,
+        int heartbeatAgeSeconds
+    )
+    {
+        entry.State = state;
+        entry.CompletedUtc = nowUtc;
+        entry.LastHeartbeatUtc = nowUtc;
+        entry.LastError = TrimForStorage(message, 500);
+
+        return new AgentSpawnWatchdogEvent(
+            entry.RunId,
+            entry.ChildSessionKey,
+            entry.Runtime,
+            entry.Mode,
+            entry.Backend,
+            previousState,
+            state,
+            reason,
+            message,
+            entry.StartedUtc,
+            nowUtc,
+            ageSeconds,
+            heartbeatAgeSeconds
+        );
+    }
+
+    private static AgentSpawnWatchdogSnapshot BuildWatchdogSnapshotUnsafe(
+        AgentSpawnActiveRunState state,
+        IReadOnlyList<AgentSpawnWatchdogEvent> events,
+        DateTimeOffset nowUtc
+    )
+    {
+        return new AgentSpawnWatchdogSnapshot(
+            state.Runs.Count(IsActive),
+            events.Count(item => string.Equals(item.State, "timeout", StringComparison.OrdinalIgnoreCase)),
+            events.Count(item => string.Equals(item.State, "stale", StringComparison.OrdinalIgnoreCase)),
+            events.Count,
+            nowUtc,
+            events.ToArray()
+        );
+    }
+
     private static void PruneCompletedUnsafe(AgentSpawnActiveRunState state)
     {
         var active = state.Runs.Where(IsActive).ToList();
@@ -355,6 +468,7 @@ public sealed class FileAgentSpawnActiveRunStore
         return !entry.CompletedUtc.HasValue
             && !string.Equals(entry.State, "completed", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(entry.State, "failed", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(entry.State, "timeout", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(entry.State, "stale", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(entry.State, "blocked_by_breaker", StringComparison.OrdinalIgnoreCase);
     }
@@ -381,55 +495,4 @@ public sealed class FileAgentSpawnActiveRunStore
 
         return normalized[..maxChars] + "...(truncated)";
     }
-}
-
-public sealed class AgentSpawnActiveRunEntry
-{
-    public string Id { get; set; } = string.Empty;
-    public string RunId { get; set; } = string.Empty;
-    public string ChildSessionKey { get; set; } = string.Empty;
-    public string Runtime { get; set; } = "subagent";
-    public string Mode { get; set; } = "run";
-    public string Backend { get; set; } = "unknown";
-    public string? BackendSessionId { get; set; }
-    public int RunTimeoutSeconds { get; set; }
-    public DateTimeOffset StartedUtc { get; set; }
-    public DateTimeOffset LastHeartbeatUtc { get; set; }
-    public DateTimeOffset? CompletedUtc { get; set; }
-    public string State { get; set; } = "active";
-    public string? LastError { get; set; }
-    public string? WorkspaceRollbackId { get; set; }
-    public string? WorkspaceRollbackPath { get; set; }
-    public int WorkspaceRollbackChangedFiles { get; set; }
-    public bool WorkspaceRollbackPartial { get; set; }
-}
-
-public sealed record AgentSpawnActiveSnapshot(
-    int ActiveCount,
-    string? OldestRunId,
-    string? OldestRuntime,
-    string? OldestMode,
-    string? OldestBackend,
-    DateTimeOffset? OldestStartedUtc,
-    int? OldestAgeSeconds,
-    int CompletedHistoryCount
-);
-
-public sealed record AgentSpawnBlockedActiveRun(
-    string RunId,
-    string ChildSessionKey,
-    string Runtime,
-    string Mode,
-    string Backend,
-    string Reason,
-    string Message,
-    string? WorkspaceRollbackId = null,
-    string? WorkspaceRollbackPath = null,
-    int WorkspaceRollbackChangedFiles = 0,
-    bool WorkspaceRollbackPartial = false
-);
-
-internal sealed class AgentSpawnActiveRunState
-{
-    public List<AgentSpawnActiveRunEntry> Runs { get; set; } = new();
 }

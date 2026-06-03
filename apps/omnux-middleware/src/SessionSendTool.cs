@@ -61,7 +61,7 @@ public sealed class SessionSendTool
         {
             return ErrorResult(
                 normalizedSessionKey,
-                "session is blocked_by_breaker; follow-ups are disabled until the operator clears sessions_spawn status.",
+                "session is blocked_by_breaker or closed by sessions_spawn safety state; follow-ups are disabled until the operator starts a new run.",
                 runId,
                 resolvedTimeoutSeconds
             );
@@ -118,7 +118,8 @@ public sealed class SessionSendTool
 
         return conversation.Messages.Any(message =>
             message.Meta.Equals("sessions_spawn_breaker_blocked", StringComparison.OrdinalIgnoreCase)
-            || message.Meta.Equals("sessions_spawn_breaker_closed", StringComparison.OrdinalIgnoreCase));
+            || message.Meta.Equals("sessions_spawn_breaker_closed", StringComparison.OrdinalIgnoreCase)
+            || message.Meta.Equals("sessions_spawn_watchdog_closed", StringComparison.OrdinalIgnoreCase));
     }
 
     private static int ResolveTimeoutSeconds(int? timeoutSeconds)

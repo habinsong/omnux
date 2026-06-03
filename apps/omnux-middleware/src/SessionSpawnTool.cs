@@ -23,7 +23,8 @@ public sealed record SessionSpawnQueueStatus(
     string BreakerReason,
     string? BreakerMessage,
     AgentSpawnQueueSnapshot? Queue,
-    AgentSpawnActiveSnapshot? Active = null
+    AgentSpawnActiveSnapshot? Active = null,
+    AgentSpawnWatchdogSnapshot? Watchdog = null
 );
 
 public sealed class SessionSpawnTool
@@ -58,6 +59,7 @@ public sealed class SessionSpawnTool
     private readonly AgentSpawnDailyCostLedger _dailyCostLedger;
     private readonly FileAgentSpawnQueueStore? _queueStore;
     private readonly FileAgentSpawnActiveRunStore? _activeRunStore;
+    private readonly AgentSpawnWatchdogCoordinator? _watchdogCoordinator;
     private readonly AgentSpawnRunBreaker _runBreaker;
     private readonly AgentSpawnWorkspaceRollbackPolicy? _workspaceRollbackPolicy;
     private readonly Func<DateTimeOffset> _utcNow;
@@ -97,6 +99,9 @@ public sealed class SessionSpawnTool
         _dailyCostLedger = dailyCostLedger;
         _queueStore = queueStore;
         _activeRunStore = activeRunStore;
+        _watchdogCoordinator = activeRunStore == null
+            ? null
+            : new AgentSpawnWatchdogCoordinator(activeRunStore, conversationStore);
         _runBreaker = runBreaker ?? new AgentSpawnRunBreaker(DefaultStatePathResolver.CreateDefault());
         _workspaceRollbackPolicy = workspaceRollbackPolicy;
         _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
@@ -242,12 +247,14 @@ public sealed class SessionSpawnTool
             MarkActiveRunsBlockedByBreaker(breakerDecision);
         }
 
+        var watchdog = _watchdogCoordinator?.Evaluate(_utcNow());
         return new SessionSpawnQueueStatus(
             breakerDecision.Blocked,
             breakerDecision.Reason,
             breakerDecision.Message,
             _queueStore?.GetSnapshot(),
-            _activeRunStore?.GetSnapshot(_utcNow())
+            _activeRunStore?.GetSnapshot(_utcNow()),
+            watchdog
         );
     }
 

@@ -2049,6 +2049,8 @@ public sealed partial class WebSocketGateway
             builder.Append("}");
         }
 
+        builder.Append(",\"watchdog\":");
+        AgentSpawnWatchdogWsJson.Append(builder, result.Watchdog);
         builder.Append("}");
         await SendTextAsync(socket, sendLock, builder.ToString(), cancellationToken);
     }
