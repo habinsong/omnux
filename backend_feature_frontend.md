@@ -127,6 +127,23 @@
   - vector/semantic memory, cascading retrieval, ADR 저장소는 아직 붙이지 않았다.
   - 기존 `memory_search` 요청/응답 흐름은 유지하고 결과 item metadata만 확장했다.
 
+## 구현됨: 구조 인식 메모리 청킹 1차
+
+- 후보 문서 항목: 추천 기능 16 `Tree-sitter(AST) 기반 지식 그래프 및 지능형 청킹`
+- 백엔드 구현:
+  - `MemoryChunkingPolicy`
+  - `MemoryIndexDocumentSync` chunk 생성 분리
+- 동작:
+  - 프로젝트 코드 파일은 C#/JS/MJS/TS/TSX/Python 선언 경계를 기준으로 chunk를 나눈다.
+  - memory note와 conversation은 기존 sliding window chunk를 유지한다.
+  - 큰 선언 블록은 기존 token/overlap 기준으로 다시 분할한다.
+- 프론트 영향:
+  - 새 요청 타입이나 응답 필드는 없다.
+  - `memory_index_rebuild` 이후 `memory_search_result.results[].snippet/startLine/endLine`가 함수/클래스 경계에 더 가깝게 잡힌다.
+- 현재 안전 정책:
+  - 실제 Tree-sitter parser와 Repomap 주입은 아직 적용하지 않았다.
+  - 외부 parser package 없이 deterministic fallback만 사용한다.
+
 ## WebSocket 이벤트
 
 ### `telemetry_snapshot_get`
@@ -409,6 +426,7 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - `lastAccessedAtUnixMs`는 현재 문서 mtime 기반 값이다. `0`이면 기존/미확인 row로 보면 된다.
 - `score`는 BM25 변환 점수에 tier confidence를 적용한 최종 점수다.
 - `disabled=true`면 `error`가 함께 올 수 있고, 이 경우 기존처럼 검색 비활성 상태로 처리한다.
+- 구조 인식 청킹은 인덱스 재생성 이후 반영된다. 프론트에서 즉시 확인하려면 기존 `memory_index_rebuild`를 먼저 호출한다.
 
 ### `agent_bus_get`
 
@@ -555,6 +573,7 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - 세션 상세/디버깅 패널은 `session_replay_get`을 호출해 대화, agent event, LLM 호출 metadata를 단일 타임라인으로 표시한다.
 - 리플레이 타임라인의 `correlation=conversation_window` telemetry는 시간창 기반 추정이므로, UI에서는 "관련 LLM 호출 후보"처럼 표시한다.
 - 메모리 검색 결과는 `memoryTier`를 배지로 표시하고, 오래된 `long_term` 결과도 score floor 정책으로 유지될 수 있음을 tooltip에 짧게 설명한다.
+- 메모리 인덱스 rebuild 후에는 `memory_search` snippet이 기존 라인 window보다 선언 단위에 가까워지므로, 코드 미리보기는 기존 `startLine/endLine` 표시를 그대로 사용한다.
 - 활동/에이전트 패널에서 `agent_bus_get`을 주기 조회하거나 수동 새로고침한다.
 - 보드 영역은 `payload.board`를 `groupId/runId` 기준으로 묶어 표시한다.
 - 타임라인은 `payload.lifecycle`와 `payload.messages`를 시간순으로 합쳐 표시한다.
@@ -568,6 +587,7 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - Durable Workflow 체크포인트: 로직 그래프 런타임 재개 정책과 중복 실행 방지 규칙이 필요하다. 현재 기능과 독립된 저장소만 추가하면 실효성이 낮다.
 - 세션 리플레이 append-only 결정 트리: 1차는 기존 저장소 조합 타임라인이다. LLM raw input/output, tool stdout/stderr 전체 저장은 개인정보/용량 정책이 필요해 보류한다.
 - 계층적 메모리 deep archive/cascading retrieval/ADR 저장소: 1차는 FTS score와 metadata 확장까지만 구현했다. 실제 접근 이벤트 수집과 ADR 데이터 모델은 별도 설계가 필요하다.
+- Tree-sitter/Repomap 본도입: 1차는 외부 의존성 없는 선언 경계 청킹이다. 실제 AST parser, 언어별 grammar, Repomap 프롬프트 주입은 별도 검증 후 붙인다.
 - MCP 서버 지원: 프로세스 생명주기와 JSON-RPC 스펙 구현이 필요해 높은 위험 작업이다.
 - 자동 커밋/PR 생성: 현재 워크트리가 대규모 변경 상태라 자동 커밋 계열 기능을 바로 붙이면 사용자 변경과 충돌할 수 있다.
 - Git Worktree 격리: 스폰 실행 경로와 롤백 정책을 함께 바꿔야 한다.
