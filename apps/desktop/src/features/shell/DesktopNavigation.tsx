@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type DesktopPageId = "shell" | "ask" | "explore" | "automate" | "settings" | "operations";
+export type DesktopPageId = "shell" | "ask" | "build" | "explore" | "automate" | "settings" | "operations";
 
 export type DesktopPageDefinition = {
   id: DesktopPageId;

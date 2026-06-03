@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { AskPage } from "./features/ask/AskPage";
+import { BuildPage } from "./features/build/BuildPage";
 import { AutomatePage } from "./features/automate/AutomatePage";
 import { ExplorePage } from "./features/explore/ExplorePage";
 import { OperationsPage } from "./features/ops/OperationsPage";
@@ -40,6 +41,12 @@ function App() {
         label: "Ask",
         description: "대화 / 메모리",
         render: () => <AskPage />
+      },
+      {
+        id: "build",
+        label: "Build",
+        description: "코딩 실행 / 롤백",
+        render: () => <BuildPage />
       },
       {
         id: "explore",
