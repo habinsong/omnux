@@ -5,6 +5,7 @@
     ask: window.AskPage,
     build: window.BuildPage,
     automate: window.AutomatePage,
+    explore: window.ExplorePage,
     projects: window.ProjectsPage,
     activity: window.ActivityPage,
     settings: window.SettingsPage,
