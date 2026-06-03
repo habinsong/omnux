@@ -778,6 +778,57 @@ OMNUX_AGENT_SPAWN_WORKTREE_MODE=auto|on|enabled|true|1
 - `readiness.status=blocked`이면 `conflictedFileCount > 0`이거나 `blockers`에 이유가 들어간다.
 - `suggestedCommitMessage`와 `suggestedBranchName`은 LLM이 아니라 파일 경로/status 기반 heuristic이다. 자동 실행 근거가 아니라 사용자 승인 UI의 초안으로만 사용한다.
 
+### `self_improvement_snapshot_get`
+
+Nightly/Adaptive Skills 후보의 1차 백엔드 계약이다. 현재는 읽기 전용 개선 제안만 반환한다.
+
+요청:
+
+```json
+{
+  "type": "self_improvement_snapshot_get",
+  "limit": 30
+}
+```
+
+응답:
+
+```json
+{
+  "type": "self_improvement_snapshot",
+  "payload": {
+    "repositoryRoot": "/path/to/workspace",
+    "status": "proposal_ready",
+    "proposalCount": 2,
+    "limit": 30,
+    "proposals": [
+      {
+        "proposalId": "git-change-review",
+        "kind": "workspace_hygiene",
+        "priority": "medium",
+        "title": "현재 변경사항 커밋 준비 검토",
+        "rationale": "현재 워크트리에 변경 파일 3개가 있습니다.",
+        "suggestedAction": "프론트에서 변경 파일과 커밋 메시지 초안을 검토하게 하고, 실제 커밋/PR 실행은 승인 API가 생긴 뒤 연결한다.",
+        "source": "git_automation",
+        "targetPath": "",
+        "requiresApproval": true,
+        "evidence": [
+          "suggestedCommitMessage=chore(middleware): update backend changes"
+        ]
+      }
+    ],
+    "warnings": [],
+    "scannedAtUtc": "2026-06-04T00:00:00Z"
+  }
+}
+```
+
+- `limit`은 1~100으로 clamp된다.
+- `kind`는 현재 `workspace_hygiene`, `learning_review`, `hotspot_review` 중 하나다.
+- `priority`는 `high`, `medium`, `low` 중 하나다.
+- 모든 제안은 `requiresApproval=true`다. 백엔드는 이 요청에서 `SKILL.md`, memory note, 시스템 프롬프트, 루틴/크론을 생성하거나 수정하지 않는다.
+- `status=no_proposals`이면 표시할 제안이 없다는 뜻이며 실패가 아니다. 읽기 실패는 `warnings`에 들어간다.
+
 ### `agent_bus_get`
 
 에이전트 메시지/보드/생명주기 스냅샷 조회.
@@ -934,6 +985,7 @@ OMNUX_AGENT_SPAWN_WORKTREE_MODE=auto|on|enabled|true|1
 - Commit learning 패널은 `commit_learning_snapshot_get`을 호출해 최근 커밋 intent 분포와 자주 바뀌는 파일 hotspot을 표시한다. intent는 heuristic이므로 자동 규칙 적용 근거가 아니라 관찰용으로 둔다.
 - Worktree isolation은 새 WS 타입이 없다. 세션 결과 note와 child session timeline의 `sessions_spawn_worktree_*` / `sessions_spawn_acp_dispatch` metadata를 읽어 표시한다.
 - Git automation 패널은 `git_automation_snapshot_get`으로 현재 변경 파일, readiness, 커밋 메시지 초안을 표시한다. 실제 커밋/PR 버튼은 아직 백엔드 실행 API가 없으므로 비활성 상태로 둔다.
+- Self improvement 패널은 `self_improvement_snapshot_get`으로 workspace hygiene, 반복 bug_fix, hotspot review 제안을 표시한다. 모든 액션은 사용자 승인 UI가 생기기 전까지 보기 전용이다.
 
 ## 보류한 후보
 
@@ -949,4 +1001,5 @@ OMNUX_AGENT_SPAWN_WORKTREE_MODE=auto|on|enabled|true|1
 - MCP 서버 프로세스/JSON-RPC/tool registry 주입: 1차는 설정 discovery만 구현했다. 실제 실행은 서드파티 프로세스 권한/격리와 MCP handshake 정책이 필요해 보류한다.
 - 커밋 히스토리 LLM 학습/자동 주입: 1차는 읽기 전용 snapshot이다. LLM 요약, memory/skill 자동 저장, nightly 자기 개선은 사용자 변경 오염 위험이 있어 보류한다.
 - 자동 커밋/PR 실제 실행: 1차는 read-only snapshot만 제공한다. `git add`, `git commit`, branch 생성, `gh pr create`는 사용자 승인/충돌/권한 정책이 필요해 보류한다.
+- Nightly 자기 개선 자동 실행: 1차는 read-only proposal snapshot만 제공한다. 실제 야간 루틴 등록, LLM 선호도 분석, `SKILL.md` 자동 갱신은 사용자 승인/충돌 정책이 필요하다.
 - 시맨틱 검색/Ollama embed: 후보 문서 결론대로 코드 검색용 우선순위는 낮다.
