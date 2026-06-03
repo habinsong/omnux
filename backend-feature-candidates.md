@@ -14,6 +14,7 @@
 | 스킬 자가 생성 | ✅ | `SkillCreateDirective` |
 | 로직 그래프 워크플로우 | ✅ | 노드 기반 비주얼 프로그래밍 런타임 |
 | FTS 코드베이스 인덱싱 | ✅ | `MemoryIndexDocumentSync` SQLite FTS |
+| 구조 인식 청킹 | ✅ 1차 | `MemoryChunkingPolicy`, C#/JS/TS/Python 선언 경계 기반 chunk plan |
 | 계층적 메모리 | ✅ 1차 | `MemoryTierPolicy`, `chunks.memory_tier/last_accessed_at`, tier-aware 검색 점수 |
 | 비용 제한 (Run Breaker) | ✅ | `AgentSpawnRunBreaker`, 60K 토큰/일 |
 | 검색 증거 검증 | ✅ | `SearchGuard`, `EvidencePack` |
@@ -668,6 +669,14 @@
 ## 추천 기능 16: Tree-sitter(AST) 기반 지식 그래프 및 지능형 청킹 (Code Knowledge Graph)
 
 ### 가치: ⭐⭐⭐⭐⭐ — **핵심 RAG 아키텍처로 격상 (최우선 도입)**
+
+### 상태: ✅ 1차 구현 / Tree-sitter 본도입 보류
+
+- `MemoryChunkingPolicy`를 추가해 프로젝트 코드 파일의 chunk plan을 `MemoryIndexDocumentSync` 밖으로 분리했다.
+- C#, JS/MJS, TS/TSX, Python 파일은 선언 경계(class/interface/function/method/constructor)를 기준으로 chunk를 나눈다.
+- memory note와 conversation 문서는 기존 sliding window 청킹을 유지한다.
+- 큰 선언 블록은 기존 max token/overlap 기준으로 fallback split한다.
+- 실제 Tree-sitter 파서, 다언어 AST node 추출, Repomap 생성/프롬프트 주입은 외부 패키지와 언어별 grammar 검증이 필요해 다음 단계로 둔다.
 
 ### 문제
 

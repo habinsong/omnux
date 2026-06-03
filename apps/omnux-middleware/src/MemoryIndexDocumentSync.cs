@@ -438,7 +438,13 @@ public sealed class MemoryIndexDocumentSync
 
     private void UpsertDocument(MemorySourceDocument document)
     {
-        var chunks = ChunkText(document.Content, DefaultChunkTokens, DefaultChunkOverlap);
+        var chunks = MemoryChunkingPolicy.Chunk(
+            document.Path,
+            document.Source,
+            document.Content,
+            DefaultChunkTokens,
+            DefaultChunkOverlap
+        );
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var lastAccessedAt = document.MtimeUnixMs > 0 ? document.MtimeUnixMs : now;
         var memoryTier = MemoryTierPolicy.ResolveTier(lastAccessedAt, DateTimeOffset.FromUnixTimeMilliseconds(now));
@@ -452,7 +458,8 @@ public sealed class MemoryIndexDocumentSync
 
         foreach (var chunk in chunks)
         {
-            var id = Sha256Hex($"{document.Source}:{document.Path}:{chunk.StartLine}:{chunk.EndLine}:{chunk.Hash}:{DefaultModelId}");
+            var chunkHash = Sha256Hex(chunk.Text);
+            var id = Sha256Hex($"{document.Source}:{document.Path}:{chunk.StartLine}:{chunk.EndLine}:{chunkHash}:{DefaultModelId}");
             sql.AppendLine(
                 "INSERT INTO chunks (id, path, source, start_line, end_line, hash, model, text, embedding, last_accessed_at, memory_tier, updated_at) VALUES ("
                 + $"'{EscapeSql(id)}', "
@@ -460,7 +467,7 @@ public sealed class MemoryIndexDocumentSync
                 + $"'{EscapeSql(document.Source)}', "
                 + $"{chunk.StartLine}, "
                 + $"{chunk.EndLine}, "
-                + $"'{EscapeSql(chunk.Hash)}', "
+                + $"'{EscapeSql(chunkHash)}', "
                 + $"'{EscapeSql(DefaultModelId)}', "
                 + $"'{EscapeSql(chunk.Text)}', "
                 + "'[]', "
@@ -516,117 +523,6 @@ public sealed class MemoryIndexDocumentSync
         }
         sql.AppendLine("COMMIT;");
         RunSql(sql.ToString());
-    }
-
-    private static IReadOnlyList<MemoryChunkEntry> ChunkText(string content, int chunkTokens, int overlapTokens)
-    {
-        var lines = content
-            .Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace('\r', '\n')
-            .Split('\n');
-        if (lines.Length == 0)
-        {
-            return Array.Empty<MemoryChunkEntry>();
-        }
-
-        var maxChars = Math.Max(32, chunkTokens * 4);
-        var overlapChars = Math.Max(0, overlapTokens * 4);
-        var result = new List<MemoryChunkEntry>();
-        var current = new List<(string Segment, int LineNo)>();
-        var currentChars = 0;
-
-        void Flush()
-        {
-            if (current.Count == 0)
-            {
-                return;
-            }
-
-            var startLine = current[0].LineNo;
-            var endLine = current[^1].LineNo;
-            var text = string.Join("\n", current.Select(x => x.Segment));
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                return;
-            }
-
-            result.Add(new MemoryChunkEntry(
-                StartLine: startLine,
-                EndLine: endLine,
-                Text: text,
-                Hash: Sha256Hex(text)
-            ));
-        }
-
-        void CarryOverlap()
-        {
-            if (overlapChars <= 0 || current.Count == 0)
-            {
-                current.Clear();
-                currentChars = 0;
-                return;
-            }
-
-            var kept = new List<(string Segment, int LineNo)>();
-            var chars = 0;
-            for (var i = current.Count - 1; i >= 0; i--)
-            {
-                var item = current[i];
-                kept.Insert(0, item);
-                chars += item.Segment.Length + 1;
-                if (chars >= overlapChars)
-                {
-                    break;
-                }
-            }
-
-            current = kept;
-            currentChars = chars;
-        }
-
-        for (var i = 0; i < lines.Length; i++)
-        {
-            var line = lines[i] ?? string.Empty;
-            var lineNo = i + 1;
-            var segments = SplitLine(line, maxChars);
-
-            foreach (var segment in segments)
-            {
-                var segmentChars = segment.Length + 1;
-                if (current.Count > 0 && currentChars + segmentChars > maxChars)
-                {
-                    Flush();
-                    CarryOverlap();
-                }
-
-                current.Add((segment, lineNo));
-                currentChars += segmentChars;
-            }
-        }
-
-        Flush();
-        return result;
-    }
-
-    private static IReadOnlyList<string> SplitLine(string line, int maxChars)
-    {
-        if (line.Length == 0)
-        {
-            return new[] { string.Empty };
-        }
-        if (line.Length <= maxChars)
-        {
-            return new[] { line };
-        }
-
-        var segments = new List<string>((line.Length / maxChars) + 1);
-        for (var start = 0; start < line.Length; start += maxChars)
-        {
-            var length = Math.Min(maxChars, line.Length - start);
-            segments.Add(line.Substring(start, length));
-        }
-
-        return segments;
     }
 
     private string QuerySingleString(string sql)
@@ -830,10 +726,4 @@ public sealed class MemoryIndexDocumentSync
         long SizeBytes
     );
 
-    private sealed record MemoryChunkEntry(
-        int StartLine,
-        int EndLine,
-        string Text,
-        string Hash
-    );
 }
