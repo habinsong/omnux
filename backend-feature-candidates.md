@@ -66,14 +66,24 @@
 | 15 | Git Worktree 격리 | ⭐⭐⭐ | 중 | git |
 | 16 | 시맨틱 검색 readiness (Ollama embed) | ⭐⭐ | 낮음 | 대화 검색용 선행조건만 조회, 실행은 보류 |
 
-### 권장 구현 순서 (2026-06-04 갱신)
+### 권장 구현 순서 (2026-06-04 최신)
 
-1. **1차** (즉시, 최우선 RAG 고도화): 컨텍스트 압축 → 인터-에이전트 메시지 패싱 → **Tree-sitter(AST) 지능형 청킹 및 Repomap 도입**
-2. **2차** (기존 인프라 확장): 프롬프트 캐싱 → OTel 옵저버빌리티 → 셀프 힐링 워치독
-3. **3차** (모델 최적화): 스마트 모델 라우팅 → Durable Workflow
-4. **4차** (외부 도구 연동): 자동 커밋/PR → MCP 서버 → Git Worktree
-5. **5차** (지능 고도화): 계층적 메모리 → 커밋 학습 → 세션 리플레이 → 샌드박스 강화
-6. **보류** (후순위): 시맨틱 검색(Ollama embed)은 readiness snapshot까지만 유지하고, 나중에 필요시 대화/기획 문서 검색용으로만 검토
+Git 계열은 `create_branch`, `stage_and_commit`, `snapshot_commit`, `push_current_branch`, `open_pull_request`까지 승인 게이트로 열었다. `rollback_checkpoint`, `worktree_remove`, 자동 cleanup은 파괴적 성격이 강하므로 잠시 보류한다.
+
+1. **1차** (비파괴, 체감 우선): Local LLM 실제 라우팅 / 오프라인 모드
+2. **2차** (검색 실행 고도화): Self-RAG 실행 오케스트레이터. 단, 프롬프트 자동 주입은 별도 단계
+3. **3차** (실행 권한 기반): Terminal PTY 승인 게이트. session preview/store/start/stop/send 순서로 분리
+4. **4차** (외부 도구 연동): MCP process/JSON-RPC 1차. Terminal 승인 모델을 재사용하고 tool call 자동 주입은 보류
+5. **5차** (구조 고도화): Tree-sitter 본도입, Repomap prompt opt-in, Durable Workflow auto resume 정책
+6. **계속 보류**: Git rollback/worktree 삭제, 코드 검색용 Vector DB, LLM 기반 자동 Self-RAG 주입, 자동 야간 자기개선
+
+쪼개기 기준:
+
+- 하나의 커밋은 하나의 backend capability만 연다.
+- 실행형 기능은 `snapshot/readiness → preview → apply` 순서로 쪼갠다.
+- 기능당 기본 목표는 2~3개 커밋 이내다. 넘어가면 다시 쪼개거나 보류한다.
+- 프론트엔드 파일은 별도 요청 전까지 수정하지 않는다.
+- 문서와 테스트는 기능 커밋 안에 같이 포함한다.
 
 ## 추천 기능 1: 컨텍스트 적응형 압축 (Adaptive Context Compression)
 
