@@ -41,7 +41,11 @@ export type DesktopRequestType =
   | "create_routine"
   | "preview_routine"
   | "coding_run_single"
-  | "refactor_restore";
+  | "refactor_restore"
+  | "logic_graph_list"
+  | "logic_graph_get"
+  | "logic_graph_run"
+  | "logic_graph_run_get";
 
 export type DesktopRequestPayload = Record<string, unknown> & {
   type: DesktopRequestType;
@@ -85,7 +89,11 @@ const DESKTOP_ALLOWED_REQUESTS = new Set<DesktopRequestType>([
   "create_routine",
   "preview_routine",
   "coding_run_single",
-  "refactor_restore"
+  "refactor_restore",
+  "logic_graph_list",
+  "logic_graph_get",
+  "logic_graph_run",
+  "logic_graph_run_get"
 ]);
 const DESKTOP_PUBLIC_REQUESTS = new Set<DesktopRequestType>([
   "request_otp",
@@ -322,5 +330,24 @@ export const requestDesktopCoding = {
 export const requestDesktopRefactor = {
   restore(rollbackId: string) {
     return sendDesktopRequest({ type: "refactor_restore", rollbackId: rollbackId.trim() });
+  }
+};
+
+export const requestDesktopLogic = {
+  listGraphs() {
+    return sendDesktopRequest({ type: "logic_graph_list" });
+  },
+  getGraph(graphId: string) {
+    return sendDesktopRequest({ type: "logic_graph_get", graphId: graphId.trim() });
+  },
+  runGraph(graphId: string, runInput?: string) {
+    const payload: Record<string, unknown> = { type: "logic_graph_run", graphId: graphId.trim() };
+    if (runInput && runInput.trim()) {
+      payload.runInput = runInput.trim();
+    }
+    return sendDesktopRequest(payload as DesktopRequestPayload);
+  },
+  getRun(logicRunId: string) {
+    return sendDesktopRequest({ type: "logic_graph_run_get", logicRunId: logicRunId.trim() });
   }
 };
