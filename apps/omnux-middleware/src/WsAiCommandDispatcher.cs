@@ -47,6 +47,7 @@ internal sealed class WsAiCommandDispatcher
     private readonly SendMetricsDelegate _sendMetricsAsync;
 
     private readonly GuardRetryTimelineStore _guardRetryTimelineStore;
+    private readonly ClipboardVisionTool _clipboardVisionTool = new();
 
     public WsAiCommandDispatcher(
         IChatApplicationService chatService,
@@ -94,6 +95,28 @@ internal sealed class WsAiCommandDispatcher
         CancellationToken cancellationToken
     )
     {
+        if (message.Type == "clipboard_vision_preflight")
+        {
+            var snapshot = _clipboardVisionTool.BuildPreflight(new ClipboardVisionPreflightInput(
+                message.Attachments,
+                message.Provider,
+                message.Model,
+                message.GroqModel,
+                message.GeminiModel,
+                message.Text
+            ));
+            await WebSocketGateway.SendTextAsync(
+                socket,
+                sendLock,
+                "{"
+                + "\"type\":\"clipboard_vision_preflight_result\","
+                + $"\"payload\":{ClipboardVisionJson.SerializeSnapshot(snapshot)}"
+                + "}",
+                cancellationToken
+            ).ConfigureAwait(false);
+            return true;
+        }
+
         if (message.Type == "llm_chat_single")
         {
             if (string.IsNullOrWhiteSpace(message.Text))

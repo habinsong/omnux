@@ -36,6 +36,7 @@
 | 커밋 히스토리 기반 학습 | ✅ 1차 | `GitCommitHistoryScanner`, `commit_learning_snapshot_get` — 읽기 전용 intent/hotspot 스냅샷 |
 | 로컬 LLM/오프라인 모드 | ✅ 1차+ | `LocalLlmDiscoveryService`, `LocalLlmOfflineModePolicy`, `local_llm_snapshot_get` — 모델 discovery + 오프라인 모드 readiness audit |
 | 터미널 자율 디버깅 | ✅ 1차 | `TerminalCapabilitySnapshotService`, `terminal_capabilities_get` — shell/toolchain capability snapshot만, PTY 실행은 보류 |
+| 다중 모달 클립보드/Vision | ✅ 1차 | `ClipboardVisionTool`, `clipboard_vision_preflight` — 이미지 첨부 검증/vision route readiness, 클립보드 감시·LLM 호출·스캐폴딩 실행은 보류 |
 | 벡터 임베딩 시맨틱 검색 | ⏳ Phase 6-3 | 현재 FTS 유지, Phase 6-2(Ollama) 선행 후 sqlite-vec + Ollama embed로 추가 |
 | Nightly 자기 개선 | ✅ 1차 | `SelfImprovementSnapshotService`, `self_improvement_snapshot_get` — 읽기 전용 개선 제안 |
 
@@ -1011,6 +1012,13 @@
 4. **코드 스캐폴딩**: 분석 결과를 기반으로 HTML/React/Vue 코드 생성
 5. **기존 CanvasTool과 연동**: `CanvasTool.cs`의 `a2ui_push`/`a2ui_reset` 메커니즘으로 실시간 프리뷰
 6. **반복 개선 루프**: 생성된 코드를 렌더링 → 스크린샷 → 원본과 비교 → 차이점 수정 (UI2Code^N 패턴)
+
+### 상태: ✅ 1차 preflight 구현 / 자동 실행 보류
+
+- `clipboard_vision_preflight`는 프론트가 보낸 `attachments[]`에서 이미지 후보를 검사하고 base64/size/mime readiness를 반환한다.
+- Gemini/Groq는 backend multimodal route 후보로 표시하고, 선택 provider가 그 외이면 `manual_routing_required`로 반환한다.
+- 이 요청은 `readOnly=true`이며 LLM Vision API를 호출하지 않고 파일/코드를 생성하지 않는다.
+- Tauri 클립보드 감시, 자동 Vision 호출, CanvasTool `a2ui_push`, 코드 스캐폴딩, 렌더-스크린샷 반복 개선 루프는 프론트/승인/비용 정책이 필요해 보류한다.
 
 ### 추가 아이디어
 

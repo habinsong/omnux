@@ -254,6 +254,22 @@
   - 자동 snapshot commit, snapshot branch 생성, `git reset --hard`, `git clean -fd`, checkpoint GC는 모두 `checks[].status=skipped`로만 표시한다.
   - 프론트는 이 응답을 롤백 UI의 상태/경고/후보 표시용으로만 사용하고 실행 버튼은 아직 연결하지 않는다.
 
+## 구현됨: Clipboard Vision preflight 1차
+
+- 후보 문서 항목: Phase 6-5 `다중 모달(Vision) 클립보드 직결`
+- 백엔드 구현:
+  - `ClipboardVisionTool`
+  - `WsAiCommandDispatcher`의 `clipboard_vision_preflight`
+- 동작:
+  - 프론트가 보낸 `attachments[]`에서 이미지 후보를 찾는다.
+  - image mime/확장자, base64 decode, 크기 제한을 검사한다.
+  - Gemini/Groq backend multimodal route 후보와 선택 provider 지원 여부를 반환한다.
+  - UI 분석용 `suggestedPrompt`를 제공한다.
+- 현재 안전 정책:
+  - 이 요청은 `readOnly=true`이며 LLM Vision API를 호출하지 않는다.
+  - OS 클립보드 감시, 코드 생성, 파일 쓰기, CanvasTool preview push, 반복 screenshot 비교는 실행하지 않는다.
+  - 실제 Vision 분석은 preflight가 `ready_for_vision_prompt`를 반환한 뒤 기존 `llm_chat_single`/`llm_chat_orchestration` attachments 경로에 사용자가 명시 요청을 보내는 방식으로 연결한다.
+
 ## WebSocket 이벤트
 
 ### `telemetry_snapshot_get`
@@ -950,6 +966,86 @@ Git checkpoint/rollback 후보와 안전 상태를 읽기 전용으로 조회한
 - `git status` 자체가 실패하면 `readiness.status=blocked`, `blockers=["git_status_failed"]`로 처리한다.
 - `checkpoints[].rollbackCandidate=true`는 UI 후보 표시용이다. 백엔드는 아직 rollback 실행 요청을 제공하지 않는다.
 - `checks`에는 실제 실행이 보류된 작업이 `skipped`로 포함된다. 프론트는 실행 버튼 대신 disabled 상태와 이유를 보여준다.
+
+### `clipboard_vision_preflight`
+
+데스크탑 프론트가 클립보드 이미지나 업로드 이미지를 Vision 분석에 보내기 전, 백엔드 readiness를 조회한다.
+
+요청:
+
+```json
+{
+  "type": "clipboard_vision_preflight",
+  "provider": "gemini",
+  "model": "gemini-2.5-pro",
+  "text": "이 화면을 React 컴포넌트로 재구성할 수 있게 분석해줘",
+  "attachments": [
+    {
+      "name": "clipboard.png",
+      "mimeType": "image/png",
+      "dataBase64": "iVBORw0KGgo...",
+      "sizeBytes": 123456,
+      "isImage": true
+    }
+  ]
+}
+```
+
+응답:
+
+```json
+{
+  "type": "clipboard_vision_preflight_result",
+  "payload": {
+    "status": "ready_for_vision_prompt",
+    "readOnly": true,
+    "clipboardWatcherEnabled": false,
+    "backendVisionRouteAvailable": true,
+    "visionCallEnabled": false,
+    "scaffoldingExecutionEnabled": false,
+    "attachmentCount": 1,
+    "imageCount": 1,
+    "images": [
+      {
+        "name": "clipboard.png",
+        "mimeType": "image/png",
+        "declaredSizeBytes": 123456,
+        "decodedSizeBytes": 123456,
+        "status": "ready",
+        "supported": true,
+        "message": "image is ready for a vision prompt"
+      }
+    ],
+    "providerCandidates": [
+      {
+        "provider": "gemini",
+        "model": "gemini-2.5-pro",
+        "status": "selected",
+        "selected": true,
+        "backendSupported": true,
+        "message": "selected provider can receive image attachments through backend multimodal chat"
+      }
+    ],
+    "checks": [
+      {
+        "name": "vision_api_call",
+        "status": "skipped",
+        "message": "preflight does not call an LLM vision API"
+      }
+    ],
+    "warnings": [],
+    "suggestedPrompt": "이 화면을 React 컴포넌트로 재구성할 수 있게 분석해줘\n\n출력은 구현자가 바로 사용할 수 있게 design tokens, layout tree, component list, copy text, uncertainty 순서로 정리해 주세요.",
+    "scannedAtUtc": "2026-06-04T00:00:00Z"
+  }
+}
+```
+
+- `status`는 `ready_for_vision_prompt`, `manual_routing_required`, `blocked` 중 하나다.
+- 지원 image mime은 `image/png`, `image/jpeg`, `image/webp`, `image/gif`다.
+- `clipboardWatcherEnabled=false`는 백엔드가 OS 클립보드를 직접 감시하지 않는다는 뜻이다. Tauri/데스크탑 프론트가 이미지를 읽어 `attachments[]`로 보내야 한다.
+- `visionCallEnabled=false`이므로 이 요청은 비용이 드는 LLM 호출을 하지 않는다.
+- 선택 provider가 Gemini/Groq가 아니면 `manual_routing_required`로 보고, 프론트는 provider 선택을 바꾸게 안내한다.
+- 실제 분석/코딩 실행은 기존 chat/coding 요청에 같은 `attachments[]`와 `suggestedPrompt` 기반 text를 넣어 별도로 호출한다.
 
 ### `self_improvement_snapshot_get`
 
