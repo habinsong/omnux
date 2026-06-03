@@ -175,6 +175,25 @@
   - 자동 resume/retry는 하지 않는다.
   - 외부 side effect가 있는 노드의 중복 실행 정책이 정해진 뒤 재개 실행을 붙인다.
 
+## 구현됨: 에이전트 권한 샌드박스 강화 1차
+
+- 후보 문서 항목: 추천 기능 13 `에이전트 권한 샌드박스 강화`
+- 백엔드 구현:
+  - `UniversalCodeExecutionSafetyPolicy`
+  - `UniversalCodeRunner` bash/unknown-language preflight 연동
+- 동작:
+  - `bash`, `sh`, `shell` 또는 알 수 없는 language fallback으로 실행되는 shell script를 실행 전에 검사한다.
+  - 기존 코딩 루프 안전 정책과 같은 위험 패턴을 사용해 `rm -rf`, `curl|sh`, `wget|bash`, `/etc`/`/Users`/`/home` 등 워크스페이스 밖 절대경로 write를 차단한다.
+  - 차단 시 script 파일은 run directory에 저장되지만 shell process는 시작하지 않는다.
+- 프론트 영향:
+  - 기존 실행 결과 객체에서 `status`가 `blocked`로 올 수 있다.
+  - `exitCode`는 `126`이고, `stderr`에는 `execution blocked by safety policy: <reason>` 형태의 설명이 들어간다.
+  - 별도 WebSocket 요청 타입 추가는 없다. 루틴/코딩 실행 결과 표시에서 `blocked`를 에러 계열 상태로 다루면 된다.
+- 현재 안전 정책:
+  - OS-level sandbox, 네트워크 namespace/cgroup, macOS `sandbox-exec` 적용은 아직 하지 않는다.
+  - Python/Node/C/C++ 내부에서 직접 여는 네트워크나 파일 접근까지 정적 차단하지 않는다.
+  - 이번 단계는 shell runner의 명백한 고위험 명령 차단에 한정한다.
+
 ## WebSocket 이벤트
 
 ### `telemetry_snapshot_get`

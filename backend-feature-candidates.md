@@ -31,6 +31,7 @@
 | 세션 리플레이 & 디버깅 | ✅ 1차 | `SessionReplayApplicationService`, `WsSessionReplayCommandDispatcher` — 대화/telemetry/agent bus 타임라인 스냅샷 |
 | 프롬프트 캐싱 최적화 | ✅ 1차 | `PromptCachePolicy`, telemetry cache key/affinity/readiness 기록 |
 | 스마트 모델 라우팅 | ✅ 1차 | `ModelRoutingReadinessPolicy`, telemetry complexity/tier/cascade readiness 기록 |
+| 에이전트 권한 샌드박스 강화 | ✅ 1차 | `UniversalCodeExecutionSafetyPolicy`, `UniversalCodeRunner` bash/unknown shell preflight 차단 |
 | 벡터 임베딩 시맨틱 검색 | ⏳ Phase 6-3 | 현재 FTS 유지, Phase 6-2(Ollama) 선행 후 sqlite-vec + Ollama embed로 추가 |
 | Nightly 자기 개선 | ❌ | 검색 결과 0 |
 
@@ -564,6 +565,14 @@
 ## 추천 기능 13: 에이전트 권한 샌드박스 강화 (Hardened Sandbox)
 
 ### 가치: ⭐⭐⭐
+
+### 상태: ✅ 1차 구현 / OS 샌드박스 본도입 보류
+
+- `UniversalCodeExecutionSafetyPolicy`가 shell script 실행 전 위험 패턴을 검사한다.
+- `UniversalCodeRunner`의 `bash` 및 unknown-language fallback 실행은 preflight에서 차단될 수 있다.
+- 차단 대상은 기존 코딩 루프 안전 정책과 같은 파괴적 명령(`rm -rf`), bootstrap pipe(`curl|sh`, `wget|bash`), 워크스페이스 밖 절대경로 write 등이다.
+- 차단 시 코드는 run directory에 저장하되 shell은 실행하지 않고 `CodeExecutionResult.Status=blocked`, `ExitCode=126`을 반환한다.
+- macOS `sandbox-exec`, Linux namespace/cgroup, 네트워크 격리, Python/Node/C/C++ 세부 syscall 제한은 플랫폼별 리스크가 커서 다음 단계로 둔다.
 
 ### 문제
 
