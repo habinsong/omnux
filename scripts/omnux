@@ -48,8 +48,12 @@ DEFAULT_BASE_URL="http://127.0.0.1:${DEFAULT_PORT}"
 usage() {
   cat <<'EOF'
 사용법:
-  omnux           서버 시작 (첫 실행이면 setup 자동 실행)
-  omnux shutdown  서버 종료
+  omnux           미들웨어+대시보드 시작 (첫 실행이면 setup 자동 실행) — http://127.0.0.1:8080/
+  omnux start     위와 동일
+  omnux stop      미들웨어 서버 종료 (= shutdown)
+  omnux shutdown  미들웨어 서버 종료
+  omnux status    미들웨어 실행 상태 확인
+  omnux desktop   Tauri 데스크톱 앱 + 자체 미들웨어(41880) dev 실행 (포그라운드, Ctrl+C 종료)
   omnux setup     의존성 설치, 빌드, 검증, 명령 등록
 EOF
 }
@@ -495,13 +499,49 @@ run_setup() {
   info "setup 완료"
 }
 
+status_server() {
+  local pid
+  pid="$(read_pid_file)"
+  if is_pid_alive "$pid"; then
+    info "미들웨어 실행 중 (pid=${pid}, $(current_base_url))"
+    if server_health_ok; then
+      info "healthz: ok"
+    else
+      info "healthz: 응답 없음 (기동 중이거나 포트 점검 필요)"
+    fi
+  else
+    info "미들웨어 미실행"
+  fi
+}
+
+run_desktop() {
+  command_exists npm || fail "npm이 필요합니다. 먼저 'omnux setup'을 실행하세요."
+  command_exists cargo || fail "Rust(cargo)가 필요합니다 (Tauri). https://rustup.rs 에서 설치 후 다시 시도하세요."
+  local desktop_dir="${REPO_ROOT}/apps/desktop"
+  [ -d "$desktop_dir" ] || fail "apps/desktop 디렉터리를 찾을 수 없습니다."
+  if [ ! -d "${desktop_dir}/node_modules" ]; then
+    info "데스크톱 의존성 설치 (apps/desktop)"
+    (cd "$desktop_dir" && npm install)
+  fi
+  info "Tauri 데스크톱 dev 실행 — 자체 .NET 미들웨어(ws=41880)를 함께 띄웁니다."
+  info "OTP는 이 터미널 콘솔에 [otp] local fallback otp=... 로 출력됩니다. (Ctrl+C 종료)"
+  cd "$desktop_dir" || fail "apps/desktop 으로 이동하지 못했습니다."
+  exec npm run tauri dev
+}
+
 main() {
   case "${1:-start}" in
-    start)
+    start|"")
       start_server
       ;;
-    shutdown)
+    stop|shutdown)
       shutdown_server
+      ;;
+    status)
+      status_server
+      ;;
+    desktop)
+      run_desktop
       ;;
     setup)
       run_setup
