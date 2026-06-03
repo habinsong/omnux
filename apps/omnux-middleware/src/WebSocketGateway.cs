@@ -95,6 +95,7 @@ public sealed partial class WebSocketGateway
     private readonly WsSelfImprovementCommandDispatcher _selfImprovementCommandDispatcher;
     private readonly WsLocalLlmCommandDispatcher _localLlmCommandDispatcher;
     private readonly WsSemanticSearchCommandDispatcher _semanticSearchCommandDispatcher;
+    private readonly WsRagCommandDispatcher _ragCommandDispatcher;
     private readonly WsTerminalCommandDispatcher _terminalCommandDispatcher;
     private readonly WsCodeRepomapCommandDispatcher _codeRepomapCommandDispatcher;
     private readonly WsRefactorCommandDispatcher _refactorCommandDispatcher;
@@ -317,6 +318,9 @@ public sealed partial class WebSocketGateway
                 _paths,
                 localLlmDiscoveryService
             )
+        );
+        _ragCommandDispatcher = new WsRagCommandDispatcher(
+            new RagRetrievalPreflightPolicy()
         );
         _terminalCommandDispatcher = new WsTerminalCommandDispatcher(
             new TerminalCapabilitySnapshotService()

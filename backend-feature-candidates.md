@@ -16,6 +16,7 @@
 | FTS 코드베이스 인덱싱 | ✅ | `MemoryIndexDocumentSync` SQLite FTS |
 | 구조 인식 청킹 / Repomap | ✅ 1차+ | `MemoryChunkingPolicy`, `CodeRepomapSnapshotService`, C#/JS/TS/Python 선언 경계 chunk plan + read-only 구조 지도 |
 | 구조 보존 출력 트리밍 | ✅ 1차 | `TextOutputTruncator.TruncatePreservingStructure`, `CodingPromptPolicy` 코딩 초안/실행 로그 경계 보존 |
+| Self-RAG 검색 필요성 판정 | ✅ 1차 | `RagRetrievalPreflightPolicy`, `rag_retrieval_preflight` — 입력 기반 memory/code/web/session 검색 후보 read-only 판정 |
 | 계층적 메모리 | ✅ 1차 | `MemoryTierPolicy`, `chunks.memory_tier/last_accessed_at`, tier-aware 검색 점수 |
 | 비용 제한 (Run Breaker) | ✅ | `AgentSpawnRunBreaker`, 60K 토큰/일 |
 | 검색 증거 검증 | ✅ | `SearchGuard`, `EvidencePack` |
@@ -1165,11 +1166,12 @@
 - **검색 증강 프롬프트**: RAG 결과를 무조건 포함하지 않고, Self-RAG 패턴으로 "검색이 필요한가?"를 LLM이 먼저 판단.
 - **LangGraph-style 그래프 실행**: 기존 로직 그래프 런타임을 확장하여, LangGraph의 conditional edge, state channel 개념 도입.
 
-### 상태: ✅ 구조 보존 트리밍 1차 구현 / 실제 AST parser 보류
+### 상태: ✅ 구조 보존 트리밍 + Self-RAG preflight 1차 구현 / 실제 AST parser 보류
 
 - `TextOutputTruncator.TruncatePreservingStructure`를 추가해 긴 코드/JSON/markdown 코드블록을 안정적인 줄 경계에서 자르고 열린 markdown fence를 닫는다.
 - `CodingPromptPolicy`의 워커 초안/코드/실행 로그 삽입 경로가 기존 단순 substring 대신 구조 보존 truncator를 사용한다.
-- 실제 Tree-sitter AST 노드 단위 trimming, JSON schema-aware 축약, Self-RAG 검색 필요성 판정, LangGraph-style state channel 확장은 아직 보류한다.
+- `rag_retrieval_preflight`는 입력을 보고 memory/code/repomap/web/session 검색 후보와 signal을 반환한다. 실제 검색 실행과 retrieved context 주입은 하지 않는다.
+- 실제 Tree-sitter AST 노드 단위 trimming, JSON schema-aware 축약, LLM 기반 Self-RAG judge, LangGraph-style state channel 확장은 아직 보류한다.
 
 
 ### 개발 가이드 (Implementation Guide)

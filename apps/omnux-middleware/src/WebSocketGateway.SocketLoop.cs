@@ -397,6 +397,16 @@ public sealed partial class WebSocketGateway
                     continue;
                 }
 
+                if (await _ragCommandDispatcher.TryHandleAsync(
+                        message,
+                        socket,
+                        sendLock,
+                        cancellationToken
+                    ))
+                {
+                    continue;
+                }
+
                 if (await _terminalCommandDispatcher.TryHandleAsync(
                         message,
                         socket,

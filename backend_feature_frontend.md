@@ -196,6 +196,71 @@
   - 실제 Tree-sitter AST parser, JSON schema-aware 축약, LangGraph-style workflow 변경은 아직 하지 않는다.
   - 동작 변경 범위는 코딩 prompt 구성 시의 preview trimming에 한정한다.
 
+## 구현됨: RAG 검색 필요성 preflight 1차
+
+- 후보 문서 항목: Phase 6-9 `AI 코어 지능 고도화`
+- 백엔드 구현:
+  - `RagRetrievalPreflightPolicy`
+  - `WsRagCommandDispatcher`
+- WebSocket:
+  - 요청 타입: `rag_retrieval_preflight`
+  - 응답 타입: `rag_retrieval_preflight_snapshot`
+- 동작:
+  - 입력의 최신성, URL, 코드/파일, 과거 기억/결정, 세션/에이전트 로그 단서를 판정한다.
+  - `memory`, `code`, `repomap`, `web`, `session`, `none` 후보를 반환한다.
+  - 실제 `memory_search`, `web_search`, `code_repomap_snapshot_get`, `session_replay_get`을 자동 실행하지 않는다.
+- 현재 안전 정책:
+  - `readOnly=true`
+  - `skipped`에 `llm_self_rag_judge`, `automatic_memory_search`, `automatic_code_search`, `automatic_web_search`, `retrieved_context_prompt_injection`을 반환한다.
+
+요청:
+
+```json
+{
+  "type": "rag_retrieval_preflight",
+  "query": "전에 우리가 결정한 MCP 보류 사유 기억나?"
+}
+```
+
+응답 예시:
+
+```json
+{
+  "type": "rag_retrieval_preflight_snapshot",
+  "payload": {
+    "status": "retrieval_recommended",
+    "queryPreview": "전에 우리가 결정한 MCP 보류 사유 기억나?",
+    "readOnly": true,
+    "retrievalRecommended": true,
+    "primaryStrategy": "memory",
+    "candidates": [
+      {
+        "kind": "memory",
+        "priority": "high",
+        "recommended": true,
+        "reason": "과거 대화/결정/노트 단서가 있어 memory search가 필요할 수 있다.",
+        "suggestedRequestType": "memory_search"
+      }
+    ],
+    "signals": ["memory_or_history"],
+    "skipped": [
+      "llm_self_rag_judge",
+      "automatic_memory_search",
+      "automatic_code_search",
+      "automatic_web_search",
+      "retrieved_context_prompt_injection"
+    ],
+    "snapshotUtc": "2026-06-04T00:00:00Z"
+  }
+}
+```
+
+- `status=no_input`: 입력이 비어 있다.
+- `status=no_retrieval`: 현재 입력만으로 답변 가능하거나 인사/감사류로 판단된다.
+- `status=retrieval_recommended`: 하나 이상의 검색 후보가 있다.
+- `primaryStrategy=hybrid`: 여러 검색 후보가 동시에 추천된 상태다.
+- 프론트는 이 응답을 실행 결과가 아니라 “검색 제안/디버그 설명”으로 표시한다.
+
 ## 구현됨: 시맨틱 검색 readiness snapshot 1차
 
 - 후보 문서 항목: 추천 기능 7 `시맨틱 검색`, Phase 6-3 `AST 기반 하이브리드 RAG`
@@ -1701,6 +1766,7 @@ agent bus를 시각화용 trace graph로 조회한다. 기존 agent bus 저장�
 - Self improvement 패널은 `self_improvement_snapshot_get`으로 workspace hygiene, 반복 bug_fix, hotspot review 제안을 표시한다. 모든 액션은 사용자 승인 UI가 생기기 전까지 보기 전용이다.
 - Local LLM 패널은 `local_llm_snapshot_get`으로 Ollama/LM Studio endpoint availability, 모델 목록, `offlineMode` readiness를 표시한다. 이 값은 라우팅 상태가 아니라 discovery/readiness로만 취급한다.
 - Semantic Search 패널은 `semantic_search_readiness_get`으로 FTS, sqlite-vec, local embedding 후보를 표시한다. `status=fts_ast_primary`는 정상 기본값이며 오류가 아니다.
+- RAG preflight는 `rag_retrieval_preflight`로 입력별 검색 후보를 표시한다. 자동 검색 실행이 아니므로, 사용자가 후보를 클릭할 때 기존 `memory_search`, `web_search`, `code_repomap_snapshot_get`, `session_replay_get` 요청을 명시적으로 호출한다.
 - Terminal 패널은 `terminal_capabilities_get`으로 shell/toolchain readiness를 표시한다. `ptySessionEnabled=false`인 동안 실제 terminal start/send/stop UI는 비활성 처리한다.
 
 ## 보류한 후보
@@ -1714,6 +1780,7 @@ agent bus를 시각화용 trace graph로 조회한다. 기존 agent bus 저장�
 - Git worktree merge/cherry-pick/cleanup 실행: 1차+는 ACP 실행 CWD 격리와 read-only inventory까지다. 완료 후 메인 브랜치 반영, 충돌 해결, 오래된 worktree 실제 제거는 별도 백엔드 정책이 필요하다.
 - 계층적 메모리 deep archive/cascading retrieval/ADR 저장소: 1차는 FTS score와 metadata 확장까지만 구현했다. 실제 접근 이벤트 수집과 ADR 데이터 모델은 별도 설계가 필요하다.
 - Tree-sitter/Repomap 본도입: 1차는 외부 의존성 없는 선언 경계 청킹과 read-only Repomap snapshot이다. 실제 AST parser, 언어별 grammar, Repomap 프롬프트 자동 주입은 별도 검증 후 붙인다.
+- LLM 기반 Self-RAG judge와 retrieved context 자동 주입: 1차는 deterministic preflight만 제공한다. 실제 검색 실행과 프롬프트 주입은 비용/품질/보안 정책을 분리한 뒤 붙인다.
 - MCP 서버 프로세스/JSON-RPC/tool registry 주입: 1차는 설정 discovery와 read-only readiness audit만 구현했다. 실제 실행은 서드파티 프로세스 권한/격리와 MCP handshake 정책이 필요해 보류한다.
 - 커밋 히스토리 LLM 학습/자동 주입: 1차는 읽기 전용 snapshot이다. LLM 요약, memory/skill 자동 저장, nightly 자기 개선은 사용자 변경 오염 위험이 있어 보류한다.
 - 자동 커밋/PR 실제 실행: 1차는 read-only snapshot만 제공한다. `git add`, `git commit`, branch 생성, `gh pr create`는 사용자 승인/충돌/권한 정책이 필요해 보류한다.
