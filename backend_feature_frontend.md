@@ -215,6 +215,22 @@
   - JSON-RPC handshake와 MCP tool registry 동적 주입은 아직 하지 않는다.
   - discovery 응답은 프론트의 설정/상태 패널 표시용이다.
 
+## 구현됨: 커밋 히스토리 기반 학습 스냅샷 1차
+
+- 후보 문서 항목: 추천 기능 14 `커밋 히스토리 기반 학습`
+- 백엔드 구현:
+  - `GitCommitHistoryScanner`
+  - `GitCommitIntentPolicy`
+  - `WsCommitLearningCommandDispatcher`
+- 동작:
+  - `git log --numstat`를 읽기 전용으로 실행해 최근 커밋 metadata와 파일 변경량을 분석한다.
+  - commit subject를 deterministic heuristic으로 `bug_fix`, `feature`, `refactor`, `test`, `docs`, `maintenance`, `performance`, `change` 중 하나로 분류한다.
+  - intent rollup과 파일 hotspot을 반환한다.
+- 현재 안전 정책:
+  - git 저장소를 수정하지 않는다.
+  - LLM으로 커밋 의도를 추론하지 않는다.
+  - memory note, skill, 시스템 프롬프트에 자동 주입하지 않는다.
+
 ## WebSocket 이벤트
 
 ### `telemetry_snapshot_get`
@@ -607,6 +623,68 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - `envKeys`에는 key만 포함되며 값은 내려오지 않는다.
 - `argsPreview`와 `url`은 민감값 redaction 후 내려온다.
 
+### `commit_learning_snapshot_get`
+
+최근 git commit metadata를 읽어 intent rollup과 파일 hotspot을 조회한다. 저장소를 수정하지 않는다.
+
+요청:
+
+```json
+{
+  "type": "commit_learning_snapshot_get",
+  "limit": 30
+}
+```
+
+응답:
+
+```json
+{
+  "type": "commit_learning_snapshot",
+  "payload": {
+    "repositoryRoot": "/abs/path",
+    "limit": 30,
+    "commits": [
+      {
+        "hash": "abcdef...",
+        "shortHash": "abcdef123456",
+        "subject": "fix: handle app crash",
+        "authorName": "Dev",
+        "authorDateUtc": "2026-06-04T00:00:00Z",
+        "intent": "bug_fix",
+        "filesChanged": 2,
+        "addedLines": 10,
+        "deletedLines": 3,
+        "topPaths": ["apps/omnux-middleware/src/Foo.cs"]
+      }
+    ],
+    "intents": [
+      {
+        "intent": "bug_fix",
+        "commitCount": 1,
+        "addedLines": 10,
+        "deletedLines": 3
+      }
+    ],
+    "hotspots": [
+      {
+        "path": "apps/omnux-middleware/src/Foo.cs",
+        "changeCount": 2,
+        "lastCommitShortHash": "abcdef123456",
+        "lastSubject": "fix: handle app crash"
+      }
+    ],
+    "warnings": [],
+    "totalCommits": 1,
+    "scannedAtUtc": "2026-06-04T00:00:00Z"
+  }
+}
+```
+
+- `limit`은 1~200으로 clamp된다.
+- `warnings`에 `git log` 실패, 저장소 아님, commit 없음 같은 읽기 실패 이유가 들어간다.
+- `intent`는 LLM 추론이 아닌 제목 기반 heuristic이다.
+
 ### `agent_bus_get`
 
 에이전트 메시지/보드/생명주기 스냅샷 조회.
@@ -760,6 +838,7 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - 타임라인은 `payload.lifecycle`와 `payload.messages`를 시간순으로 합쳐 표시한다.
 - 그룹 제어 버튼은 우선 `agent_group_command`만 호출하고, 실제 강제 중단은 추후 백엔드 제어 훅이 추가된 뒤 연결한다.
 - MCP 설정 패널은 `mcp_servers_list`를 호출해 발견된 서버와 invalid/error config를 표시한다. `status=discovered`는 "연결 가능 후보"이지 "실행 중"이 아니다.
+- Commit learning 패널은 `commit_learning_snapshot_get`을 호출해 최근 커밋 intent 분포와 자주 바뀌는 파일 hotspot을 표시한다. intent는 heuristic이므로 자동 규칙 적용 근거가 아니라 관찰용으로 둔다.
 
 ## 보류한 후보
 
@@ -772,6 +851,7 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - 계층적 메모리 deep archive/cascading retrieval/ADR 저장소: 1차는 FTS score와 metadata 확장까지만 구현했다. 실제 접근 이벤트 수집과 ADR 데이터 모델은 별도 설계가 필요하다.
 - Tree-sitter/Repomap 본도입: 1차는 외부 의존성 없는 선언 경계 청킹이다. 실제 AST parser, 언어별 grammar, Repomap 프롬프트 주입은 별도 검증 후 붙인다.
 - MCP 서버 프로세스/JSON-RPC/tool registry 주입: 1차는 설정 discovery만 구현했다. 실제 실행은 서드파티 프로세스 권한/격리와 MCP handshake 정책이 필요해 보류한다.
+- 커밋 히스토리 LLM 학습/자동 주입: 1차는 읽기 전용 snapshot이다. LLM 요약, memory/skill 자동 저장, nightly 자기 개선은 사용자 변경 오염 위험이 있어 보류한다.
 - 자동 커밋/PR 생성: 현재 워크트리가 대규모 변경 상태라 자동 커밋 계열 기능을 바로 붙이면 사용자 변경과 충돌할 수 있다.
 - Git Worktree 격리: 스폰 실행 경로와 롤백 정책을 함께 바꿔야 한다.
 - 시맨틱 검색/Ollama embed: 후보 문서 결론대로 코드 검색용 우선순위는 낮다.
