@@ -677,3 +677,23 @@ body {
 .routine-wizard-preview > div > span { color: #9fb3c8; }
 .routine-wizard-preview ul { margin: 4px 0 0; padding-left: 18px; color: #ffd27a; }
 .routine-wizard-preview-ok { color: #8fd6a0; }
+
+/* logic graph 페이지 (dashboard-logic-renderers.js 구조 이식) */
+.logic-section-title { margin: 14px 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: #8bb6ff; }
+.logic-node {
+  border: 1px solid rgba(138, 171, 210, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px; padding: 9px 11px; display: flex; flex-direction: column; gap: 6px;
+}
+.logic-node-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.logic-node-config { display: flex; flex-direction: column; gap: 3px; }
+.logic-kv { display: flex; gap: 8px; font-size: 12px; }
+.logic-kv-k { color: #8fa6c1; min-width: 84px; }
+.logic-kv-v { color: #d4dde7; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+.logic-edge {
+  display: flex; align-items: center; gap: 8px; font-size: 13px;
+  padding: 6px 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.03);
+}
+.logic-edge .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #d7e5f6; }
+.logic-edge-arrow { color: #8bb6ff; font-weight: 800; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
