@@ -74,6 +74,23 @@
   - 실제 OS 프로세스 kill/restart는 실행하지 않는다.
   - 프론트/운영자가 child session과 workspace rollback 정보를 보고 재시작 여부를 결정한다.
 
+## 구현됨: 세션 리플레이 & 디버깅 1차
+
+- 후보 문서 항목: 추천 기능 12 `에이전트 세션 리플레이 & 디버깅`
+- 백엔드 구현:
+  - `SessionReplayApplicationService`
+  - `WsSessionReplayCommandDispatcher`
+- 데이터 소스:
+  - `ConversationStore` 메시지
+  - `TelemetryApplicationService` LLM 호출 metadata
+  - `AgentCommunicationApplicationService` agent message/lifecycle/board snapshot
+  - conversation의 `LatestCodingResult`
+- 안전 정책:
+  - 원문 프롬프트/응답을 별도 리플레이 저장소에 중복 저장하지 않는다.
+  - 기본 응답은 메시지 본문 전체를 제외하고 `summary`만 반환한다.
+  - 프론트가 상세 재생이 필요할 때만 `includeText=true`를 요청한다.
+  - telemetry는 현재 conversationId를 직접 저장하지 않으므로, conversation 시간창과 겹치는 LLM 호출을 `correlation=conversation_window`로 표시한다.
+
 ## WebSocket 이벤트
 
 ### `telemetry_snapshot_get`
@@ -207,6 +224,105 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 
 - `watchdog.events`는 해당 평가에서 새로 종료 처리된 run만 담는다.
 - 대시보드는 `eventCount > 0`이면 agent activity에 경고 카드나 타임라인 항목을 표시한다.
+
+### `session_replay_get`
+
+세션 리플레이 타임라인을 조회한다.
+
+요청:
+
+```json
+{
+  "type": "session_replay_get",
+  "conversationId": "conversation-id",
+  "runId": "run-1",
+  "agentId": "agent-a",
+  "groupId": "group-1",
+  "sinceUtc": "2026-06-04T00:00:00Z",
+  "limit": 200,
+  "includeText": false,
+  "includeTelemetry": true,
+  "includeAgentEvents": true
+}
+```
+
+응답:
+
+```json
+{
+  "type": "session_replay_snapshot",
+  "payload": {
+    "conversationId": "conversation-id",
+    "runId": "run-1",
+    "agentId": "agent-a",
+    "groupId": "group-1",
+    "events": [
+      {
+        "id": "conversation_conversation-id_0",
+        "source": "conversation",
+        "kind": "user_input",
+        "severity": "info",
+        "correlation": "exact",
+        "conversationId": "conversation-id",
+        "runId": "",
+        "agentId": "",
+        "groupId": "",
+        "title": "user message",
+        "summary": "요청 본문",
+        "meta": "user",
+        "promptTokens": 0,
+        "completionTokens": 0,
+        "totalTokens": 0,
+        "durationMs": 0,
+        "timestampUtc": "2026-06-04T00:00:00Z"
+      },
+      {
+        "id": "telemetry_...",
+        "source": "telemetry",
+        "kind": "llm.call",
+        "severity": "info",
+        "correlation": "conversation_window",
+        "conversationId": "conversation-id",
+        "title": "gemini/gemini-2.5-flash",
+        "summary": "ok 1500 tokens 870ms",
+        "provider": "gemini",
+        "model": "gemini-2.5-flash",
+        "status": "ok",
+        "traceId": "...",
+        "spanId": "...",
+        "promptTokens": 1200,
+        "completionTokens": 300,
+        "totalTokens": 1500,
+        "durationMs": 870,
+        "timestampUtc": "2026-06-04T00:00:01Z",
+        "startedUtc": "2026-06-04T00:00:00Z",
+        "completedUtc": "2026-06-04T00:00:01Z"
+      }
+    ],
+    "summary": {
+      "eventCount": 2,
+      "conversationMessageCount": 1,
+      "telemetryEventCount": 1,
+      "agentEventCount": 0,
+      "errorCount": 0,
+      "warningCount": 0,
+      "promptTokens": 1200,
+      "completionTokens": 300,
+      "totalTokens": 1500,
+      "firstEventUtc": "2026-06-04T00:00:00Z",
+      "lastEventUtc": "2026-06-04T00:00:01Z"
+    },
+    "totalEvents": 2,
+    "returnedEvents": 2,
+    "snapshotUtc": "2026-06-04T00:00:02Z"
+  }
+}
+```
+
+- `conversationId`, `runId`, `agentId`, `groupId` 중 하나는 필요하다.
+- `includeText=false`가 기본값이며, 이때 conversation/agent 본문 전체는 `body`로 내려가지 않는다.
+- `severity`는 `info`, `warning`, `error` 중 하나다. `auto-compress`, watchdog, breaker, failed lifecycle, timeout telemetry는 서버에서 자동 분류한다.
+- telemetry 이벤트는 원문 prompt/response를 포함하지 않는다.
 
 ### `agent_bus_get`
 
@@ -349,6 +465,8 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - Telemetry/비용 패널은 `telemetry_snapshot_get`을 주기 조회해 provider별 토큰 합계와 평균 지연시간을 표시한다.
 - 실패 목록은 `status != ok` 필터로 조회하고, `error`는 짧은 기술 메시지로만 표시한다.
 - 에이전트 상태 패널은 `sessions_spawn action=status`의 `watchdog` 필드를 보고 timeout/stale 이벤트를 표시한다.
+- 세션 상세/디버깅 패널은 `session_replay_get`을 호출해 대화, agent event, LLM 호출 metadata를 단일 타임라인으로 표시한다.
+- 리플레이 타임라인의 `correlation=conversation_window` telemetry는 시간창 기반 추정이므로, UI에서는 "관련 LLM 호출 후보"처럼 표시한다.
 - 활동/에이전트 패널에서 `agent_bus_get`을 주기 조회하거나 수동 새로고침한다.
 - 보드 영역은 `payload.board`를 `groupId/runId` 기준으로 묶어 표시한다.
 - 타임라인은 `payload.lifecycle`와 `payload.messages`를 시간순으로 합쳐 표시한다.
@@ -359,6 +477,7 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 - OpenTelemetry OTLP exporter: 현재는 `ActivitySource`와 로컬 스냅샷까지 구현했다. Jaeger/Grafana Tempo/Datadog export는 외부 패키지와 운영 설정이 필요하므로 별도 단계로 둔다.
 - 셀프 힐링 자동 kill/restart: 현재는 timeout/stale 감지와 상태 종료까지만 구현했다. 실제 프로세스 종료와 자동 재시작은 백엔드별 안전 정책이 필요해 별도 단계로 둔다.
 - Durable Workflow 체크포인트: 로직 그래프 런타임 재개 정책과 중복 실행 방지 규칙이 필요하다. 현재 기능과 독립된 저장소만 추가하면 실효성이 낮다.
+- 세션 리플레이 append-only 결정 트리: 1차는 기존 저장소 조합 타임라인이다. LLM raw input/output, tool stdout/stderr 전체 저장은 개인정보/용량 정책이 필요해 보류한다.
 - MCP 서버 지원: 프로세스 생명주기와 JSON-RPC 스펙 구현이 필요해 높은 위험 작업이다.
 - 자동 커밋/PR 생성: 현재 워크트리가 대규모 변경 상태라 자동 커밋 계열 기능을 바로 붙이면 사용자 변경과 충돌할 수 있다.
 - Git Worktree 격리: 스폰 실행 경로와 롤백 정책을 함께 바꿔야 한다.
