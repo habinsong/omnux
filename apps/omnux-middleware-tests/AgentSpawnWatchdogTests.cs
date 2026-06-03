@@ -105,6 +105,49 @@ public sealed class AgentSpawnWatchdogTests
         );
     }
 
+    [Fact]
+    public void InventorySnapshot_ReportsOverdueRunsWithoutClosingThem()
+    {
+        using var temp = TestStateDirectory.Create();
+        var store = new FileAgentSpawnActiveRunStore(Path.Combine(temp.Path, "agent_spawn_active.json"));
+        var now = DateTimeOffset.Parse("2026-06-04T00:00:00Z");
+        store.Start(new AgentSpawnActiveRunEntry
+        {
+            RunId = "run-timeout-preview",
+            ChildSessionKey = "child-timeout-preview",
+            Runtime = "acp",
+            Mode = "run",
+            Backend = "codex",
+            RunTimeoutSeconds = 60,
+            StartedUtc = now.AddMinutes(-3),
+            LastHeartbeatUtc = now.AddMinutes(-2),
+            State = "dispatching"
+        });
+
+        var snapshot = new AgentWatchdogInventorySnapshotService(store, () => now)
+            .GetSnapshot(10);
+
+        Assert.True(snapshot.ReadOnly);
+        Assert.Equal("attention_required", snapshot.Status);
+        Assert.Equal(1, snapshot.ActiveCount);
+        Assert.Equal(0, snapshot.TerminalHistoryCount);
+        Assert.Contains("watchdog_evaluate_and_close", snapshot.Skipped);
+        var item = Assert.Single(snapshot.Runs);
+        Assert.Equal("run-timeout-preview", item.RunId);
+        Assert.True(item.Active);
+        Assert.Equal("timeout_due", item.Health);
+        Assert.Equal(0, item.TimeoutInSeconds);
+        Assert.True(item.StaleInSeconds > 0);
+
+        var stored = Assert.Single(store.ReadEntriesSnapshot());
+        Assert.Equal("dispatching", stored.State);
+        Assert.Null(stored.CompletedUtc);
+
+        var watchdog = store.EvaluateWatchdog(now);
+        Assert.Equal(1, watchdog.EventCount);
+        Assert.Equal("timeout", Assert.Single(watchdog.Events).State);
+    }
+
     private sealed class TestStateDirectory : IDisposable
     {
         private TestStateDirectory(string path)

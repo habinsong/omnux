@@ -114,6 +114,8 @@
 - 후보 문서 항목: 추천 기능 6 `셀프 힐링 워치독`
 - 백엔드 구현:
   - `FileAgentSpawnActiveRunStore.EvaluateWatchdog`
+  - `AgentWatchdogInventorySnapshotService`
+  - `WsAgentWatchdogCommandDispatcher`
   - `SessionSpawnTool.GetQueueStatus` watchdog 평가/대화 로그 반영
   - `Program.RunAgentWatchdogLoopAsync` 60초 주기 백그라운드 평가
 - 감지/전환:
@@ -123,6 +125,8 @@
 - 현재 안전 정책:
   - 실제 OS 프로세스 kill/restart는 실행하지 않는다.
   - 프론트/운영자가 child session과 workspace rollback 정보를 보고 재시작 여부를 결정한다.
+  - `sessions_spawn action=status`는 watchdog 평가를 실행할 수 있다.
+  - `agent_watchdog_snapshot_get`은 평가/종료 처리 없이 현재 active-run inventory만 읽는다.
 
 ## 구현됨: 세션 리플레이 & 디버깅 1차
 
@@ -604,6 +608,80 @@ LLM 호출 telemetry 스냅샷을 조회한다.
 
 - `watchdog.events`는 해당 평가에서 새로 종료 처리된 run만 담는다.
 - 대시보드는 `eventCount > 0`이면 agent activity에 경고 카드나 타임라인 항목을 표시한다.
+
+### `agent_watchdog_snapshot_get`
+
+active run과 watchdog threshold 상태를 읽기 전용으로 조회한다. `sessions_spawn action=status`와 달리 run을 timeout/stale로 닫지 않는다.
+
+요청:
+
+```json
+{
+  "type": "agent_watchdog_snapshot_get",
+  "limit": 100
+}
+```
+
+응답:
+
+```json
+{
+  "type": "agent_watchdog_snapshot",
+  "payload": {
+    "status": "attention_required",
+    "readOnly": true,
+    "activeCount": 1,
+    "terminalHistoryCount": 0,
+    "limit": 100,
+    "runsTruncated": false,
+    "runs": [
+      {
+        "id": "active_...",
+        "runId": "run-id",
+        "childSessionKey": "conversation-id",
+        "runtime": "acp",
+        "mode": "run",
+        "backend": "codex",
+        "state": "dispatching",
+        "active": true,
+        "health": "timeout_due",
+        "startedUtc": "2026-06-04T00:00:00Z",
+        "lastHeartbeatUtc": "2026-06-04T00:01:00Z",
+        "ageSeconds": 180,
+        "heartbeatAgeSeconds": 120,
+        "runTimeoutSeconds": 60,
+        "timeoutInSeconds": 0,
+        "staleInSeconds": 43080,
+        "timeoutDueUtc": "2026-06-04T00:01:00Z",
+        "staleDueUtc": "2026-06-04T12:01:00Z",
+        "workspaceRollbackId": "rollback-id",
+        "workspaceRollbackChangedFiles": 2,
+        "workspaceRollbackPartial": false
+      }
+    ],
+    "checks": [
+      {
+        "name": "read_only",
+        "status": "ok",
+        "detail": "snapshot does not evaluate watchdog, close runs, kill processes, restart agents, or execute rollback"
+      }
+    ],
+    "skipped": [
+      "watchdog_evaluate_and_close",
+      "process_kill",
+      "automatic_restart",
+      "rollback_execution"
+    ],
+    "snapshotUtc": "2026-06-04T00:03:00Z"
+  }
+}
+```
+
+- `status=idle`: active run 없음.
+- `status=monitoring`: active run이 있으나 threshold 초과 없음.
+- `status=attention_required`: active run 중 `health=timeout_due` 또는 `health=heartbeat_stale` 존재.
+- `health=timeout_due` / `heartbeat_stale`는 프론트에서 경고 표시만 한다. 실제 종료 처리는 기존 watchdog loop 또는 `sessions_spawn action=status` 평가 경로에서 발생한다.
+- `limit`은 1~300으로 clamp된다.
 
 ### `sessions_spawn` ACP worktree isolation
 

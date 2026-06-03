@@ -13,6 +13,8 @@ public sealed class FileAgentSpawnActiveRunStore
     private readonly string _storePath;
     private readonly object _lock = new();
 
+    public static TimeSpan WatchdogHeartbeatStaleWindow => StaleActiveWindow;
+
     public FileAgentSpawnActiveRunStore(IStatePathResolver pathResolver)
         : this(pathResolver.ResolveStateFilePath("agent_spawn_active.json"))
     {
@@ -194,6 +196,21 @@ public sealed class FileAgentSpawnActiveRunStore
             }
 
             return BuildWatchdogSnapshotUnsafe(state, events, nowUtc);
+        }
+    }
+
+    public IReadOnlyList<AgentSpawnActiveRunEntry> ReadEntriesSnapshot()
+    {
+        using var lease = AcquireStoreLease();
+        lock (_lock)
+        {
+            var state = LoadUnsafe();
+            return state.Runs
+                .Select(CloneEntry)
+                .OrderBy(entry => IsActive(entry) ? 0 : 1)
+                .ThenBy(entry => entry.StartedUtc)
+                .ThenBy(entry => entry.RunId)
+                .ToArray();
         }
     }
 

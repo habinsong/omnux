@@ -27,7 +27,7 @@
 | 멀티 에이전트 Trace 시각화 | ✅ 1차 | `MultiAgentTraceSnapshotService`, `multi_agent_trace_snapshot_get` — agent bus 기반 agents/threads/edges/interventions 읽기 전용 투영 |
 | MCP 서버/클라이언트 | ✅ 1차+ | `McpConfigDiscoveryService`, `McpServerReadinessPolicy`, `mcp_servers_list` — 설정 discovery + read-only readiness audit, 프로세스/JSON-RPC는 보류 |
 | Git worktree 격리 | ✅ 1차+ | `GitWorktreeIsolationManager`, `AgentWorktreeSnapshotService`, `agent_worktree_snapshot_get` — ACP spawn opt-in worktree CWD 주입 + 읽기 전용 inventory |
-| 셀프 힐링/워치독 | ✅ 1차 | `FileAgentSpawnActiveRunStore.EvaluateWatchdog`, 백그라운드 active-run timeout/stale 감지 |
+| 셀프 힐링/워치독 | ✅ 1차+ | `FileAgentSpawnActiveRunStore.EvaluateWatchdog`, `agent_watchdog_snapshot_get` — active-run timeout/stale 감지 + 읽기 전용 inventory |
 | 자동 커밋/PR 생성 | ✅ 1차+ | `GitAutomationSnapshotService`, `git_automation_snapshot_get` — 읽기 전용 변경 감지/커밋 제안 + remote/upstream/gh readiness |
 | Git 단위 타임머신 | ✅ 1차 | `GitTimeMachineSnapshotService`, `git_time_machine_snapshot_get` — 최근 체크포인트/롤백 readiness 읽기 전용 조회 |
 | Durable Workflow | ✅ 1차 | `LogicRunSnapshot` 지속 저장, `LogicRunRecoveryScanner`, `logic_graph_recovery_list` |
@@ -305,6 +305,15 @@
 ## 추천 기능 6: 셀프 힐링 워치독 (Self-Healing Watchdog)
 
 ### 가치: ⭐⭐⭐
+
+### 상태: ✅ 1차+ 구현 / 자동 kill·restart·rollback 보류
+
+- `FileAgentSpawnActiveRunStore.EvaluateWatchdog`가 active run의 run timeout과 heartbeat stale 상태를 감지해 `timeout`/`stale` terminal 상태로 닫는다.
+- `Program.RunAgentWatchdogLoopAsync`가 60초 주기로 `sessions_spawn` active run을 평가한다.
+- `sessions_spawn action=status`는 기존 평가 결과를 포함해 새로 닫힌 watchdog event를 반환한다.
+- `agent_watchdog_snapshot_get`은 active/terminal run inventory를 읽기 전용으로 반환한다. 이 요청은 watchdog 평가를 실행하지 않고 run 상태를 변경하지 않는다.
+- snapshot은 run별 age, heartbeat age, timeout/stale due time, health(`ok`, `timeout_due`, `heartbeat_stale`, `no_run_timeout`, terminal state), rollback metadata를 제공한다.
+- 실제 OS process kill, 자동 재시작, rollback 실행은 destructive side effect와 승인 정책이 필요해 `skipped`로 유지한다.
 
 ### 문제
 
