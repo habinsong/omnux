@@ -14,7 +14,11 @@ public sealed record MemorySearchCitationResult(
     string Snippet,
     double Score,
     string Source
-);
+)
+{
+    public string MemoryTier { get; init; } = MemoryTierPolicy.LongTerm;
+    public long LastAccessedAtUnixMs { get; init; }
+}
 
 public sealed record MemorySearchToolResult(
     IReadOnlyList<MemorySearchCitationResult> Results,
@@ -22,7 +26,7 @@ public sealed record MemorySearchToolResult(
     string? Error
 );
 
-public sealed class MemorySearchTool
+public sealed partial class MemorySearchTool
 {
     private const string DefaultIndexFileName = "main.sqlite";
     private const int DefaultMaxResults = 6;
@@ -92,6 +96,7 @@ public sealed class MemorySearchTool
             MaxCandidateResults,
             Math.Max(resolvedMaxResults, resolvedMaxResults * CandidateMultiplier)
         );
+        var nowUtc = DateTimeOffset.UtcNow;
 
         var parsedRows = new List<SearchRow>(candidateLimit);
         try
@@ -123,7 +128,15 @@ public sealed class MemorySearchTool
                 continue;
             }
 
-            var score = Bm25RankToScore(row.Rank);
+            var memoryTier = row.LastAccessedAt > 0
+                ? MemoryTierPolicy.ResolveTier(row.LastAccessedAt, nowUtc)
+                : MemoryTierPolicy.NormalizeTier(row.MemoryTier);
+            var score = MemoryTierPolicy.ApplyTierScore(
+                Bm25RankToScore(row.Rank),
+                memoryTier,
+                row.LastAccessedAt,
+                nowUtc
+            );
             if (score < resolvedMinScore)
             {
                 continue;
@@ -138,7 +151,11 @@ public sealed class MemorySearchTool
                 Snippet: NormalizeSnippet(row.Snippet),
                 Score: score,
                 Source: NormalizeSource(row.Source)
-            );
+            )
+            {
+                MemoryTier = memoryTier,
+                LastAccessedAtUnixMs = Math.Max(0L, row.LastAccessedAt)
+            };
 
             var key = $"{item.Source}:{item.Path}:{item.StartLine}:{item.EndLine}";
             if (!deduped.TryGetValue(key, out var current) || item.Score > current.Score)
@@ -202,219 +219,6 @@ public sealed class MemorySearchTool
         return Math.Clamp(value.Value, 0d, 1d);
     }
 
-    private static string? BuildFtsQuery(string raw)
-    {
-        var tokens = ExtractTokens(raw);
-        if (tokens.Length == 0)
-        {
-            return null;
-        }
-
-        var keywords = tokens
-            .Where(IsRelaxedKeyword)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(16)
-            .ToArray();
-        if (keywords.Length == 0)
-        {
-            keywords = tokens
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Take(16)
-                .ToArray();
-        }
-
-        return string.Join(" AND ", keywords.Select(QuoteToken));
-    }
-
-    private static string? BuildRelaxedFtsQuery(string raw)
-    {
-        var tokens = ExtractTokens(raw);
-        if (tokens.Length == 0)
-        {
-            return null;
-        }
-
-        var keywords = tokens
-            .Where(IsRelaxedKeyword)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(8)
-            .ToArray();
-
-        if (keywords.Length == 0)
-        {
-            keywords = tokens
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Take(8)
-                .ToArray();
-        }
-
-        if (keywords.Length == 0)
-        {
-            return null;
-        }
-
-        return string.Join(" OR ", keywords.Select(QuoteToken));
-    }
-
-    private static string[] ExtractTokens(string raw)
-    {
-        return FtsTokenRegex
-            .Matches(raw)
-            .Select(match => match.Value.Trim())
-            .Where(token => !string.IsNullOrWhiteSpace(token))
-            .Take(24)
-            .ToArray();
-    }
-
-    private static bool IsRelaxedKeyword(string token)
-    {
-        var normalized = (token ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(normalized))
-        {
-            return false;
-        }
-
-        if (FtsStopWords.Contains(normalized))
-        {
-            return false;
-        }
-
-        if (normalized.Length >= 2)
-        {
-            return true;
-        }
-
-        return normalized.Any(char.IsDigit);
-    }
-
-    private static string QuoteToken(string token)
-    {
-        return $"\"{token.Replace("\"", string.Empty, StringComparison.Ordinal)}\"";
-    }
-
-    private static string BuildSearchSql(string ftsQuery, int candidateLimit)
-    {
-        return
-            "WITH ranked AS ("
-            + " SELECT path, source, start_line, end_line, text, bm25(chunks_fts) AS rank"
-            + " FROM chunks_fts"
-            + $" WHERE chunks_fts MATCH '{EscapeSql(ftsQuery)}'"
-            + " ORDER BY rank ASC"
-            + $" LIMIT {candidateLimit}"
-            + ")"
-            + " SELECT COALESCE(json_group_array(json_object("
-            + " 'path', path,"
-            + " 'source', source,"
-            + " 'startLine', start_line,"
-            + " 'endLine', end_line,"
-            + " 'snippet', text,"
-            + " 'rank', rank"
-            + " )), '[]')"
-            + " FROM ranked;";
-    }
-
-    private IReadOnlyList<SearchRow> QueryRows(string ftsQuery, int candidateLimit)
-    {
-        var jsonRows = QuerySingleValue(BuildSearchSql(ftsQuery, candidateLimit));
-        return ParseRows(jsonRows);
-    }
-
-    private static IReadOnlyList<SearchRow> ParseRows(string json)
-    {
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            return Array.Empty<SearchRow>();
-        }
-
-        using var document = JsonDocument.Parse(json);
-        if (document.RootElement.ValueKind != JsonValueKind.Array)
-        {
-            return Array.Empty<SearchRow>();
-        }
-
-        var rows = new List<SearchRow>(document.RootElement.GetArrayLength());
-        foreach (var item in document.RootElement.EnumerateArray())
-        {
-            if (item.ValueKind != JsonValueKind.Object)
-            {
-                continue;
-            }
-
-            var path = GetString(item, "path");
-            var source = GetString(item, "source");
-            var snippet = GetString(item, "snippet");
-            var startLine = GetInt(item, "startLine");
-            var endLine = GetInt(item, "endLine");
-            var rank = GetDouble(item, "rank");
-
-            rows.Add(new SearchRow(path, source, snippet, startLine, endLine, rank));
-        }
-
-        return rows;
-    }
-
-    private static string GetString(JsonElement element, string propertyName)
-    {
-        if (!element.TryGetProperty(propertyName, out var value))
-        {
-            return string.Empty;
-        }
-
-        if (value.ValueKind == JsonValueKind.String)
-        {
-            return value.GetString() ?? string.Empty;
-        }
-
-        return string.Empty;
-    }
-
-    private static int GetInt(JsonElement element, string propertyName)
-    {
-        if (!element.TryGetProperty(propertyName, out var value))
-        {
-            return 0;
-        }
-
-        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var intValue))
-        {
-            return intValue;
-        }
-
-        if (value.ValueKind == JsonValueKind.String
-            && int.TryParse(value.GetString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
-        {
-            return parsed;
-        }
-
-        return 0;
-    }
-
-    private static double GetDouble(JsonElement element, string propertyName)
-    {
-        if (!element.TryGetProperty(propertyName, out var value))
-        {
-            return 0d;
-        }
-
-        if (value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var doubleValue))
-        {
-            return doubleValue;
-        }
-
-        if (value.ValueKind == JsonValueKind.String
-            && double.TryParse(
-                value.GetString(),
-                NumberStyles.Float | NumberStyles.AllowThousands,
-                CultureInfo.InvariantCulture,
-                out var parsed
-            ))
-        {
-            return parsed;
-        }
-
-        return 0d;
-    }
-
     private static string NormalizeSnippet(string value)
     {
         var normalized = (value ?? string.Empty)
@@ -436,6 +240,7 @@ public sealed class MemorySearchTool
         {
             "memory" => "memory",
             "sessions" => "sessions",
+            "project" => "project",
             _ => "memory"
         };
     }
@@ -529,15 +334,6 @@ public sealed class MemorySearchTool
 
         return text[..400] + "...";
     }
-
-    private sealed record SearchRow(
-        string Path,
-        string Source,
-        string Snippet,
-        int StartLine,
-        int EndLine,
-        double Rank
-    );
 
     private sealed record SqliteProcessResult(
         int ExitCode,

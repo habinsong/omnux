@@ -826,7 +826,9 @@ public sealed partial class WebSocketGateway
             builder.Append($"\"endLine\":{item.EndLine},");
             builder.Append($"\"snippet\":\"{EscapeJson(item.Snippet)}\",");
             builder.Append($"\"score\":{item.Score.ToString("0.####", CultureInfo.InvariantCulture)},");
-            builder.Append($"\"source\":\"{EscapeJson(item.Source)}\"");
+            builder.Append($"\"source\":\"{EscapeJson(item.Source)}\",");
+            builder.Append($"\"memoryTier\":\"{EscapeJson(item.MemoryTier)}\",");
+            builder.Append($"\"lastAccessedAtUnixMs\":{Math.Max(0L, item.LastAccessedAtUnixMs)}");
             builder.Append("}");
         }
 

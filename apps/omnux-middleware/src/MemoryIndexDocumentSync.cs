@@ -440,6 +440,8 @@ public sealed class MemoryIndexDocumentSync
     {
         var chunks = ChunkText(document.Content, DefaultChunkTokens, DefaultChunkOverlap);
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var lastAccessedAt = document.MtimeUnixMs > 0 ? document.MtimeUnixMs : now;
+        var memoryTier = MemoryTierPolicy.ResolveTier(lastAccessedAt, DateTimeOffset.FromUnixTimeMilliseconds(now));
         var sql = new StringBuilder();
         sql.AppendLine("BEGIN;");
         sql.AppendLine($"DELETE FROM chunks WHERE path = '{EscapeSql(document.Path)}' AND source = '{EscapeSql(document.Source)}';");
@@ -452,7 +454,7 @@ public sealed class MemoryIndexDocumentSync
         {
             var id = Sha256Hex($"{document.Source}:{document.Path}:{chunk.StartLine}:{chunk.EndLine}:{chunk.Hash}:{DefaultModelId}");
             sql.AppendLine(
-                "INSERT INTO chunks (id, path, source, start_line, end_line, hash, model, text, embedding, updated_at) VALUES ("
+                "INSERT INTO chunks (id, path, source, start_line, end_line, hash, model, text, embedding, last_accessed_at, memory_tier, updated_at) VALUES ("
                 + $"'{EscapeSql(id)}', "
                 + $"'{EscapeSql(document.Path)}', "
                 + $"'{EscapeSql(document.Source)}', "
@@ -462,6 +464,8 @@ public sealed class MemoryIndexDocumentSync
                 + $"'{EscapeSql(DefaultModelId)}', "
                 + $"'{EscapeSql(chunk.Text)}', "
                 + "'[]', "
+                + $"{lastAccessedAt}, "
+                + $"'{EscapeSql(memoryTier)}', "
                 + $"{now}"
                 + ");"
             );

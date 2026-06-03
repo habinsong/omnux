@@ -40,6 +40,9 @@ public sealed class MemoryIndexSchemaBootstrap
         RunSql(_dbPath, BuildCoreSchemaScript());
         EnsureColumnExists("files", "source", "TEXT NOT NULL DEFAULT 'memory'");
         EnsureColumnExists("chunks", "source", "TEXT NOT NULL DEFAULT 'memory'");
+        EnsureColumnExists("chunks", "last_accessed_at", "INTEGER NOT NULL DEFAULT 0");
+        EnsureColumnExists("chunks", "memory_tier", "TEXT NOT NULL DEFAULT 'long_term'");
+        BackfillChunkMemoryTiers();
 
         var ftsAvailable = false;
         string? ftsError = null;
@@ -76,6 +79,29 @@ public sealed class MemoryIndexSchemaBootstrap
         }
     }
 
+    private void BackfillChunkMemoryTiers()
+    {
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var workingMs = (long)TimeSpan.FromHours(1).TotalMilliseconds;
+        var shortTermMs = (long)TimeSpan.FromHours(24).TotalMilliseconds;
+        var episodicMs = (long)TimeSpan.FromDays(7).TotalMilliseconds;
+        var sql = new StringBuilder();
+        sql.AppendLine(
+            "UPDATE chunks SET last_accessed_at = COALESCE("
+            + "(SELECT files.mtime FROM files WHERE files.path = chunks.path AND files.source = chunks.source), "
+            + "updated_at, 0"
+            + ") WHERE last_accessed_at <= 0;"
+        );
+        sql.AppendLine("UPDATE chunks SET memory_tier = CASE");
+        sql.AppendLine($"  WHEN last_accessed_at <= 0 THEN '{MemoryTierPolicy.LongTerm}'");
+        sql.AppendLine($"  WHEN {now} - last_accessed_at < {workingMs} THEN '{MemoryTierPolicy.Working}'");
+        sql.AppendLine($"  WHEN {now} - last_accessed_at < {shortTermMs} THEN '{MemoryTierPolicy.ShortTerm}'");
+        sql.AppendLine($"  WHEN {now} - last_accessed_at < {episodicMs} THEN '{MemoryTierPolicy.Episodic}'");
+        sql.AppendLine($"  ELSE '{MemoryTierPolicy.LongTerm}'");
+        sql.AppendLine("END WHERE last_accessed_at > 0 OR memory_tier IS NULL OR memory_tier = '';");
+        RunSql(_dbPath, sql.ToString());
+    }
+
     private static string BuildCoreSchemaScript()
     {
         var now = EscapeSql(DateTimeOffset.UtcNow.ToString("O"));
@@ -102,6 +128,8 @@ public sealed class MemoryIndexSchemaBootstrap
         builder.AppendLine("  model TEXT NOT NULL,");
         builder.AppendLine("  text TEXT NOT NULL,");
         builder.AppendLine("  embedding TEXT NOT NULL,");
+        builder.AppendLine("  last_accessed_at INTEGER NOT NULL DEFAULT 0,");
+        builder.AppendLine("  memory_tier TEXT NOT NULL DEFAULT 'long_term',");
         builder.AppendLine("  updated_at INTEGER NOT NULL");
         builder.AppendLine(");");
         builder.AppendLine("CREATE TABLE IF NOT EXISTS embedding_cache (");
