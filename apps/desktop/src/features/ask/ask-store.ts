@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { create } from "zustand";
 import { requestDesktopAsk, requestDesktopSettings, subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
+import { requestDesktopRag } from "../middleware/rag-gateway";
 import { requestConfirmDialog, requestPromptDialog } from "../dialog/dialog-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
 
@@ -26,17 +27,29 @@ export type AskMultiResult = {
   providers: Array<{ key: string; label: string; model: string; text: string }>;
 };
 
+export type AskRagPreflight = {
+  status: string;
+  queryPreview: string;
+  retrievalRecommended: boolean;
+  primaryStrategy: string;
+  signals: string[];
+  candidates: Array<{ kind: string; priority: string; recommended: boolean; reason: string; suggestedRequestType: string }>;
+  skipped: string[];
+};
+
 type AskState = {
   conversations: AskConversationItem[];
   memoryNotes: Array<{ name: string; excerpt: string }>;
   messages: AskMessage[];
   chatMode: AskChatMode;
   multiResult: AskMultiResult | null;
+  ragPreflight: AskRagPreflight | null;
   activeConversationId: string | null;
   searchQuery: string;
   searchResults: Array<{ conversationId: string; title: string; snippet: string }>;
   input: string;
   pending: boolean;
+  ragPending: boolean;
   loadingConversations: boolean;
   loadingMemoryNotes: boolean;
   searching: boolean;
@@ -52,6 +65,8 @@ type AskState = {
   saveConversationToMemory: (item: AskConversationItem) => void;
   searchConversations: (query: string) => void;
   clearSearch: () => void;
+  runRagPreflight: () => void;
+  clearRagPreflight: () => void;
   sendMessage: () => void;
 };
 
@@ -98,17 +113,45 @@ function normalizeMultiResult(message: DesktopServerMessage): AskMultiResult {
   };
 }
 
+function records(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
+}
+
+function str(value: unknown): string {
+  return typeof value === "string" ? value : value == null ? "" : String(value);
+}
+
+function normalizeRagPreflight(payload: Record<string, unknown>): AskRagPreflight {
+  return {
+    status: str(payload.status),
+    queryPreview: str(payload.queryPreview),
+    retrievalRecommended: !!payload.retrievalRecommended,
+    primaryStrategy: str(payload.primaryStrategy),
+    signals: Array.isArray(payload.signals) ? payload.signals.map(str) : [],
+    candidates: records(payload.candidates).map((candidate) => ({
+      kind: str(candidate.kind),
+      priority: str(candidate.priority),
+      recommended: !!candidate.recommended,
+      reason: str(candidate.reason),
+      suggestedRequestType: str(candidate.suggestedRequestType)
+    })),
+    skipped: Array.isArray(payload.skipped) ? payload.skipped.map(str) : []
+  };
+}
+
 export const useAskStore = create<AskState>((set, get) => ({
   conversations: [],
   memoryNotes: [],
   messages: [],
   chatMode: "single",
   multiResult: null,
+  ragPreflight: null,
   activeConversationId: null,
   searchQuery: "",
   searchResults: [],
   input: "",
   pending: false,
+  ragPending: false,
   loadingConversations: false,
   loadingMemoryNotes: false,
   searching: false,
@@ -195,6 +238,15 @@ export const useAskStore = create<AskState>((set, get) => ({
     }
   },
   clearSearch: () => set({ searchQuery: "", searchResults: [], searching: false }),
+  runRagPreflight: () => {
+    const query = String(get().input || "").trim();
+    if (!query) return;
+    set({ ragPending: true, ragPreflight: null, lastError: null });
+    if (!requestDesktopRag.preflight(query)) {
+      set({ ragPending: false, lastError: "RAG preflight 요청을 전송하지 못했다." });
+    }
+  },
+  clearRagPreflight: () => set({ ragPreflight: null, ragPending: false }),
   sendMessage: () => {
     const text = String(get().input || "").trim();
     if (!text) {
@@ -248,6 +300,15 @@ export function useAskPageBridge() {
       return;
     }
 
+    if (message.type === "rag_retrieval_preflight_snapshot") {
+      useAskStore.setState({
+        ragPending: false,
+        ragPreflight: normalizeRagPreflight((message.payload || {}) as Record<string, unknown>),
+        lastError: null
+      });
+      return;
+    }
+
     if (message.type === "conversation_created" || message.type === "conversation_deleted") {
       useAskStore.getState().loadConversations();
       return;
@@ -286,7 +347,7 @@ export function useAskPageBridge() {
     }
 
     if (message.type === "error") {
-      useAskStore.setState({ pending: false, searching: false, loadingConversations: false, loadingMemoryNotes: false, lastError: String(message.message || "오류") });
+      useAskStore.setState({ pending: false, ragPending: false, searching: false, loadingConversations: false, loadingMemoryNotes: false, lastError: String(message.message || "오류") });
     }
     });
   }, []);

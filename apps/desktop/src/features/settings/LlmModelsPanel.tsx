@@ -101,6 +101,28 @@ export function LlmModelsPanel({ store, canRequest, onError }: { store: ReturnTy
         </Button>
       </CardBoundary>
 
+      <CardBoundary title="API 사용량 / Copilot Premium" card="logs" onError={onError}>
+        {store.llmUsage ? (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-md border border-border bg-card/60 p-3">
+              <div className="text-xs text-muted-foreground">Gemini 누적 토큰</div>
+              <div className="mt-0.5 font-mono text-lg font-semibold tabular-nums">{store.llmUsage.geminiTotalTokens.toLocaleString()}</div>
+              <div className="text-[11px] text-muted-foreground">추정 비용 ${store.llmUsage.geminiCostUsd}</div>
+            </div>
+            <div className="rounded-md border border-border bg-card/60 p-3">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>Copilot Premium</span>
+                <Badge tone={store.llmUsage.copilotAvailable ? "success" : "outline"}>{store.llmUsage.copilotPlan}</Badge>
+              </div>
+              <div className="mt-0.5 font-mono text-lg font-semibold tabular-nums">{store.llmUsage.copilotPercentUsed}%</div>
+              <div className="text-[11px] text-muted-foreground">{store.llmUsage.copilotUsedRequests} / {store.llmUsage.copilotMonthlyQuota} req</div>
+            </div>
+          </div>
+        ) : (
+          <p className="py-4 text-center text-xs text-muted-foreground">상태 조회 시 Gemini 토큰·Copilot Premium 쿼터가 표시됩니다.</p>
+        )}
+      </CardBoundary>
+
       <CardBoundary title="API 키" card="operations" onError={onError}>
         <p className="text-xs text-muted-foreground">키는 입력 후 저장하면 미들웨어 키체인/영속 저장소로 전달되며, 입력란에는 다시 표시되지 않습니다.</p>
         <label className={FIELD_LABEL}>

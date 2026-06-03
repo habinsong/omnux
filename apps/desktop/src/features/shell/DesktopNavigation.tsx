@@ -13,7 +13,14 @@ export type DesktopPageId =
   | "automate"
   | "settings"
   | "operations"
-  | "activity";
+  | "activity"
+  | "insights"
+  | "notebooks"
+  | "skills"
+  | "routing"
+  | "planning"
+  | "refactor"
+  | "agents";
 
 export type DesktopPageDefinition = {
   id: DesktopPageId;

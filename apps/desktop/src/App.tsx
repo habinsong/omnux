@@ -7,6 +7,13 @@ import { LogicPage } from "./features/logic/LogicPage";
 import { AutomatePage } from "./features/automate/AutomatePage";
 import { ExplorePage } from "./features/explore/ExplorePage";
 import { OperationsPage } from "./features/ops/OperationsPage";
+import { InsightsPage } from "./features/insights/InsightsPage";
+import { NotebookPage } from "./features/notebooks/NotebookPage";
+import { SkillsPage } from "./features/skills/SkillsPage";
+import { RoutingPolicyPage } from "./features/routing/RoutingPolicyPage";
+import { PlanningPage } from "./features/planning/PlanningPage";
+import { RefactorPage } from "./features/refactor/RefactorPage";
+import { AgentsPage } from "./features/agents/AgentsPage";
 import { ProjectsPage } from "./features/projects/ProjectsPage";
 import {
   DesktopNavigation,
@@ -35,7 +42,14 @@ import {
   Play,
   Settings,
   Shield,
-  Activity
+  Activity,
+  BarChart3,
+  NotebookPen,
+  Wand2,
+  Route as RouteIcon,
+  ClipboardList,
+  Replace,
+  Bot
 } from "lucide-react";
 
 function App() {
@@ -65,6 +79,13 @@ function App() {
         render: () => <ActivityPage />
       },
       { id: "logic", label: "로직", description: "Logic", icon: Workflow, render: () => <LogicPage /> },
+      { id: "insights", label: "인사이트", description: "Insights", icon: BarChart3, render: () => <InsightsPage /> },
+      { id: "notebooks", label: "노트북", description: "Notebooks", icon: NotebookPen, render: () => <NotebookPage /> },
+      { id: "skills", label: "스킬", description: "Skills", icon: Wand2, render: () => <SkillsPage /> },
+      { id: "routing", label: "라우팅", description: "Routing", icon: RouteIcon, render: () => <RoutingPolicyPage /> },
+      { id: "planning", label: "계획", description: "Plans & Tasks", icon: ClipboardList, render: () => <PlanningPage /> },
+      { id: "refactor", label: "리팩터", description: "Safe Refactor", icon: Replace, render: () => <RefactorPage /> },
+      { id: "agents", label: "에이전트", description: "Agents", icon: Bot, render: () => <AgentsPage /> },
       { id: "settings", label: "설정", description: "Settings", icon: Settings, render: () => <SettingsPage /> },
       { id: "operations", label: "운영", description: "Operations", icon: Shield, render: () => <OperationsPage /> },
       { id: "shell", label: "셸", description: "Shell", icon: LayoutDashboard, render: () => <ShellOverviewPage /> }

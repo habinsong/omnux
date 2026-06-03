@@ -1242,7 +1242,7 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   );
 
   const rawGatewayLeaks = frontendFiles
-    .filter((filePath) => toRelative(filePath) !== "apps/desktop/src/features/middleware/desktop-message-gateway.ts")
+    .filter((filePath) => !toRelative(filePath).startsWith("apps/desktop/src/features/middleware/"))
     .filter((filePath) => readFileSync(filePath, "utf8").includes("sendDesktopRequest("))
     .map(toRelative);
   assertionCount += 1;
