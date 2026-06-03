@@ -61,9 +61,16 @@
 - `ptySessionEnabled=false` 상태에서는 시작/입력/중단 컨트롤을 비활성으로 보여준다.
 - 실제 PTY 세션 생성, stdin/stdout 스트리밍, 자동 repair loop는 백엔드 정책상 보류 상태라 실행하지 않는다.
 
+### MCP readiness 상세화
+
+- 인사이트 화면의 `MCP 서버` 패널이 `mcp_servers_list` 상세 응답을 표시하도록 확장했다.
+- config 후보 파일, 발견 서버 수, discovery error, scanned time을 표시한다.
+- 서버별 transport, command/url, args preview, working directory, env key 이름, readiness check를 표시한다.
+- MCP process start, JSON-RPC handshake, tool registry 주입은 백엔드 정책상 보류 상태라 비활성 컨트롤로만 표시한다.
+
 ## 다음 연결 후보
 
-- MCP process/JSON-RPC 1차: MCP readiness를 실제 프로세스 lifecycle로 확장하되 Terminal 승인 모델 재사용.
+- Ask/Insights store 파일 분리: `ask-store.ts`, `InsightsPage.tsx`가 500줄 제한에 가까워 다음 관련 작업 전 분리 필요.
 
 ## 주의
 
