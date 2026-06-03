@@ -19,6 +19,22 @@
   - `agent_group_command`는 실제 프로세스 정지나 작업 취소를 실행하지 않는다.
   - 명령을 `kind=command` 메시지로 저장해 프론트/상위 오케스트레이터가 확인할 수 있게 한다.
 
+## 구현됨: 멀티 에이전트 Trace projection 1차
+
+- 후보 문서 항목: Phase 6-8 `멀티 에이전트 토론 및 오케스트레이션 시각화`
+- 백엔드 구현:
+  - `MultiAgentTraceSnapshotService`
+  - `WsMultiAgentTraceCommandDispatcher`
+- 동작:
+  - 기존 agent bus의 messages/board/lifecycle을 읽어 시각화용 `agents`, `threads`, `edges`, `interventions`로 투영한다.
+  - agent id의 planner/coder/reviewer/qa/human/supervisor signal로 role을 휴리스틱 분류한다.
+  - `correlationId`, `runId`, `groupId`, `conversationId` 우선순위로 토론 thread를 묶는다.
+  - command 메시지, failed/blocked lifecycle, board blocked/needs_review/waiting 상태를 human-in-the-loop intervention 후보로 표시한다.
+- 현재 안전 정책:
+  - 이 요청은 `readOnly=true`이며 agent bus를 수정하지 않는다.
+  - 실시간 broadcast, agent 강제 중단, 투표/합의 실행은 아직 하지 않는다.
+  - 프론트는 이 snapshot을 슬랙형 thread, 칸반/그래프, 개입 필요 카드 표시용으로 사용한다.
+
 ## 구현됨: 컨텍스트 적응형 압축 정책
 
 - 후보 문서 항목: 추천 기능 1 `컨텍스트 적응형 압축`
@@ -1268,6 +1284,104 @@ Ollama/LM Studio 같은 로컬 LLM endpoint의 모델 discovery 스냅샷을 조
   "limit": 100
 }
 ```
+
+### `multi_agent_trace_snapshot_get`
+
+agent bus를 시각화용 trace graph로 조회한다. 기존 agent bus 저장소를 수정하지 않는다.
+
+요청:
+
+```json
+{
+  "type": "multi_agent_trace_snapshot_get",
+  "groupId": "group-1",
+  "runId": "run-1",
+  "sinceUtc": "2026-06-04T00:00:00Z",
+  "limit": 100
+}
+```
+
+응답:
+
+```json
+{
+  "type": "multi_agent_trace_snapshot",
+  "payload": {
+    "status": "ok",
+    "readOnly": true,
+    "agents": [
+      {
+        "agentId": "coder-1",
+        "role": "coder",
+        "state": "running",
+        "groupId": "group-1",
+        "runId": "run-1",
+        "messageCount": 3,
+        "boardEntryCount": 1,
+        "lifecycleEventCount": 2,
+        "lastSeenUtc": "2026-06-04T00:00:00Z"
+      }
+    ],
+    "threads": [
+      {
+        "threadId": "corr:request-1",
+        "groupId": "group-1",
+        "runId": "run-1",
+        "correlationId": "request-1",
+        "title": "critique: reviewer-1 -> coder-1",
+        "messageCount": 2,
+        "messages": [
+          {
+            "id": "agentmsg_...",
+            "fromAgentId": "reviewer-1",
+            "toAgentId": "coder-1",
+            "kind": "critique",
+            "role": "reviewer",
+            "bodyPreview": "needs review: conflict",
+            "createdUtc": "2026-06-04T00:00:00Z"
+          }
+        ],
+        "firstMessageUtc": "2026-06-04T00:00:00Z",
+        "lastMessageUtc": "2026-06-04T00:00:00Z"
+      }
+    ],
+    "edges": [
+      {
+        "fromAgentId": "reviewer-1",
+        "toAgentId": "coder-1",
+        "groupId": "group-1",
+        "runId": "run-1",
+        "kind": "critique",
+        "messageCount": 1,
+        "lastMessageUtc": "2026-06-04T00:00:00Z"
+      }
+    ],
+    "interventions": [
+      {
+        "sourceId": "agentmsg_...",
+        "source": "message",
+        "severity": "warning",
+        "reason": "group_command",
+        "agentId": "human",
+        "groupId": "group-1",
+        "runId": "run-1",
+        "message": "사용자 승인 필요",
+        "createdUtc": "2026-06-04T00:00:00Z"
+      }
+    ],
+    "messageCount": 3,
+    "boardEntryCount": 1,
+    "lifecycleEventCount": 2,
+    "snapshotUtc": "2026-06-04T00:00:00Z"
+  }
+}
+```
+
+- `status`는 `ok` 또는 `no_activity`다.
+- `threads[].messages`는 thread별 최근 20개 preview만 포함한다.
+- `bodyPreview`와 intervention `message`는 최대 240자 preview다.
+- role 분류는 agent id 기반 heuristic이다. UI에서는 수정 가능한 label처럼 표시하는 편이 안전하다.
+- 이 endpoint는 broadcast가 아니라 조회형 snapshot이다. 프론트가 필요 주기로 polling하거나 기존 agent bus 이벤트 후 재조회한다.
 
 응답:
 

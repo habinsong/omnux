@@ -22,6 +22,7 @@
 | 핸드오프 | ✅ | `WsNotebookCommandDispatcher` |
 | 컨텍스트 적응형 압축 | ✅ | `AdaptiveContextCompressionPolicy`, 토큰/문자/메시지 임계치 기반 자동 압축 |
 | 에이전트 간 메시지 패싱 | ✅ | `AgentCommunicationApplicationService`, `FileAgentCommunicationStore`, `WsAgentCommandDispatcher` |
+| 멀티 에이전트 Trace 시각화 | ✅ 1차 | `MultiAgentTraceSnapshotService`, `multi_agent_trace_snapshot_get` — agent bus 기반 agents/threads/edges/interventions 읽기 전용 투영 |
 | MCP 서버/클라이언트 | ✅ 1차+ | `McpConfigDiscoveryService`, `McpServerReadinessPolicy`, `mcp_servers_list` — 설정 discovery + read-only readiness audit, 프로세스/JSON-RPC는 보류 |
 | Git worktree 격리 | ✅ 1차 | `GitWorktreeIsolationManager`, `SessionSpawnTool` — ACP spawn opt-in worktree CWD 주입 |
 | 셀프 힐링/워치독 | ✅ 1차 | `FileAgentSpawnActiveRunStore.EvaluateWatchdog`, 백그라운드 active-run timeout/stale 감지 |
@@ -1114,6 +1115,14 @@
 - **Critique 프로토콜**: 리뷰어 에이전트가 코더의 결과를 구조화된 형식으로 비폭. 긍정/부정/제안을 분리하여 저장
 - **투표/합의 메커니즘**: 여러 에이전트의 의견이 충돌할 때 다수결 또는 가중치 투표로 결정
 - **Human-in-the-loop 개입점**: 에이전트 간 합의 불가, 비용 초과, 롤백 필요 시 사용자에게 개입 요청
+
+### 상태: ✅ 1차 trace projection 구현 / 실시간 브로드캐스트 보류
+
+- `multi_agent_trace_snapshot_get`은 기존 `AgentCommunicationApplicationService`의 messages/board/lifecycle을 읽어 agents, threads, edges, interventions로 투영한다.
+- role은 agent id의 planner/coder/reviewer/qa/human/supervisor signal로 휴리스틱 분류한다.
+- thread는 `correlationId`, `runId`, `groupId`, `conversationId` 우선순위로 묶고, edge는 agent 간 메시지 흐름을 계산한다.
+- command, blocked/failed/needs_review 상태, human/approval/rollback/conflict 신호는 intervention 후보로 반환한다.
+- 실시간 WebSocket broadcast, 실제 투표/합의 실행, agent 제어/중단은 기존 안전 정책상 보류한다.
 
 
 ### 개발 가이드 (Implementation Guide)
