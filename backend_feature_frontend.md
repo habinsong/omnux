@@ -194,11 +194,12 @@
   - Python/Node/C/C++ 내부에서 직접 여는 네트워크나 파일 접근까지 정적 차단하지 않는다.
   - 이번 단계는 shell runner의 명백한 고위험 명령 차단에 한정한다.
 
-## 구현됨: MCP 서버 설정 discovery 1차
+## 구현됨: MCP 서버 설정 discovery + readiness audit 1차
 
 - 후보 문서 항목: 추천 기능 4 `MCP 서버 지원`
 - 백엔드 구현:
   - `McpConfigDiscoveryService`
+  - `McpServerReadinessPolicy`
   - `WsMcpCommandDispatcher`
 - 스캔 대상:
   - `.mcp.json`
@@ -207,7 +208,9 @@
   - `.codeium/windsurf/mcp_config.json`
 - 동작:
   - config의 `mcpServers` 또는 `servers` object를 읽는다.
-  - 서버별 `name`, `transport`, `command`, `argsPreview`, `url`, `envKeys`, `enabled`, `status`를 반환한다.
+  - 서버별 `name`, `transport`, `command`, `argsPreview`, `url`, `envKeys`, `enabled`, `status`, `readiness`를 반환한다.
+  - `stdio` 서버는 command/cwd가 filesystem 또는 PATH에서 해석 가능한지만 검사한다.
+  - remote 서버는 transport와 URL 문법만 검사하고 handshake는 `skipped`로 둔다.
   - env 값은 절대 반환하지 않는다.
   - token/api-key/password/secret 계열 args와 URL query 값은 `<redacted>`로 마스킹한다.
 - 현재 안전 정책:
@@ -633,7 +636,22 @@ OMNUX_AGENT_SPAWN_WORKTREE_MODE=auto|on|enabled|true|1
         "envKeyCount": 1,
         "enabled": true,
         "status": "discovered",
-        "message": "stdio server config discovered; process launch is not enabled yet"
+        "message": "stdio server config discovered; process launch is not enabled yet",
+        "readiness": {
+          "status": "ready_to_launch",
+          "checks": [
+            {
+              "name": "working_directory",
+              "status": "ok",
+              "message": "no working directory override"
+            },
+            {
+              "name": "command",
+              "status": "ok",
+              "message": "command is resolvable"
+            }
+          ]
+        }
       }
     ],
     "errors": [],
@@ -644,6 +662,8 @@ OMNUX_AGENT_SPAWN_WORKTREE_MODE=auto|on|enabled|true|1
 ```
 
 - `status`는 `discovered`, `disabled`, `invalid` 중 하나다.
+- `readiness.status`는 `ready_to_launch`, `remote_unverified`, `blocked`, `disabled` 중 하나다.
+- `readiness.checks[].status`는 `ok`, `failed`, `skipped` 중 하나다.
 - `configFiles[].status`는 `missing`, `ok`, `empty`, `invalid`, `error` 중 하나다.
 - `envKeys`에는 key만 포함되며 값은 내려오지 않는다.
 - `argsPreview`와 `url`은 민감값 redaction 후 내려온다.
@@ -1036,7 +1056,7 @@ Ollama/LM Studio 같은 로컬 LLM endpoint의 모델 discovery 스냅샷을 조
 - 보드 영역은 `payload.board`를 `groupId/runId` 기준으로 묶어 표시한다.
 - 타임라인은 `payload.lifecycle`와 `payload.messages`를 시간순으로 합쳐 표시한다.
 - 그룹 제어 버튼은 우선 `agent_group_command`만 호출하고, 실제 강제 중단은 추후 백엔드 제어 훅이 추가된 뒤 연결한다.
-- MCP 설정 패널은 `mcp_servers_list`를 호출해 발견된 서버와 invalid/error config를 표시한다. `status=discovered`는 "연결 가능 후보"이지 "실행 중"이 아니다.
+- MCP 설정 패널은 `mcp_servers_list`를 호출해 발견된 서버와 invalid/error config를 표시한다. `status=discovered`는 "연결 가능 후보"이지 "실행 중"이 아니다. `readiness.status=blocked`는 command/cwd/transport/URL 설정 오류로 표시하고, `remote_unverified`는 handshake 미실행 상태로 표시한다.
 - Commit learning 패널은 `commit_learning_snapshot_get`을 호출해 최근 커밋 intent 분포와 자주 바뀌는 파일 hotspot을 표시한다. intent는 heuristic이므로 자동 규칙 적용 근거가 아니라 관찰용으로 둔다.
 - Worktree isolation은 새 WS 타입이 없다. 세션 결과 note와 child session timeline의 `sessions_spawn_worktree_*` / `sessions_spawn_acp_dispatch` metadata를 읽어 표시한다.
 - Git automation 패널은 `git_automation_snapshot_get`으로 현재 변경 파일, readiness, 커밋 메시지 초안을 표시한다. 실제 커밋/PR 버튼은 아직 백엔드 실행 API가 없으므로 비활성 상태로 둔다.
@@ -1054,7 +1074,7 @@ Ollama/LM Studio 같은 로컬 LLM endpoint의 모델 discovery 스냅샷을 조
 - Git worktree merge/cherry-pick/cleanup UI: 1차는 ACP 실행 CWD 격리까지만 구현했다. 완료 후 메인 브랜치 반영, 충돌 해결, 오래된 worktree 정리는 별도 백엔드 정책이 필요하다.
 - 계층적 메모리 deep archive/cascading retrieval/ADR 저장소: 1차는 FTS score와 metadata 확장까지만 구현했다. 실제 접근 이벤트 수집과 ADR 데이터 모델은 별도 설계가 필요하다.
 - Tree-sitter/Repomap 본도입: 1차는 외부 의존성 없는 선언 경계 청킹이다. 실제 AST parser, 언어별 grammar, Repomap 프롬프트 주입은 별도 검증 후 붙인다.
-- MCP 서버 프로세스/JSON-RPC/tool registry 주입: 1차는 설정 discovery만 구현했다. 실제 실행은 서드파티 프로세스 권한/격리와 MCP handshake 정책이 필요해 보류한다.
+- MCP 서버 프로세스/JSON-RPC/tool registry 주입: 1차는 설정 discovery와 read-only readiness audit만 구현했다. 실제 실행은 서드파티 프로세스 권한/격리와 MCP handshake 정책이 필요해 보류한다.
 - 커밋 히스토리 LLM 학습/자동 주입: 1차는 읽기 전용 snapshot이다. LLM 요약, memory/skill 자동 저장, nightly 자기 개선은 사용자 변경 오염 위험이 있어 보류한다.
 - 자동 커밋/PR 실제 실행: 1차는 read-only snapshot만 제공한다. `git add`, `git commit`, branch 생성, `gh pr create`는 사용자 승인/충돌/권한 정책이 필요해 보류한다.
 - Nightly 자기 개선 자동 실행: 1차는 read-only proposal snapshot만 제공한다. 실제 야간 루틴 등록, LLM 선호도 분석, `SKILL.md` 자동 갱신은 사용자 승인/충돌 정책이 필요하다.
