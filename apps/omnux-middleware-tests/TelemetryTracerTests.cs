@@ -14,6 +14,11 @@ public sealed class TelemetryTracerTests
             "gemini-test",
             $"{string.Join('\n', Enumerable.Repeat("고정 프로젝트 문맥", 120))}\n\n사용자 입력:\n요청"
         );
+        var modelRouting = ModelRoutingReadinessPolicy.Analyze(
+            "gemini",
+            "gemini-test",
+            "이 JSON을 요약하고 핵심 필드만 추출해줘."
+        );
 
         using (var scope = tracer.StartLlmCall(new TelemetryLlmCallRequest(
                    "gemini",
@@ -22,7 +27,8 @@ public sealed class TelemetryTracerTests
                    MaxOutputTokens: 512,
                    Streaming: false,
                    Source: "test",
-                   PromptCache: promptCache
+                   PromptCache: promptCache,
+                   ModelRouting: modelRouting
                )))
         {
             scope.Complete(
@@ -52,9 +58,14 @@ public sealed class TelemetryTracerTests
         Assert.Equal(promptCache.CacheKey, item.PromptCacheKey);
         Assert.Equal(promptCache.AffinityKey, item.PromptCacheAffinityKey);
         Assert.Equal(promptCache.EstimatedStaticPrefixTokens, item.PromptCacheStaticTokens);
+        Assert.Equal(modelRouting.Complexity, item.ModelRoutingComplexity);
+        Assert.Equal(modelRouting.RecommendedTier, item.ModelRoutingRecommendedTier);
+        Assert.Equal(modelRouting.CascadeEligible, item.ModelRoutingCascadeEligible);
+        Assert.Equal(modelRouting.EstimatedInputTokens, item.ModelRoutingEstimatedInputTokens);
         Assert.Equal(15, snapshot.Total.TotalTokens);
         Assert.DoesNotContain("정상 응답 본문", TelemetryTraceJson.SerializeSnapshot(snapshot));
         Assert.Contains("\"promptCacheEligible\":true", TelemetryTraceJson.SerializeSnapshot(snapshot));
+        Assert.Contains("\"modelRoutingComplexity\":\"simple\"", TelemetryTraceJson.SerializeSnapshot(snapshot));
     }
 
     [Fact]

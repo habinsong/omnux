@@ -30,6 +30,12 @@ public sealed record TelemetryTraceEvent(
     public long PromptCacheStaticTokens { get; init; }
     public string PromptCacheStrategy { get; init; } = string.Empty;
     public string PromptCacheReason { get; init; } = string.Empty;
+    public string ModelRoutingComplexity { get; init; } = string.Empty;
+    public string ModelRoutingRecommendedTier { get; init; } = string.Empty;
+    public bool ModelRoutingCascadeEligible { get; init; }
+    public long ModelRoutingEstimatedInputTokens { get; init; }
+    public string ModelRoutingSignals { get; init; } = string.Empty;
+    public string ModelRoutingReason { get; init; } = string.Empty;
 }
 
 public sealed record TelemetryTraceQuery(
@@ -82,7 +88,8 @@ internal sealed record TelemetryLlmCallRequest(
     int MaxOutputTokens,
     bool Streaming,
     string Source,
-    PromptCachePlan? PromptCache = null
+    PromptCachePlan? PromptCache = null,
+    ModelRoutingPlan? ModelRouting = null
 );
 
 public sealed class TelemetryTraceState

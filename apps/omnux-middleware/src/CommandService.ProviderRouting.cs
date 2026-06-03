@@ -22,6 +22,8 @@ public sealed partial class CommandService
         var requestedModel = normalized == "groq"
             ? ResolveGroqModelForInput(safeInput, model)
             : ResolveProviderModel(normalized, model);
+        var promptCache = PromptCachePolicy.Analyze(normalized, requestedModel, safeInput);
+        var modelRouting = ModelRoutingReadinessPolicy.Analyze(normalized, requestedModel, safeInput);
         using var telemetry = _telemetryTracer.StartLlmCall(new TelemetryLlmCallRequest(
             normalized,
             requestedModel,
@@ -29,7 +31,8 @@ public sealed partial class CommandService
             requestedMaxOutputTokens,
             streamCallback != null,
             "command_service",
-            PromptCachePolicy.Analyze(normalized, requestedModel, safeInput)
+            promptCache,
+            modelRouting
         ));
 
         try
