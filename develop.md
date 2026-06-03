@@ -207,13 +207,13 @@ git diff --check
 
 ## 5. UI 전환 및 마이그레이션 진척도 (Phase 1~5)
 
-전체 WS 연결률: 67/93 (72%). Phase 1~4 완료 시 93/93 (100%).
+전체 WS 연결률: 69/93 (74%). Phase 1~4 완료 시 93/93 (100%). (sessions_send/spawn은 결함 #9 안전작업으로 별도 분리 — Phase 3 분모에서 제외)
 
 | 단계 (Phase) | 상태 | 목표 및 내용 |
 |---|---|---|
 | **Phase 1. Routine CRUD** | ✅ 완료 | Automate 화면 루틴 연결 완료 (`create`, `run`, `delete` 등) |
 | **Phase 2. Conversation + Memory** | ✅ 완료 | 대화 관리(6개) + 메모리 CRUD(8개) + 백업(3개) WS 연결 완료 (Ask 대화 CRUD·검색, Settings 메모리 CRUD, 백업/복원·Cloud Sync) |
-| **Phase 3. Web/Browser/Sessions** | 🟡 진행 중 | 웹 검색·URL fetch·세션 list/history 연결(새 Explore 화면). browser/canvas·sessions_send/spawn은 읽기 패널 범위 밖(에이전트 스폰) |
+| **Phase 3. Web/Browser/Sessions** | ✅ 완료 (범위 재조정) | 새 Explore 화면: 웹 검색·URL fetch·세션 list/history·browser·canvas 연결. sessions_send/spawn은 결함 #9(멀티 에이전트 스폰 안전 UX)로 분리해 Phase 3 범위에서 제외 |
 | **Phase 4. Doctor/Cleanup/Task** | 🔴 대기 | Doctor 수정(2개) + Cleanup(2개) + Task(3개) + 기타 설정 WS 연결 |
 | **Phase 5. Tauri 마이그레이션** | 🟡 진행 중 | React+Vite+Tauri 기반 데스크톱 앱으로 전면 전환 |
 
@@ -241,7 +241,8 @@ git diff --check
 - 새 `Explore`(탐색) 화면을 추가했다(`explore.js` + `modules/explore-page-state.js`, NAV/`app-shell-render` PAGES/`bootstrap` 등록). 탭 3개: 웹 검색(`web_search`→`web_search_result`), URL 가져오기(`web_fetch`→`web_fetch_result`), 세션(`sessions_list`→`sessions_list_result`, 행 클릭 시 `sessions_history`→`sessions_history_result`). 응답은 `omnux:message`로 수신하고, 결과 패널/본문 pre/세션 이력 메시지를 렌더한다.
 - `ws-web.js`/`ws-sessions.js`는 요청 계약 헬퍼(기존 ws-*.js와 동일 스타일)이고 실제 전송은 hook 인라인(ask/settings 패턴 일치).
 - 브라우저 프리뷰에서 3개 탭 모두 end-to-end 확인: 검색(검색 중→provider 배지→결과/링크), URL fetch(가져오는 중→HTTP status→chars→본문 pre), 세션(목록→선택→이력 메시지)을 콘솔 에러 없이 검증.
-- 의도적 제외: `browser`/`canvas`(브라우저 자동화)와 `sessions_send`/`sessions_spawn`(멀티 에이전트 스폰, 결함 #9)은 단순 읽기 패널 범위 밖이라 연결하지 않음.
+- `browser`/`canvas`도 Explore 탭으로 추가했다: 브라우저(`browser` status/start/stop/open/focus → `browser_result`: running·adapter·activeUrl·탭 목록), 캔버스(`canvas` status/present/hide/navigate/snapshot → `canvas_result`: visible·adapter·url·snapshot). 프리뷰에서 status→결과 렌더를 콘솔 에러 없이 확인.
+- **범위 재조정(사용자 합의)**: Phase 3의 "웹 4 + 세션 4 = 8" 산정에서 `sessions_send`/`sessions_spawn`은 멀티 에이전트 스폰(결함 #9)이라 비용 캡·브레이커 안전 UX와 묶어야 하는 별도 작업으로 분리했다. 따라서 Phase 3 분모를 6(web_search·web_fetch·browser·canvas·sessions_list·sessions_history)으로 재조정하고 ✅ 완료로 둔다. spawn/send는 결함 #9 트랙에서 안전장치와 함께 다룬다.
 
 **Phase 4 — Doctor 자동수정 / Cleanup / Task 잔여 처리**
 1. `ws-doctor.js`, `ws-cleanup.js`, `ws-tasks.js`, `ws-plans.js` 확장 작성.

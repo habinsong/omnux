@@ -25,6 +25,14 @@
     const [historyLoading, setHistoryLoading] = useState(false);
     const [history, setHistory] = useState(null);
 
+    // browser / canvas (optional tools)
+    const [browserUrl, setBrowserUrl] = useState("");
+    const [browserLoading, setBrowserLoading] = useState(false);
+    const [browserResult, setBrowserResult] = useState(null);
+    const [canvasUrl, setCanvasUrl] = useState("");
+    const [canvasLoading, setCanvasLoading] = useState(false);
+    const [canvasResult, setCanvasResult] = useState(null);
+
     const runWebSearch = useCallback((query) => {
       const trimmed = String(query || "").trim();
       if (!trimmed) return;
@@ -67,6 +75,33 @@
       const sent = sendMessage({ type: "sessions_history", sessionKey, limit: 50 }, { queueIfClosed: true });
       if (!sent) {
         setHistoryLoading(false);
+        toast("미들웨어 연결이 필요합니다.");
+      }
+    }, [sendMessage, toast]);
+
+    const runBrowser = useCallback((action, extra = {}) => {
+      const normalized = String(action || "").trim();
+      if (!normalized) return;
+      setBrowserLoading(true);
+      const payload = { type: "browser", action: normalized };
+      if (extra.url) payload.webFetchUrl = String(extra.url).trim();
+      if (extra.targetId) payload.targetId = String(extra.targetId).trim();
+      const sent = sendMessage(payload, { queueIfClosed: true });
+      if (!sent) {
+        setBrowserLoading(false);
+        toast("미들웨어 연결이 필요합니다.");
+      }
+    }, [sendMessage, toast]);
+
+    const runCanvas = useCallback((action, extra = {}) => {
+      const normalized = String(action || "").trim();
+      if (!normalized) return;
+      setCanvasLoading(true);
+      const payload = { type: "canvas", action: normalized };
+      if (extra.url) payload.webFetchUrl = String(extra.url).trim();
+      const sent = sendMessage(payload, { queueIfClosed: true });
+      if (!sent) {
+        setCanvasLoading(false);
         toast("미들웨어 연결이 필요합니다.");
       }
     }, [sendMessage, toast]);
@@ -116,11 +151,40 @@
             error: msg.error || ""
           });
         }
+        if (msg.type === "browser_result") {
+          setBrowserLoading(false);
+          setBrowserResult({
+            ok: !!msg.ok,
+            action: msg.action || "",
+            disabled: !!msg.disabled,
+            adapter: msg.adapter || "",
+            running: !!msg.running,
+            activeUrl: msg.activeUrl || "",
+            tabs: Array.isArray(msg.tabs) ? msg.tabs : [],
+            error: msg.error || ""
+          });
+        }
+        if (msg.type === "canvas_result") {
+          setCanvasLoading(false);
+          setCanvasResult({
+            ok: !!msg.ok,
+            action: msg.action || "",
+            disabled: !!msg.disabled,
+            adapter: msg.adapter || "",
+            visible: !!msg.visible,
+            url: msg.url || "",
+            evalResult: msg.evalResult || "",
+            snapshot: msg.snapshot || null,
+            error: msg.error || ""
+          });
+        }
         if (msg.type === "error") {
           setWebSearching(false);
           setFetchLoading(false);
           setSessionsLoading(false);
           setHistoryLoading(false);
+          setBrowserLoading(false);
+          setCanvasLoading(false);
         }
       };
       window.addEventListener("omnux:message", onMessage);
@@ -140,7 +204,9 @@
       webQuery, setWebQuery, webSearching, webResult, runWebSearch,
       fetchUrl, setFetchUrl, fetchLoading, fetchResult, runWebFetch,
       sessions, sessionsLoading, loadSessions,
-      selectedSessionKey, history, historyLoading, openSession
+      selectedSessionKey, history, historyLoading, openSession,
+      browserUrl, setBrowserUrl, browserLoading, browserResult, runBrowser,
+      canvasUrl, setCanvasUrl, canvasLoading, canvasResult, runCanvas
     };
   }
 
