@@ -92,6 +92,7 @@ public sealed partial class WebSocketGateway
     private readonly WsMcpCommandDispatcher _mcpCommandDispatcher;
     private readonly WsCommitLearningCommandDispatcher _commitLearningCommandDispatcher;
     private readonly WsGitAutomationCommandDispatcher _gitAutomationCommandDispatcher;
+    private readonly WsGitOperationCommandDispatcher _gitOperationCommandDispatcher;
     private readonly WsGitTimeMachineCommandDispatcher _gitTimeMachineCommandDispatcher;
     private readonly WsSelfImprovementCommandDispatcher _selfImprovementCommandDispatcher;
     private readonly WsLocalLlmCommandDispatcher _localLlmCommandDispatcher;
@@ -307,6 +308,13 @@ public sealed partial class WebSocketGateway
         );
         _gitAutomationCommandDispatcher = new WsGitAutomationCommandDispatcher(
             new GitAutomationSnapshotService(_paths.WorkspaceRootDir)
+        );
+        var gitOperationPreviewStore = new FileGitOperationPreviewStore(
+            DefaultStatePathResolver.CreateDefault().ResolveStateFilePath("git_operation_previews.json")
+        );
+        _gitOperationCommandDispatcher = new WsGitOperationCommandDispatcher(
+            new GitOperationPreviewService(_paths.WorkspaceRootDir, gitOperationPreviewStore),
+            new GitOperationExecutor(_paths.WorkspaceRootDir)
         );
         _gitTimeMachineCommandDispatcher = new WsGitTimeMachineCommandDispatcher(
             new GitTimeMachineSnapshotService(_paths.WorkspaceRootDir)
