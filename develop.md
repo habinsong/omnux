@@ -207,13 +207,13 @@ git diff --check
 
 ## 5. UI 전환 및 마이그레이션 진척도 (Phase 1~5)
 
-전체 WS 연결률: 63/93 (68%). Phase 1~4 완료 시 93/93 (100%).
+전체 WS 연결률: 67/93 (72%). Phase 1~4 완료 시 93/93 (100%).
 
 | 단계 (Phase) | 상태 | 목표 및 내용 |
 |---|---|---|
 | **Phase 1. Routine CRUD** | ✅ 완료 | Automate 화면 루틴 연결 완료 (`create`, `run`, `delete` 등) |
 | **Phase 2. Conversation + Memory** | ✅ 완료 | 대화 관리(6개) + 메모리 CRUD(8개) + 백업(3개) WS 연결 완료 (Ask 대화 CRUD·검색, Settings 메모리 CRUD, 백업/복원·Cloud Sync) |
-| **Phase 3. Web/Browser/Sessions** | 🔴 대기 | 웹 검색(4개) + 세션(4개) WS 연결 |
+| **Phase 3. Web/Browser/Sessions** | 🟡 진행 중 | 웹 검색·URL fetch·세션 list/history 연결(새 Explore 화면). browser/canvas·sessions_send/spawn은 읽기 패널 범위 밖(에이전트 스폰) |
 | **Phase 4. Doctor/Cleanup/Task** | 🔴 대기 | Doctor 수정(2개) + Cleanup(2개) + Task(3개) + 기타 설정 WS 연결 |
 | **Phase 5. Tauri 마이그레이션** | 🟡 진행 중 | React+Vite+Tauri 기반 데스크톱 앱으로 전면 전환 |
 
@@ -234,8 +234,14 @@ git diff --check
 - Phase 2(대화 관리 6 + 메모리 CRUD 8 + 백업 3 = 17 WS)는 모두 연결 완료. 다음은 Phase 3(웹 검색 4 + 세션 4).
 
 **Phase 3 — Web 검색 / Browser / Sessions**
-1. `ws-web.js`, `ws-sessions.js` 작성.
-2. 검색 결과 패널, URL fetch 결과 표시, 세션 이력 탭 연동.
+1. `ws-web.js`, `ws-sessions.js` 작성. ✅
+2. 검색 결과 패널, URL fetch 결과 표시, 세션 이력 탭 연동. ✅
+
+**현재 진행 메모 (Phase 3)**
+- 새 `Explore`(탐색) 화면을 추가했다(`explore.js` + `modules/explore-page-state.js`, NAV/`app-shell-render` PAGES/`bootstrap` 등록). 탭 3개: 웹 검색(`web_search`→`web_search_result`), URL 가져오기(`web_fetch`→`web_fetch_result`), 세션(`sessions_list`→`sessions_list_result`, 행 클릭 시 `sessions_history`→`sessions_history_result`). 응답은 `omnux:message`로 수신하고, 결과 패널/본문 pre/세션 이력 메시지를 렌더한다.
+- `ws-web.js`/`ws-sessions.js`는 요청 계약 헬퍼(기존 ws-*.js와 동일 스타일)이고 실제 전송은 hook 인라인(ask/settings 패턴 일치).
+- 브라우저 프리뷰에서 3개 탭 모두 end-to-end 확인: 검색(검색 중→provider 배지→결과/링크), URL fetch(가져오는 중→HTTP status→chars→본문 pre), 세션(목록→선택→이력 메시지)을 콘솔 에러 없이 검증.
+- 의도적 제외: `browser`/`canvas`(브라우저 자동화)와 `sessions_send`/`sessions_spawn`(멀티 에이전트 스폰, 결함 #9)은 단순 읽기 패널 범위 밖이라 연결하지 않음.
 
 **Phase 4 — Doctor 자동수정 / Cleanup / Task 잔여 처리**
 1. `ws-doctor.js`, `ws-cleanup.js`, `ws-tasks.js`, `ws-plans.js` 확장 작성.

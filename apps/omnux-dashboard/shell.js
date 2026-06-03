@@ -9,6 +9,7 @@
     { id: 'ask', label: 'Ask', icon: 'ask' },
     { id: 'build', label: 'Build', icon: 'build' },
     { id: 'automate', label: 'Automate', icon: 'automate' },
+    { id: 'explore', label: 'Explore', icon: 'search' },
     { id: 'projects', label: 'Projects', icon: 'projects' },
     { id: 'activity', label: 'Activity', icon: 'activity', badge: 1 },
     { id: 'settings', label: 'Settings', icon: 'settings' },
