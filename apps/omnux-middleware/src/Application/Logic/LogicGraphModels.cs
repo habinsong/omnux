@@ -196,6 +196,26 @@ public sealed record LogicRunActionResult(
     LogicRunSnapshot? Snapshot
 );
 
+public sealed record LogicRunRecoveryCandidate(
+    string RunId,
+    string GraphId,
+    string Title,
+    string Status,
+    string Source,
+    string StartedAtUtc,
+    string UpdatedAtUtc,
+    int CompletedNodeCount,
+    int ErrorNodeCount,
+    int PendingNodeCount,
+    string LastEvent
+);
+
+public sealed record LogicRunRecoveryListResult(
+    IReadOnlyList<LogicRunRecoveryCandidate> Items,
+    int Total,
+    string ScannedAtUtc
+);
+
 public sealed record LogicRunEvent(
     string RunId,
     string GraphId,
@@ -249,6 +269,11 @@ internal static class LogicGraphJson
     public static string Serialize(LogicRunSnapshot value)
     {
         return JsonSerializer.Serialize(value, LogicGraphJsonContext.Default.LogicRunSnapshot);
+    }
+
+    public static string Serialize(LogicRunRecoveryListResult value)
+    {
+        return JsonSerializer.Serialize(value, LogicGraphJsonContext.Default.LogicRunRecoveryListResult);
     }
 
     public static LogicGraphDefinition? DeserializeDefinition(string json)

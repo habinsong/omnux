@@ -26,7 +26,7 @@
 | Git worktree 격리 | ❌ | 검색 결과 0 |
 | 셀프 힐링/워치독 | ✅ 1차 | `FileAgentSpawnActiveRunStore.EvaluateWatchdog`, 백그라운드 active-run timeout/stale 감지 |
 | 자동 커밋/PR 생성 | ❌ | 검색 결과 0 |
-| Durable Workflow | ❌ | 로직 그래프는 있으나 체크포인트 복구 없음 |
+| Durable Workflow | ✅ 1차 | `LogicRunSnapshot` 지속 저장, `LogicRunRecoveryScanner`, `logic_graph_recovery_list` |
 | OpenTelemetry 옵저버빌리티 | ✅ 1차 | `TelemetryTracer`, `FileTelemetryTraceStore`, `WsTelemetryCommandDispatcher` — ActivitySource + 로컬 스냅샷 |
 | 세션 리플레이 & 디버깅 | ✅ 1차 | `SessionReplayApplicationService`, `WsSessionReplayCommandDispatcher` — 대화/telemetry/agent bus 타임라인 스냅샷 |
 | 프롬프트 캐싱 최적화 | ✅ 1차 | `PromptCachePolicy`, telemetry cache key/affinity/readiness 기록 |
@@ -149,6 +149,13 @@
 ## 추천 기능 3: Durable Workflow 체크포인트 (Checkpoint Recovery)
 
 ### 가치: ⭐⭐⭐⭐
+
+### 상태: ✅ 1차 구현
+
+- 로직 그래프 실행은 이미 노드 이벤트마다 `.runtime/logic/<graphId>/<runId>/snapshot.json`을 저장한다.
+- `LogicRunRecoveryScanner`가 재시작 후 디스크에 남은 non-terminal snapshot을 찾아 복구 후보로 반환한다.
+- WebSocket `logic_graph_recovery_list`가 복구 후보 목록을 조회한다.
+- 자동 재실행/resume은 아직 하지 않는다. 노드 중복 실행, 외부 side effect, tool 재호출 정책이 필요해 별도 단계로 둔다.
 
 ### 문제
 

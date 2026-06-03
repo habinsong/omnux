@@ -128,6 +128,7 @@ public interface ILogicApplicationService
     );
     LogicRunActionResult CancelLogicGraphRun(string runId);
     LogicRunSnapshot? GetLogicGraphRun(string runId);
+    LogicRunRecoveryListResult ListRecoverableLogicGraphRuns(int? limit = null);
 }
 
 public interface IRefactorApplicationService
