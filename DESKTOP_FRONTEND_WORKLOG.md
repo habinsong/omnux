@@ -47,9 +47,15 @@
 - `offlineMode.status`, 요청 env var, cloud credential env var 이름, 오프라인 readiness check를 배지와 행으로 표시한다.
 - 실제 provider 라우팅, cloud 차단, 모델 warmup은 백엔드 정책상 보류 상태라 UI에서 실행 버튼으로 노출하지 않는다.
 
+### Self-RAG preflight 후보 명시 조회
+
+- Ask 화면의 RAG preflight 후보에 `조회` 액션을 추가했다.
+- `memory_search`, `web_search`, `code_repomap_snapshot_get`, `session_replay_get` 후보를 사용자가 명시적으로 실행할 수 있게 했다.
+- 조회 결과는 같은 Ask 화면 안에서 제목, 설명, 상태 배지로 요약한다.
+- 자동 검색 실행이나 retrieved context 프롬프트 주입은 하지 않는다.
+
 ## 다음 연결 후보
 
-- Self-RAG 실행 오케스트레이터: preflight 결과를 검색 실행 plan과 evidence pack UI로 확장.
 - Terminal PTY 승인 게이트: terminal capability snapshot 이후 preview/apply/session 모델로 실행 제어.
 - MCP process/JSON-RPC 1차: MCP readiness를 실제 프로세스 lifecycle로 확장하되 Terminal 승인 모델 재사용.
 

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { create } from "zustand";
-import { requestDesktopAsk, requestDesktopSettings, subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
+import { requestDesktopAsk, requestDesktopExplore, requestDesktopSettings, subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
+import { requestDesktopInsights } from "../middleware/insights-gateway";
 import { requestDesktopRag } from "../middleware/rag-gateway";
 import { requestConfirmDialog, requestPromptDialog } from "../dialog/dialog-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
@@ -37,6 +38,17 @@ export type AskRagPreflight = {
   skipped: string[];
 };
 
+export type AskRagCandidate = AskRagPreflight["candidates"][number];
+
+export type AskRagExecution = {
+  kind: string;
+  requestType: string;
+  status: string;
+  loading: boolean;
+  error: string;
+  items: Array<{ title: string; detail: string; badge: string }>;
+};
+
 type AskState = {
   conversations: AskConversationItem[];
   memoryNotes: Array<{ name: string; excerpt: string }>;
@@ -44,6 +56,7 @@ type AskState = {
   chatMode: AskChatMode;
   multiResult: AskMultiResult | null;
   ragPreflight: AskRagPreflight | null;
+  ragExecution: AskRagExecution | null;
   activeConversationId: string | null;
   searchQuery: string;
   searchResults: Array<{ conversationId: string; title: string; snippet: string }>;
@@ -66,6 +79,7 @@ type AskState = {
   searchConversations: (query: string) => void;
   clearSearch: () => void;
   runRagPreflight: () => void;
+  runRagCandidate: (candidate: AskRagCandidate) => void;
   clearRagPreflight: () => void;
   sendMessage: () => void;
 };
@@ -139,6 +153,10 @@ function normalizeRagPreflight(payload: Record<string, unknown>): AskRagPrefligh
   };
 }
 
+function buildRagExecution(kind: string, requestType: string, loading = false): AskRagExecution {
+  return { kind, requestType, status: loading ? "running" : "idle", loading, error: "", items: [] };
+}
+
 export const useAskStore = create<AskState>((set, get) => ({
   conversations: [],
   memoryNotes: [],
@@ -146,6 +164,7 @@ export const useAskStore = create<AskState>((set, get) => ({
   chatMode: "single",
   multiResult: null,
   ragPreflight: null,
+  ragExecution: null,
   activeConversationId: null,
   searchQuery: "",
   searchResults: [],
@@ -241,12 +260,29 @@ export const useAskStore = create<AskState>((set, get) => ({
   runRagPreflight: () => {
     const query = String(get().input || "").trim();
     if (!query) return;
-    set({ ragPending: true, ragPreflight: null, lastError: null });
+    set({ ragPending: true, ragPreflight: null, ragExecution: null, lastError: null });
     if (!requestDesktopRag.preflight(query)) {
       set({ ragPending: false, lastError: "RAG preflight 요청을 전송하지 못했다." });
     }
   },
-  clearRagPreflight: () => set({ ragPreflight: null, ragPending: false }),
+  runRagCandidate: (candidate) => {
+    const requestType = String(candidate.suggestedRequestType || "").trim();
+    const query = String(get().ragPreflight?.queryPreview || get().input || "").trim();
+    if (!requestType || candidate.kind === "none") return;
+    set({ ragExecution: buildRagExecution(candidate.kind, requestType, true), lastError: null });
+    let ok = false;
+    if (requestType === "memory_search") ok = requestDesktopSettings.memorySearch(query, 8, 0);
+    else if (requestType === "web_search") ok = requestDesktopExplore.webSearch(query, 8);
+    else if (requestType === "code_repomap_snapshot_get") ok = requestDesktopInsights.codeRepomap(30);
+    else if (requestType === "session_replay_get") {
+      const conversationId = String(get().activeConversationId || "").trim();
+      ok = conversationId ? requestDesktopRag.sessionReplay(conversationId, 80) : false;
+    }
+    if (!ok) {
+      set({ ragExecution: { ...buildRagExecution(candidate.kind, requestType), status: "blocked", error: "후보 조회 요청을 전송하지 못했다." } });
+    }
+  },
+  clearRagPreflight: () => set({ ragPreflight: null, ragExecution: null, ragPending: false }),
   sendMessage: () => {
     const text = String(get().input || "").trim();
     if (!text) {
@@ -304,7 +340,96 @@ export function useAskPageBridge() {
       useAskStore.setState({
         ragPending: false,
         ragPreflight: normalizeRagPreflight((message.payload || {}) as Record<string, unknown>),
+        ragExecution: null,
         lastError: null
+      });
+      return;
+    }
+
+    if (message.type === "memory_search_result" && store.ragExecution?.requestType === "memory_search") {
+      useAskStore.setState({
+        ragExecution: {
+          ...store.ragExecution,
+          loading: false,
+          status: String(message.error || "") ? "error" : "done",
+          error: String(message.error || ""),
+          items: records(message.results).slice(0, 6).map((item) => ({
+            title: str(item.path || item.fullPath || item.noteName || "memory"),
+            detail: str(item.snippet || item.excerpt || ""),
+            badge: Number(item.score || 0).toFixed(2)
+          }))
+        }
+      });
+      return;
+    }
+
+    if (message.type === "web_search_result" && store.ragExecution?.requestType === "web_search") {
+      useAskStore.setState({
+        ragExecution: {
+          ...store.ragExecution,
+          loading: false,
+          status: String(message.error || "") ? "error" : "done",
+          error: String(message.error || ""),
+          items: records(message.results).slice(0, 6).map((item) => ({
+            title: str(item.title || item.url || "web result"),
+            detail: str(item.description || item.snippet || item.url),
+            badge: str(message.provider || "web")
+          }))
+        }
+      });
+      return;
+    }
+
+    if (message.type === "code_repomap_snapshot" && store.ragExecution?.requestType === "code_repomap_snapshot_get") {
+      const payload = (message.payload || {}) as Record<string, unknown>;
+      useAskStore.setState({
+        ragExecution: {
+          ...store.ragExecution,
+          loading: false,
+          status: str(payload.status || "done"),
+          error: "",
+          items: records(payload.files).slice(0, 6).map((file) => {
+            const symbols = records(file.symbols);
+            const first = symbols[0] || {};
+            return {
+              title: str(file.path || "file"),
+              detail: first.name ? `${str(first.kind)} ${str(first.name)} · line ${Number(first.line || 0)}` : str(file.language || ""),
+              badge: String(file.symbolCount || symbols.length || 0)
+            };
+          })
+        }
+      });
+      return;
+    }
+
+    if (message.type === "session_replay_snapshot" && store.ragExecution?.requestType === "session_replay_get") {
+      const payload = (message.payload || {}) as Record<string, unknown>;
+      useAskStore.setState({
+        ragExecution: {
+          ...store.ragExecution,
+          loading: false,
+          status: "done",
+          error: "",
+          items: records(payload.events).slice(0, 6).map((event) => ({
+            title: str(event.title || event.kind || "event"),
+            detail: str(event.summary || event.meta || event.source),
+            badge: str(event.severity || event.source || "event")
+          }))
+        }
+      });
+      return;
+    }
+
+    if (message.type === "session_replay_result" && store.ragExecution?.requestType === "session_replay_get") {
+      const payload = (message.payload || {}) as Record<string, unknown>;
+      useAskStore.setState({
+        ragExecution: {
+          ...store.ragExecution,
+          loading: false,
+          status: payload.ok === false ? "error" : "done",
+          error: str(payload.message),
+          items: []
+        }
       });
       return;
     }
