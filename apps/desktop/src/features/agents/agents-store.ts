@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { create } from "zustand";
 import { subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
 import { requestDesktopAgents } from "../middleware/agents-gateway";
+import { requestConfirmDialog } from "../dialog/dialog-store";
 
 type BusMessage = { from: string; to: string; kind: string; body: string };
 type BoardEntry = { agentId: string; key: string; value: string; status: string };
@@ -21,6 +22,14 @@ type AgentBusDraft = {
   boardValue: string;
   boardStatus: string;
   boardPriority: string;
+  lifecycleAgentId: string;
+  lifecycleState: string;
+  lifecycleDetail: string;
+  commandFrom: string;
+  commandGroupId: string;
+  commandRunId: string;
+  command: string;
+  commandBody: string;
 };
 
 type AgentsState = {
@@ -29,7 +38,7 @@ type AgentsState = {
   worktree: { status: string; totalWorktreeCount: number; cleanupCandidateCount: number; worktrees: Worktree[] } | null;
   trace: { status: string; agents: TraceAgent[]; threads: TraceThread[]; interventions: TraceIntervention[]; edgeCount: number } | null;
   draft: AgentBusDraft;
-  submitting: "" | "message" | "board";
+  submitting: "" | "message" | "board" | "lifecycle" | "command";
   loading: boolean;
   lastError: string;
   lastAction: string;
@@ -37,6 +46,8 @@ type AgentsState = {
   loadAll: () => void;
   postMessage: () => void;
   putBoard: () => void;
+  emitLifecycle: () => void;
+  postGroupCommand: () => void;
 };
 
 function s(v: unknown): string { return typeof v === "string" ? v : v == null ? "" : String(v); }
@@ -65,7 +76,15 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
     boardKey: "progress",
     boardValue: "",
     boardStatus: "running",
-    boardPriority: "normal"
+    boardPriority: "normal",
+    lifecycleAgentId: "human",
+    lifecycleState: "running",
+    lifecycleDetail: "",
+    commandFrom: "human",
+    commandGroupId: "",
+    commandRunId: "",
+    command: "stop",
+    commandBody: ""
   },
   submitting: "",
   loading: false,
@@ -107,6 +126,45 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
       priority: draft.boardPriority
     });
     if (!ok) set({ submitting: "", lastError: "에이전트 보드 저장 요청을 전송하지 못했다." });
+  },
+  emitLifecycle: () => {
+    const draft = get().draft;
+    if (!draft.lifecycleAgentId.trim() || !draft.lifecycleState.trim()) {
+      set({ lastError: "agent와 state를 입력하세요." });
+      return;
+    }
+    set({ submitting: "lifecycle", lastError: "", lastAction: "" });
+    const ok = requestDesktopAgents.emitLifecycle({
+      agentId: draft.lifecycleAgentId,
+      state: draft.lifecycleState,
+      detail: draft.lifecycleDetail
+    });
+    if (!ok) set({ submitting: "", lastError: "에이전트 생명주기 기록 요청을 전송하지 못했다." });
+  },
+  postGroupCommand: () => {
+    void (async () => {
+      const draft = get().draft;
+      if (!draft.commandFrom.trim() || !draft.command.trim() || (!draft.commandGroupId.trim() && !draft.commandRunId.trim())) {
+        set({ lastError: "from, command, group 또는 run을 입력하세요." });
+        return;
+      }
+      const confirmed = await requestConfirmDialog({
+        title: "그룹 명령 기록",
+        message: "실제 프로세스를 중단하지 않고 agent bus에 command 메시지만 저장합니다.",
+        confirmLabel: "기록",
+        tone: "default"
+      });
+      if (!confirmed) return;
+      set({ submitting: "command", lastError: "", lastAction: "" });
+      const ok = requestDesktopAgents.postGroupCommand({
+        fromAgentId: draft.commandFrom,
+        command: draft.command,
+        body: draft.commandBody,
+        groupId: draft.commandGroupId,
+        runId: draft.commandRunId
+      });
+      if (!ok) set({ submitting: "", lastError: "에이전트 그룹 명령 기록 요청을 전송하지 못했다." });
+    })();
   }
 }));
 
@@ -121,7 +179,7 @@ export function useAgentsPageBridge() {
         });
         return;
       }
-      if (message.type === "agent_message_result" || message.type === "agent_board_result") {
+      if (message.type === "agent_message_result" || message.type === "agent_board_result" || message.type === "agent_lifecycle_result" || message.type === "agent_group_command_result") {
         const snapshot = (payload.snapshot || {}) as Record<string, unknown>;
         const ok = payload.ok !== false;
         useAgentsStore.setState({

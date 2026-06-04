@@ -5,6 +5,8 @@ registerDesktopRequestTypes(
   "agent_bus_get",
   "agent_message_post",
   "agent_board_put",
+  "agent_lifecycle_emit",
+  "agent_group_command",
   "agent_watchdog_snapshot_get",
   "agent_worktree_snapshot_get",
   "multi_agent_trace_snapshot_get"
@@ -33,6 +35,26 @@ export const requestDesktopAgents = {
       value: input.value.trim(),
       status: input.status.trim() || "running",
       priority: input.priority.trim() || "normal",
+      groupId: input.groupId?.trim() || undefined,
+      runId: input.runId?.trim() || undefined
+    });
+  },
+  emitLifecycle(input: { agentId: string; state: string; detail: string; groupId?: string; runId?: string }) {
+    return sendDesktopRequest({
+      type: "agent_lifecycle_emit",
+      agentId: input.agentId.trim(),
+      state: input.state.trim(),
+      detail: input.detail.trim(),
+      groupId: input.groupId?.trim() || undefined,
+      runId: input.runId?.trim() || undefined
+    });
+  },
+  postGroupCommand(input: { fromAgentId: string; command: string; body: string; groupId?: string; runId?: string }) {
+    return sendDesktopRequest({
+      type: "agent_group_command",
+      fromAgentId: input.fromAgentId.trim(),
+      command: input.command.trim(),
+      body: input.body.trim(),
       groupId: input.groupId?.trim() || undefined,
       runId: input.runId?.trim() || undefined
     });
