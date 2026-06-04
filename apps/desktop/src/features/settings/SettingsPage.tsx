@@ -9,6 +9,8 @@ import { useSettingsPageBridge, useSettingsStore } from "./settings-store";
 import type { MemorySearchResultItem } from "./settings-memory";
 import { LlmModelsPanel } from "./LlmModelsPanel";
 import { Badge, Button, Input, cn } from "../../components/ui/primitives";
+import { SettingsTelegramPanel } from "./SettingsTelegramPanel";
+import { useTelegramSettingsBridge, useTelegramSettingsStore } from "./settings-telegram-store";
 
 type SettingsTab = "general" | "models" | "memory" | "about";
 type CardErrorHandler = (card: ShellCard, message: string, componentStack?: string | null) => void;
@@ -106,6 +108,7 @@ function GeneralTab({ bridgeStatus, authStatus, lastMessage, loading, onError }:
 function ModelsTab({ store, canRequest, onError }: { store: Store; canRequest: boolean; onError: CardErrorHandler }) {
   return (
     <div className="space-y-4">
+      <SettingsTelegramPanel canRequest={canRequest} onError={onError} />
       <LlmModelsPanel store={store} canRequest={canRequest} onError={onError} />
       <CardBoundary title="Cerebras 카탈로그" card="middleware" onError={onError}>
         <div className="flex items-center justify-between gap-3">
@@ -269,10 +272,12 @@ function AboutTab({ onError }: { onError: CardErrorHandler }) {
 
 export function SettingsPage() {
   useSettingsPageBridge();
+  useTelegramSettingsBridge();
   const bridgeStatus = useDesktopShellStore((state) => state.bridge.status);
   const authStatus = useDesktopAuthStore((state) => state.auth.status);
   const recordCardError = useUiLogStore((state) => state.recordCardError);
   const store = useSettingsStore();
+  const loadTelegramSettings = useTelegramSettingsStore((state) => state.loadSettings);
   const canRequest = bridgeStatus === "connected" && authStatus === "authenticated";
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [tab, setTab] = useState<SettingsTab>("memory");
@@ -281,6 +286,7 @@ export function SettingsPage() {
     if (canRequest) {
       store.loadMemoryNotes();
       store.loadCerebrasModels();
+      loadTelegramSettings();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canRequest]);

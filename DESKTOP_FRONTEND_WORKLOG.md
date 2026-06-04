@@ -201,6 +201,17 @@
 - 계약 검사: 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과(962 assertions).
 - 브라우저 QA: `http://127.0.0.1:1420/` 인사이트 화면 리로드 후 `Git 타임머신`, `Commit learning`, `Self improvement 제안` 카드 렌더링과 인증 전 새로고침 disabled 상태, 콘솔 warn/error 없음 확인.
 
+### Telegram Bot Token / Chat ID 연동 복구
+
+- 과거 대시보드 `dashboard-settings-renderers.js`의 `Telegram 연동` 패널을 기준으로 데스크톱 Settings > `Models & services`에 `Bot Token`, `Chat ID`, masked 저장 상태, 저장 방식, 보안 저장소 설명을 복구했다.
+- 신규 `telegram-gateway.ts`에서 `get_settings`, `set_telegram_credentials`, `delete_telegram_credentials`, `test_telegram` 타입을 등록하고, Settings UI는 이 gateway만 통해 WS 요청을 보낸다.
+- 신규 `settings-telegram-store.ts`가 `settings_state`의 `telegramBotTokenSet`, `telegramChatIdSet`, masked 값, remote secret 제한을 보존하고, 저장/테스트/삭제 결과를 `settings_result`로 받는다.
+- `저장`은 키체인 또는 0600 보안 저장소에 반영하는 `persist=true` 기본값으로 연결했고, 사용자가 체크를 끄면 현재 세션에만 반영한다.
+- `테스트 전송`은 기존 백엔드 `test_telegram`으로 `[omnux] Telegram 연동 테스트 메시지` 발송 경로를 호출한다.
+- `연동 삭제`는 `DesktopDialogHost` 확인 모달을 거친 뒤 `delete_telegram_credentials`를 호출하며, 네이티브 confirm은 쓰지 않았다.
+- 원격 대시보드 client에서는 백엔드 정책상 secret 설정이 금지되므로 UI도 비활성 안내를 표시한다.
+- 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과(983 assertions), Settings > `Models & services` 브라우저 QA에서 `Telegram 연동`, `Bot Token`, `Chat ID`, `보안 저장소 저장/삭제`, `저장`, `테스트 전송`, `연동 삭제` 렌더링과 콘솔 warn/error 없음 확인.
+
 ## 다음 연결 후보
 
 - 다음 연결 후보는 Local LLM 실제 라우팅 readiness, Self-RAG 실행 plan, Terminal PTY 승인 게이트 중 정책상 안전한 단위부터 고른다.
