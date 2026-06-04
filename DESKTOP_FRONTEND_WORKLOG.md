@@ -97,12 +97,19 @@
 - `agents-gateway.ts`에 `agent_message_post`, `agent_board_put`을 등록하고, 메시지 기록/공유 보드 upsert 요청을 보낼 수 있게 했다.
 - `agents-store.ts`는 쓰기 응답의 `snapshot`을 즉시 에이전트 버스 카드에 반영하고, 성공 시 trace projection만 후속 조회한다.
 - UI는 message와 board 입력을 같은 카드 안의 2열 작업면으로 배치했고, raw JSON이나 네이티브 팝업은 쓰지 않는다.
-- `agent_group_command`, `agent_lifecycle_emit`은 운영 의미가 더 강해 이번 단위에서는 열지 않았다.
 - 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과, Agents 화면 브라우저 QA에서 `버스 기록` 폼 렌더링과 콘솔 오류 없음 확인.
+
+### Agent lifecycle / command 기록 연결
+
+- `agents-gateway.ts`에 `agent_lifecycle_emit`, `agent_group_command`을 등록했다.
+- 에이전트 `버스 기록` 폼에 lifecycle event 저장과 group/run command 메시지 저장 입력을 추가했다.
+- `agent_group_command`는 백엔드 정책상 실제 프로세스 중단이 아니라 `kind=command` 메시지 저장이지만, 앱 내부 확인 모달을 거친 뒤에만 전송한다.
+- `agents-store.ts`는 `agent_lifecycle_result`, `agent_group_command_result`의 snapshot도 기존 버스 카드에 반영한다.
+- 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과, Agents 화면 브라우저 QA에서 lifecycle/command 폼 렌더링과 콘솔 오류 없음 확인.
 
 ## 다음 연결 후보
 
-- 다음 연결 후보는 Agent lifecycle emit/group command 승인 UI, Local LLM 실제 라우팅 readiness, Self-RAG 실행 plan, Terminal PTY 승인 게이트 중 정책상 안전한 단위부터 고른다.
+- 다음 연결 후보는 Local LLM 실제 라우팅 readiness, Self-RAG 실행 plan, Terminal PTY 승인 게이트 중 정책상 안전한 단위부터 고른다.
 
 ## 주의
 
