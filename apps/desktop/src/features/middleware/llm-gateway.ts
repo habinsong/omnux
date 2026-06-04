@@ -1,7 +1,7 @@
-import { registerDesktopRequestTypes, sendDesktopRequest } from "./desktop-message-gateway";
+import { registerDesktopPublicRequestTypes, sendDesktopRequest } from "./desktop-message-gateway";
 
 // LLM provider/model 설정 + 자격증명 + CLI 상태. middleware 디렉터리이므로 sendDesktopRequest 허용.
-registerDesktopRequestTypes(
+registerDesktopPublicRequestTypes(
   "get_groq_models",
   "get_copilot_models",
   "set_groq_model",
@@ -11,13 +11,17 @@ registerDesktopRequestTypes(
   "get_usage_stats",
   "set_llm_credentials",
   "delete_llm_credentials",
-  "start_copilot_login"
+  "start_copilot_login",
+  "start_codex_login",
+  "logout_codex"
 );
 
 export interface LlmCredentialInput {
   groqApiKey?: string;
   geminiApiKey?: string;
   cerebrasApiKey?: string;
+  nvidiaApiKey?: string;
+  codexApiKey?: string;
 }
 
 export const requestDesktopLlm = {
@@ -45,12 +49,20 @@ export const requestDesktopLlm = {
   startCopilotLogin() {
     return sendDesktopRequest({ type: "start_copilot_login" });
   },
+  startCodexLogin() {
+    return sendDesktopRequest({ type: "start_codex_login" });
+  },
+  logoutCodex() {
+    return sendDesktopRequest({ type: "logout_codex" });
+  },
   setCredentials(keys: LlmCredentialInput, persist = true) {
     return sendDesktopRequest({
       type: "set_llm_credentials",
       groqApiKey: keys.groqApiKey?.trim() || undefined,
       geminiApiKey: keys.geminiApiKey?.trim() || undefined,
       cerebrasApiKey: keys.cerebrasApiKey?.trim() || undefined,
+      nvidiaApiKey: keys.nvidiaApiKey?.trim() || undefined,
+      codexApiKey: keys.codexApiKey?.trim() || undefined,
       persist
     });
   },

@@ -61,6 +61,8 @@ type SettingsState = {
   setGroqModel: (model: string) => void;
   setCopilotModel: (model: string) => void;
   startCopilotLogin: () => void;
+  startCodexLogin: () => void;
+  logoutCodex: () => void;
   saveLlmCredentials: (keys: LlmCredentialInput) => void;
   deleteLlmCredentials: () => void;
 };
@@ -241,6 +243,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   startCopilotLogin: () => {
     if (!requestDesktopLlm.startCopilotLogin()) set({ llmMessage: "Copilot 로그인 요청을 전송하지 못했다." });
+  },
+  startCodexLogin: () => {
+    set({ codexStatus: { text: "로그인 시작 중", detail: "브라우저 인증 흐름을 시작하는 중입니다." } });
+    if (!requestDesktopLlm.startCodexLogin()) set({ llmMessage: "Codex OAuth 로그인 요청을 전송하지 못했다." });
+  },
+  logoutCodex: () => {
+    set({ codexStatus: { text: "로그아웃 처리 중", detail: "Codex 인증 정보를 정리하는 중입니다." } });
+    if (!requestDesktopLlm.logoutCodex()) set({ llmMessage: "Codex OAuth 로그아웃 요청을 전송하지 못했다." });
   },
   saveLlmCredentials: (keys) => {
     if (!requestDesktopLlm.setCredentials(keys, true)) set({ llmMessage: "API 키 저장 요청을 전송하지 못했다." });
@@ -425,17 +435,26 @@ export function useSettingsPageBridge() {
       requestDesktopLlm.copilotStatus();
       return;
     }
+    if (message.type === "codex_login_result" || message.type === "codex_logout_result") {
+      useSettingsStore.setState({ llmMessage: String(message.message || "Codex OAuth 요청을 처리했습니다.") });
+      requestDesktopLlm.codexStatus();
+      return;
+    }
     if (message.type === "llm_credentials_result" || message.type === "set_llm_credentials_result" || message.type === "delete_llm_credentials_result") {
       useSettingsStore.setState({ llmMessage: String(message.message || "API 키 설정을 갱신했습니다.") });
       return;
     }
 
-    if (message.type === "settings_result" || message.type === "memory_note_created" || message.type === "memory_note_deleted" || message.type === "memory_note_renamed") {
+    if (message.type === "memory_note_created" || message.type === "memory_note_deleted" || message.type === "memory_note_renamed") {
       useSettingsStore.getState().loadMemoryNotes();
       useSettingsStore.setState({
         lastMessage: String(message.message || message.type),
         loading: false
       });
+      return;
+    }
+    if (message.type === "settings_result") {
+      useSettingsStore.setState({ lastMessage: String(message.message || "설정 응답 수신"), loading: false });
       return;
     }
 

@@ -11,6 +11,7 @@ import { LlmModelsPanel } from "./LlmModelsPanel";
 import { Badge, Button, Input, cn } from "../../components/ui/primitives";
 import { SettingsTelegramPanel } from "./SettingsTelegramPanel";
 import { useTelegramSettingsBridge, useTelegramSettingsStore } from "./settings-telegram-store";
+import { useProviderCredentialsBridge } from "./settings-provider-credentials-store";
 
 type SettingsTab = "general" | "models" | "memory" | "about";
 type CardErrorHandler = (card: ShellCard, message: string, componentStack?: string | null) => void;
@@ -273,20 +274,28 @@ function AboutTab({ onError }: { onError: CardErrorHandler }) {
 export function SettingsPage() {
   useSettingsPageBridge();
   useTelegramSettingsBridge();
+  useProviderCredentialsBridge();
   const bridgeStatus = useDesktopShellStore((state) => state.bridge.status);
   const authStatus = useDesktopAuthStore((state) => state.auth.status);
   const recordCardError = useUiLogStore((state) => state.recordCardError);
   const store = useSettingsStore();
   const loadTelegramSettings = useTelegramSettingsStore((state) => state.loadSettings);
   const canRequest = bridgeStatus === "connected" && authStatus === "authenticated";
+  const canSetupRequest = bridgeStatus === "connected";
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [tab, setTab] = useState<SettingsTab>("memory");
+  const [tab, setTab] = useState<SettingsTab>("models");
+
+  useEffect(() => {
+    if (canSetupRequest) {
+      store.loadCerebrasModels();
+      loadTelegramSettings();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canSetupRequest]);
 
   useEffect(() => {
     if (canRequest) {
       store.loadMemoryNotes();
-      store.loadCerebrasModels();
-      loadTelegramSettings();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canRequest]);
@@ -311,7 +320,7 @@ export function SettingsPage() {
         </nav>
         <div className="min-w-0">
           {tab === "general" ? <GeneralTab bridgeStatus={bridgeStatus} authStatus={authStatus} lastMessage={store.lastMessage} loading={store.loading} onError={recordCardError} /> : null}
-          {tab === "models" ? <ModelsTab store={store} canRequest={canRequest} onError={recordCardError} /> : null}
+          {tab === "models" ? <ModelsTab store={store} canRequest={canSetupRequest} onError={recordCardError} /> : null}
           {tab === "memory" ? <MemoryTab store={store} canRequest={canRequest} fileInputRef={fileInputRef} onError={recordCardError} /> : null}
           {tab === "about" ? <AboutTab onError={recordCardError} /> : null}
         </div>

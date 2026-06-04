@@ -87,7 +87,8 @@ const DESKTOP_ALLOWED_REQUESTS = new Set<string>([
 const DESKTOP_PUBLIC_REQUESTS = new Set<string>([
   "request_otp",
   "resume_auth",
-  "auth"
+  "auth",
+  "get_cerebras_models"
 ]);
 
 /**
@@ -98,6 +99,13 @@ const DESKTOP_PUBLIC_REQUESTS = new Set<string>([
 export function registerDesktopRequestTypes(...types: string[]): void {
   for (const type of types) {
     DESKTOP_ALLOWED_REQUESTS.add(type);
+  }
+}
+
+export function registerDesktopPublicRequestTypes(...types: string[]): void {
+  for (const type of types) {
+    DESKTOP_ALLOWED_REQUESTS.add(type);
+    DESKTOP_PUBLIC_REQUESTS.add(type);
   }
 }
 
