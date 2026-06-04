@@ -1,7 +1,7 @@
-import { registerDesktopRequestTypes, sendDesktopRequest } from "./desktop-message-gateway";
+import { registerDesktopPublicRequestTypes, sendDesktopRequest } from "./desktop-message-gateway";
 
 // Telegram credential 설정은 secret 설정 영역이라 도메인 gateway에서만 WS 전송한다.
-registerDesktopRequestTypes(
+registerDesktopPublicRequestTypes(
   "get_settings",
   "set_telegram_credentials",
   "delete_telegram_credentials",
