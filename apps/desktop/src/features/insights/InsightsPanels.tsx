@@ -290,27 +290,54 @@ export function TerminalPanel({ terminal }: { terminal: TerminalSnapshot | null 
 
 export function SemanticSearchPanel({ semantic }: { semantic: SemanticSnapshot | null }) {
   if (!semantic) return <Empty label="새로고침하면 FTS·sqlite-vec·로컬 임베딩 readiness가 표시됩니다." />;
+  const blockedActions = [
+    ["임베딩 생성", semantic.embeddingGenerationEnabled],
+    ["벡터 검색", semantic.vectorSearchEnabled],
+    ["대량 reindex", false]
+  ] as const;
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={statusTone(semantic.status)}>{semantic.status}</Badge>
+        <Badge tone={semantic.readOnly ? "outline" : "warning"}>{semantic.readOnly ? "read-only" : "mutable"}</Badge>
         <Badge tone={semantic.index.ftsAvailable ? "success" : "destructive"}>FTS {semantic.index.ftsAvailable ? "on" : "off"}</Badge>
         <Badge tone={semantic.index.sqliteVecAvailable ? "success" : "outline"}>sqlite-vec {semantic.index.sqliteVecAvailable ? "ready" : "보류"}</Badge>
-        <Badge tone={semantic.codeSearchRecommended ? "primary" : "default"}>code search</Badge>
+        <Badge tone={semantic.codeSearchRecommended ? "primary" : "default"}>{semantic.codeSearchRecommended ? "FTS/Repomap 우선" : "semantic 후보"}</Badge>
       </div>
       <div className="grid grid-cols-3 gap-2">
         <Stat label="파일" value={semantic.index.fileCount.toLocaleString()} />
         <Stat label="청크" value={semantic.index.chunkCount.toLocaleString()} />
-        <Stat label="임베딩 후보" value={semantic.embedding.candidateModels.length} />
+        <Stat label="임베딩 후보" value={semantic.embedding.candidateModels.length} sub={`${semantic.embedding.availableEndpointCount}/${semantic.embedding.totalModelCount} local`} />
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {blockedActions.map(([label, enabled]) => (
+          <Button key={label} variant="outline" size="sm" disabled={!enabled}>
+            <Sparkles size={13} aria-hidden="true" /> {label}
+          </Button>
+        ))}
       </div>
       <div className="space-y-1">
         {semantic.index.chunkSources.map((source) => (
           <Row key={source.source} left={source.source} right={<Badge tone="outline">{source.count.toLocaleString()}</Badge>} />
         ))}
         {semantic.embedding.candidateModels.slice(0, 3).map((model) => (
-          <Row key={`${model.endpointName}-${model.modelId}`} left={model.modelId} sub={model.endpointName} right={<BrainCircuit size={14} aria-hidden="true" />} />
+          <Row key={`${model.endpointName}-${model.modelId}`} left={model.modelId} sub={`${model.endpointName} · ${model.endpointKind || "local"}`} right={<BrainCircuit size={14} aria-hidden="true" />} />
+        ))}
+        {semantic.checks.slice(0, 5).map((check) => (
+          <Row key={check.name} left={check.name} sub={check.message} right={<Badge tone={statusTone(check.status)}>{check.status}</Badge>} />
         ))}
       </div>
+      {semantic.skipped.length > 0 ? (
+        <div className="flex min-w-0 flex-wrap gap-1">
+          {semantic.skipped.slice(0, 5).map((item) => <Badge key={item} tone="outline" className="max-w-full truncate">{item}</Badge>)}
+        </div>
+      ) : null}
+      {semantic.recommendations.length > 0 || semantic.warnings.length > 0 ? (
+        <div className="space-y-1">
+          {semantic.recommendations.slice(0, 3).map((item) => <Row key={`rec-${item}`} left="recommendation" sub={item} right={<Badge tone="primary">review</Badge>} />)}
+          {semantic.warnings.slice(0, 3).map((item) => <Row key={`warn-${item}`} left="warning" sub={item} right={<Badge tone="warning">warn</Badge>} />)}
+        </div>
+      ) : null}
     </>
   );
 }
