@@ -11,13 +11,23 @@ type MemoryNoteItem = {
   sizeBytes: number;
   lastWriteUtc: string;
 };
+export type MemorySearchResultItem = {
+  path: string;
+  snippet: string;
+  score: number;
+  source: string;
+  memoryTier: string;
+  lastAccessedAtUnixMs: number;
+  startLine: number;
+  endLine: number;
+};
 
 type SettingsState = {
   memoryNotes: MemoryNoteItem[];
   selectedNoteName: string;
   selectedNoteText: string;
   memorySearchQuery: string;
-  memorySearchResults: Array<{ path: string; snippet: string; score: number }>;
+  memorySearchResults: MemorySearchResultItem[];
   backupIncludeScopes: string[];
   backupPreview: { previewId: string; fileName: string; conversationCount: number; conflictCount: number; fileCount: number; error: string } | null;
   backupPackage: { fileName: string; contentBase64: string } | null;
@@ -270,7 +280,12 @@ export function useSettingsPageBridge() {
         memorySearchResults: normalizeServerList(message.results, (item) => ({
           path: String(item.path || item.fullPath || ""),
           snippet: String(item.snippet || ""),
-          score: Number(item.score || 0)
+          score: Number(item.score || 0),
+          source: String(item.source || ""),
+          memoryTier: String(item.memoryTier || ""),
+          lastAccessedAtUnixMs: Number(item.lastAccessedAtUnixMs || 0),
+          startLine: Number(item.startLine || 0),
+          endLine: Number(item.endLine || 0)
         })),
         loading: false
       });
