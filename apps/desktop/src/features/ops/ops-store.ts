@@ -2,18 +2,11 @@ import { useEffect } from "react";
 import { create } from "zustand";
 import { requestConfirmDialog } from "../dialog/dialog-store";
 import { requestDesktopGit, type GitOperationName } from "../middleware/git-gateway";
+import { requestDesktopOps } from "../middleware/ops-gateway";
 import { subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
 import { useUiLogStore } from "../ui-log/ui-log-store";
-
-export type DesktopDoctorSnapshot = {
-  loading: boolean;
-  found: boolean | null;
-  reportId: string | null;
-  createdAtUtc: string | null;
-  summary: string | null;
-  lastError: string | null;
-};
-
+import { type DesktopDoctorSnapshot, type DoctorResultPayload, normalizeDoctorFixResult, normalizeDoctorReport, summarizeDoctorReport } from "./ops-doctor";
+export type { DesktopDoctorSnapshot } from "./ops-doctor";
 export type DesktopOpsSnapshot = {
   loadingPlans: boolean;
   loadingTaskGraphs: boolean;
@@ -24,29 +17,23 @@ export type DesktopOpsSnapshot = {
   lastError: string | null;
 };
 
-type DoctorResultPayload = {
-  found?: boolean;
-  report?: {
-    reportId?: string;
-    createdAtUtc?: string;
-    status?: string;
-    summary?: string;
-    failCount?: number;
-    warnCount?: number;
-  } | null;
-};
-
 type OpsPageState = {
   doctor: DesktopDoctorSnapshot;
   ops: DesktopOpsSnapshot;
   git: GitAutomationState;
   markDoctorLoading: () => void;
+  markDoctorRunning: () => void;
   markDoctorResult: (payload: DoctorResultPayload) => void;
+  markDoctorFixResult: (payload: Record<string, unknown>) => void;
   markDoctorError: (message: string) => void;
   markOpsLoading: () => void;
   markPlanListResult: (payload: { items?: Array<Record<string, unknown>> }) => void;
   markTaskGraphListResult: (payload: { items?: Array<Record<string, unknown>> }) => void;
   markOpsError: (message: string) => void;
+  loadDoctorLast: () => void;
+  runDoctor: () => void;
+  previewDoctorFix: () => void;
+  loadOpsSnapshot: () => void;
   loadGitAutomation: () => void;
   setGitOperation: (operation: GitOperationName) => void;
   setGitField: (key: keyof GitOperationForm, value: string | boolean) => void;
@@ -226,11 +213,14 @@ function normalizeGitApply(payload: Record<string, unknown>): GitOperationApply 
 export const useOpsPageStore = create<OpsPageState>((set) => ({
   doctor: {
     loading: false,
+    running: false,
+    fixPreviewing: false,
+    fixApplying: false,
     found: null,
-    reportId: null,
-    createdAtUtc: null,
-    summary: null,
-    lastError: null
+    report: null,
+    fixResult: null,
+    lastError: null,
+    lastAction: null
   },
   ops: {
     loadingPlans: false,
@@ -257,27 +247,52 @@ export const useOpsPageStore = create<OpsPageState>((set) => ({
       doctor: {
         ...state.doctor,
         loading: true,
+        lastAction: null,
+        lastError: null
+      }
+    })),
+  markDoctorRunning: () =>
+    set((state) => ({
+      doctor: {
+        ...state.doctor,
+        running: true,
+        fixResult: null,
+        lastAction: null,
         lastError: null
       }
     })),
   markDoctorResult: (payload) =>
     set(() => {
-      const report = payload.report || null;
-      const summary = report
-        ? report.summary || `status=${report.status || "-"} fail=${report.failCount || 0} warn=${report.warnCount || 0}`
-        : payload.found
-          ? "Doctor 보고서를 읽었지만 표시할 요약이 없습니다."
-          : "저장된 Doctor 보고서가 없습니다.";
+      const report = normalizeDoctorReport(payload.report);
+      const summary = summarizeDoctorReport(report, Boolean(payload.found));
       useUiLogStore.getState().recordLog("info", `doctor_get_last: ${summary}`, { source: "doctor" });
 
       return {
         doctor: {
           loading: false,
+          running: false,
+          fixPreviewing: false,
+          fixApplying: false,
           found: Boolean(payload.found),
-          reportId: report?.reportId || null,
-          createdAtUtc: report?.createdAtUtc || null,
-          summary,
-          lastError: null
+          report,
+          fixResult: null,
+          lastError: null,
+          lastAction: report ? "Doctor 보고서를 수신했습니다." : summary
+        }
+      };
+    }),
+  markDoctorFixResult: (payload) =>
+    set((state) => {
+      const fixResult = normalizeDoctorFixResult(payload);
+      useUiLogStore.getState().recordLog(fixResult.ok ? "info" : "error", `doctor_fix_${fixResult.action}: ${fixResult.message}`, { source: "doctor" });
+      return {
+        doctor: {
+          ...state.doctor,
+          fixPreviewing: false,
+          fixApplying: false,
+          fixResult,
+          lastAction: fixResult.ok ? fixResult.message : null,
+          lastError: fixResult.ok ? null : fixResult.error || fixResult.message
         }
       };
     }),
@@ -288,6 +303,9 @@ export const useOpsPageStore = create<OpsPageState>((set) => ({
         doctor: {
           ...state.doctor,
           loading: false,
+          running: false,
+          fixPreviewing: false,
+          fixApplying: false,
           lastError: message
         }
       };
@@ -347,6 +365,32 @@ export const useOpsPageStore = create<OpsPageState>((set) => ({
         }
       };
     }),
+  loadDoctorLast: () => {
+    useOpsPageStore.getState().markDoctorLoading();
+    if (!requestDesktopOps.doctorLast()) {
+      useOpsPageStore.getState().markDoctorError("Doctor 최근 보고서 요청을 전송하지 못했다.");
+    }
+  },
+  runDoctor: () => {
+    useOpsPageStore.getState().markDoctorRunning();
+    if (!requestDesktopOps.doctorRun()) {
+      useOpsPageStore.getState().markDoctorError("Doctor 실행 요청을 전송하지 못했다.");
+    }
+  },
+  previewDoctorFix: () => {
+    set((state) => ({ doctor: { ...state.doctor, fixPreviewing: true, fixResult: null, lastError: null } }));
+    if (!requestDesktopOps.doctorFixPreview()) {
+      useOpsPageStore.getState().markDoctorError("Doctor fix preview 요청을 전송하지 못했다.");
+    }
+  },
+  loadOpsSnapshot: () => {
+    useOpsPageStore.getState().markOpsLoading();
+    const planSent = requestDesktopOps.planList();
+    const taskSent = requestDesktopOps.taskGraphList();
+    if (!planSent || !taskSent) {
+      useOpsPageStore.getState().markOpsError("운영 목록 조회 요청을 전송하지 못했다.");
+    }
+  },
   loadGitAutomation: () => {
     set((state) => ({ git: { ...state.git, loading: true, lastError: "" } }));
     if (!requestDesktopGit.automationSnapshot()) {
@@ -393,6 +437,10 @@ export function useGitAutomationBridge() {
   useEffect(() => {
     return subscribeDesktopMessages((message: DesktopServerMessage) => {
       const payload = asRecord(message.payload);
+      if (message.type === "doctor_fix_result") {
+        useOpsPageStore.getState().markDoctorFixResult(message);
+        return;
+      }
       if (message.type === "git_automation_snapshot") {
         const snapshot = normalizeGitSnapshot(payload);
         useOpsPageStore.setState((state) => ({

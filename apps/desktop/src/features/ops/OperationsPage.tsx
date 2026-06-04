@@ -7,6 +7,7 @@ import type { GitOperationName } from "../middleware/git-gateway";
 import { AuthReadOnlyCard } from "../shell/ShellStatusCards";
 import { useUiLogStore } from "../ui-log/ui-log-store";
 import { useDesktopShellStore } from "../../shell-store";
+import { OperationsDoctorPanel } from "./OperationsDoctorPanel";
 import { useGitAutomationBridge, useOpsPageStore } from "./ops-store";
 
 const OPERATION_LABELS: Array<{ value: GitOperationName; label: string }> = [
@@ -42,6 +43,8 @@ export function OperationsPage() {
   const bridgeStatus = useDesktopShellStore((state) => state.bridge.status);
   const authStatus = useDesktopAuthStore((state) => state.auth.status);
   const git = useOpsPageStore((state) => state.git);
+  const doctor = useOpsPageStore((state) => state.doctor);
+  const ops = useOpsPageStore((state) => state.ops);
   const store = useOpsPageStore();
   const canRequest = bridgeStatus === "connected" && authStatus === "authenticated";
   const snapshot = git.snapshot;
@@ -58,7 +61,11 @@ export function OperationsPage() {
   const canApply = !!(canRequest && git.preview?.ok && git.preview.previewId && git.preview.approval?.confirmationToken && git.preview.blockers.length === 0);
 
   useEffect(() => {
-    if (canRequest) store.loadGitAutomation();
+    if (canRequest) {
+      store.loadGitAutomation();
+      store.loadDoctorLast();
+      store.loadOpsSnapshot();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canRequest]);
 
@@ -69,10 +76,51 @@ export function OperationsPage() {
         <p className="text-sm text-muted-foreground">인증, 미들웨어 브릿지, Doctor·Plan·Task, Git operation 승인 게이트를 확인합니다.</p>
       </div>
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
-        <CardBoundary title="인증 / Read-only WS" card="operations" onError={recordCardError}>
-          <AuthReadOnlyCard />
-        </CardBoundary>
+        <div className="space-y-4">
+          <CardBoundary title="인증 / Read-only WS" card="operations" onError={recordCardError}>
+            <AuthReadOnlyCard />
+          </CardBoundary>
 
+          <CardBoundary title="Plan / Task 상태" card="operations" onError={recordCardError}>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">운영 목록</p>
+                  <p className="truncate text-xs text-muted-foreground">Plan과 Task Graph 목록을 read-only로 확인합니다.</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={store.loadOpsSnapshot} disabled={!canRequest || ops.loadingPlans || ops.loadingTaskGraphs}>
+                  <RefreshCcw size={14} aria-hidden="true" /> 새로고침
+                </Button>
+              </div>
+              {ops.lastError ? <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{ops.lastError}</p> : null}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-md border border-border bg-card/60 px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">plans</p>
+                  <p className="font-mono text-lg font-semibold tabular-nums">{ops.planCount}</p>
+                  <p className="truncate text-[11px] text-muted-foreground">{ops.latestPlanTitle || (ops.loadingPlans ? "조회 중" : "최근 plan 없음")}</p>
+                </div>
+                <div className="rounded-md border border-border bg-card/60 px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">task graphs</p>
+                  <p className="font-mono text-lg font-semibold tabular-nums">{ops.taskGraphCount}</p>
+                  <p className="truncate text-[11px] text-muted-foreground">{ops.latestTaskGraphStatus || (ops.loadingTaskGraphs ? "조회 중" : "최근 graph 없음")}</p>
+                </div>
+              </div>
+            </div>
+          </CardBoundary>
+        </div>
+
+        <CardBoundary title="Doctor / 환경 진단" card="operations" onError={recordCardError}>
+          <OperationsDoctorPanel
+            doctor={doctor}
+            canRequest={canRequest}
+            onLoadLast={store.loadDoctorLast}
+            onRun={store.runDoctor}
+            onPreviewFix={store.previewDoctorFix}
+          />
+        </CardBoundary>
+      </section>
+
+      <section>
         <CardBoundary title="Git automation" card="operations" onError={recordCardError}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
