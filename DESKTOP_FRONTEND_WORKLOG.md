@@ -169,6 +169,16 @@
 - 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과(934 assertions), 모든 `.ts/.tsx` 500줄 이하 확인(`AskPage.tsx` 419줄 / `ask-store.ts` 402줄).
 - 브라우저 QA: `http://127.0.0.1:1420/` Ask 화면에서 기본 렌더링, 채팅 모드 선택 상호작용, 콘솔 오류 없음, 스크린샷 `/tmp/omnux-ask-message-token-qa.png` 저장. 미들웨어 오프라인이라 실제 token badge 데이터 수신은 빌드/타입 검증까지만 확인.
 
+### Operations Doctor 진단/복구 연결
+
+- 운영 화면 상단에 `Doctor / 환경 진단` 패널을 추가해 `doctor_get_last`, `doctor_run`, `doctor_fix_preview`를 연결했다.
+- 구 대시보드의 Doctor 요약 흐름을 React+Tailwind로 옮겨 ok/warn/fail/skip 카운트, 체크별 상태·상세·제안 액션, fix action 목록을 raw JSON 없이 표시한다.
+- `doctor_fix_apply`는 shell boundary 계약에서 Phase 5 운영 위험 명령으로 금지되어 이번 단위에서는 호출하지 않고, Apply 버튼을 보류 상태로 비활성 표시한다.
+- 운영 화면 왼쪽에는 `plan_list`, `task_graph_list` read-only 요약 카드를 복원해 Plan/Task Graph 개수와 최근 항목을 바로 볼 수 있게 했다.
+- 신규 요청 등록은 `ops-gateway.ts`로 분리해 core gateway 줄 수를 늘리지 않았고, `ops-doctor.ts`/`OperationsDoctorPanel.tsx`로 타입·패널을 분리해 500줄 제한을 유지했다.
+- 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과(955 assertions), 모든 `.ts/.tsx` 500줄 이하 확인(`ops-store.ts` 477줄).
+- 브라우저 QA: `http://127.0.0.1:1420/` 운영 화면에서 `Doctor / 환경 진단`, `Plan / Task 상태`, `Doctor fix preview`, `Git automation` 렌더링과 인증 전 버튼 비활성 상태, 콘솔 오류 없음, 스크린샷 `/tmp/omnux-operations-doctor-qa.png` 저장.
+
 ## 다음 연결 후보
 
 - 다음 연결 후보는 Local LLM 실제 라우팅 readiness, Self-RAG 실행 plan, Terminal PTY 승인 게이트 중 정책상 안전한 단위부터 고른다.

@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useDesktopAuthStore } from "./features/auth/auth-store";
-import { bindDesktopSessionSocket, publishDesktopMessage, requestDesktopAuth, requestDesktopOps } from "./features/middleware/desktop-message-gateway";
+import { bindDesktopSessionSocket, publishDesktopMessage, requestDesktopAuth } from "./features/middleware/desktop-message-gateway";
+import { requestDesktopOps } from "./features/middleware/ops-gateway";
 import { useOpsPageStore } from "./features/ops/ops-store";
 import { DESKTOP_MIDDLEWARE_WS_URL } from "./middleware-contract";
 import { useDesktopShellStore } from "./shell-store";
@@ -77,10 +78,11 @@ function handleServerMessage(message: ServerMessage) {
         ? (message.report as {
             reportId?: string;
             createdAtUtc?: string;
-            status?: string;
-            summary?: string;
-            failCount?: number;
+            checks?: Array<Record<string, unknown>>;
+            okCount?: number;
             warnCount?: number;
+            failCount?: number;
+            skipCount?: number;
           })
         : null
     });

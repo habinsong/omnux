@@ -40,6 +40,11 @@ export function ReadOnlyWsPanel() {
   }, [otp]);
 
   const detail = (text?: string | null) => (text ? <span className="max-w-[220px] truncate text-[10px] text-muted-foreground">{text}</span> : null);
+  const doctorSummary = doctor.report
+    ? `ok=${doctor.report.okCount} warn=${doctor.report.warnCount} fail=${doctor.report.failCount}`
+    : doctor.found === false
+      ? "보고서 없음"
+      : "조회 전";
 
   return (
     <div className="space-y-3">
@@ -55,8 +60,8 @@ export function ReadOnlyWsPanel() {
         <KV k="session"><span className="font-mono">{auth.sessionId || "-"}</span></KV>
         <KV k="expires"><span className="font-mono">{auth.expiresAtLocal || auth.expiresAtUtc || "-"}</span></KV>
         <KV k="doctor">
-          <span>{doctor.loading ? "조회 중..." : doctor.summary || "조회 전"}</span>
-          {detail(doctor.reportId)}
+          <span>{doctor.loading || doctor.running ? "조회 중..." : doctorSummary}</span>
+          {detail(doctor.report?.reportId)}
         </KV>
         <KV k="plans">
           <span>{ops.loadingPlans ? "조회 중..." : `${ops.planCount}건`}</span>
