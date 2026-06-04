@@ -96,14 +96,45 @@ export type RepomapSnapshot = {
   files: Array<{ path: string; language: string; symbolCount: number; symbols: Array<{ name: string; kind: string; signature: string; line: number }> }>;
 };
 export type CommitLearningSnapshot = {
+  repositoryRoot: string;
+  limit: number;
   totalCommits: number;
+  commits: Array<{
+    hash: string;
+    shortHash: string;
+    subject: string;
+    authorName: string;
+    authorDateUtc: string;
+    intent: string;
+    filesChanged: number;
+    addedLines: number;
+    deletedLines: number;
+    topPaths: string[];
+  }>;
   intents: Array<{ intent: string; commitCount: number; addedLines: number; deletedLines: number }>;
   hotspots: Array<{ path: string; changeCount: number; lastCommitShortHash: string; lastSubject: string }>;
+  warnings: string[];
+  scannedAtUtc: string;
 };
 export type SelfImprovementSnapshot = {
+  repositoryRoot: string;
   status: string;
   proposalCount: number;
-  proposals: Array<{ proposalId: string; kind: string; priority: string; title: string; rationale: string; suggestedAction: string; requiresApproval: boolean }>;
+  limit: number;
+  proposals: Array<{
+    proposalId: string;
+    kind: string;
+    priority: string;
+    title: string;
+    rationale: string;
+    suggestedAction: string;
+    source: string;
+    targetPath: string;
+    requiresApproval: boolean;
+    evidence: string[];
+  }>;
+  warnings: string[];
+  scannedAtUtc: string;
 };
 
 type InsightsState = {
@@ -352,9 +383,25 @@ export function useInsightsPageBridge() {
       if (message.type === "commit_learning_snapshot") {
         useInsightsStore.setState({
           commitLearning: {
+            repositoryRoot: s(payload.repositoryRoot),
+            limit: n(payload.limit),
             totalCommits: n(payload.totalCommits),
+            commits: arr(payload.commits).map((c) => ({
+              hash: s(c.hash),
+              shortHash: s(c.shortHash),
+              subject: s(c.subject),
+              authorName: s(c.authorName),
+              authorDateUtc: s(c.authorDateUtc),
+              intent: s(c.intent),
+              filesChanged: n(c.filesChanged),
+              addedLines: n(c.addedLines),
+              deletedLines: n(c.deletedLines),
+              topPaths: Array.isArray(c.topPaths) ? c.topPaths.map(String) : []
+            })),
             intents: arr(payload.intents).map((i) => ({ intent: s(i.intent), commitCount: n(i.commitCount), addedLines: n(i.addedLines), deletedLines: n(i.deletedLines) })),
-            hotspots: arr(payload.hotspots).map((h) => ({ path: s(h.path), changeCount: n(h.changeCount), lastCommitShortHash: s(h.lastCommitShortHash), lastSubject: s(h.lastSubject) }))
+            hotspots: arr(payload.hotspots).map((h) => ({ path: s(h.path), changeCount: n(h.changeCount), lastCommitShortHash: s(h.lastCommitShortHash), lastSubject: s(h.lastSubject) })),
+            warnings: Array.isArray(payload.warnings) ? payload.warnings.map(String) : [],
+            scannedAtUtc: s(payload.scannedAtUtc)
           }
         });
         return;
@@ -362,8 +409,10 @@ export function useInsightsPageBridge() {
       if (message.type === "self_improvement_snapshot") {
         useInsightsStore.setState({
           selfImprovement: {
+            repositoryRoot: s(payload.repositoryRoot),
             status: s(payload.status),
             proposalCount: n(payload.proposalCount),
+            limit: n(payload.limit),
             proposals: arr(payload.proposals).map((p) => ({
               proposalId: s(p.proposalId),
               kind: s(p.kind),
@@ -371,8 +420,13 @@ export function useInsightsPageBridge() {
               title: s(p.title),
               rationale: s(p.rationale),
               suggestedAction: s(p.suggestedAction),
-              requiresApproval: !!p.requiresApproval
-            }))
+              source: s(p.source),
+              targetPath: s(p.targetPath),
+              requiresApproval: !!p.requiresApproval,
+              evidence: Array.isArray(p.evidence) ? p.evidence.map(String) : []
+            })),
+            warnings: Array.isArray(payload.warnings) ? payload.warnings.map(String) : [],
+            scannedAtUtc: s(payload.scannedAtUtc)
           }
         });
         return;
