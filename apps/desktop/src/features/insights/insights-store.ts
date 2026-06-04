@@ -75,11 +75,17 @@ export type GitTimeMachineSnapshot = {
 export type SemanticSnapshot = {
   status: string;
   mode: string;
+  readOnly: boolean;
   vectorSearchEnabled: boolean;
   embeddingGenerationEnabled: boolean;
   codeSearchRecommended: boolean;
   index: { dbExists: boolean; sqliteCliAvailable: boolean; ftsAvailable: boolean; sqliteVecAvailable: boolean; fileCount: number; chunkCount: number; embeddingCacheEntryCount: number; chunkSources: Array<{ source: string; count: number }> };
-  embedding: { localEndpointAvailable: boolean; candidateModelAvailable: boolean; candidateModels: Array<{ endpointName: string; modelId: string }> };
+  embedding: { localEndpointAvailable: boolean; candidateModelAvailable: boolean; availableEndpointCount: number; totalModelCount: number; candidateModels: Array<{ endpointName: string; endpointKind: string; modelId: string }> };
+  checks: Array<{ name: string; status: string; message: string }>;
+  recommendations: string[];
+  skipped: string[];
+  warnings: string[];
+  scannedAtUtc: string;
 };
 export type RepomapSnapshot = {
   status: string;
@@ -295,6 +301,7 @@ export function useInsightsPageBridge() {
           semantic: {
             status: s(payload.status),
             mode: s(payload.mode),
+            readOnly: payload.readOnly !== false,
             vectorSearchEnabled: !!payload.vectorSearchEnabled,
             embeddingGenerationEnabled: !!payload.embeddingGenerationEnabled,
             codeSearchRecommended: !!payload.codeSearchRecommended,
@@ -311,8 +318,15 @@ export function useInsightsPageBridge() {
             embedding: {
               localEndpointAvailable: !!embedding.localEndpointAvailable,
               candidateModelAvailable: !!embedding.candidateModelAvailable,
-              candidateModels: arr(embedding.candidateModels).map((m) => ({ endpointName: s(m.endpointName), modelId: s(m.modelId) }))
-            }
+              availableEndpointCount: n(embedding.availableEndpointCount),
+              totalModelCount: n(embedding.totalModelCount),
+              candidateModels: arr(embedding.candidateModels).map((m) => ({ endpointName: s(m.endpointName), endpointKind: s(m.endpointKind), modelId: s(m.modelId) }))
+            },
+            checks: arr(payload.checks).map((check) => ({ name: s(check.name), status: s(check.status), message: s(check.message) })),
+            recommendations: Array.isArray(payload.recommendations) ? payload.recommendations.map(String) : [],
+            skipped: Array.isArray(payload.skipped) ? payload.skipped.map(String) : [],
+            warnings: Array.isArray(payload.warnings) ? payload.warnings.map(String) : [],
+            scannedAtUtc: s(payload.scannedAtUtc)
           }
         });
         return;

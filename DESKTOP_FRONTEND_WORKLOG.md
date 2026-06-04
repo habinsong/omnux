@@ -125,6 +125,15 @@
 - 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과(913 assertions), 신규 파일 포함 모든 `.ts/.tsx` 500줄 이하 확인.
 - 브라우저 QA: `http://127.0.0.1:1420/` Activity 화면에서 `Session replay` 패널, 입력/토글 UI, disabled 조회 상태, 콘솔 오류 없음, 스크린샷 `/tmp/omnux-activity-session-replay-qa.png` 확인.
 
+### Semantic Search readiness 상세화
+
+- Insights의 `Semantic Search readiness` 패널이 `readOnly`, vector/embedding 실행 가능 여부, local embedding endpoint/model 수를 표시하도록 확장했다.
+- 백엔드 응답의 `checks`, `recommendations`, `warnings`, `skipped`를 정규화해 row/badge로 표시한다.
+- `임베딩 생성`, `벡터 검색`, `대량 reindex` 컨트롤은 readiness가 켜지기 전까지 비활성으로 표시해 실제 실행 기능이 아님을 명확히 했다.
+- 실제 embedding generation, sqlite-vec migration, vector similarity query, semantic rerank는 백엔드 정책상 보류 상태라 호출하지 않는다.
+- 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과(913 assertions), `InsightsPanels.tsx` 419줄 / `insights-store.ts` 385줄 확인.
+- 브라우저 QA: `http://127.0.0.1:1420/` Insights 화면에서 `Semantic Search readiness` 패널 렌더링, 콘솔 오류 없음, 스크린샷 `/tmp/omnux-insights-semantic-readiness-qa.png` 확인. 미들웨어 오프라인이라 상세 readiness 데이터 수신은 빌드/타입 검증까지만 확인.
+
 ## 다음 연결 후보
 
 - 다음 연결 후보는 Local LLM 실제 라우팅 readiness, Self-RAG 실행 plan, Terminal PTY 승인 게이트 중 정책상 안전한 단위부터 고른다.
