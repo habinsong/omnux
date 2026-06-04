@@ -4,6 +4,7 @@ import { CardBoundary } from "../../CardBoundary";
 import { useDesktopShellStore } from "../../shell-store";
 import { useDesktopAuthStore } from "../auth/auth-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
+import { AgentBusWritePanel } from "./AgentBusWritePanel";
 import { useAgentsPageBridge, useAgentsStore } from "./agents-store";
 import { Badge, Button, EmptyState } from "../../components/ui/primitives";
 
@@ -39,7 +40,7 @@ export function AgentsPage() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">에이전트</h1>
-          <p className="text-sm text-muted-foreground">멀티 에이전트 메시지 버스·보드·생명주기, watchdog, worktree 격리 스냅샷 (read-only).</p>
+          <p className="text-sm text-muted-foreground">멀티 에이전트 메시지 버스·보드 기록과 watchdog, worktree 격리 스냅샷을 한 화면에서 확인합니다.</p>
         </div>
         <Button variant="outline" size="sm" onClick={store.loadAll} disabled={!canRequest || store.loading}>
           <RefreshCcw size={15} aria-hidden="true" /> {store.loading ? "조회 중" : "새로고침"}
@@ -48,6 +49,10 @@ export function AgentsPage() {
       {store.lastError ? <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{store.lastError}</p> : null}
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <CardBoundary title="버스 기록" card="operations" onError={recordCardError}>
+          <AgentBusWritePanel canRequest={canRequest} />
+        </CardBoundary>
+
         <CardBoundary title="에이전트 버스" card="logs" onError={recordCardError}>
           {bus ? (
             <>
