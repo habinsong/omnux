@@ -33,6 +33,13 @@ function formatBytes(value: number): string {
   return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
+function shortDate(value: string): string {
+  if (!value) return "date -";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" });
+}
+
 export function Stat({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
     <div className="rounded-md border border-border bg-card/60 p-3">
@@ -86,23 +93,59 @@ export function TelemetryPanel({ telemetry }: { telemetry: TelemetrySnapshot | n
 export function GitTimeMachinePanel({ git }: { git: GitTimeMachineSnapshot | null }) {
   if (!git) return <Empty label="새로고침하면 브랜치·커밋 체크포인트가 표시됩니다." />;
   if (!git.isRepository) return <Empty label="workspace가 git 저장소가 아닙니다." />;
+  const blocked = git.readiness.blockers.length > 0;
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone="outline"><GitBranch size={11} aria-hidden="true" /> {git.branchName}</Badge>
         <Badge tone="outline" className="font-mono">{git.headShortHash}</Badge>
+        <Badge tone={statusTone(git.readiness.status)}>{git.readiness.status || "status -"}</Badge>
+        <Badge tone={git.readOnly ? "outline" : "warning"}>{git.readOnly ? "read-only" : "mutable"}</Badge>
         <Badge tone={git.isClean ? "success" : "warning"}>{git.isClean ? "clean" : `${git.changedFileCount} changed`}</Badge>
+        {git.checkpointsTruncated ? <Badge tone="warning">truncated</Badge> : null}
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label="변경 파일" value={git.changedFileCount} sub={git.diffShortStat || "worktree"} />
+        <Stat label="충돌" value={git.conflictedFileCount} sub={blocked ? git.readiness.blockers.join(", ") : "blocker 없음"} />
+        <Stat label="체크포인트" value={git.checkpoints.length} sub={`limit ${git.limit || "-"}`} />
+      </div>
+      <div className="flex min-w-0 flex-wrap gap-1">
+        <Badge tone={git.readiness.rollbackAvailable ? "primary" : "outline"}>
+          rollback {git.readiness.rollbackAvailable ? "review 가능" : "보류"}
+        </Badge>
+        {git.readiness.snapshotCreationRecommended ? <Badge tone="warning">snapshot 권장</Badge> : null}
+        {git.suggestedSnapshotBranch ? <Badge tone="outline" className="max-w-full truncate">{git.suggestedSnapshotBranch}</Badge> : null}
+        {git.readiness.blockers.map((blocker) => <Badge key={blocker} tone="destructive" className="max-w-full truncate">{blocker}</Badge>)}
+        {git.warnings.map((warning) => <Badge key={warning} tone="warning" className="max-w-full truncate">{warning}</Badge>)}
       </div>
       <div className="space-y-1">
         {git.checkpoints.slice(0, 8).map((checkpoint) => (
           <Row
             key={checkpoint.shortHash}
             left={checkpoint.subject}
-            sub={`${checkpoint.authorName} · ${checkpoint.shortHash}`}
+            sub={`${checkpoint.authorName || "author -"} · ${shortDate(checkpoint.authorDateUtc)} · ${checkpoint.shortHash}`}
             right={checkpoint.isHead ? <Badge tone="primary">HEAD</Badge> : checkpoint.rollbackCandidate ? <Badge tone="outline">rollback</Badge> : null}
           />
         ))}
         {git.checkpoints.length === 0 ? <Empty label="체크포인트 없음" /> : null}
+      </div>
+      <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+        <div className="min-w-0 space-y-1">
+          {git.checkpoints.slice(0, 4).map((checkpoint) => (
+            <Row
+              key={`risk-${checkpoint.shortHash}`}
+              left={checkpoint.shortHash}
+              sub={checkpoint.riskFlags.join(", ") || "risk flag 없음"}
+              right={<Badge tone={checkpoint.rollbackCandidate ? "warning" : "outline"}>{checkpoint.parentShortHashes.length || 0} parent</Badge>}
+            />
+          ))}
+        </div>
+        <div className="min-w-0 space-y-1">
+          {git.checks.slice(0, 5).map((check) => (
+            <Row key={check.name} left={check.name} sub={check.detail} right={<Badge tone={statusTone(check.status)}>{check.status}</Badge>} />
+          ))}
+          {git.checks.length === 0 ? <Empty label="Git 타임머신 check 없음" /> : null}
+        </div>
       </div>
     </>
   );
