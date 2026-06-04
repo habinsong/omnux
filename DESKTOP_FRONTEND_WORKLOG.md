@@ -134,6 +134,15 @@
 - 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과(913 assertions), `InsightsPanels.tsx` 419줄 / `insights-store.ts` 385줄 확인.
 - 브라우저 QA: `http://127.0.0.1:1420/` Insights 화면에서 `Semantic Search readiness` 패널 렌더링, 콘솔 오류 없음, 스크린샷 `/tmp/omnux-insights-semantic-readiness-qa.png` 확인. 미들웨어 오프라인이라 상세 readiness 데이터 수신은 빌드/타입 검증까지만 확인.
 
+### Memory Search tier metadata 표시
+
+- Settings의 메모리 검색 결과가 `memoryTier`, `source`, `startLine/endLine`, `lastAccessedAtUnixMs`를 보존하고 배지로 표시하도록 확장했다.
+- `long_term` tier 배지에는 오래된 결과도 score floor 정책으로 유지될 수 있다는 짧은 tooltip을 붙였다.
+- Ask 화면의 RAG 후보 명시 조회에서 `memory_search` 결과도 score 외 tier/source/line 배지를 함께 표시한다.
+- 기존 `memory_search` 요청 흐름은 그대로 유지하고, 자동 검색 실행이나 프롬프트 주입은 추가하지 않았다.
+- 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과(913 assertions), `SettingsPage.tsx` 284줄 / `settings-store.ts` 418줄 / `AskPage.tsx` 366줄 확인.
+- 브라우저 QA: `http://127.0.0.1:1420/` Settings Memory 화면에서 검색 입력/패널 렌더링, Ask 화면 기본 렌더링, 콘솔 오류 없음, 스크린샷 `/tmp/omnux-settings-memory-tier-qa.png` 확인. 미들웨어 오프라인이라 실제 memory search 결과 tier 수신은 빌드/타입 검증까지만 확인.
+
 ## 다음 연결 후보
 
 - 다음 연결 후보는 Local LLM 실제 라우팅 readiness, Self-RAG 실행 plan, Terminal PTY 승인 게이트 중 정책상 안전한 단위부터 고른다.

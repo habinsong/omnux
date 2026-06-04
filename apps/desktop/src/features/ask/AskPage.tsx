@@ -300,7 +300,10 @@ export function AskPage() {
                             <span className="block truncate text-xs font-medium">{item.title}</span>
                             <span className="block truncate text-[11px] text-muted-foreground">{item.detail || "detail -"}</span>
                           </span>
-                          <Badge tone="outline">{item.badge || "-"}</Badge>
+                          <span className="flex shrink-0 flex-wrap justify-end gap-1">
+                            <Badge tone="outline">{item.badge || "-"}</Badge>
+                            {item.badges?.slice(0, 3).map((badge) => <Badge key={badge} tone="outline">{badge}</Badge>)}
+                          </span>
                         </div>
                       ))}
                       {!store.ragExecution.loading && store.ragExecution.items.length === 0 ? <p className="py-2 text-center text-xs text-muted-foreground">조회 결과 없음</p> : null}

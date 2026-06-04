@@ -18,7 +18,7 @@ export type AskRagExecution = {
   status: string;
   loading: boolean;
   error: string;
-  items: Array<{ title: string; detail: string; badge: string }>;
+  items: Array<{ title: string; detail: string; badge: string; badges?: string[] }>;
 };
 
 function records(value: unknown): Record<string, unknown>[] {
@@ -60,7 +60,12 @@ export function normalizeMemoryRagExecution(current: AskRagExecution, message: D
     items: records(message.results).slice(0, 6).map((item) => ({
       title: str(item.path || item.fullPath || item.noteName || "memory"),
       detail: str(item.snippet || item.excerpt || ""),
-      badge: Number(item.score || 0).toFixed(2)
+      badge: Number(item.score || 0).toFixed(2),
+      badges: [
+        str(item.memoryTier),
+        str(item.source),
+        Number(item.startLine || 0) > 0 ? `L${Number(item.startLine)}-${Number(item.endLine || item.startLine)}` : ""
+      ].filter(Boolean)
     }))
   };
 }

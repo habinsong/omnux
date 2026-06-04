@@ -5,7 +5,7 @@ import { useDesktopShellStore } from "../../shell-store";
 import type { ShellCard } from "../../shell-store";
 import { useDesktopAuthStore } from "../auth/auth-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
-import { useSettingsPageBridge, useSettingsStore } from "./settings-store";
+import { type MemorySearchResultItem, useSettingsPageBridge, useSettingsStore } from "./settings-store";
 import { LlmModelsPanel } from "./LlmModelsPanel";
 import { Badge, Button, Input, cn } from "../../components/ui/primitives";
 
@@ -33,6 +33,47 @@ const BACKUP_SCOPE_LABELS: Record<string, string> = {
   "skills/project": "프로젝트 스킬",
   "commands/project": "프로젝트 명령"
 };
+
+function memoryTierTone(tier: string): "success" | "primary" | "warning" | "outline" {
+  if (tier === "working") return "success";
+  if (tier === "short_term") return "primary";
+  if (tier === "episodic") return "warning";
+  return "outline";
+}
+
+function formatAccessTime(value: number): string {
+  if (!value) return "access -";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "access -";
+  return date.toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" });
+}
+
+function MemorySearchResultRow({ result }: { result: MemorySearchResultItem }) {
+  const lineLabel = result.startLine > 0 ? `L${result.startLine}-${result.endLine || result.startLine}` : "";
+  const tier = result.memoryTier || "tier -";
+  return (
+    <article className="rounded-md border border-border bg-card/60 px-2.5 py-2">
+      <div className="flex items-start justify-between gap-2">
+        <span className="min-w-0">
+          <span className="block truncate text-xs font-medium">{result.path}</span>
+          <small className="block truncate text-[11px] text-muted-foreground">{result.snippet}</small>
+        </span>
+        <Badge tone="outline" className="shrink-0">{result.score.toFixed(2)}</Badge>
+      </div>
+      <div className="mt-1.5 flex min-w-0 flex-wrap gap-1">
+        <Badge
+          tone={memoryTierTone(result.memoryTier)}
+          title={result.memoryTier === "long_term" ? "오래된 long_term 결과도 score floor 정책으로 유지될 수 있습니다." : undefined}
+        >
+          {tier}
+        </Badge>
+        {result.source ? <Badge tone="outline">{result.source}</Badge> : null}
+        {lineLabel ? <Badge tone="outline">{lineLabel}</Badge> : null}
+        <Badge tone="outline">{formatAccessTime(result.lastAccessedAtUnixMs)}</Badge>
+      </div>
+    </article>
+  );
+}
 
 function SetRow({ title, desc, right }: { title: string; desc: string; right: ReactNode }) {
   return (
@@ -129,10 +170,7 @@ function MemoryTab({ store, canRequest, fileInputRef, onError }: { store: Store;
         {store.memorySearchResults.length > 0 ? (
           <div className="space-y-1">
             {store.memorySearchResults.map((result) => (
-              <article key={`${result.path}-${result.score}`} className="rounded-md border border-border bg-card/60 px-2.5 py-2">
-                <span className="block truncate text-xs font-medium">{result.path}</span>
-                <small className="block truncate text-[11px] text-muted-foreground">{result.snippet}</small>
-              </article>
+              <MemorySearchResultRow key={`${result.path}-${result.score}-${result.startLine}`} result={result} />
             ))}
           </div>
         ) : null}
