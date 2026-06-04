@@ -12,13 +12,23 @@ export type AskRagPreflight = {
 
 export type AskRagCandidate = AskRagPreflight["candidates"][number];
 
+export type AskRagItem = {
+  title: string;
+  detail: string;
+  badge: string;
+  badges?: string[];
+  path?: string;
+  startLine?: number;
+  endLine?: number;
+};
+
 export type AskRagExecution = {
   kind: string;
   requestType: string;
   status: string;
   loading: boolean;
   error: string;
-  items: Array<{ title: string; detail: string; badge: string; badges?: string[] }>;
+  items: AskRagItem[];
 };
 
 function records(value: unknown): Record<string, unknown>[] {
@@ -27,6 +37,11 @@ function records(value: unknown): Record<string, unknown>[] {
 
 function str(value: unknown): string {
   return typeof value === "string" ? value : value == null ? "" : String(value);
+}
+
+function positiveNumber(value: unknown): number | undefined {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 export function normalizeRagPreflight(payload: Record<string, unknown>): AskRagPreflight {
@@ -57,17 +72,34 @@ export function normalizeMemoryRagExecution(current: AskRagExecution, message: D
     loading: false,
     status: String(message.error || "") ? "error" : "done",
     error: String(message.error || ""),
-    items: records(message.results).slice(0, 6).map((item) => ({
-      title: str(item.path || item.fullPath || item.noteName || "memory"),
-      detail: str(item.snippet || item.excerpt || ""),
-      badge: Number(item.score || 0).toFixed(2),
-      badges: [
-        str(item.memoryTier),
-        str(item.source),
-        Number(item.startLine || 0) > 0 ? `L${Number(item.startLine)}-${Number(item.endLine || item.startLine)}` : ""
-      ].filter(Boolean)
-    }))
+    items: records(message.results).slice(0, 6).map((item) => {
+      const path = str(item.path || item.fullPath || item.noteName || "memory");
+      const startLine = positiveNumber(item.startLine);
+      const endLine = positiveNumber(item.endLine) || startLine;
+      return {
+        title: path,
+        detail: str(item.snippet || item.excerpt || ""),
+        badge: Number(item.score || 0).toFixed(2),
+        badges: [
+          str(item.memoryTier),
+          str(item.source),
+          startLine ? `L${startLine}-${endLine || startLine}` : ""
+        ].filter(Boolean),
+        path,
+        startLine,
+        endLine
+      };
+    })
   };
+}
+
+export function memoryGetWindowFromRagItem(item: AskRagItem): { path: string; fromLine?: number; lines?: number } {
+  const path = String(item.path || item.title || "").trim();
+  const fromLine = positiveNumber(item.startLine);
+  const endLine = positiveNumber(item.endLine);
+  if (!fromLine) return { path };
+  const lines = endLine && endLine >= fromLine ? Math.min(160, endLine - fromLine + 1) : 80;
+  return { path, fromLine, lines };
 }
 
 export function normalizeWebRagExecution(current: AskRagExecution, message: DesktopServerMessage): AskRagExecution {

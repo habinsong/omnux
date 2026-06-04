@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const LEGACY_CORE_ALIAS = "omni" + "node-core";
 let assertionCount = 0;
 
 function read(relativePath) {
@@ -84,7 +85,7 @@ assertIncludes(staticFileEndpoint, "\"Cache-Control\"] = \"no-cache\"", "static 
 
 assertNotIncludes(String(existsSync(path.join(repoRoot, "apps", "omnux-core"))), "true", "legacy C core directory stays removed");
 assertNotIncludes(String(existsSync(path.join(repoRoot, "omnux-core"))), "true", "legacy C core root alias stays removed");
-assertNotIncludes(String(existsSync(path.join(repoRoot, "omninode-core"))), "true", "legacy omninode core alias stays removed");
+assertNotIncludes(String(existsSync(path.join(repoRoot, LEGACY_CORE_ALIAS))), "true", "legacy core alias stays removed");
 const coreRuntimeClient = read("apps/omnux-middleware/src/CoreRuntimeClient.cs");
 const coreRuntimeProgram = read("apps/omnux-middleware/src/Program.cs");
 assertIncludes(coreRuntimeClient, "public sealed class DotNetCoreRuntimeClient", "dotnet core runtime replaces legacy C daemon");

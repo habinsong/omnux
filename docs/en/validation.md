@@ -9,7 +9,7 @@ python3 apps/omnux-sandbox/executor.py --code "print('ok')"
 dotnet build apps/omnux-middleware/Omnux.Middleware.csproj
 npm test
 ./scripts/omnux setup
-curl -s http://127.0.0.1:8080/readyz
+curl -s http://127.0.0.1:41880/readyz
 ```
 
 `npm test` includes repository hygiene, dashboard syntax checks, router contracts, Telegram/chat contracts, routine/plan/notebook contracts, the security boundary contract, the core daemon boundary contract, and the tech stack contract.

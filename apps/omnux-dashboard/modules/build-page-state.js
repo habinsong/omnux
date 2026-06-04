@@ -168,7 +168,7 @@
     }, [ctx, rollbackId]);
 
     const examples = [
-      'Rename Omni-node to omnux in README and package.json',
+      'Rename product branding to omnux in README and package.json',
       'Add a dark mode toggle to the settings page',
       'Fix the type error in main.ts',
     ];

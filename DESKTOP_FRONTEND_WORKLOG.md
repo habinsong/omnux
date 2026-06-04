@@ -6,7 +6,7 @@
 
 - `apps/desktop` Tauri + React + TypeScript 프론트엔드에서 백엔드로만 구현된 기능을 사용자가 실제로 조작할 수 있게 연결한다.
 - `UIUX_design.md`의 Tailwind 기반 B2B SaaS UI/UX 기준을 우선 적용한다.
-- 레거시 대시보드(`backup(omni-node)/Omni-node-master/apps/omninode-dashboard`)의 탭 내부 기능까지 데스크톱 화면으로 점진 이관한다.
+- 레거시 정적 대시보드의 탭 내부 기능까지 데스크톱 화면으로 점진 이관한다.
 
 ## 작업 기준
 
@@ -22,7 +22,7 @@
 - `backend_feature_frontend.md`: 프론트 연결 가능한 백엔드 계약과 unlock/policy 판단.
 - `backend-feature-candidates.md`: 백엔드 구현 현황과 다음 연결 우선순위.
 - `backend_hidden_features.md`: 아직 UI에 충분히 노출되지 않은 백엔드 기능 목록.
-- `backup(omni-node)/Omni-node-master/apps/omninode-dashboard`: 옛 대시보드 기능과 화면 구조 기준.
+- 레거시 정적 대시보드 백업: 옛 대시보드 기능과 화면 구조 기준.
 
 ## 2026-06-04 진행
 
@@ -228,5 +228,5 @@
 
 ## 주의
 
-- `backup(omni-node)/`는 참조용 백업이며 커밋 대상이 아니다.
+- 레거시 참조 백업 디렉터리는 커밋 대상이 아니다.
 - Git rollback, worktree 삭제, cleanup/prune은 정책 확정 전까지 read-only inventory만 표시한다.

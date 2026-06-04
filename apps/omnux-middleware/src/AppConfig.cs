@@ -2,6 +2,7 @@ namespace Omnux.Middleware;
 
 public sealed class AppConfig
 {
+    private const int DefaultWebSocketPort = 41880;
     private const string DefaultKeychainAccount = "omnux";
     private const string TelegramBotTokenService = "omnux_telegram_bot_token";
     private const string TelegramChatIdService = "omnux_telegram_chat_id";
@@ -12,7 +13,7 @@ public sealed class AppConfig
     private const string CodexApiKeyService = "omnux_codex_api_key";
     private const string SttApiKeyService = "omnux_stt_api_key";
 
-    public int WebSocketPort { get; init; } = 8080;
+    public int WebSocketPort { get; init; } = DefaultWebSocketPort;
     public string? TelegramBotToken { get; init; }
     public string? TelegramChatId { get; init; }
     // 단일 user_id 또는 CSV(여러 user_id)를 받는다. 비어 있으면 user 단위 검사 생략.
@@ -105,7 +106,7 @@ public sealed class AppConfig
     public string DashboardAccessStatePath { get; init; } = ResolveDefaultStateFilePath("dashboard_access.json");
     public bool ExternalDashboardEnabled { get; init; }
     public bool EnableHealthEndpoint { get; init; } = true;
-    public bool EnableGatewayStartupProbe { get; init; }
+    public bool EnableGatewayStartupProbe { get; init; } = true;
     public int GatewayStartupProbeDelayMs { get; init; } = 250;
     public int GatewayStartupProbeTimeoutSec { get; init; } = 8;
     public int GatewayStartupProbePollIntervalMs { get; init; } = 150;
@@ -253,7 +254,7 @@ public sealed class AppConfig
         var pathResolver = DefaultStatePathResolver.CreateDefault();
         return new AppConfig
         {
-            WebSocketPort = GetIntEnv("OMNUX_WS_PORT", 8080),
+            WebSocketPort = GetIntEnv("OMNUX_WS_PORT", DefaultWebSocketPort),
             TelegramBotToken = SecretLoader.ResolveApiKey(
                 providerName: "telegram_bot_token",
                 directEnvKey: "OMNUX_TELEGRAM_BOT_TOKEN",
@@ -307,8 +308,7 @@ public sealed class AppConfig
             GeminiFlashModel = GetStringEnv("OMNUX_GEMINI_FLASH_MODEL", "gemini-3-flash-preview"),
             GeminiSearchModel = GetStringEnv(
                 "OMNUX_GEMINI_FLASH_LITE_MODEL",
-                "gemini-3.1-flash-lite",
-                "OMNINODE_GEMINI_SEARCH_MODEL"
+                "gemini-3.1-flash-lite"
             ),
             CerebrasBaseUrl = GetStringEnv("OMNUX_CEREBRAS_BASE_URL", "https://api.cerebras.ai/v1"),
             CerebrasModel = GetStringEnv("OMNUX_CEREBRAS_MODEL", "gpt-oss-120b"),
@@ -410,7 +410,7 @@ public sealed class AppConfig
             DashboardAccessStatePath = GetStringEnv("OMNUX_DASHBOARD_ACCESS_STATE_PATH", pathResolver.ResolveStateFilePath("dashboard_access.json")),
             ExternalDashboardEnabled = GetBoolEnv("OMNUX_EXTERNAL_DASHBOARD", false),
             EnableHealthEndpoint = GetBoolEnv("OMNUX_ENABLE_HEALTH_ENDPOINT", true),
-            EnableGatewayStartupProbe = GetBoolEnv("OMNUX_GATEWAY_STARTUP_PROBE", false),
+            EnableGatewayStartupProbe = GetBoolEnv("OMNUX_GATEWAY_STARTUP_PROBE", true),
             GatewayStartupProbeDelayMs = Math.Max(0, GetIntEnv("OMNUX_GATEWAY_STARTUP_PROBE_DELAY_MS", 250)),
             GatewayStartupProbeTimeoutSec = Math.Max(3, GetIntEnv("OMNUX_GATEWAY_STARTUP_PROBE_TIMEOUT_SEC", 8)),
             GatewayStartupProbePollIntervalMs = Math.Max(50, GetIntEnv("OMNUX_GATEWAY_STARTUP_PROBE_POLL_INTERVAL_MS", 150)),
@@ -484,10 +484,6 @@ public sealed class AppConfig
             }
         }
 
-        if (key.StartsWith("OMNUX_", StringComparison.Ordinal))
-        {
-            yield return "OMNINODE_" + key["OMNUX_".Length..];
-        }
     }
 
     private static string ResolveDefaultPythonBinary()
@@ -520,9 +516,7 @@ public sealed class AppConfig
             Path.GetFullPath(Path.Combine(cwd, "apps/omnux-sandbox/executor.py")),
             Path.GetFullPath(Path.Combine(cwd, "omnux-sandbox/executor.py")),
             Path.GetFullPath(Path.Combine(cwd, "../omnux-sandbox/executor.py")),
-            Path.GetFullPath(Path.Combine(cwd, "../apps/omnux-sandbox/executor.py")),
-            Path.GetFullPath(Path.Combine(cwd, "omninode-sandbox/executor.py")),
-            Path.GetFullPath(Path.Combine(cwd, "../omninode-sandbox/executor.py"))
+            Path.GetFullPath(Path.Combine(cwd, "../apps/omnux-sandbox/executor.py"))
         };
 
         foreach (var candidate in candidates)

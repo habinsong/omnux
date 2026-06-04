@@ -1,6 +1,13 @@
 import { create } from "zustand";
+import {
+  buildPermissionKey,
+  resolvePermissionPolicy,
+  usePermissionPolicyStore,
+  type PermissionAction
+} from "./permission-policy-store";
 
 type DialogTone = "default" | "danger";
+export type PermissionDialogResult = "allow_once" | "always_allow_here" | null;
 
 type BaseDialogRequest = {
   id: number;
@@ -23,7 +30,20 @@ type PromptDialogRequest = BaseDialogRequest & {
   resolve: (value: string | null) => void;
 };
 
-export type DesktopDialogRequest = ConfirmDialogRequest | PromptDialogRequest;
+type PermissionDialogRequest = BaseDialogRequest & {
+  kind: "permission";
+  permissionAction: PermissionAction;
+  permissionKey: string;
+  actionLabel: string;
+  files: string[];
+  commands: string[];
+  diff: string;
+  approvalToken: string;
+  allowAlwaysLabel: string;
+  resolve: (value: PermissionDialogResult) => void;
+};
+
+export type DesktopDialogRequest = ConfirmDialogRequest | PromptDialogRequest | PermissionDialogRequest;
 
 type DialogState = {
   request: DesktopDialogRequest | null;
@@ -52,7 +72,11 @@ export function settleDesktopDialog(value: boolean | string | null) {
     request.resolve(value === true);
     return;
   }
-  request.resolve(typeof value === "string" ? value : null);
+  if (request.kind === "prompt") {
+    request.resolve(typeof value === "string" ? value : null);
+    return;
+  }
+  request.resolve(value === "allow_once" || value === "always_allow_here" ? value : null);
 }
 
 export function requestConfirmDialog(options: {
@@ -96,6 +120,63 @@ export function requestPromptDialog(options: {
       cancelLabel: options.cancelLabel || "취소",
       tone: "default",
       resolve
+    });
+  });
+}
+
+export function requestPermissionDialog(options: {
+  title: string;
+  message: string;
+  permissionAction?: PermissionAction;
+  permissionKey?: string;
+  actionLabel: string;
+  files?: string[];
+  commands?: string[];
+  diff?: string;
+  approvalToken?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  allowAlwaysLabel?: string;
+  tone?: DialogTone;
+}) {
+  const permissionAction = options.permissionAction || "run";
+  const files = options.files || [];
+  const commands = options.commands || [];
+  const permissionKey = options.permissionKey || buildPermissionKey(options.actionLabel, files, commands);
+  const decision = resolvePermissionPolicy(permissionAction, permissionKey);
+  if (decision === "allow") return Promise.resolve("always_allow_here" as const);
+  if (decision === "deny") return Promise.resolve(null);
+
+  return new Promise<PermissionDialogResult>((resolve) => {
+    useDesktopDialogStore.getState().open({
+      id: nextId(),
+      kind: "permission",
+      permissionAction,
+      permissionKey,
+      title: options.title,
+      message: options.message,
+      actionLabel: options.actionLabel,
+      files,
+      commands,
+      diff: options.diff || "",
+      approvalToken: options.approvalToken || "",
+      confirmLabel: options.confirmLabel || "한 번 허용",
+      cancelLabel: options.cancelLabel || "취소",
+      allowAlwaysLabel: options.allowAlwaysLabel || "여기서 항상 허용",
+      tone: options.tone || "danger",
+      resolve: (value) => {
+        if (value === "always_allow_here") {
+          usePermissionPolicyStore.getState().rememberGrant({
+            key: permissionKey,
+            action: permissionAction,
+            label: options.actionLabel,
+            createdAt: new Date().toISOString(),
+            files,
+            commands
+          });
+        }
+        resolve(value);
+      }
     });
   });
 }

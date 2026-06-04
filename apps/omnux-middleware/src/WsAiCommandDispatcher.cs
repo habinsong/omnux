@@ -39,7 +39,6 @@ internal sealed class WsAiCommandDispatcher
     private readonly ICodingApplicationService _codingService;
     private readonly ISettingsApplicationService _settingsService;
     private readonly ICommandExecutionService _commandExecutionService;
-    private readonly Func<string, bool> _allowCommand;
     private readonly SendConversationsDelegate _sendConversationsAsync;
     private readonly SendModelsDelegate _sendGroqModelsAsync;
     private readonly SendModelsDelegate _sendCopilotModelsAsync;
@@ -54,7 +53,6 @@ internal sealed class WsAiCommandDispatcher
         ICodingApplicationService codingService,
         ISettingsApplicationService settingsService,
         ICommandExecutionService commandExecutionService,
-        Func<string, bool> allowCommand,
         GuardRetryTimelineStore guardRetryTimelineStore,
         SendConversationsDelegate sendConversationsAsync,
         SendModelsDelegate sendGroqModelsAsync,
@@ -67,7 +65,6 @@ internal sealed class WsAiCommandDispatcher
         _codingService = codingService;
         _settingsService = settingsService;
         _commandExecutionService = commandExecutionService;
-        _allowCommand = allowCommand;
         _guardRetryTimelineStore = guardRetryTimelineStore;
         _sendConversationsAsync = sendConversationsAsync;
         _sendGroqModelsAsync = sendGroqModelsAsync;
@@ -618,12 +615,6 @@ internal sealed class WsAiCommandDispatcher
 
         if (message.Type == "command")
         {
-            if (!_allowCommand(sessionId))
-            {
-                await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"rate limit exceeded\"}", cancellationToken);
-                return true;
-            }
-
             if (string.IsNullOrWhiteSpace(message.Text))
             {
                 await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"empty command\"}", cancellationToken);

@@ -13,6 +13,15 @@ type MemoryNoteItem = {
   sizeBytes: number;
   lastWriteUtc: string;
 };
+type SyncConfigState = {
+  gistId: string;
+  gitHubTokenSet: boolean;
+  lastSyncUtc: string;
+};
+type SyncConfigDraft = {
+  gistId: string;
+  gitHubToken: string;
+};
 type SettingsState = {
   memoryNotes: MemoryNoteItem[];
   selectedNoteName: string;
@@ -25,6 +34,9 @@ type SettingsState = {
   backupIncludeScopes: string[];
   backupPreview: { previewId: string; fileName: string; conversationCount: number; conflictCount: number; fileCount: number; error: string } | null;
   backupPackage: { fileName: string; contentBase64: string } | null;
+  syncConfig: SyncConfigState;
+  syncDraft: SyncConfigDraft;
+  cloudSyncMessage: string;
   cerebrasModels: { selected: string; items: Array<{ id: string; ownedBy: string; created: string }> };
   groqModels: { selected: string; items: string[] };
   copilotModels: { selected: string; items: string[] };
@@ -56,8 +68,15 @@ type SettingsState = {
   importBackup: (file: File | null) => void;
   applyBackup: () => void;
   downloadBackupPackage: () => void;
+  loadSyncConfig: () => void;
+  setSyncDraft: (patch: Partial<SyncConfigDraft>) => void;
+  saveSyncConfig: () => void;
+  clearSyncToken: () => void;
+  cloudSyncUpload: () => void;
+  cloudSyncDownload: () => void;
   loadCerebrasModels: () => void;
   loadLlmServices: () => void;
+  refreshCliStatus: () => void;
   setGroqModel: (model: string) => void;
   setCopilotModel: (model: string) => void;
   startCopilotLogin: () => void;
@@ -81,6 +100,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   backupIncludeScopes: BACKUP_SCOPES,
   backupPreview: null,
   backupPackage: null,
+  syncConfig: { gistId: "", gitHubTokenSet: false, lastSyncUtc: "" },
+  syncDraft: { gistId: "", gitHubToken: "" },
+  cloudSyncMessage: "",
   cerebrasModels: { selected: "", items: [] },
   groqModels: { selected: "", items: [] },
   copilotModels: { selected: "", items: [] },
@@ -219,6 +241,53 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     link.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   },
+  loadSyncConfig: () => {
+    set({ loading: true, cloudSyncMessage: "" });
+    if (!requestDesktopSettings.syncConfigRead()) {
+      set({ loading: false, cloudSyncMessage: "클라우드 동기화 설정 요청을 전송하지 못했다." });
+    }
+  },
+  setSyncDraft: (patch) => set({ syncDraft: { ...get().syncDraft, ...patch } }),
+  saveSyncConfig: () => {
+    const draft = get().syncDraft;
+    const payload: { gistId?: string; gitHubToken?: string } = { gistId: draft.gistId.trim() };
+    if (draft.gitHubToken.trim()) payload.gitHubToken = draft.gitHubToken.trim();
+    set({ loading: true, cloudSyncMessage: "" });
+    if (!requestDesktopSettings.syncConfigWrite(payload)) {
+      set({ loading: false, cloudSyncMessage: "클라우드 동기화 설정 저장 요청을 전송하지 못했다." });
+    }
+  },
+  clearSyncToken: async () => {
+    const confirmed = await requestConfirmDialog({
+      title: "GitHub Token 삭제",
+      message: "클라우드 동기화용 GitHub Token을 삭제할까요?",
+      confirmLabel: "삭제",
+      tone: "danger"
+    });
+    if (!confirmed) return;
+    set({ loading: true, cloudSyncMessage: "" });
+    if (!requestDesktopSettings.syncConfigWrite({ gitHubToken: "" })) {
+      set({ loading: false, cloudSyncMessage: "GitHub Token 삭제 요청을 전송하지 못했다." });
+    }
+  },
+  cloudSyncUpload: () => {
+    const scopes = get().backupIncludeScopes;
+    if (scopes.length === 0) {
+      set({ cloudSyncMessage: "업로드할 백업 범위를 먼저 선택하세요." });
+      return;
+    }
+    set({ loading: true, cloudSyncMessage: "Gist 업로드를 시작합니다." });
+    if (!requestDesktopSettings.cloudSyncUpload(scopes)) {
+      set({ loading: false, cloudSyncMessage: "클라우드 업로드 요청을 전송하지 못했다." });
+    }
+  },
+  cloudSyncDownload: () => {
+    const gistId = get().syncDraft.gistId.trim() || get().syncConfig.gistId.trim();
+    set({ loading: true, cloudSyncMessage: "Gist 백업을 내려받아 미리보기를 준비합니다." });
+    if (!requestDesktopSettings.cloudSyncDownload(gistId || undefined)) {
+      set({ loading: false, cloudSyncMessage: "클라우드 다운로드 요청을 전송하지 못했다." });
+    }
+  },
   loadCerebrasModels: () => {
     set({ loading: true });
     if (!requestDesktopSettings.cerebrasModels()) {
@@ -232,6 +301,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     requestDesktopLlm.copilotStatus();
     requestDesktopLlm.codexStatus();
     requestDesktopLlm.usageStats();
+  },
+  refreshCliStatus: () => {
+    set({ llmMessage: "" });
+    requestDesktopLlm.copilotStatus();
+    requestDesktopLlm.codexStatus();
   },
   setGroqModel: (model) => {
     if (!model.trim()) return;
@@ -363,6 +437,7 @@ export function useSettingsPageBridge() {
           fileCount: Number(message.fileCount || 0),
           error: String(message.error || "")
         },
+        cloudSyncMessage: "다운로드한 백업 미리보기를 준비했습니다. 적용 전 충돌 수를 확인하세요.",
         loading: false
       });
       return;
@@ -371,8 +446,42 @@ export function useSettingsPageBridge() {
     if (message.type === "backup_import_result" || message.type === "backup_import_apply_result") {
       useSettingsStore.setState({
         lastMessage: String(message.message || "백업 적용 응답 수신"),
+        cloudSyncMessage: "",
         loading: false
       });
+      return;
+    }
+
+    if (message.type === "sync_config_state") {
+      const gistId = String(message.gistId || "");
+      useSettingsStore.setState({
+        syncConfig: {
+          gistId,
+          gitHubTokenSet: !!message.gitHubTokenSet,
+          lastSyncUtc: String(message.lastSyncUtc || "")
+        },
+        syncDraft: {
+          gistId,
+          gitHubToken: ""
+        },
+        cloudSyncMessage: "클라우드 동기화 설정을 불러왔습니다.",
+        loading: false
+      });
+      return;
+    }
+
+    if (message.type === "cloud_sync_upload_result") {
+      const gistId = String(message.gistId || "");
+      useSettingsStore.setState((state) => ({
+        syncConfig: {
+          ...state.syncConfig,
+          gistId,
+          lastSyncUtc: String(message.lastSyncUtc || "")
+        },
+        syncDraft: { ...state.syncDraft, gistId, gitHubToken: "" },
+        cloudSyncMessage: "클라우드 업로드가 완료됐습니다.",
+        loading: false
+      }));
       return;
     }
 

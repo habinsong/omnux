@@ -2,11 +2,50 @@ import { useEffect } from "react";
 import { create } from "zustand";
 import { subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
 import { requestDesktopInsights } from "../middleware/insights-gateway";
+import { normalizeDoctorReport, type DoctorReport } from "../ops/ops-doctor";
 
+export type TelemetryTraceEvent = {
+  id: string;
+  operation: string;
+  provider: string;
+  model: string;
+  status: string;
+  source: string;
+  traceId: string;
+  spanId: string;
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  tokenUsageSource: string;
+  promptChars: number;
+  completionChars: number;
+  maxOutputTokens: number;
+  streaming: boolean;
+  durationMs: number;
+  error: string;
+  startedUtc: string;
+  completedUtc: string;
+  promptCacheEligible: boolean;
+  promptCacheKey: string;
+  promptCacheAffinityKey: string;
+  promptCacheStaticChars: number;
+  promptCacheStaticTokens: number;
+  promptCacheStrategy: string;
+  promptCacheReason: string;
+  modelRoutingComplexity: string;
+  modelRoutingRecommendedTier: string;
+  modelRoutingCascadeEligible: boolean;
+  modelRoutingEstimatedInputTokens: number;
+  modelRoutingSignals: string;
+  modelRoutingReason: string;
+};
 export type TelemetrySnapshot = {
+  events: TelemetryTraceEvent[];
   providers: Array<{ provider: string; eventCount: number; totalTokens: number; averageDurationMs: number; maxDurationMs: number }>;
   total: { eventCount: number; totalTokens: number; averageDurationMs: number };
   totalEvents: number;
+  filteredEvents: number;
+  snapshotUtc: string;
 };
 export type McpSnapshot = {
   configFiles: Array<{ source: string; path: string; exists: boolean; status: string; serverCount: number; error: string }>;
@@ -160,9 +199,16 @@ export type SelfImprovementSnapshot = {
   warnings: string[];
   scannedAtUtc: string;
 };
+export type InsightsDoctorSnapshot = {
+  found: boolean | null;
+  report: DoctorReport | null;
+  action: string;
+  lastError: string;
+};
 
 type InsightsState = {
   telemetry: TelemetrySnapshot | null;
+  doctor: InsightsDoctorSnapshot;
   mcp: McpSnapshot | null;
   localLlm: LocalLlmSnapshot | null;
   terminal: TerminalSnapshot | null;
@@ -178,6 +224,7 @@ type InsightsState = {
 
 export const useInsightsStore = create<InsightsState>((set) => ({
   telemetry: null,
+  doctor: { found: null, report: null, action: "", lastError: "" },
   mcp: null,
   localLlm: null,
   terminal: null,
@@ -192,6 +239,7 @@ export const useInsightsStore = create<InsightsState>((set) => ({
     set({ loading: true, lastError: "" });
     const ok =
       requestDesktopInsights.telemetry() &&
+      requestDesktopInsights.doctorLast() &&
       requestDesktopInsights.mcpServers() &&
       requestDesktopInsights.localLlm() &&
       requestDesktopInsights.terminal() &&
@@ -213,18 +261,91 @@ function s(value: unknown): string {
 function n(value: unknown): number {
   return Number(value || 0);
 }
+function b(value: unknown): boolean {
+  return value === true || value === "true";
+}
+
+function normalizeTelemetryEvent(event: Record<string, unknown>): TelemetryTraceEvent {
+  return {
+    id: s(event.id),
+    operation: s(event.operation),
+    provider: s(event.provider),
+    model: s(event.model),
+    status: s(event.status),
+    source: s(event.source),
+    traceId: s(event.traceId),
+    spanId: s(event.spanId),
+    promptTokens: n(event.promptTokens),
+    completionTokens: n(event.completionTokens),
+    totalTokens: n(event.totalTokens),
+    tokenUsageSource: s(event.tokenUsageSource),
+    promptChars: n(event.promptChars),
+    completionChars: n(event.completionChars),
+    maxOutputTokens: n(event.maxOutputTokens),
+    streaming: b(event.streaming),
+    durationMs: n(event.durationMs),
+    error: s(event.error),
+    startedUtc: s(event.startedUtc),
+    completedUtc: s(event.completedUtc),
+    promptCacheEligible: b(event.promptCacheEligible),
+    promptCacheKey: s(event.promptCacheKey),
+    promptCacheAffinityKey: s(event.promptCacheAffinityKey),
+    promptCacheStaticChars: n(event.promptCacheStaticChars),
+    promptCacheStaticTokens: n(event.promptCacheStaticTokens),
+    promptCacheStrategy: s(event.promptCacheStrategy),
+    promptCacheReason: s(event.promptCacheReason),
+    modelRoutingComplexity: s(event.modelRoutingComplexity),
+    modelRoutingRecommendedTier: s(event.modelRoutingRecommendedTier),
+    modelRoutingCascadeEligible: b(event.modelRoutingCascadeEligible),
+    modelRoutingEstimatedInputTokens: n(event.modelRoutingEstimatedInputTokens),
+    modelRoutingSignals: s(event.modelRoutingSignals),
+    modelRoutingReason: s(event.modelRoutingReason)
+  };
+}
+
+const INSIGHTS_SNAPSHOT_TYPES = new Set<string>([
+  "telemetry_snapshot",
+  "doctor_result",
+  "mcp_servers_snapshot",
+  "local_llm_snapshot",
+  "terminal_capabilities_snapshot",
+  "git_time_machine_snapshot",
+  "semantic_search_readiness_snapshot",
+  "code_repomap_snapshot",
+  "commit_learning_snapshot",
+  "self_improvement_snapshot"
+]);
 
 export function useInsightsPageBridge() {
   useEffect(() => {
     return subscribeDesktopMessages((message: DesktopServerMessage) => {
       const payload = (message.payload || {}) as Record<string, unknown>;
+      // loadAll은 10개 스냅샷 요청을 보낸다. 어느 하나라도 응답이 오면 loading을 풀어
+      // (텔레메트리 응답에만 묶여 있던) 락을 방지한다. 나머지 슬라이스는 도착하는 대로 채워진다.
+      if (typeof message.type === "string" && INSIGHTS_SNAPSHOT_TYPES.has(message.type) && useInsightsStore.getState().loading) {
+        useInsightsStore.setState({ loading: false });
+      }
       if (message.type === "telemetry_snapshot") {
         useInsightsStore.setState({
           loading: false,
           telemetry: {
+            events: arr(payload.events).map(normalizeTelemetryEvent),
             providers: arr(payload.providers).map((p) => ({ provider: s(p.provider), eventCount: n(p.eventCount), totalTokens: n(p.totalTokens), averageDurationMs: n(p.averageDurationMs), maxDurationMs: n(p.maxDurationMs) })),
             total: { eventCount: n((payload.total as Record<string, unknown>)?.eventCount), totalTokens: n((payload.total as Record<string, unknown>)?.totalTokens), averageDurationMs: n((payload.total as Record<string, unknown>)?.averageDurationMs) },
-            totalEvents: n(payload.totalEvents)
+            totalEvents: n(payload.totalEvents),
+            filteredEvents: n(payload.filteredEvents),
+            snapshotUtc: s(payload.snapshotUtc)
+          }
+        });
+        return;
+      }
+      if (message.type === "doctor_result") {
+        useInsightsStore.setState({
+          doctor: {
+            found: message.found === true,
+            report: normalizeDoctorReport(message.report),
+            action: s(message.action),
+            lastError: ""
           }
         });
         return;

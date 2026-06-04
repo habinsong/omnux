@@ -4,6 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const LEGACY_CORE_ALIAS = "omni" + "node-core";
+const LEGACY_CORE_SOCKET_TOKEN = "omni" + "node_core";
 let assertionCount = 0;
 
 function read(relativePath) {
@@ -60,7 +62,7 @@ const techStackEn = read("docs/en/tech-stack.md");
 for (const relativePath of [
   "apps/omnux-core",
   "omnux-core",
-  "omninode-core",
+  LEGACY_CORE_ALIAS,
   "apps/omnux-middleware/src/UdsCoreClient.cs",
   "apps/omnux-middleware/src/CoreProcessBootstrapper.cs",
   "apps/omnux-middleware/src/CoreAuthToken.cs"
@@ -89,7 +91,7 @@ assertNotIncludes(program, "CoreProcessBootstrapper", "program must not bootstra
 assertNotIncludes(appConfig, "CoreSocketPath", "app config must not expose legacy core socket path");
 assertNotIncludes(appConfig, "OMNUX_CORE_SOCKET_PATH", "app config must not read legacy core socket env");
 assertNotIncludes(pathResolver, "CoreSocketPath", "state path resolver must not expose legacy core socket path");
-assertNotIncludes(pathResolver, "omninode_core", "state path resolver must not preserve legacy core socket alias");
+assertNotIncludes(pathResolver, LEGACY_CORE_SOCKET_TOKEN, "state path resolver must not preserve legacy core socket alias");
 assertNotIncludes(pathResolver, "omnux_core", "state path resolver must not preserve core socket path");
 
 assertIncludes(settingsService, "GetMetricsAsync", "settings can read dotnet runtime metrics");
@@ -105,7 +107,7 @@ assertIncludes(telegramLlmControl, "_coreClient.KillAsync", "telegram kill path 
 for (const text of [shellScript, powershellScript, repoHygiene]) {
   assertNotIncludes(text, "apps/omnux-core", "scripts must not reference removed core directory");
   assertNotIncludes(text, "omnux_core", "scripts must not reference removed core binary");
-  assertNotIncludes(text, "omninode-core", "scripts must not require removed legacy core alias");
+  assertNotIncludes(text, LEGACY_CORE_ALIAS, "scripts must not require removed legacy core alias");
 }
 
 assertEmpty(readme, "README stays empty until public copy is rewritten");

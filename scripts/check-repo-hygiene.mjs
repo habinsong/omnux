@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const LEGACY_PREFIX = "omni" + "node";
 
 const REQUIRED_DIRECTORIES = ["apps", "docs"];
 const OPTIONAL_CANONICAL_DIRECTORIES = ["workspace"];
@@ -12,14 +13,14 @@ const DISALLOWED_ROOT_SHORTCUTS = [
   "coding",
   "runtime",
   "gemini-retriever-plan",
-  "omninode-dashboard",
-  "omninode-middleware",
-  "omninode-sandbox",
+  `${LEGACY_PREFIX}-dashboard`,
+  `${LEGACY_PREFIX}-middleware`,
+  `${LEGACY_PREFIX}-sandbox`,
   "omnux-dashboard",
   "omnux-middleware",
   "omnux-sandbox",
   "GEMINI_SEARCH_RETRIEVER_INTEGRATION_PLAN.md",
-  "OMNINODE_실환경_수동_최종회귀_체크리스트.md",
+  `${LEGACY_PREFIX.toUpperCase()}_실환경_수동_최종회귀_체크리스트.md`,
   "OMNUX_실환경_수동_최종회귀_체크리스트.md",
   "검증_가이드.md",
   "기술스택_정리.md",

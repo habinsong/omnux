@@ -66,17 +66,6 @@ internal sealed class WsSetupCommandDispatcher
             return true;
         }
 
-        if (!isAuthenticated)
-        {
-            await WebSocketGateway.SendTextAsync(
-                socket,
-                sendLock,
-                "{\"type\":\"error\",\"message\":\"unauthorized\"}",
-                cancellationToken
-            );
-            return true;
-        }
-
         var remoteRestrictionMessage = remoteDashboardClient
             ? GetRemoteRestrictionMessage(messageType)
             : string.Empty;
@@ -89,6 +78,20 @@ internal sealed class WsSetupCommandDispatcher
                 cancellationToken
             );
             return true;
+        }
+
+        if (!isAuthenticated)
+        {
+            if (!IsLocalBootstrapMessage(messageType))
+            {
+                await WebSocketGateway.SendTextAsync(
+                    socket,
+                    sendLock,
+                    "{\"type\":\"error\",\"message\":\"unauthorized\"}",
+                    cancellationToken
+                );
+                return true;
+            }
         }
 
         if (message.Type == "set_external_dashboard_access")
@@ -455,5 +458,24 @@ internal sealed class WsSetupCommandDispatcher
             "get_groq_models" or
             "get_cerebras_models" or
             "set_groq_model";
+    }
+
+    private static bool IsLocalBootstrapMessage(string messageType)
+    {
+        return messageType is
+            "set_telegram_credentials" or
+            "delete_telegram_credentials" or
+            "set_llm_credentials" or
+            "delete_llm_credentials" or
+            "test_telegram" or
+            "get_copilot_status" or
+            "get_codex_status" or
+            "start_copilot_login" or
+            "start_codex_login" or
+            "logout_codex" or
+            "get_usage_stats" or
+            "get_copilot_models" or
+            "get_groq_models" or
+            "get_cerebras_models";
     }
 }

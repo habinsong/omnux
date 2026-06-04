@@ -178,10 +178,7 @@ public sealed class DefaultStatePathResolver : IStatePathResolver
             Path.GetFullPath(Path.Combine(cwd, "apps/omnux-dashboard/index.html")),
             Path.GetFullPath(Path.Combine(cwd, "omnux-dashboard/index.html")),
             Path.GetFullPath(Path.Combine(cwd, "../omnux-dashboard/index.html")),
-            Path.GetFullPath(Path.Combine(cwd, "../apps/omnux-dashboard/index.html")),
-            Path.GetFullPath(Path.Combine(baseDir, "../../../../omninode-dashboard/index.html")),
-            Path.GetFullPath(Path.Combine(cwd, "omninode-dashboard/index.html")),
-            Path.GetFullPath(Path.Combine(cwd, "../omninode-dashboard/index.html"))
+            Path.GetFullPath(Path.Combine(cwd, "../apps/omnux-dashboard/index.html"))
         };
 
         foreach (var candidate in candidates)
@@ -206,7 +203,6 @@ public sealed class DefaultStatePathResolver : IStatePathResolver
             Path.GetFullPath(Path.Combine(cwd, "workspace/coding")),
             Path.GetFullPath(Path.Combine(cwd, "coding")),
             Path.GetFullPath(Path.Combine(cwd, "../omnux/coding")),
-            Path.GetFullPath(Path.Combine(cwd, "../Omni-node/coding")),
             Path.GetFullPath(Path.Combine(cwd, "../coding")),
             Path.GetFullPath(Path.Combine(cwd, "../workspace/coding"))
         };
@@ -228,14 +224,10 @@ public sealed class DefaultStatePathResolver : IStatePathResolver
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         if (string.IsNullOrWhiteSpace(home))
         {
-            var currentTemp = Path.Combine(Path.GetTempPath(), "omnux");
-            var legacyTemp = Path.Combine(Path.GetTempPath(), "omninode");
-            return Directory.Exists(legacyTemp) && !Directory.Exists(currentTemp) ? legacyTemp : currentTemp;
+            return Path.Combine(Path.GetTempPath(), "omnux");
         }
 
-        var current = Path.Combine(home, ".omnux");
-        var legacy = Path.Combine(home, ".omninode");
-        return Directory.Exists(legacy) && !Directory.Exists(current) ? legacy : current;
+        return Path.Combine(home, ".omnux");
     }
 
     private string ResolveWorkspaceContainerRoot()

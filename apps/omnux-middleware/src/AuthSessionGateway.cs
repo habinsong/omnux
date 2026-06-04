@@ -136,7 +136,7 @@ internal sealed class AuthSessionGateway
         CancellationToken cancellationToken
     )
     {
-        if (string.IsNullOrWhiteSpace(sessionId) || !_sessionManager.TryGetOtp(sessionId, out var currentOtp))
+        if (string.IsNullOrWhiteSpace(sessionId))
         {
             await WebSocketGateway.SendTextAsync(
                 socket,
@@ -145,6 +145,13 @@ internal sealed class AuthSessionGateway
                 cancellationToken
             );
             return;
+        }
+
+        // 펜딩 OTP 창(3분)이 지났어도 "OTP 요청"을 누른 시점에 해당 연결로 새 OTP를 발급한다.
+        // 사용자가 텔레그램 설정/테스트를 먼저 끝내느라 시간이 지나도 재연결 없이 인증할 수 있도록.
+        if (!_sessionManager.TryGetOtp(sessionId, out var currentOtp))
+        {
+            currentOtp = _sessionManager.RefreshPendingOtp(sessionId, TimeSpan.FromMinutes(3));
         }
 
         var otpSent = false;

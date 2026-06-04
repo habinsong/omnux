@@ -123,6 +123,13 @@ public sealed class SessionManager : IAuthSessionStore
         }
     }
 
+    public string RefreshPendingOtp(string sessionId, TimeSpan ttl)
+    {
+        var otp = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6", CultureInfo.InvariantCulture);
+        _sessions[sessionId] = new SessionRecord(otp, DateTimeOffset.UtcNow.Add(ttl), authenticated: false);
+        return otp;
+    }
+
     public bool TryGetOtp(string sessionId, out string otp)
     {
         otp = string.Empty;

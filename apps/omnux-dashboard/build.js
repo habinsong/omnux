@@ -52,7 +52,7 @@
               ),
               React.createElement('label', { className: 'eyebrow', style: { display: 'block', marginBottom: 8 } }, t('What should change?')),
               React.createElement('textarea', {
-                value: req, placeholder: t('e.g. Rename Omni-node to omnux in README and package.json'),
+                value: req, placeholder: t('e.g. Rename product branding to omnux in README and package.json'),
                 onChange: (e) => setReq(e.target.value),
                 style: { width: '100%', minHeight: 80, resize: 'vertical', border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: '13px 15px', fontSize: 15, outline: 'none', background: 'var(--surface-2)', lineHeight: 1.5 },
               }),

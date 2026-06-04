@@ -5,6 +5,7 @@ use std::{
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, RunEvent};
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_shell::{process::CommandEvent, ShellExt};
 
 const DESKTOP_MIDDLEWARE_PORT: &str = "41880";
@@ -16,6 +17,15 @@ const MIDDLEWARE_BOOTSTRAP_EVENT: &str = "omnux://middleware-bootstrap";
 struct MiddlewareBootstrapEvent {
     phase: &'static str,
     pid: Option<u32>,
+    message: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StartOnLaunchState {
+    supported: bool,
+    enabled: bool,
+    configured_path: String,
     message: String,
 }
 
@@ -68,6 +78,51 @@ fn emit_middleware_bootstrap_event(
     );
 }
 
+fn current_exe_path() -> Result<String, String> {
+    std::env::current_exe()
+        .map_err(|error| format!("현재 실행 파일 경로를 확인하지 못했다: {error}"))
+        .map(|path| path.to_string_lossy().to_string())
+}
+
+// 자동 시작은 Tauri 공식 autostart 플러그인(승인된 셸 API)에 위임한다.
+// Rust 셸에서 OS 명령(reg 등)을 직접 실행하지 않는다.
+#[tauri::command]
+fn get_start_on_launch_state(app: AppHandle) -> Result<StartOnLaunchState, String> {
+    let enabled = app
+        .autolaunch()
+        .is_enabled()
+        .map_err(|error| format!("자동 시작 상태를 확인하지 못했다: {error}"))?;
+    Ok(StartOnLaunchState {
+        supported: true,
+        enabled,
+        configured_path: current_exe_path()?,
+        message: "OS 로그인 시 자동 시작 (tauri-plugin-autostart)".to_string(),
+    })
+}
+
+#[tauri::command]
+fn set_start_on_launch(app: AppHandle, enabled: bool) -> Result<StartOnLaunchState, String> {
+    let manager = app.autolaunch();
+    if enabled {
+        manager
+            .enable()
+            .map_err(|error| format!("자동 시작 설정에 실패했다: {error}"))?;
+    } else {
+        manager
+            .disable()
+            .map_err(|error| format!("자동 시작 해제에 실패했다: {error}"))?;
+    }
+    let current = manager
+        .is_enabled()
+        .map_err(|error| format!("자동 시작 상태를 확인하지 못했다: {error}"))?;
+    Ok(StartOnLaunchState {
+        supported: true,
+        enabled: current,
+        configured_path: current_exe_path()?,
+        message: "OS 로그인 시 자동 시작 (tauri-plugin-autostart)".to_string(),
+    })
+}
+
 fn bootstrap_desktop_middleware(app: AppHandle) {
     #[cfg(debug_assertions)]
     tauri::async_runtime::spawn(async move {
@@ -101,6 +156,7 @@ async fn run_dev_middleware_bootstrap(app: AppHandle) -> Result<(), String> {
         .args(["run", "--project", project_arg.as_str(), "--no-launch-profile"])
         .current_dir(repo_root)
         .env("OMNUX_WS_PORT", DESKTOP_MIDDLEWARE_PORT)
+        .env("OMNUX_TELEGRAM_POLLING_DISABLED", "1")
         .spawn()
     {
         Ok(result) => result,
@@ -181,6 +237,7 @@ async fn run_sidecar_middleware_bootstrap(app: AppHandle) -> Result<(), String> 
         .sidecar(DESKTOP_MIDDLEWARE_SIDECAR)
         .map_err(|error| format!("sidecar command 생성 실패: {error}"))?
         .env("OMNUX_WS_PORT", DESKTOP_MIDDLEWARE_PORT)
+        .env("OMNUX_TELEGRAM_POLLING_DISABLED", "1")
         .spawn()
     {
         Ok(result) => result,
@@ -256,7 +313,15 @@ async fn watch_middleware_bootstrap(
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            None,
+        ))
         .manage(MiddlewareBootstrapState::default())
+        .invoke_handler(tauri::generate_handler![
+            get_start_on_launch_state,
+            set_start_on_launch
+        ])
         .setup(|app| {
             bootstrap_desktop_middleware(app.handle().clone());
             Ok(())

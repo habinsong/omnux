@@ -4,7 +4,7 @@ import { bindDesktopSessionSocket, publishDesktopMessage, requestDesktopAuth } f
 import { requestDesktopOps } from "./features/middleware/ops-gateway";
 import { useOpsPageStore } from "./features/ops/ops-store";
 import { useUiLogStore } from "./features/ui-log/ui-log-store";
-import { DESKTOP_MIDDLEWARE_WS_URL } from "./middleware-contract";
+import { DESKTOP_MIDDLEWARE_WS_URL, DESKTOP_RECONNECT_POLICY } from "./middleware-contract";
 import { useDesktopShellStore } from "./shell-store";
 
 type ServerMessage = Record<string, unknown> & {
@@ -28,6 +28,23 @@ function numberValue(value: unknown): number | undefined {
 
 function objectPayload(value: unknown): { items?: Array<Record<string, unknown>> } {
   return value && typeof value === "object" ? (value as { items?: Array<Record<string, unknown>> }) : {};
+}
+
+function isRateLimitedMessage(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return normalized === "rate_limited" || normalized.includes("rate limit");
+}
+
+function formatServerErrorMessage(message: ServerMessage, fallback: string): string {
+  if (!isRateLimitedMessage(fallback)) return fallback;
+  const requestType = stringValue(message.requestType) || "unknown";
+  const requestAction = stringValue(message.requestAction);
+  const limitPerMinute = numberValue(message.limitPerMinute);
+  const windowSeconds = numberValue(message.windowSeconds);
+  const target = requestAction ? `${requestType}/${requestAction}` : requestType;
+  const limit = limitPerMinute ? `${limitPerMinute}/min` : "limit unknown";
+  const window = windowSeconds ? `, window=${windowSeconds}s` : "";
+  return `rate_limited: ${target} (${limit}${window})`;
 }
 
 function handleAuthRequired(message: ServerMessage) {
@@ -102,13 +119,17 @@ function handleServerMessage(message: ServerMessage) {
   }
 
   if (message.type === "error") {
-    const text = stringValue(message.message) || "미들웨어 WS 오류";
-    if (text.toLowerCase().includes("unauthorized")) {
+    const rawText = stringValue(message.message) || "미들웨어 WS 오류";
+    if (rawText.toLowerCase().includes("unauthorized")) {
       authStore.markUnauthorized("세션 인증이 만료되었다. OTP 인증 후 다시 시도할 수 있다.");
       return;
     }
+    const text = formatServerErrorMessage(message, rawText);
     useUiLogStore.getState().recordLog("error", text, { source: "middleware" });
-    opsStore.markDoctorError(text);
+    const doctor = opsStore.doctor;
+    if (doctor.loading || doctor.running || doctor.fixPreviewing || doctor.fixApplying) {
+      opsStore.markDoctorError(text);
+    }
   }
 }
 
@@ -117,14 +138,14 @@ export function requestDesktopOtp() {
   requestDesktopAuth.otp();
 }
 
-export function submitDesktopOtp(otp: string) {
+export function submitDesktopOtp(otp: string, authTtlHours = 24) {
   const code = otp.trim();
   if (!code) {
     useDesktopShellStore.getState().markBridgeStatus("error", "OTP 6자리를 입력해야 한다.");
     return;
   }
 
-  requestDesktopAuth.submit(code);
+  requestDesktopAuth.submit(code, authTtlHours);
 }
 
 export function requestDesktopDoctorLast() {
@@ -160,8 +181,40 @@ export function requestDesktopOpsSnapshot() {
 export function useMiddlewareSessionBridge() {
   useEffect(() => {
     let disposed = false;
+    let reconnectAttempts = 0;
+    let reconnectTimer: number | null = null;
+
+    const clearReconnectTimer = () => {
+      if (reconnectTimer === null) return;
+      window.clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    };
+
+    const scheduleReconnect = (wsUrl: string) => {
+      if (disposed || !wsUrl) {
+        return;
+      }
+      if (reconnectAttempts >= DESKTOP_RECONNECT_POLICY.maxAttempts) {
+        useDesktopShellStore.getState().markBridgeStatus(
+          "error",
+          `데스크톱 WS 세션 브릿지 재연결 한도를 초과했다 (${wsUrl})`
+        );
+        return;
+      }
+      reconnectAttempts += 1;
+      const delayMs = Math.min(
+        DESKTOP_RECONNECT_POLICY.initialDelayMs * reconnectAttempts,
+        DESKTOP_RECONNECT_POLICY.maxDelayMs
+      );
+      useDesktopShellStore.getState().markBridgeStatus("connecting");
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        connect(wsUrl);
+      }, delayMs);
+    };
 
     const connect = (wsUrl: string) => {
+      clearReconnectTimer();
       if (!wsUrl || (sessionSocket && sessionSocketUrl === wsUrl && sessionSocket.readyState <= WebSocket.OPEN)) {
         return;
       }
@@ -182,6 +235,7 @@ export function useMiddlewareSessionBridge() {
 
       socket.addEventListener("open", () => {
         if (!disposed && sessionSocket === socket) {
+          reconnectAttempts = 0;
           useDesktopAuthStore.getState().markSessionPending();
           useDesktopShellStore.getState().markBridgeStatus("connected", `데스크톱 WS 세션 브릿지 연결됨 (${wsUrl})`);
         }
@@ -210,7 +264,11 @@ export function useMiddlewareSessionBridge() {
 
       socket.addEventListener("close", () => {
         if (!disposed && sessionSocket === socket) {
+          bindDesktopSessionSocket(null);
+          sessionSocket = null;
+          sessionSocketUrl = "";
           useDesktopShellStore.getState().markBridgeStatus("closed", `데스크톱 WS 세션 브릿지 종료 (${wsUrl})`);
+          scheduleReconnect(wsUrl);
         }
       });
     };
@@ -225,6 +283,7 @@ export function useMiddlewareSessionBridge() {
 
     return () => {
       disposed = true;
+      clearReconnectTimer();
       unsubscribe();
       const socket = sessionSocket;
       sessionSocket = null;

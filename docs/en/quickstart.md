@@ -42,7 +42,7 @@ Windows:
 dotnet run --project apps\omnux-middleware\Omnux.Middleware.csproj
 ```
 
-Open `http://127.0.0.1:8080/`. Health endpoints are `/healthz` and `/readyz`.
+Open `http://127.0.0.1:41880/`. Health endpoints are `/healthz` and `/readyz`.
 
 The first WebSocket session starts in an OTP-pending state. If Telegram is configured, the OTP is sent there; local development can use the console fallback OTP when enabled.
 

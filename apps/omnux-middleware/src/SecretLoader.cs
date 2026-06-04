@@ -78,15 +78,6 @@ internal static class SecretLoader
             return value;
         }
 
-        if (key.StartsWith("OMNUX_", StringComparison.Ordinal))
-        {
-            value = Environment.GetEnvironmentVariable("OMNINODE_" + key["OMNUX_".Length..]);
-            if (!string.IsNullOrWhiteSpace(value))
-            {
-                return value;
-            }
-        }
-
         return null;
     }
 

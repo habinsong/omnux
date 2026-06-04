@@ -11,6 +11,13 @@ import {
   submitDesktopOtp
 } from "./use-middleware-session";
 
+// 서버(WebSocketGateway)와 동일하게 OTP 인증 유지시간을 1~168시간으로 제한한다.
+function clampTtlHours(raw: string): number {
+  const hours = Math.round(Number(raw));
+  if (!Number.isFinite(hours)) return 1;
+  return Math.min(168, Math.max(1, hours));
+}
+
 function statusTone(status: string): "success" | "warning" | "destructive" | "default" {
   if (/(connected|authenticated|ok|ready)/i.test(status)) return "success";
   if (/(error|fail|blocked|disconnected)/i.test(status)) return "destructive";
@@ -33,11 +40,12 @@ export function ReadOnlyWsPanel() {
   const doctor = useOpsPageStore((state) => state.doctor);
   const ops = useOpsPageStore((state) => state.ops);
   const [otp, setOtp] = useState("");
+  const [ttlHours, setTtlHours] = useState(24);
 
   const authenticateWithOtp = useCallback(() => {
-    submitDesktopOtp(otp);
+    submitDesktopOtp(otp, ttlHours);
     setOtp("");
-  }, [otp]);
+  }, [otp, ttlHours]);
 
   const detail = (text?: string | null) => (text ? <span className="max-w-[220px] truncate text-[10px] text-muted-foreground">{text}</span> : null);
   const doctorSummary = doctor.report
@@ -84,6 +92,18 @@ export function ReadOnlyWsPanel() {
           value={otp}
           onChange={(event) => setOtp(event.target.value)}
         />
+        <label className="flex items-center gap-1 text-xs text-muted-foreground">
+          유지
+          <Input
+            className="h-8 w-16 text-center font-mono"
+            type="number"
+            min={1}
+            max={168}
+            value={ttlHours}
+            onChange={(event) => setTtlHours(clampTtlHours(event.target.value))}
+          />
+          시간
+        </label>
         <Button variant="outline" size="sm" disabled={bridge.status !== "connected"} onClick={authenticateWithOtp}>인증</Button>
         <Button variant="outline" size="sm" disabled={auth.status !== "authenticated" || doctor.loading} onClick={requestDesktopDoctorLast}>
           최근 Doctor 보고서
