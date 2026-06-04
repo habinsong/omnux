@@ -116,6 +116,15 @@
 - 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과, 줄 수 상위 파일이 모두 500줄 이하임을 확인했다.
 - 브라우저 QA: `http://127.0.0.1:1420/` 라우팅 화면에서 `최근 라우팅 결정`과 `로컬 LLM readiness` 패널 렌더링, 콘솔 오류 없음, 스크린샷 `/tmp/omnux-routing-policy-local-llm-qa.png` 확인.
 
+### Activity 세션 리플레이 패널 연결
+
+- Activity 화면에 `session_replay_get` 전용 패널을 추가했다.
+- conversation/run/agent/group 중 하나를 입력해 대화 메시지, LLM telemetry, agent event 타임라인을 명시 조회할 수 있다.
+- `includeText`, `includeTelemetry`, `includeAgentEvents`, `limit` 옵션을 UI에서 조절하되, 원문 전체나 raw JSON은 덤프하지 않고 summary/body preview와 배지형 metadata로 표시한다.
+- `rag-gateway.ts`의 `sessionReplay` 헬퍼를 기존 Ask RAG 호출이 유지되도록 문자열/객체 양쪽을 받는 구조로 확장했다.
+- 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과(913 assertions), 신규 파일 포함 모든 `.ts/.tsx` 500줄 이하 확인.
+- 브라우저 QA: `http://127.0.0.1:1420/` Activity 화면에서 `Session replay` 패널, 입력/토글 UI, disabled 조회 상태, 콘솔 오류 없음, 스크린샷 `/tmp/omnux-activity-session-replay-qa.png` 확인.
+
 ## 다음 연결 후보
 
 - 다음 연결 후보는 Local LLM 실제 라우팅 readiness, Self-RAG 실행 plan, Terminal PTY 승인 게이트 중 정책상 안전한 단위부터 고른다.

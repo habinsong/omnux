@@ -1,7 +1,11 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, Download, Info, Route, Trash2 } from "lucide-react";
+import { useDesktopAuthStore } from "../auth/auth-store";
+import { useDesktopShellStore } from "../../shell-store";
 import { serializeUiLogs, useUiLogStore, type ShellLogLevel } from "../ui-log/ui-log-store";
 import { Badge, Button, EmptyState, SectionLabel, cn } from "../../components/ui/primitives";
+import { SessionReplayPanel } from "./SessionReplayPanel";
+import { useSessionReplayBridge } from "./session-replay-store";
 
 type LevelFilter = "all" | ShellLogLevel;
 
@@ -67,9 +71,13 @@ function ActivityRow({ log, detailed }: { log: ReturnType<typeof useUiLogStore.g
 }
 
 export function ActivityPage() {
+  useSessionReplayBridge();
+  const bridgeStatus = useDesktopShellStore((state) => state.bridge.status);
+  const authStatus = useDesktopAuthStore((state) => state.auth.status);
   const logs = useUiLogStore((state) => state.logs);
   const clearLogs = useUiLogStore((state) => state.clearLogs);
   const [filter, setFilter] = useState<LevelFilter>("all");
+  const canRequest = bridgeStatus === "connected" && authStatus === "authenticated";
 
   const counts = useMemo(() => {
     const summary = { info: 0, warn: 0, error: 0 };
@@ -133,6 +141,10 @@ export function ActivityPage() {
         <Badge tone="default" className="ml-auto">info {counts.info}</Badge>
         <Badge tone="warning">warn {counts.warn}</Badge>
         <Badge tone="destructive">error {counts.error}</Badge>
+      </div>
+
+      <div className="rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-card)] backdrop-blur-xl">
+        <SessionReplayPanel canRequest={canRequest} />
       </div>
 
       {liveEvents.length > 0 ? (
