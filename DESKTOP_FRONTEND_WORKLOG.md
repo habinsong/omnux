@@ -107,6 +107,15 @@
 - `agents-store.ts`는 `agent_lifecycle_result`, `agent_group_command_result`의 snapshot도 기존 버스 카드에 반영한다.
 - 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과, Agents 화면 브라우저 QA에서 lifecycle/command 폼 렌더링과 콘솔 오류 없음 확인.
 
+### Routing policy 결정 요약 / Local LLM readiness 보강
+
+- 라우팅 정책 화면의 `최근 라우팅 결정` raw JSON 표시를 제거하고, 카테고리/요청 provider/결과 provider/결정 시각/사유/체인을 카드와 배지로 표시한다.
+- `routing_policy_result`의 `snapshot.lastDecision`과 `routing_decision_result`를 `RoutingDecision` 타입으로 정규화해 같은 패널에서 재사용한다.
+- 라우팅 화면 사이드 패널에 `local_llm_snapshot_get` readiness를 연결해 endpoint 수, 모델 수, 오프라인 모드 상태, readiness check를 표시한다.
+- 이 패널은 discovery/readiness 전용이며 실제 provider 자동 전환, cloud 차단, 모델 warmup은 백엔드 정책상 실행하지 않는다.
+- 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과, 줄 수 상위 파일이 모두 500줄 이하임을 확인했다.
+- 브라우저 QA: `http://127.0.0.1:1420/` 라우팅 화면에서 `최근 라우팅 결정`과 `로컬 LLM readiness` 패널 렌더링, 콘솔 오류 없음, 스크린샷 `/tmp/omnux-routing-policy-local-llm-qa.png` 확인.
+
 ## 다음 연결 후보
 
 - 다음 연결 후보는 Local LLM 실제 라우팅 readiness, Self-RAG 실행 plan, Terminal PTY 승인 게이트 중 정책상 안전한 단위부터 고른다.
