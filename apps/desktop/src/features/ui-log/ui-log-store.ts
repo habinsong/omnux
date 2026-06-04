@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { pushDesktopToast } from "../toast/toast-store";
 
 export type ShellLogLevel = "info" | "warn" | "error";
 export type ShellCard = "middleware" | "runtime" | "logs" | "navigation" | "operations";
@@ -121,6 +122,15 @@ function saveLogs(logs: ShellLogEntry[]) {
   }
 }
 
+function pushLogToast(entry: ShellLogEntry) {
+  if (entry.level === "info") return;
+  pushDesktopToast({
+    tone: entry.level === "error" ? "error" : "warning",
+    title: entry.level === "error" ? "오류" : "주의",
+    message: entry.message
+  });
+}
+
 function readInitialLogs(): ShellLogEntry[] {
   const restored = readSavedLogs();
   if (restored.length > 0) {
@@ -148,24 +158,33 @@ export function serializeUiLogs(logs: ShellLogEntry[]): string {
 
 export const useUiLogStore = create<UiLogState>((set) => ({
   logs: readInitialLogs(),
-  recordLog: (level, message, options = {}) =>
+  recordLog: (level, message, options = {}) => {
+    const entry = createLog(level, message, options);
     set((state) => {
-      const logs = pushLog(state.logs, createLog(level, message, options));
+      const logs = pushLog(state.logs, entry);
       saveLogs(logs);
       return { logs };
-    }),
-  recordCardError: (card, message, componentStack) =>
+    });
+    pushLogToast(entry);
+  },
+  recordCardError: (card, message, componentStack) => {
+    const entry = createLog("error", `[${card}] ${message}`, { source: card, componentStack });
     set((state) => {
-      const logs = pushLog(state.logs, createLog("error", `[${card}] ${message}`, { source: card, componentStack }));
+      const logs = pushLog(state.logs, entry);
       saveLogs(logs);
       return { logs };
-    }),
-  recordShellError: (message, componentStack) =>
+    });
+    pushLogToast(entry);
+  },
+  recordShellError: (message, componentStack) => {
+    const entry = createLog("error", `[shell] ${message}`, { source: "shell", componentStack });
     set((state) => {
-      const logs = pushLog(state.logs, createLog("error", `[shell] ${message}`, { source: "shell", componentStack }));
+      const logs = pushLog(state.logs, entry);
       saveLogs(logs);
       return { logs };
-    }),
+    });
+    pushLogToast(entry);
+  },
   clearLogs: () =>
     set(() => {
       saveLogs([]);

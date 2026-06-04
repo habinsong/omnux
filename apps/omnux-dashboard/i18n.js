@@ -87,15 +87,15 @@
     'Describe a change. omnux drafts a plan \u2014 nothing happens until you approve.': '변경 내용을 설명하세요. omnux가 계획을 세우며, 승인 전에는 아무 일도 일어나지 않습니다.',
     'Project': '프로젝트',
     'What should change?': '무엇을 변경할까요?',
-    'e.g. Rename Omni-node to omnux in README and package.json': '예: README와 package.json에서 Omni-node를 omnux로 변경',
-    'Rename Omni-node to omnux in README and package.json': 'README와 package.json에서 Omni-node를 omnux로 변경',
+    'e.g. Rename product branding to omnux in README and package.json': '예: README와 package.json에서 제품 표기를 omnux로 변경',
+    'Rename product branding to omnux in README and package.json': 'README와 package.json에서 제품 표기를 omnux로 변경',
     'Add a dark mode toggle to the settings page': '설정 페이지에 다크 모드 토글 추가',
     'Fix the type error in main.ts': 'main.ts의 타입 오류 수정',
     'Run check': '점검 실행', 'Reset': '초기화',
     'Generate plan': '계획 생성', 'Regenerate plan': '계획 다시 생성', 'Planning\u2026': '계획 중\u2026',
     'Plan': '계획', ' steps': '단계',
-    'Find files that mention "Omni-node"': '"Omni-node"가 포함된 파일 찾기',
-    'Rename Omni-node \u2192 omnux': 'Omni-node \u2192 omnux 이름 변경',
+    'Find files that mention legacy product names': '이전 제품명이 포함된 파일 찾기',
+    'Rename legacy branding to omnux': '이전 제품명을 omnux로 변경',
     'Update the product description': '제품 설명 업데이트',
     'Run build & doc checks': '빌드 및 문서 점검 실행',
     'Generate a change summary': '변경 요약 생성',
@@ -189,7 +189,6 @@
     'Sync repos and pull requests.': '저장소와 풀 리퀘스트를 동기화합니다.',
     'Local shell': '로컬 셸', 'Run commands on this machine.': '이 기기에서 명령을 실행합니다.',
     'Connect': '연결', 'Version 1.0.0': '버전 1.0.0', 'Local-first': '로컬 우선',
-    'formerly Omni-node': '이전 이름: Omni-node',
     'A local-first command center for AI agents, code, routines, and LLM orchestration.': 'AI 에이전트, 코드, 루틴, LLM 오케스트레이션을 위한 로컬 우선 커맨드 센터.',
     // palette
     'Type a command or search\u2026': '명령을 입력하거나 검색\u2026',
@@ -216,7 +215,7 @@
     'Files to change': '변경할 파일',
     'Preview diff': '변경 내용 미리보기',
     'Always allow here': '여기서 항상 허용', 'Allow once': '한 번 허용',
-    'Replace legacy Omni-node branding with omnux': '기존 Omni-node 브랜딩을 omnux로 변경',
+    'Replace legacy product branding with omnux': '이전 제품명을 omnux로 변경',
   };
 
   const I18N = { lang: 'en' };

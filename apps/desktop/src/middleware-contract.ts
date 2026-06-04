@@ -22,7 +22,8 @@ export function buildDesktopMiddlewareEndpoint(port: number): DesktopMiddlewareE
   };
 }
 
-export const DESKTOP_MIDDLEWARE_ENDPOINT_CANDIDATES = [41880, 8080]
+// 8080은 구 레거시 웹 대시보드 포트라 데스크톱은 사용하지 않는다. 데스크톱 미들웨어는 41880 전용.
+export const DESKTOP_MIDDLEWARE_ENDPOINT_CANDIDATES = [DESKTOP_MIDDLEWARE_PORT]
   .map(buildDesktopMiddlewareEndpoint);
 
 export const DESKTOP_RECONNECT_POLICY = {

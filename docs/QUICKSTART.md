@@ -46,9 +46,9 @@ dotnet run --project apps\omnux-middleware\Omnux.Middleware.csproj
 
 ## 3. 접속
 
-- 대시보드: `http://127.0.0.1:8080/`
-- health: `http://127.0.0.1:8080/healthz`
-- ready: `http://127.0.0.1:8080/readyz`
+- 대시보드: `http://127.0.0.1:41880/`
+- health: `http://127.0.0.1:41880/healthz`
+- ready: `http://127.0.0.1:41880/readyz`
 
 처음 접속하면 WebSocket 세션은 OTP 대기 상태가 된다. 텔레그램이 설정되어 있으면 OTP를 텔레그램으로 받고, 로컬 개발 환경에서는 콘솔 fallback OTP를 사용할 수 있다.
 

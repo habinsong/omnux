@@ -735,12 +735,23 @@ public sealed class TelegramClient : IDisposable
             var body = response != null
                 ? await response.Content.ReadAsStringAsync(cancellationToken)
                 : "request_failed_after_retries";
+            // 409 Conflict = 같은 봇 토큰을 다른 인스턴스가 동시에 getUpdates 중이라는 뜻.
+            // 공격적으로 재시도하면 서로의 long-poll을 끊어 핑퐁이 되므로, 길게 물러나서
+            // 폴링 소유권을 양보하고 상대가 멈추면 자연히 다시 가져오게 한다.
+            var isConflict = response != null && (int)response.StatusCode == 409;
             if (ShouldLogGetUpdatesError())
             {
                 var statusCode = response != null ? (int)response.StatusCode : 0;
-                Console.Error.WriteLine($"[telegram] getUpdates failed ({statusCode}): {body}");
+                if (isConflict)
+                {
+                    Console.Error.WriteLine($"[telegram] getUpdates conflict (409): 같은 봇 토큰을 다른 인스턴스가 폴링 중입니다. 인스턴스를 하나만 실행하거나 OMNUX_TELEGRAM_POLLING_DISABLED=1로 이 인스턴스의 폴링을 끄세요. 30초 후 재시도합니다.");
+                }
+                else
+                {
+                    Console.Error.WriteLine($"[telegram] getUpdates failed ({statusCode}): {body}");
+                }
             }
-            await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+            await Task.Delay(isConflict ? TimeSpan.FromSeconds(30) : TimeSpan.FromSeconds(2), cancellationToken);
             return Array.Empty<TelegramUpdate>();
         }
 

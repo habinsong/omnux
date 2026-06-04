@@ -19,41 +19,101 @@ type NotebookState = {
   loaded: boolean;
   loading: boolean;
   pending: boolean;
+  projectKeyDraft: string;
+  filterText: string;
+  expandedDocument: keyof NotebookSnapshot | "";
   appendKind: NotebookKind;
   appendText: string;
   lastMessage: string;
   lastError: string;
+  setProjectKeyDraft: (projectKey: string) => void;
+  setFilterText: (text: string) => void;
+  setExpandedDocument: (field: keyof NotebookSnapshot | "") => void;
   setAppendKind: (kind: NotebookKind) => void;
   setAppendText: (text: string) => void;
+  insertTemplate: (kind: NotebookKind) => void;
+  applyDraft: (kind: NotebookKind, text: string) => void;
   load: () => void;
   append: () => void;
   createHandoff: () => void;
 };
+
+export const NOTEBOOK_TEMPLATES: Record<NotebookKind, string> = {
+  learning: [
+    "오늘 남길 것:",
+    "- ",
+    "",
+    "다음에 써먹을 것:",
+    "- ",
+    "",
+    "주의할 점:",
+    "- "
+  ].join("\n"),
+  decision: [
+    "뭐 하기로 했나:",
+    "- ",
+    "",
+    "왜 그렇게 갔나:",
+    "- ",
+    "",
+    "일단 안 한 것:",
+    "- "
+  ].join("\n"),
+  verification: [
+    "확인한 것:",
+    "- ",
+    "",
+    "어떻게 확인했나:",
+    "- ",
+    "",
+    "결과:",
+    "- ",
+    "",
+    "아직 찝찝한 것:",
+    "- "
+  ].join("\n")
+};
+
+function mergeNotebookDraft(base: string, next: string) {
+  const current = String(base || "").trim();
+  const addition = String(next || "").trim();
+  if (!current) return addition;
+  if (!addition || current.includes(addition)) return current;
+  return `${current}\n\n${addition}`.trim();
+}
 
 export const useNotebookStore = create<NotebookState>((set, get) => ({
   snapshot: EMPTY_SNAPSHOT,
   loaded: false,
   loading: false,
   pending: false,
+  projectKeyDraft: "",
+  filterText: "",
+  expandedDocument: "",
   appendKind: "learning",
   appendText: "",
   lastMessage: "",
   lastError: "",
+  setProjectKeyDraft: (projectKey) => set({ projectKeyDraft: projectKey }),
+  setFilterText: (text) => set({ filterText: text }),
+  setExpandedDocument: (field) => set({ expandedDocument: field }),
   setAppendKind: (kind) => set({ appendKind: kind }),
   setAppendText: (text) => set({ appendText: text }),
+  insertTemplate: (kind) => set({ appendKind: kind, appendText: NOTEBOOK_TEMPLATES[kind] }),
+  applyDraft: (kind, text) => set((state) => ({ appendKind: kind, appendText: mergeNotebookDraft(state.appendText, text || NOTEBOOK_TEMPLATES[kind]) })),
   load: () => {
     set({ loading: true, lastError: "" });
-    if (!requestDesktopNotebook.get()) set({ loading: false, lastError: "노트북 조회 요청을 전송하지 못했다." });
+    if (!requestDesktopNotebook.get(get().projectKeyDraft)) set({ loading: false, lastError: "노트북 조회 요청을 전송하지 못했다." });
   },
   append: () => {
     const text = get().appendText.trim();
     if (!text) return;
     set({ pending: true, lastError: "" });
-    if (!requestDesktopNotebook.append(get().appendKind, text)) set({ pending: false, lastError: "노트북 기록 요청을 전송하지 못했다." });
+    if (!requestDesktopNotebook.append(get().appendKind, text, get().projectKeyDraft)) set({ pending: false, lastError: "노트북 기록 요청을 전송하지 못했다." });
   },
   createHandoff: () => {
     set({ pending: true, lastError: "" });
-    if (!requestDesktopNotebook.createHandoff()) set({ pending: false, lastError: "핸드오프 생성 요청을 전송하지 못했다." });
+    if (!requestDesktopNotebook.createHandoff(get().projectKeyDraft)) set({ pending: false, lastError: "핸드오프 생성 요청을 전송하지 못했다." });
   }
 }));
 

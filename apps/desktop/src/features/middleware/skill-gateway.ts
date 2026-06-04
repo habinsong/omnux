@@ -1,7 +1,7 @@
 import { registerDesktopRequestTypes, sendDesktopRequest } from "./desktop-message-gateway";
 
-// 커스텀 스킬 엔진 (backend_hidden_features #5, 옛 omninode-dashboard skills).
-registerDesktopRequestTypes("skills_list", "skill_get", "skill_save", "skill_delete");
+// 커스텀 스킬 엔진 (backend_hidden_features #5, 정적 대시보드 skills 흐름).
+registerDesktopRequestTypes("skills_list", "skill_get", "skill_save", "skill_delete", "skill_active_clear");
 
 export type SkillScope = "project" | "global";
 
@@ -32,5 +32,8 @@ export const requestDesktopSkill = {
   },
   remove(name: string, scope: SkillScope) {
     return sendDesktopRequest({ type: "skill_delete", skillName: name, skillScope: scope });
+  },
+  clearActive(conversationId: string) {
+    return sendDesktopRequest({ type: "skill_active_clear", conversationId: conversationId.trim() });
   }
 };

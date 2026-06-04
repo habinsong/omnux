@@ -1,14 +1,36 @@
 import { create } from "zustand";
 import type { DesktopPageId } from "./DesktopNavigation";
 
-// 데스크톱 활성 페이지를 보관하는 작은 네비게이션 store. App.tsx와 각 page(예: Home 허브)가
-// 공유해 cross-page 이동을 할 수 있게 한다. presentation 전용 — 도메인/WS 상태 없음.
+export type DesktopRoutePayload = {
+  input?: string;
+  mode?: string;
+  create?: boolean;
+  focus?: string;
+  projectKey?: string;
+  projectName?: string;
+  projectPath?: string;
+  openAttachmentPanel?: boolean;
+};
+
+// 데스크톱 활성 페이지와 route payload를 보관하는 작은 네비게이션 store.
+// presentation 전용이며, payload는 홈/팔레트/프로젝트에서 목적지 페이지 초안으로만 소비한다.
 type NavigationState = {
   activePage: DesktopPageId;
-  setActivePage: (page: DesktopPageId) => void;
+  routePayload: DesktopRoutePayload | null;
+  routeVersion: number;
+  setActivePage: (page: DesktopPageId, payload?: DesktopRoutePayload | null) => void;
+  clearRoutePayload: () => void;
 };
 
 export const useDesktopNavigationStore = create<NavigationState>((set) => ({
   activePage: "home",
-  setActivePage: (page) => set({ activePage: page })
+  routePayload: null,
+  routeVersion: 0,
+  setActivePage: (page, payload = null) =>
+    set((state) => ({
+      activePage: page,
+      routePayload: payload,
+      routeVersion: state.routeVersion + 1
+    })),
+  clearRoutePayload: () => set({ routePayload: null })
 }));

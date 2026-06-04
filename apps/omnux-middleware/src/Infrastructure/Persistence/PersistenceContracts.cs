@@ -84,6 +84,7 @@ public interface IAuthSessionStore
     bool TryResumeTrusted(string authToken, out DateTimeOffset expiresAtUtc);
     bool MarkAuthenticatedFromTrusted(string sessionId, DateTimeOffset expiresAtUtc);
     bool TryGetOtp(string sessionId, out string otp);
+    string RefreshPendingOtp(string sessionId, TimeSpan ttl);
     bool IsAuthenticated(string sessionId);
     void Remove(string sessionId);
 }

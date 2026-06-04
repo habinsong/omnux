@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Code2, FolderGit2, MessageSquare, Pencil, Plus, RefreshCcw, Star, Trash2, X } from "lucide-react";
+import { Code2, EllipsisVertical, FolderGit2, MessageSquare, Pencil, Plus, RefreshCcw, Star, Trash2, X } from "lucide-react";
 import { CardBoundary } from "../../CardBoundary";
 import { useDesktopAuthStore } from "../auth/auth-store";
 import { useDesktopShellStore } from "../../shell-store";
@@ -35,27 +35,66 @@ function ProjectCard({
   onMain: (project: ProjectItem) => void;
   onDelete: (project: ProjectItem) => void;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const stop = (event: React.MouseEvent, fn: () => void) => {
     event.stopPropagation();
+    fn();
+  };
+  const runMenuAction = (event: React.MouseEvent, fn: () => void) => {
+    event.stopPropagation();
+    setMenuOpen(false);
     fn();
   };
   return (
     <article
       onClick={() => onOpen(project)}
-      className="flex cursor-pointer flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-card)] backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-border-strong"
+      className="relative flex cursor-pointer flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-card)] backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-border-strong"
     >
       <div className="flex items-start justify-between">
         {/* 동적 프로젝트 컬러: 사용자 지정 HEX → inline style 불가피 */}
         <span className="flex h-11 w-11 items-center justify-center rounded-lg" style={{ backgroundColor: `${project.color}1f`, color: project.color }}>
           <FolderGit2 size={21} aria-hidden="true" />
         </span>
-        {project.isMain ? (
-          <Badge tone="primary">
-            <Star size={11} aria-hidden="true" /> 대표
-          </Badge>
-        ) : (
-          <IconButton icon={Trash2} label="삭제" disabled={disabled} onClick={(event) => stop(event, () => onDelete(project))} />
-        )}
+        <div className="relative flex shrink-0 items-center gap-1">
+          {project.isMain ? (
+            <Badge tone="primary">
+              <Star size={11} aria-hidden="true" /> 대표
+            </Badge>
+          ) : null}
+          <IconButton
+            icon={EllipsisVertical}
+            label="프로젝트 옵션"
+            disabled={disabled}
+            onClick={(event) => stop(event, () => setMenuOpen(!menuOpen))}
+          />
+          {menuOpen ? (
+            <div className="absolute right-0 top-9 z-20 w-40 rounded-md border border-border bg-card p-1 shadow-lg backdrop-blur-xl" onClick={(event) => event.stopPropagation()}>
+              <button
+                type="button"
+                className="flex h-8 w-full min-w-0 items-center gap-2 rounded px-2 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                onClick={(event) => runMenuAction(event, () => onEdit(project))}
+              >
+                <Pencil size={13} className="shrink-0" aria-hidden="true" /> <span className="truncate">수정</span>
+              </button>
+              {!project.isMain ? (
+                <button
+                  type="button"
+                  className="flex h-8 w-full min-w-0 items-center gap-2 rounded px-2 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  onClick={(event) => runMenuAction(event, () => onMain(project))}
+                >
+                  <Star size={13} className="shrink-0" aria-hidden="true" /> <span className="truncate">대표 지정</span>
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="flex h-8 w-full min-w-0 items-center gap-2 rounded px-2 text-left text-xs text-destructive transition-colors hover:bg-destructive/10"
+                onClick={(event) => runMenuAction(event, () => onDelete(project))}
+              >
+                <Trash2 size={13} className="shrink-0" aria-hidden="true" /> <span className="truncate">삭제</span>
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div className="min-w-0 space-y-1">
@@ -81,14 +120,6 @@ function ProjectCard({
         <Button variant="outline" size="sm" onClick={(event) => stop(event, onBuild)}>
           <Code2 size={14} aria-hidden="true" /> Build
         </Button>
-        <Button variant="ghost" size="sm" onClick={(event) => stop(event, () => onEdit(project))}>
-          <Pencil size={14} aria-hidden="true" /> 수정
-        </Button>
-        {!project.isMain ? (
-          <Button variant="ghost" size="sm" disabled={disabled} onClick={(event) => stop(event, () => onMain(project))}>
-            <Star size={14} aria-hidden="true" /> 대표
-          </Button>
-        ) : null}
       </div>
     </article>
   );
@@ -220,9 +251,24 @@ export function ProjectsPage() {
               key={project.projectKey}
               project={project}
               disabled={!canRequest}
-              onOpen={store.touchProject}
-              onAsk={() => navigate("ask")}
-              onBuild={() => navigate("build")}
+              onOpen={(item) => {
+                store.touchProject(item);
+                navigate("build", {
+                  projectKey: item.projectKey,
+                  projectName: item.name,
+                  projectPath: item.path
+                });
+              }}
+              onAsk={() => navigate("ask", {
+                projectKey: project.projectKey,
+                projectName: project.name,
+                projectPath: project.path
+              })}
+              onBuild={() => navigate("build", {
+                projectKey: project.projectKey,
+                projectName: project.name,
+                projectPath: project.path
+              })}
               onEdit={openProjectEditor}
               onMain={setMainProject}
               onDelete={deleteProject}

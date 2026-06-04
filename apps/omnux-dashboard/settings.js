@@ -895,8 +895,7 @@
         React.createElement("p", { className: "muted", style: { fontSize: 14, maxWidth: 380, margin: "8px auto 0", lineHeight: 1.55 } }, t("A local-first command center for AI agents, code, routines, and LLM orchestration.")),
         React.createElement("div", { className: "items-center gap8", style: { justifyContent: "center", marginTop: 16 } },
           React.createElement("span", { className: "badge soft" }, t("Version 1.0.0")),
-          React.createElement("span", { className: "badge completed" }, t("Local-first")),
-          React.createElement("span", { className: "badge soft mono", style: { fontSize: 11 } }, t("formerly Omni-node"))),
+          React.createElement("span", { className: "badge completed" }, t("Local-first"))),
       ),
     );
   }

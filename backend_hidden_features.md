@@ -1,4 +1,4 @@
-# Omni-node Backend Hidden Features
+# Backend Hidden Features
 
 현재 프론트엔드(데스크톱 앱 UI)에는 브릿지(`desktop-message-gateway.ts`)나 버튼이 전혀 연결되어 있지 않지만, **백엔드(미들웨어) 단에 코드로 완벽하게 구현되어 동작 대기 중인 주요 기능 목록**입니다.
 

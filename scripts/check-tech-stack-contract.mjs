@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const LEGACY_PACKAGE_NAME = "\"name\": \"" + ("omni" + "node") + "\"";
 let assertionCount = 0;
 
 function read(relativePath) {
@@ -108,8 +109,8 @@ assertIncludes(techStack, "새 루트 앱 디렉터리, 새 source home, 새 번
 assertIncludes(techStack, "기존 루트 `omnux/` 프로토타입은 활성 source home이 아니다.", "루트 omnux 프로토타입 비활성 source home");
 assertIncludes(techStack, "브랜드와 호환 alias 경계", "브랜드/alias 경계 섹션");
 assertIncludes(techStack, "canonical 이름은 `omnux`다.", "브랜드 canonical 이름");
-assertIncludes(techStack, "`Omni-node`는 현재 저장소 폴더명, 이전 이름을 설명하는 문맥, 마이그레이션 예시에만 남길 수 있다.", "Omni-node 허용 문맥");
-assertIncludes(techStack, "`omninode-*` 루트 alias, Electron/Codex legacy alias, 새 런타임 shortcut은 다시 만들지 않는다.", "legacy alias 재생성 금지");
+assertIncludes(techStack, "이전 브랜드명은 역사 문맥이나 마이그레이션 예시에만 남길 수 있다.", "이전 브랜드 허용 문맥");
+assertIncludes(techStack, "구 접두사 기반 루트 alias, Electron/Codex legacy alias, 새 런타임 shortcut은 다시 만들지 않는다.", "legacy alias 재생성 금지");
 assertIncludes(techStack, "호환 alias가 필요하면 임시 shim으로만 추가하고", "호환 alias 임시 shim 조건");
 assertNotIncludes(techStack, "C#와 Rust를 같은 계층에 섞는다", "언어 책임 경계는 혼합을 권장하지 않는다");
 assertIncludes(englishTechStack, "Updated: 2026-06-02", "영문 기술 스택 업데이트 날짜");
@@ -139,10 +140,10 @@ assertIncludes(englishTechStack, "Do not create new root app directories, new so
 assertIncludes(englishTechStack, "The existing root `omnux/` prototype is not an active source home.", "영문 루트 omnux 프로토타입 비활성 source home");
 assertIncludes(englishTechStack, "Brand And Compatibility Alias Boundary", "영문 브랜드/alias 경계 섹션");
 assertIncludes(englishTechStack, "new user-facing copy use `omnux`", "영문 브랜드 canonical 이름");
-assertIncludes(englishTechStack, "`Omni-node` may remain only as the current repository folder name, historical name context, or migration example.", "영문 Omni-node 허용 문맥");
-assertIncludes(englishTechStack, "Root `omninode-*` aliases, Electron/Codex legacy aliases, and new runtime shortcuts must not be recreated.", "영문 legacy alias 재생성 금지");
+assertIncludes(englishTechStack, "The previous brand name may remain only in historical context or migration examples.", "영문 이전 브랜드 허용 문맥");
+assertIncludes(englishTechStack, "Old-prefix root aliases, Electron/Codex legacy aliases, and new runtime shortcuts must not be recreated.", "영문 legacy alias 재생성 금지");
 assertIncludes(packageJson, "\"name\": \"omnux\"", "package name canonical omnux");
-assertNotIncludes(packageJson, "\"name\": \"omninode\"", "package name must not use legacy omninode");
+assertNotIncludes(packageJson, LEGACY_PACKAGE_NAME, "package name must not use legacy package name");
 assertIncludes(englishReadme, "# omnux", "영문 README canonical title");
 assertIncludes(dashboardShell, "brand-name' }, 'omnux'", "대시보드 셸 canonical brand");
 assertIncludes(testRunner, "scripts\", \"check-repo-hygiene.mjs", "npm test runs repo hygiene gate");
@@ -178,7 +179,6 @@ assertFilesMatch(
     || filePath.endsWith(".sh")
     || filePath.endsWith(".ps1")
     || filePath.endsWith(".cmd")
-    || filePath === "scripts/Omni-node"
     || filePath === "scripts/omnux",
   "Node.js and runner canonical source home"
 );

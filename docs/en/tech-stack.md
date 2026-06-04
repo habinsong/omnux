@@ -51,8 +51,8 @@ omnux is not one large framework. It keeps small runtimes separated by responsib
 ## Brand And Compatibility Alias Boundary
 
 - The canonical product name, package name, launcher name, state directory, and new user-facing copy use `omnux`.
-- `Omni-node` may remain only as the current repository folder name, historical name context, or migration example.
-- Root `omninode-*` aliases, Electron/Codex legacy aliases, and new runtime shortcuts must not be recreated.
+- The previous brand name may remain only in historical context or migration examples.
+- Old-prefix root aliases, Electron/Codex legacy aliases, and new runtime shortcuts must not be recreated.
 - If a compatibility alias is required, add it only as a temporary shim and document the removal condition plus contract check in the same change.
 - New product copy in the dashboard, desktop shell, README, and package metadata uses `omnux`.
 

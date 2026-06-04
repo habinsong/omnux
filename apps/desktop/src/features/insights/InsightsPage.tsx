@@ -4,12 +4,16 @@ import { CardBoundary } from "../../CardBoundary";
 import { Button } from "../../components/ui/primitives";
 import { useDesktopShellStore } from "../../shell-store";
 import { useDesktopAuthStore } from "../auth/auth-store";
+import { useBuildStore } from "../build/build-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
 import {
   CodeRepomapPanel,
   GitTimeMachinePanel,
   LocalLlmPanel,
   McpPanel,
+  RepairTimelinePanel,
+  RouteMetricsPanel,
+  SandboxQualityPanel,
   SemanticSearchPanel,
   TelemetryPanel,
   TerminalPanel
@@ -22,6 +26,8 @@ export function InsightsPage() {
   const bridgeStatus = useDesktopShellStore((state) => state.bridge.status);
   const authStatus = useDesktopAuthStore((state) => state.auth.status);
   const recordCardError = useUiLogStore((state) => state.recordCardError);
+  const buildResult = useBuildStore((state) => state.currentResult);
+  const buildRuntime = useBuildStore((state) => state.runtime);
   const store = useInsightsStore();
   const canRequest = bridgeStatus === "connected" && authStatus === "authenticated";
 
@@ -46,6 +52,18 @@ export function InsightsPage() {
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <CardBoundary title="LLM Telemetry / 비용" card="logs" onError={recordCardError}>
           <TelemetryPanel telemetry={store.telemetry} />
+        </CardBoundary>
+
+        <CardBoundary title="Provider route metrics" card="logs" onError={recordCardError}>
+          <RouteMetricsPanel telemetry={store.telemetry} />
+        </CardBoundary>
+
+        <CardBoundary title="Sandbox / 품질 readiness" card="runtime" onError={recordCardError}>
+          <SandboxQualityPanel doctor={store.doctor} />
+        </CardBoundary>
+
+        <CardBoundary title="Repair / quality timeline" card="operations" onError={recordCardError}>
+          <RepairTimelinePanel telemetry={store.telemetry} result={buildResult} runtime={buildRuntime} />
         </CardBoundary>
 
         <CardBoundary title="Git 타임머신" card="navigation" onError={recordCardError}>

@@ -8,9 +8,7 @@ $ErrorActionPreference = "Stop"
 $ScriptPath = $PSCommandPath
 $ScriptDir = Split-Path -Parent $ScriptPath
 $RepoRoot = Resolve-Path (Join-Path $ScriptDir "..")
-$CurrentStateRoot = Join-Path $HOME ".omnux"
-$LegacyStateRoot = Join-Path $HOME ".omninode"
-$StateRoot = if ((-not (Test-Path $CurrentStateRoot)) -and (Test-Path $LegacyStateRoot)) { $LegacyStateRoot } else { $CurrentStateRoot }
+$StateRoot = Join-Path $HOME ".omnux"
 $StateDir = Join-Path $StateRoot "cli"
 $PidFile = Join-Path $StateDir "middleware.pid"
 $LogFile = Join-Path $StateDir "middleware.log"
@@ -18,7 +16,7 @@ $ErrLogFile = Join-Path $StateDir "middleware.err.log"
 $MetaFile = Join-Path $StateDir "last-start.env"
 $SetupMarkerFile = Join-Path $StateDir "setup-complete"
 $MiddlewareProject = Join-Path $RepoRoot "apps\omnux-middleware\Omnux.Middleware.csproj"
-$DefaultPort = if ($env:OMNUX_WS_PORT) { $env:OMNUX_WS_PORT } elseif ($env:OMNINODE_WS_PORT) { $env:OMNINODE_WS_PORT } else { "8080" }
+$DefaultPort = if ($env:OMNUX_WS_PORT) { $env:OMNUX_WS_PORT } else { "41880" }
 $DefaultBaseUrl = "http://127.0.0.1:$DefaultPort"
 
 Set-Location $RepoRoot
@@ -247,15 +245,16 @@ function Start-Server {
     }
 
     "`n[$(Get-Date -Format o)] omnux start" | Add-Content -Encoding UTF8 -Path $LogFile
-    $workspaceRoot = if ($env:OMNUX_WORKSPACE_ROOT) { $env:OMNUX_WORKSPACE_ROOT } elseif ($env:OMNINODE_WORKSPACE_ROOT) { $env:OMNINODE_WORKSPACE_ROOT } else { Join-Path $RepoRoot "workspace\coding" }
+    $workspaceRoot = if ($env:OMNUX_WORKSPACE_ROOT) { $env:OMNUX_WORKSPACE_ROOT } else { Join-Path $RepoRoot "workspace\coding" }
     $env:OMNUX_WORKSPACE_ROOT = $workspaceRoot
-    $env:OMNINODE_WORKSPACE_ROOT = $workspaceRoot
-    $localOtp = if ($env:OMNUX_ENABLE_LOCAL_OTP_FALLBACK) { $env:OMNUX_ENABLE_LOCAL_OTP_FALLBACK } elseif ($env:OMNINODE_ENABLE_LOCAL_OTP_FALLBACK) { $env:OMNINODE_ENABLE_LOCAL_OTP_FALLBACK } else { "1" }
+    $localOtp = if ($env:OMNUX_ENABLE_LOCAL_OTP_FALLBACK) { $env:OMNUX_ENABLE_LOCAL_OTP_FALLBACK } else { "1" }
     $env:OMNUX_ENABLE_LOCAL_OTP_FALLBACK = $localOtp
-    $env:OMNINODE_ENABLE_LOCAL_OTP_FALLBACK = $localOtp
-    $startupProbe = if ($env:OMNUX_GATEWAY_STARTUP_PROBE) { $env:OMNUX_GATEWAY_STARTUP_PROBE } elseif ($env:OMNINODE_GATEWAY_STARTUP_PROBE) { $env:OMNINODE_GATEWAY_STARTUP_PROBE } else { "1" }
+    $startupProbe = if ($env:OMNUX_GATEWAY_STARTUP_PROBE) { $env:OMNUX_GATEWAY_STARTUP_PROBE } else { "1" }
     $env:OMNUX_GATEWAY_STARTUP_PROBE = $startupProbe
-    $env:OMNINODE_GATEWAY_STARTUP_PROBE = $startupProbe
+    $env:OMNUX_WS_PORT = $DefaultPort
+    if (-not $env:OMNUX_TELEGRAM_POLLING_DISABLED) {
+        $env:OMNUX_TELEGRAM_POLLING_DISABLED = "1"
+    }
 
     $process = Start-Process -FilePath "dotnet" `
         -ArgumentList @("run", "--project", $MiddlewareProject) `

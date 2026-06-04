@@ -1,12 +1,15 @@
 import type { ReactNode } from "react";
-import { BrainCircuit, GitBranch, Map, Play, Send, Sparkles, Square } from "lucide-react";
+import { BrainCircuit, Clock, GitBranch, Map as MapIcon, Play, Route, Send, ShieldCheck, Sparkles, Square, Wrench } from "lucide-react";
 import { Badge, Button } from "../../components/ui/primitives";
+import type { CodingExecution, CodingResult, CodingRuntime } from "../build/build-store";
 import type {
   GitTimeMachineSnapshot,
+  InsightsDoctorSnapshot,
   LocalLlmSnapshot,
   McpSnapshot,
   RepomapSnapshot,
   SemanticSnapshot,
+  TelemetryTraceEvent,
   TelemetrySnapshot,
   TerminalSnapshot
 } from "./insights-store";
@@ -38,6 +41,27 @@ function shortDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" });
+}
+
+function shortTime(value: string): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
+}
+
+function average(items: number[]): number {
+  if (items.length === 0) return 0;
+  return Math.round(items.reduce((sum, value) => sum + value, 0) / items.length);
+}
+
+function isAttentionStatus(status: string, error = ""): boolean {
+  return /(error|fail|failed|timeout|cancel|aborted|quality_failed|blocked)/i.test(`${status} ${error}`);
+}
+
+function executionText(execution: CodingExecution | null | undefined): string {
+  if (!execution) return "";
+  return [execution.stdout, execution.stderr].filter(Boolean).join("\n");
 }
 
 export function Stat({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
@@ -85,6 +109,342 @@ export function TelemetryPanel({ telemetry }: { telemetry: TelemetrySnapshot | n
           />
         ))}
         {telemetry.providers.length === 0 ? <Empty label="telemetry 이벤트 없음" /> : null}
+      </div>
+    </>
+  );
+}
+
+type RouteMetric = {
+  key: string;
+  provider: string;
+  model: string;
+  source: string;
+  eventCount: number;
+  totalTokens: number;
+  averageDurationMs: number;
+  maxDurationMs: number;
+  attentionCount: number;
+  cascadeCount: number;
+  streamingCount: number;
+  cacheEligibleCount: number;
+  complexity: string;
+  recommendedTier: string;
+  lastReason: string;
+  lastCompletedUtc: string;
+};
+
+function buildRouteMetrics(events: TelemetryTraceEvent[]): RouteMetric[] {
+  const map = new Map<string, RouteMetric & { durations: number[] }>();
+  for (const event of events) {
+    const provider = event.provider || "provider -";
+    const model = event.model || "model -";
+    const source = event.source || "source -";
+    const key = `${provider}\u0000${model}\u0000${source}`;
+    const row = map.get(key) ?? {
+      key,
+      provider,
+      model,
+      source,
+      eventCount: 0,
+      totalTokens: 0,
+      averageDurationMs: 0,
+      maxDurationMs: 0,
+      attentionCount: 0,
+      cascadeCount: 0,
+      streamingCount: 0,
+      cacheEligibleCount: 0,
+      complexity: "",
+      recommendedTier: "",
+      lastReason: "",
+      lastCompletedUtc: "",
+      durations: []
+    };
+    row.eventCount += 1;
+    row.totalTokens += event.totalTokens;
+    row.durations.push(event.durationMs);
+    row.maxDurationMs = Math.max(row.maxDurationMs, event.durationMs);
+    row.attentionCount += isAttentionStatus(event.status, event.error) ? 1 : 0;
+    row.cascadeCount += event.modelRoutingCascadeEligible ? 1 : 0;
+    row.streamingCount += event.streaming ? 1 : 0;
+    row.cacheEligibleCount += event.promptCacheEligible ? 1 : 0;
+    row.complexity = event.modelRoutingComplexity || row.complexity;
+    row.recommendedTier = event.modelRoutingRecommendedTier || row.recommendedTier;
+    row.lastReason = event.modelRoutingReason || event.modelRoutingSignals || row.lastReason;
+    row.lastCompletedUtc = event.completedUtc || event.startedUtc || row.lastCompletedUtc;
+    map.set(key, row);
+  }
+  return Array.from(map.values())
+    .map(({ durations, ...row }) => ({ ...row, averageDurationMs: average(durations) }))
+    .sort((a, b) => b.eventCount - a.eventCount || b.totalTokens - a.totalTokens);
+}
+
+export function RouteMetricsPanel({ telemetry }: { telemetry: TelemetrySnapshot | null }) {
+  if (!telemetry) return <Empty label="새로고침하면 provider route metrics가 표시됩니다." />;
+  const events = telemetry.events;
+  if (events.length === 0) return <Empty label="최근 telemetry 이벤트가 없어 route metrics를 계산할 수 없습니다." />;
+  const routes = buildRouteMetrics(events);
+  const attentionCount = events.filter((event) => isAttentionStatus(event.status, event.error)).length;
+  const cascadeCount = events.filter((event) => event.modelRoutingCascadeEligible).length;
+  const cacheEligibleCount = events.filter((event) => event.promptCacheEligible).length;
+  const signalEvents = events.filter((event) => event.modelRoutingReason || event.modelRoutingSignals).slice(0, 5);
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone="primary"><Route size={11} aria-hidden="true" /> telemetry events</Badge>
+        <Badge tone="outline">{telemetry.filteredEvents || events.length}/{telemetry.totalEvents || events.length} filtered</Badge>
+        <Badge tone="outline">{shortTime(telemetry.snapshotUtc)} snapshot</Badge>
+      </div>
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <Stat label="route" value={routes.length} sub={`${events.length} events`} />
+        <Stat label="attention" value={attentionCount} sub="error/timeout/quality" />
+        <Stat label="cascade" value={cascadeCount} sub="eligible routes" />
+        <Stat label="cache" value={cacheEligibleCount} sub="prompt cache 후보" />
+      </div>
+      <div className="space-y-1">
+        {routes.slice(0, 8).map((route) => (
+          <Row
+            key={route.key}
+            left={`${route.provider}:${route.model}`}
+            sub={`${route.source} · ${route.recommendedTier || "tier -"} · ${route.complexity || "complexity -"} · avg ${route.averageDurationMs}ms · ${route.totalTokens.toLocaleString()} tok`}
+            right={
+              <div className="flex shrink-0 items-center gap-1">
+                {route.attentionCount > 0 ? <Badge tone="destructive">{route.attentionCount} issue</Badge> : null}
+                {route.cascadeCount > 0 ? <Badge tone="primary">{route.cascadeCount} cascade</Badge> : null}
+                {route.cacheEligibleCount > 0 ? <Badge tone="success">{route.cacheEligibleCount} cache</Badge> : null}
+                {route.streamingCount > 0 ? <Badge tone="outline">{route.streamingCount} stream</Badge> : null}
+                <Badge tone={route.cascadeCount > 0 ? "primary" : "outline"}>{route.eventCount} calls</Badge>
+              </div>
+            }
+          />
+        ))}
+      </div>
+      <div className="space-y-1">
+        {signalEvents.map((event) => (
+          <Row
+            key={`signal-${event.id}`}
+            left={event.modelRoutingReason || event.modelRoutingSignals || "routing signal"}
+            sub={`${event.provider}:${event.model} · ${event.modelRoutingComplexity || "complexity -"} · ${event.source || "source -"}`}
+            right={<Badge tone={event.modelRoutingCascadeEligible ? "primary" : "outline"}>{event.modelRoutingRecommendedTier || "tier -"}</Badge>}
+          />
+        ))}
+        {signalEvents.length === 0 ? <Empty label="routing reason/signal이 포함된 telemetry 이벤트 없음" /> : null}
+      </div>
+    </>
+  );
+}
+
+const SANDBOX_LIMITS = [
+  { key: "timeout", label: "실행 timeout", value: "10s", detail: "executor.py --timeout 기본값" },
+  { key: "memory", label: "메모리 상한", value: "200 MB", detail: "RLIMIT_AS 기본값" },
+  { key: "cpu", label: "CPU 시간", value: "10s", detail: "RLIMIT_CPU 기본값" }
+];
+
+export function SandboxQualityPanel({ doctor }: { doctor: InsightsDoctorSnapshot }) {
+  const report = doctor.report;
+  const sandbox = report?.checks.find((check) => check.id === "sandbox") ?? null;
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone={sandbox ? statusTone(sandbox.status) : doctor.found === false ? "outline" : "warning"}>
+          <ShieldCheck size={11} aria-hidden="true" /> {sandbox?.status || (doctor.found === false ? "no report" : "pending")}
+        </Badge>
+        <Badge tone="outline">doctor_get_last</Badge>
+        <Badge tone="outline">{report ? shortTime(report.createdAtUtc) : "report -"}</Badge>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {SANDBOX_LIMITS.map((limit) => <Stat key={limit.key} label={limit.label} value={limit.value} sub={limit.detail} />)}
+      </div>
+      {sandbox ? (
+        <div className="space-y-1">
+          <Row
+            left={sandbox.summary || "sandbox smoke"}
+            sub={sandbox.detail || "Doctor sandbox check"}
+            right={<Badge tone={statusTone(sandbox.status)}>{sandbox.status || "-"}</Badge>}
+          />
+          {sandbox.suggestedActions.slice(0, 4).map((action) => (
+            <Row key={action} left="suggested action" sub={action} right={<Badge tone="warning">review</Badge>} />
+          ))}
+        </div>
+      ) : (
+        <Empty label={doctor.found === false ? "저장된 Doctor 보고서가 없어 sandbox smoke 결과를 표시할 수 없습니다." : "Doctor 최근 보고서를 조회 중입니다."} />
+      )}
+      <div className="space-y-1">
+        <Row
+          left="executor isolation"
+          sub="임시 작업 폴더, HOME/TMP 격리, 사용자 site-package 차단"
+          right={<Badge tone="success">configured</Badge>}
+        />
+        <Row
+          left="resource usage telemetry"
+          sub="실행별 실제 RSS/CPU 사용량 WS 계약은 아직 없습니다."
+          right={<Badge tone="outline">contract gap</Badge>}
+        />
+      </div>
+    </>
+  );
+}
+
+type RepairTimelineItem = {
+  id: string;
+  title: string;
+  detail: string;
+  source: string;
+  status: string;
+  time: string;
+  tone: "success" | "warning" | "destructive" | "primary" | "default" | "outline";
+};
+
+function repairMarkerItems(
+  key: string,
+  label: string,
+  execution: CodingExecution | null | undefined,
+  summary = ""
+): RepairTimelineItem[] {
+  const items: RepairTimelineItem[] = [];
+  const status = execution?.status || "";
+  const text = `${summary}\n${executionText(execution)}`;
+  if (/deterministic_repair/i.test(text)) {
+    items.push({
+      id: `${key}-deterministic`,
+      title: "deterministic repair",
+      detail: label,
+      source: "Build result",
+      status: status || "repair",
+      time: "최근 Build",
+      tone: "primary"
+    });
+  }
+  if (/\[repair-pass\]/i.test(text)) {
+    items.push({
+      id: `${key}-repair-pass`,
+      title: "repair pass",
+      detail: label,
+      source: "Build result",
+      status: status || "repair",
+      time: "최근 Build",
+      tone: "success"
+    });
+  }
+  if (/\[quality-gate\]/i.test(text) || /quality_failed/i.test(status)) {
+    items.push({
+      id: `${key}-quality`,
+      title: "quality gate",
+      detail: label,
+      source: "Build result",
+      status: status || "quality",
+      time: "최근 Build",
+      tone: /failed|quality_failed/i.test(`${status} ${text}`) ? "destructive" : "success"
+    });
+  }
+  if (isAttentionStatus(status, execution?.stderr || "")) {
+    items.push({
+      id: `${key}-attention`,
+      title: "execution attention",
+      detail: `${label} · exit=${execution?.exitCode ?? "-"}`,
+      source: "Build execution",
+      status: status || "attention",
+      time: "최근 Build",
+      tone: "warning"
+    });
+  }
+  return items;
+}
+
+function buildRepairTimeline(
+  telemetry: TelemetrySnapshot | null,
+  result: CodingResult | null,
+  runtime: CodingRuntime | null
+): RepairTimelineItem[] {
+  const items: RepairTimelineItem[] = [];
+  if (result) {
+    items.push(...repairMarkerItems("main", "Main result", result.execution, result.summary || result.commonSummary));
+    result.workers.forEach((worker, index) => {
+      items.push(...repairMarkerItems(`worker-${index}`, worker.role || `Worker ${index + 1}`, worker.execution, worker.summary));
+    });
+    if (result.retryRequired || result.retryAttempt > 0 || result.retryStopReason) {
+      items.push({
+        id: "retry-policy",
+        title: result.retryRequired ? "retry required" : "retry policy",
+        detail: [result.retryAction, result.retryScope, result.retryReason || result.retryStopReason].filter(Boolean).join(" · ") || "retry metadata",
+        source: "Coding result",
+        status: `${result.retryAttempt}/${result.retryMaxAttempts || "-"}`,
+        time: "최근 Build",
+        tone: result.retryRequired ? "warning" : "outline"
+      });
+    }
+    if (result.citationValidationPassed === false) {
+      items.push({
+        id: "citation-validation",
+        title: "citation validation",
+        detail: result.citationValidationReason || "citation validation failed",
+        source: "Coding quality",
+        status: "failed",
+        time: "최근 Build",
+        tone: "destructive"
+      });
+    }
+  }
+  if (runtime?.execution) {
+    items.push(...repairMarkerItems("runtime", runtime.message || "Runtime execution", runtime.execution, runtime.message));
+  }
+  const telemetryCandidates = (telemetry?.events ?? [])
+    .filter((event) => isAttentionStatus(event.status, event.error) && /(coding|build|code|worker)/i.test(`${event.source} ${event.operation}`))
+    .slice(0, 5);
+  telemetryCandidates.forEach((event) => {
+    items.push({
+      id: `telemetry-${event.id}`,
+      title: "route failure candidate",
+      detail: `${event.provider}:${event.model} · ${event.error || event.source || event.operation}`,
+      source: "Telemetry",
+      status: event.status || "error",
+      time: shortTime(event.completedUtc || event.startedUtc),
+      tone: "destructive"
+    });
+  });
+  return items.slice(0, 12);
+}
+
+export function RepairTimelinePanel({
+  telemetry,
+  result,
+  runtime
+}: {
+  telemetry: TelemetrySnapshot | null;
+  result: CodingResult | null;
+  runtime: CodingRuntime | null;
+}) {
+  const items = buildRepairTimeline(telemetry, result, runtime);
+  const qualityCount = items.filter((item) => /quality|citation/i.test(item.title)).length;
+  const repairCount = items.filter((item) => /repair|retry/i.test(item.title)).length;
+  const attentionCount = items.filter((item) => item.tone === "destructive" || item.tone === "warning").length;
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge tone="warning"><Wrench size={11} aria-hidden="true" /> 전용 event store 없음</Badge>
+        <Badge tone="primary">Build/telemetry 파생</Badge>
+        <Badge tone={result ? "success" : "outline"}>{result ? "최근 Build 있음" : "Build 결과 없음"}</Badge>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <Stat label="repair" value={repairCount} sub="marker/retry" />
+        <Stat label="quality" value={qualityCount} sub="gate/citation" />
+        <Stat label="attention" value={attentionCount} sub="error/timeout" />
+      </div>
+      <div className="space-y-1">
+        {items.map((item) => (
+          <Row
+            key={item.id}
+            left={item.title}
+            sub={`${item.source} · ${item.detail}`}
+            right={
+              <div className="flex shrink-0 items-center gap-1">
+                <Badge tone="outline"><Clock size={11} aria-hidden="true" /> {item.time}</Badge>
+                <Badge tone={item.tone}>{item.status || "-"}</Badge>
+              </div>
+            }
+          />
+        ))}
+        {items.length === 0 ? <Empty label="최근 Build 결과와 telemetry에서 repair/quality 마커가 발견되지 않았습니다." /> : null}
       </div>
     </>
   );
@@ -401,7 +761,7 @@ export function CodeRepomapPanel({ repomap }: { repomap: RepomapSnapshot | null 
               key={file.path}
               left={file.path}
               sub={firstSymbol ? `${firstSymbol.kind} ${firstSymbol.name} · line ${firstSymbol.line}` : file.language}
-              right={<Badge tone="outline"><Map size={11} aria-hidden="true" /> {file.symbolCount}</Badge>}
+              right={<Badge tone="outline"><MapIcon size={11} aria-hidden="true" /> {file.symbolCount}</Badge>}
             />
           );
         })}

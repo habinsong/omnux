@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { HomePage } from "./features/home/HomePage";
 import { ActivityPage } from "./features/activity/ActivityPage";
 import { AskPage } from "./features/ask/AskPage";
@@ -20,11 +20,15 @@ import {
   type DesktopPageDefinition
 } from "./features/shell/DesktopNavigation";
 import { DesktopTopBar } from "./features/shell/DesktopTopBar";
+import { CommandPalette } from "./features/shell/CommandPalette";
 import { PageBoundary } from "./features/shell/PageBoundary";
 import { ShellOverviewPage } from "./features/shell/ShellOverviewPage";
 import { SettingsPage } from "./features/settings/SettingsPage";
 import { DesktopDialogHost } from "./features/dialog/DesktopDialogHost";
+import { DesktopToastHost } from "./features/toast/DesktopToastHost";
 import { useDesktopNavigationStore } from "./features/shell/navigation-store";
+import { shortcutDisplay, shortcutMatches, useDesktopPreferenceStore, type ShortcutAction } from "./features/shell/preference-store";
+import { useSpeechStore } from "./features/ask/ask-speech";
 import { useUiLogStore } from "./features/ui-log/ui-log-store";
 import { useMiddlewareBootstrapEvents } from "./use-middleware-bootstrap-events";
 import { useMiddlewareRuntimeProbe } from "./use-middleware-runtime-probe";
@@ -59,8 +63,11 @@ function App() {
 
   const activePage = useDesktopNavigationStore((state) => state.activePage);
   const setActivePage = useDesktopNavigationStore((state) => state.setActivePage);
+  const shortcuts = useDesktopPreferenceStore((state) => state.shortcuts);
+  const cycleTheme = useDesktopPreferenceStore((state) => state.cycleTheme);
   const activityBadge = useUiLogStore((state) => Math.min(state.logs.length, 99));
   const [mobileNav, setMobileNav] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   const pages = useMemo<DesktopPageDefinition[]>(
     () => [
@@ -95,6 +102,60 @@ function App() {
   const activePageDefinition = pages.find((page) => page.id === activePage) || pages[0];
   const navPages = pages.filter((page) => page.id !== "shell");
   const isHome = activePageDefinition.id === "home";
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (shortcutMatches(event, shortcuts.palette) || shortcutMatches(event, shortcuts.paletteAlt)) {
+        event.preventDefault();
+        setCommandPaletteOpen((open) => !open);
+        return;
+      }
+
+      const pageShortcuts: Partial<Record<ShortcutAction, typeof activePage>> = {
+        pageHome: "home",
+        pageAsk: "ask",
+        pageBuild: "build",
+        pageAutomate: "automate",
+        pageActivity: "activity",
+        pageNotebooks: "notebooks",
+        pageSettings: "settings",
+        pageOperations: "operations"
+      };
+      for (const [action, page] of Object.entries(pageShortcuts) as Array<[ShortcutAction, typeof activePage]>) {
+        if (shortcutMatches(event, shortcuts[action])) {
+          event.preventDefault();
+          setActivePage(page);
+          return;
+        }
+      }
+
+      if (shortcutMatches(event, shortcuts.toggleTheme)) {
+        event.preventDefault();
+        cycleTheme();
+        return;
+      }
+      if (shortcutMatches(event, shortcuts.toggleAutoSpeak)) {
+        event.preventDefault();
+        useSpeechStore.getState().toggleAutoSpeak();
+        return;
+      }
+      if (shortcutMatches(event, shortcuts.stopSpeaking)) {
+        event.preventDefault();
+        useSpeechStore.getState().stop();
+        return;
+      }
+      if (
+        shortcutMatches(event, shortcuts.focusComposer) ||
+        shortcutMatches(event, shortcuts.newConversation) ||
+        shortcutMatches(event, shortcuts.searchConversations)
+      ) {
+        event.preventDefault();
+        window.dispatchEvent(new CustomEvent("omnux:shortcut", { detail: { action: shortcutMatches(event, shortcuts.focusComposer) ? "focusComposer" : shortcutMatches(event, shortcuts.newConversation) ? "newConversation" : "searchConversations" } }));
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activePage, cycleTheme, setActivePage, shortcuts]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden text-foreground">
@@ -135,7 +196,7 @@ function App() {
           <p className="leading-relaxed">
             언제든지{" "}
             <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-foreground">
-              ⌘K
+              {shortcutDisplay(shortcuts.palette)}
             </kbd>{" "}
             를 눌러 명령 팔레트를 여세요.
           </p>
@@ -158,13 +219,19 @@ function App() {
 
       {/* Main */}
       <main className="flex min-w-0 flex-1 flex-col">
-        <DesktopTopBar onOpenNav={() => setMobileNav(true)} onSelectPage={setActivePage} />
+        <DesktopTopBar
+          onOpenNav={() => setMobileNav(true)}
+          onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+          onSelectPage={setActivePage}
+        />
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className={isHome ? "h-full" : "mx-auto w-full max-w-[1440px] p-6"}>
             <PageBoundary page={activePageDefinition.id}>{activePageDefinition.render()}</PageBoundary>
           </div>
         </div>
         <DesktopDialogHost />
+        <DesktopToastHost />
+        <CommandPalette open={commandPaletteOpen} pages={pages} onClose={() => setCommandPaletteOpen(false)} />
       </main>
     </div>
   );

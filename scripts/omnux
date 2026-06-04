@@ -25,14 +25,7 @@ SCRIPT_DIR="$(cd -P "$(dirname "$SCRIPT_PATH")" && pwd)"
 REPO_ROOT="$(cd -P "$SCRIPT_DIR/.." && pwd)"
 
 resolve_cli_state_dir() {
-  local current_home="${HOME}/.omnux"
-  local legacy_home="${HOME}/.omninode"
-  if [ ! -d "$current_home" ] && [ -d "$legacy_home" ]; then
-    printf '%s/cli\n' "$legacy_home"
-    return 0
-  fi
-
-  printf '%s/cli\n' "$current_home"
+  printf '%s/cli\n' "${HOME}/.omnux"
 }
 
 STATE_DIR="$(resolve_cli_state_dir)"
@@ -42,13 +35,13 @@ META_FILE="${STATE_DIR}/last-start.env"
 SETUP_MARKER_FILE="${STATE_DIR}/setup-complete"
 MIDDLEWARE_PROJECT="${REPO_ROOT}/apps/omnux-middleware/Omnux.Middleware.csproj"
 PACKAGE_LOCK="${REPO_ROOT}/package-lock.json"
-DEFAULT_PORT="${OMNUX_WS_PORT:-${OMNINODE_WS_PORT:-8080}}"
+DEFAULT_PORT="${OMNUX_WS_PORT:-41880}"
 DEFAULT_BASE_URL="http://127.0.0.1:${DEFAULT_PORT}"
 
 usage() {
   cat <<'EOF'
 사용법:
-  omnux           미들웨어+대시보드 시작 (첫 실행이면 setup 자동 실행) — http://127.0.0.1:8080/
+  omnux           미들웨어+대시보드 시작 (첫 실행이면 setup 자동 실행) — http://127.0.0.1:41880/
   omnux start     위와 동일
   omnux stop      미들웨어 서버 종료 (= shutdown)
   omnux shutdown  미들웨어 서버 종료
@@ -72,7 +65,7 @@ ensure_state_dir() {
 }
 
 current_port() {
-  printf '%s\n' "${OMNUX_WS_PORT:-${OMNINODE_WS_PORT:-8080}}"
+  printf '%s\n' "${OMNUX_WS_PORT:-41880}"
 }
 
 current_base_url() {
@@ -100,6 +93,14 @@ server_health_ok() {
 
 server_ready_ok() {
   curl -fsS "$(current_base_url)/readyz" >/dev/null 2>&1
+}
+
+normalize_runtime_env() {
+  local port
+  port="$(current_port)"
+  export OMNUX_WS_PORT="${OMNUX_WS_PORT:-$port}"
+  # CLI/desktop 보조 서버는 실제 봇 polling 소유권을 뺏지 않는다. 발송은 그대로 동작한다.
+  export OMNUX_TELEGRAM_POLLING_DISABLED="${OMNUX_TELEGRAM_POLLING_DISABLED:-1}"
 }
 
 cleanup_stale_state() {
@@ -198,7 +199,7 @@ port_in_use_by_other_process() {
 
 wait_for_ready() {
   local pid="$1"
-  local attempts="${OMNUX_CLI_READY_TIMEOUT_SEC:-${OMNINODE_CLI_READY_TIMEOUT_SEC:-180}}"
+  local attempts="${OMNUX_CLI_READY_TIMEOUT_SEC:-180}"
   local step=0
 
   if ! [[ "$attempts" =~ ^[0-9]+$ ]] || [ "$attempts" -le 0 ]; then
@@ -242,6 +243,7 @@ start_server() {
   cleanup_stale_state
   ensure_setup_if_needed
   ensure_runtime_commands
+  normalize_runtime_env
 
   local current_pid
   current_pid="$(read_pid_file || true)"
@@ -273,15 +275,15 @@ import sys
 
 repo_root, project_path, log_path = sys.argv[1:4]
 env = os.environ.copy()
-workspace_root = env.get("OMNUX_WORKSPACE_ROOT") or env.get("OMNINODE_WORKSPACE_ROOT") or os.path.join(repo_root, "workspace", "coding")
+port = env.get("OMNUX_WS_PORT") or "41880"
+env.setdefault("OMNUX_WS_PORT", port)
+env.setdefault("OMNUX_TELEGRAM_POLLING_DISABLED", "1")
+workspace_root = env.get("OMNUX_WORKSPACE_ROOT") or os.path.join(repo_root, "workspace", "coding")
 env.setdefault("OMNUX_WORKSPACE_ROOT", workspace_root)
-env.setdefault("OMNINODE_WORKSPACE_ROOT", workspace_root)
-local_otp = env.get("OMNUX_ENABLE_LOCAL_OTP_FALLBACK") or env.get("OMNINODE_ENABLE_LOCAL_OTP_FALLBACK") or "1"
+local_otp = env.get("OMNUX_ENABLE_LOCAL_OTP_FALLBACK") or "1"
 env.setdefault("OMNUX_ENABLE_LOCAL_OTP_FALLBACK", local_otp)
-env.setdefault("OMNINODE_ENABLE_LOCAL_OTP_FALLBACK", local_otp)
-startup_probe = env.get("OMNUX_GATEWAY_STARTUP_PROBE") or env.get("OMNINODE_GATEWAY_STARTUP_PROBE") or "1"
+startup_probe = env.get("OMNUX_GATEWAY_STARTUP_PROBE") or "1"
 env.setdefault("OMNUX_GATEWAY_STARTUP_PROBE", startup_probe)
-env.setdefault("OMNINODE_GATEWAY_STARTUP_PROBE", startup_probe)
 
 with open(log_path, "ab", buffering=0) as log_file:
     process = subprocess.Popen(

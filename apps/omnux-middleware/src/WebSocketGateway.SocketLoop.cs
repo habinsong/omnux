@@ -166,9 +166,25 @@ public sealed partial class WebSocketGateway
                     continue;
                 }
 
-                if (!AllowCommand(sessionId!))
+                if (WebSocketCommandRatePolicy.ShouldApplyCommandRateLimit(message.Type, message.Action)
+                    && !AllowCommand(sessionId!))
                 {
-                    await SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"rate_limited\"}", cancellationToken);
+                    Console.Error.WriteLine(
+                        "[ws] rate_limited "
+                        + $"type={message.Type ?? "-"} "
+                        + $"action={message.Action ?? "-"} "
+                        + $"limitPerMinute={_gatewayOptions.WebSocketCommandsPerMinute}"
+                    );
+                    await SendTextAsync(
+                        socket,
+                        sendLock,
+                        WebSocketCommandRatePolicy.BuildRateLimitedErrorJson(
+                            message.Type,
+                            message.Action,
+                            _gatewayOptions.WebSocketCommandsPerMinute
+                        ),
+                        cancellationToken
+                    );
                     continue;
                 }
 

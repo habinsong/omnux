@@ -4,7 +4,7 @@ import { useDesktopShellStore } from "../../shell-store";
 import { useDesktopAuthStore } from "../auth/auth-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
 import { useRefactorPageBridge, useRefactorStore } from "./refactor-store";
-import { Badge, Button, Input } from "../../components/ui/primitives";
+import { Badge, Button, Input, Textarea } from "../../components/ui/primitives";
 
 const FIELD_LABEL = "block space-y-1 text-xs font-semibold text-muted-foreground";
 
@@ -43,7 +43,33 @@ export function RefactorPage() {
         )}
       </CardBoundary>
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <CardBoundary title="Anchor 교체" card="operations" onError={recordCardError} hideTitle>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+              <ScanText size={15} className="shrink-0" aria-hidden="true" /> <span className="truncate">Anchor 교체 (refactor_preview)</span>
+            </div>
+            {store.anchorLines.length > 0 ? <Badge tone="outline">{store.anchorLines.length} lines</Badge> : null}
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className={FIELD_LABEL}>
+              시작 줄
+              <Input className="font-mono text-xs" type="number" min="1" value={store.anchorStartLine} placeholder="start" onChange={(event) => store.setField("anchorStartLine", event.target.value)} />
+            </label>
+            <label className={FIELD_LABEL}>
+              끝 줄
+              <Input className="font-mono text-xs" type="number" min="1" value={store.anchorEndLine} placeholder="end" onChange={(event) => store.setField("anchorEndLine", event.target.value)} />
+            </label>
+          </div>
+          <label className={FIELD_LABEL}>
+            교체 코드
+            <Textarea rows={7} className="font-mono text-xs" value={store.anchorReplacement} placeholder="선택한 줄 범위를 대체할 코드" onChange={(event) => store.setField("anchorReplacement", event.target.value)} />
+          </label>
+          <Button variant="primary" size="sm" onClick={store.anchorPreview} disabled={!canRequest || store.pending || !store.path.trim() || !store.anchorStartLine.trim() || !store.anchorEndLine.trim() || !store.anchorReplacement.trim() || store.anchorLines.length === 0}>
+            <ScanText size={14} aria-hidden="true" /> 미리보기
+          </Button>
+        </CardBoundary>
+
         <CardBoundary title="AST 치환" card="operations" onError={recordCardError} hideTitle>
           <div className="flex items-center gap-2 text-sm font-semibold"><Replace size={15} aria-hidden="true" /> AST 치환 (ast_replace)</div>
           <label className={FIELD_LABEL}>

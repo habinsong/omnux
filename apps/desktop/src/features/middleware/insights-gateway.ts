@@ -4,6 +4,7 @@ import { registerDesktopRequestTypes, sendDesktopRequest } from "./desktop-messa
 // middleware 디렉터리 안이므로 sendDesktopRequest 직접 사용 허용(계약 경계).
 registerDesktopRequestTypes(
   "telemetry_snapshot_get",
+  "doctor_get_last",
   "mcp_servers_list",
   "local_llm_snapshot_get",
   "terminal_capabilities_get",
@@ -18,6 +19,9 @@ registerDesktopRequestTypes(
 export const requestDesktopInsights = {
   telemetry(limit = 100) {
     return sendDesktopRequest({ type: "telemetry_snapshot_get", limit });
+  },
+  doctorLast() {
+    return sendDesktopRequest({ type: "doctor_get_last" });
   },
   mcpServers() {
     return sendDesktopRequest({ type: "mcp_servers_list" });

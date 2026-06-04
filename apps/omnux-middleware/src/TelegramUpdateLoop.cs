@@ -32,6 +32,21 @@ public sealed class TelegramUpdateLoop
 
     public async Task RunAsync(CancellationToken cancellationToken)
     {
+        // dev/보조 인스턴스가 실제 봇의 폴링 소유권을 뺏지 않도록 명시적으로 끌 수 있다.
+        // 폴링만 끄고 발송(OTP·알림)은 그대로 동작한다. 태스크는 살려둬서 호스트가 종료되지 않게 한다.
+        if (IsPollingDisabledByEnv())
+        {
+            Console.WriteLine("[telegram] polling disabled via OMNUX_TELEGRAM_POLLING_DISABLED — 이 인스턴스는 업데이트를 수신하지 않습니다(발송은 정상).");
+            try
+            {
+                await Task.Delay(-1, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            return;
+        }
+
         using var lease = _stateStore.TryAcquireLease();
         if (lease == null)
         {
@@ -510,6 +525,16 @@ public sealed class TelegramUpdateLoop
         }
 
         return true;
+    }
+
+    private static bool IsPollingDisabledByEnv()
+    {
+        var raw = (Environment.GetEnvironmentVariable("OMNUX_TELEGRAM_POLLING_DISABLED") ?? string.Empty).Trim();
+        return raw.Length > 0
+            && (raw.Equals("1", StringComparison.Ordinal)
+                || raw.Equals("true", StringComparison.OrdinalIgnoreCase)
+                || raw.Equals("yes", StringComparison.OrdinalIgnoreCase)
+                || raw.Equals("on", StringComparison.OrdinalIgnoreCase));
     }
 
     private void TryPersistOffset()

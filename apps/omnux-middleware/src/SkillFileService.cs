@@ -55,9 +55,7 @@ public sealed class SkillFileService
             }
             else
             {
-                var current = Path.Combine(home, ".omnux");
-                var legacy = Path.Combine(home, ".omninode");
-                stateRoot = Directory.Exists(legacy) && !Directory.Exists(current) ? legacy : current;
+                stateRoot = Path.Combine(home, ".omnux");
             }
         }
 

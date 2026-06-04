@@ -200,7 +200,6 @@ internal sealed class WsToolCommandDispatcher
 
     private readonly IToolApplicationService _toolService;
     private readonly ICommandExecutionService _commandExecutionService;
-    private readonly Func<string, bool> _allowCommand;
     private readonly Func<string?, string?> _buildCronAddJobJson;
     private readonly Func<string?, string?> _buildCronUpdatePatchJson;
     private readonly SendSessionsListResultDelegate _sendSessionsListResultAsync;
@@ -226,7 +225,6 @@ internal sealed class WsToolCommandDispatcher
     public WsToolCommandDispatcher(
         IToolApplicationService toolService,
         ICommandExecutionService commandExecutionService,
-        Func<string, bool> allowCommand,
         Func<string?, string?> buildCronAddJobJson,
         Func<string?, string?> buildCronUpdatePatchJson,
         SendSessionsListResultDelegate sendSessionsListResultAsync,
@@ -252,7 +250,6 @@ internal sealed class WsToolCommandDispatcher
     {
         _toolService = toolService;
         _commandExecutionService = commandExecutionService;
-        _allowCommand = allowCommand;
         _buildCronAddJobJson = buildCronAddJobJson;
         _buildCronUpdatePatchJson = buildCronUpdatePatchJson;
         _sendSessionsListResultAsync = sendSessionsListResultAsync;
@@ -754,21 +751,6 @@ internal sealed class WsToolCommandDispatcher
             }
 
             var trimmedText = requestedText.Trim();
-            if (!_allowCommand(sessionId))
-            {
-                await _sendTelegramStubResultAsync(
-                    socket,
-                    sendLock,
-                    trimmedText,
-                    string.Empty,
-                    false,
-                    "rate_limited",
-                    "rate limit exceeded",
-                    cancellationToken
-                );
-                return true;
-            }
-
             try
             {
                 var response = await _commandExecutionService.ExecuteAsync(

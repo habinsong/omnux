@@ -236,7 +236,6 @@ public sealed partial class WebSocketGateway
         _toolCommandDispatcher = new WsToolCommandDispatcher(
             toolService,
             commandExecutionService,
-            AllowCommand,
             rawJson => BuildCronAddJobJson(rawJson),
             rawJson => BuildCronUpdatePatchJson(rawJson),
             SendSessionsListResultAsync,
@@ -358,7 +357,6 @@ public sealed partial class WebSocketGateway
             codingService,
             settingsService,
             commandExecutionService,
-            AllowCommand,
             _guardRetryTimelineStore,
             SendConversationsAsync,
             SendGroqModelsAsync,
