@@ -13,12 +13,32 @@ import { Badge, Button, EmptyState, Input, Spinner, Textarea, cn } from "../../c
 const SELECT_CLASS =
   "h-9 rounded-md border border-input bg-transparent px-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
 
-function MessageBubble({ role, text }: { role: string; text: string }) {
+function formatTokenShort(value: number) {
+  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `${Math.round(value / 100) / 10}K`;
+  return String(value || 0);
+}
+
+function MessageBubble({ role, text, meta }: { role: string; text: string; meta?: string }) {
+  const safeMeta = meta || "";
   if (role === "user") {
     return (
       <div className="flex justify-end">
         <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-sm bg-primary px-3.5 py-2 text-sm text-primary-foreground">
           {text}
+        </div>
+      </div>
+    );
+  }
+  if (role === "system") {
+    return (
+      <div className="flex justify-center">
+        <div className="max-w-[92%] rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <Badge tone={safeMeta.includes("auto-compress") ? "primary" : "outline"}>{safeMeta || "system"}</Badge>
+            <Badge tone="outline">context</Badge>
+          </div>
+          <MarkdownMessage text={text} />
         </div>
       </div>
     );
@@ -56,6 +76,7 @@ export function AskPage() {
   const recordCardError = useUiLogStore((state) => state.recordCardError);
   const store = useAskStore();
   const canRequest = bridgeStatus === "connected" && authStatus === "authenticated";
+  const context = store.conversationContext;
   const displayedConversations = store.searchQuery
     ? store.searchResults
         .map((item) => ({
@@ -199,6 +220,13 @@ export function AskPage() {
         <CardBoundary title="대화 본문" card="operations" onError={recordCardError}>
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="outline">세션 {store.activeConversationId || "-"}</Badge>
+            {context.tokenUsageTotal ? (
+              <Badge tone="primary" title={`${context.tokenUsageTotal.totalTokens.toLocaleString("ko-KR")} tokens`}>
+                {formatTokenShort(context.tokenUsageTotal.totalTokens)} tokens
+              </Badge>
+            ) : null}
+            {context.linkedMemoryNotes.length > 0 ? <Badge tone="outline">memory {context.linkedMemoryNotes.length}</Badge> : null}
+            {context.compressionEvents.length > 0 ? <Badge tone="warning">compressed {context.compressionEvents.length}</Badge> : null}
             <select className={SELECT_CLASS} value={store.chatMode} onChange={(event) => store.setChatMode(event.target.value as typeof store.chatMode)}>
               <option value="single">single</option>
               <option value="orchestration">orchestration</option>
@@ -233,6 +261,18 @@ export function AskPage() {
           </div>
 
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+            {context.linkedMemoryNotes.length > 0 || context.compressionEvents.length > 0 ? (
+              <div className="rounded-lg border border-border bg-muted/30 p-3">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {context.linkedMemoryNotes.slice(0, 4).map((name) => <Badge key={name} tone="outline" className="max-w-full truncate">{name}</Badge>)}
+                  {context.linkedMemoryNotes.length > 4 ? <Badge tone="outline">+{context.linkedMemoryNotes.length - 4}</Badge> : null}
+                  {context.compressionEvents.slice(0, 2).map((event) => <Badge key={`${event.createdUtc}-${event.preview}`} tone="warning">auto-compress</Badge>)}
+                </div>
+                {context.compressionEvents[0] ? (
+                  <p className="mt-1 truncate text-xs text-muted-foreground">{context.compressionEvents[0].preview || "이전 대화가 압축 요약으로 보존되었습니다."}</p>
+                ) : null}
+              </div>
+            ) : null}
             {store.ragPreflight ? (
               <div className="rounded-lg border border-border bg-muted/30 p-3">
                 <div className="flex items-start justify-between gap-3">
@@ -314,7 +354,7 @@ export function AskPage() {
             ) : null}
             <AskVisionPanel files={store.visionFiles} preflight={store.visionPreflight} pending={store.visionPending} onClear={store.clearVisionPreflight} />
             {store.messages.map((message, index) => (
-              <MessageBubble key={`${index}-${message.role}`} role={message.role} text={message.text} />
+              <MessageBubble key={`${index}-${message.role}`} role={message.role} text={message.text} meta={message.meta} />
             ))}
             {store.messages.length === 0 ? (
               <EmptyState icon={Send} title="메시지를 입력해 대화를 시작하세요" description="single·orchestration·multi 모드로 모델 라우팅을 비교할 수 있습니다." />

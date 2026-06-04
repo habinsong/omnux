@@ -6,6 +6,7 @@ import { requestDesktopRag } from "../middleware/rag-gateway";
 import { requestDesktopVision } from "../middleware/vision-gateway";
 import { requestConfirmDialog, requestPromptDialog } from "../dialog/dialog-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
+import { emptyAskContext, normalizeAskMessage, normalizeConversationContext, type AskConversationContext, type AskMessage } from "./ask-context";
 import { normalizeVisionPreflight, type AskVisionAttachment, type AskVisionPreflight } from "./ask-vision";
 import {
   buildRagExecution,
@@ -30,11 +31,6 @@ export type AskConversationItem = {
   category: string;
 };
 
-export type AskMessage = {
-  role: "user" | "ai";
-  text: string;
-};
-
 export type AskChatMode = "single" | "orchestration" | "multi";
 
 export type AskMultiResult = {
@@ -46,6 +42,7 @@ type AskState = {
   conversations: AskConversationItem[];
   memoryNotes: Array<{ name: string; excerpt: string }>;
   messages: AskMessage[];
+  conversationContext: AskConversationContext;
   chatMode: AskChatMode;
   multiResult: AskMultiResult | null;
   ragPreflight: AskRagPreflight | null;
@@ -81,14 +78,6 @@ type AskState = {
   clearVisionPreflight: () => void;
   sendMessage: () => void;
 };
-
-function normalizeMessage(message: unknown): AskMessage {
-  const payload = message && typeof message === "object" ? (message as { role?: string; text?: string }) : {};
-  return {
-    role: payload.role === "user" ? "user" : "ai",
-    text: typeof payload.text === "string" ? payload.text : ""
-  };
-}
 
 function normalizeConversation(item: unknown): AskConversationItem {
   const payload = item && typeof item === "object" ? (item as Record<string, unknown>) : {};
@@ -129,6 +118,7 @@ export const useAskStore = create<AskState>((set, get) => ({
   conversations: [],
   memoryNotes: [],
   messages: [],
+  conversationContext: emptyAskContext(),
   chatMode: "single",
   multiResult: null,
   ragPreflight: null,
@@ -166,7 +156,8 @@ export const useAskStore = create<AskState>((set, get) => ({
     }
     set({
       activeConversationId: item.id,
-      messages: item.preview ? [{ role: "ai", text: item.preview }] : [],
+      messages: item.preview ? [{ role: "ai", text: item.preview, meta: "", createdUtc: "", tokenUsage: null }] : [],
+      conversationContext: emptyAskContext(),
       pending: true
     });
     if (!requestDesktopAsk.getConversation(item.id)) {
@@ -174,7 +165,7 @@ export const useAskStore = create<AskState>((set, get) => ({
     }
   },
   createConversation: () => {
-    set({ messages: [], pending: true });
+    set({ messages: [], conversationContext: emptyAskContext(), pending: true });
     if (!requestDesktopAsk.createConversation("chat", "single")) {
       set({ pending: false, lastError: "새 대화 요청을 전송하지 못했다." });
     }
@@ -269,7 +260,7 @@ export const useAskStore = create<AskState>((set, get) => ({
     if (!text) {
       return;
     }
-    const nextMessages: AskMessage[] = [...get().messages, { role: "user", text }];
+    const nextMessages: AskMessage[] = [...get().messages, { role: "user", text, meta: "", createdUtc: "", tokenUsage: null }];
     const mode = get().chatMode;
     set({ messages: nextMessages, input: "", pending: true, multiResult: mode === "multi" ? null : get().multiResult });
     if (!requestDesktopAsk.chat(mode, text, get().activeConversationId)) {
@@ -295,7 +286,8 @@ export function useAskPageBridge() {
       const conversation = message.conversation as Record<string, unknown>;
       useAskStore.setState({
         activeConversationId: typeof conversation.id === "string" ? conversation.id : store.activeConversationId,
-        messages: Array.isArray(conversation.messages) ? (conversation.messages.map((item) => normalizeMessage(item)) as AskMessage[]) : store.messages,
+        messages: Array.isArray(conversation.messages) ? conversation.messages.map(normalizeAskMessage) : store.messages,
+        conversationContext: normalizeConversationContext(conversation),
         pending: false,
         lastError: null
       });
@@ -393,7 +385,8 @@ export function useAskPageBridge() {
       const conversation = message.conversation as Record<string, unknown>;
       useAskStore.setState({
         activeConversationId: typeof conversation.id === "string" ? conversation.id : store.activeConversationId,
-        messages: Array.isArray(conversation.messages) ? (conversation.messages.map((item) => normalizeMessage(item)) as AskMessage[]) : store.messages,
+        messages: Array.isArray(conversation.messages) ? conversation.messages.map(normalizeAskMessage) : store.messages,
+        conversationContext: normalizeConversationContext(conversation),
         multiResult: message.type === "llm_chat_multi_result" ? normalizeMultiResult(message) : store.multiResult,
         pending: false,
         lastError: null

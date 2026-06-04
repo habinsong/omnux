@@ -152,6 +152,15 @@
 - 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과(927 assertions), 모든 `.ts/.tsx` 500줄 이하 확인(`settings-store.ts` 448줄 / `SettingsPage.tsx` 315줄).
 - 브라우저 QA: `http://127.0.0.1:1420/` Settings Memory 화면에서 `인덱스` 버튼, 검색 입력, 기존 메모리 액션 렌더링과 검색 입력 상태 변경 확인, 콘솔 오류 없음, 스크린샷 `/tmp/omnux-settings-memory-index-qa.png` 저장. 미들웨어 인증 전 상태라 실제 `memory_get`/`memory_index_rebuild` 응답 수신은 빌드/계약 검증까지만 확인.
 
+### Adaptive Context Compression 표시
+
+- Ask store가 `conversation.messages[].meta/createdUtc/tokenUsage`, `conversation.linkedMemoryNotes`, `conversation.tokenUsageTotal`을 보존하도록 확장했다.
+- `meta=auto-compress` 시스템 메시지를 일반 AI 답변처럼 보이지 않게 context system 카드로 표시한다.
+- 대화 본문 툴바에 total token pill, linked memory 개수, auto-compress 개수를 표시해 백엔드 압축 정책이 동작한 흔적을 사용자가 볼 수 있게 했다.
+- 레거시 대시보드의 token usage pill / linked memory 표시 흐름을 React+Tailwind 구조로 옮겼고, raw JSON은 노출하지 않았다.
+- 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과(934 assertions), 모든 `.ts/.tsx` 500줄 이하 확인(`AskPage.tsx` 406줄 / `ask-store.ts` 402줄).
+- 브라우저 QA: `http://127.0.0.1:1420/` Ask 화면에서 기본 렌더링, 채팅 모드 선택 상호작용, 콘솔 오류 없음, 스크린샷 `/tmp/omnux-ask-context-compression-qa.png` 저장. 미들웨어 오프라인이라 실제 `auto-compress` 메시지 수신은 빌드/타입 검증까지만 확인.
+
 ## 다음 연결 후보
 
 - 다음 연결 후보는 Local LLM 실제 라우팅 readiness, Self-RAG 실행 plan, Terminal PTY 승인 게이트 중 정책상 안전한 단위부터 고른다.
