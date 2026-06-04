@@ -65,12 +65,36 @@ export type TerminalSnapshot = {
   scannedAtUtc: string;
 };
 export type GitTimeMachineSnapshot = {
+  repositoryRoot: string;
   branchName: string;
+  headHash: string;
   headShortHash: string;
   isRepository: boolean;
+  readOnly: boolean;
+  hasChanges: boolean;
   isClean: boolean;
   changedFileCount: number;
-  checkpoints: Array<{ shortHash: string; subject: string; authorName: string; authorDateUtc: string; isHead: boolean; rollbackCandidate: boolean }>;
+  conflictedFileCount: number;
+  diffShortStat: string;
+  limit: number;
+  checkpointsTruncated: boolean;
+  snapshotNamespace: string;
+  suggestedSnapshotBranch: string;
+  checkpoints: Array<{
+    hash: string;
+    shortHash: string;
+    subject: string;
+    authorName: string;
+    authorDateUtc: string;
+    parentShortHashes: string[];
+    isHead: boolean;
+    rollbackCandidate: boolean;
+    riskFlags: string[];
+  }>;
+  readiness: { status: string; snapshotCreationRecommended: boolean; rollbackAvailable: boolean; requiresApproval: boolean; blockers: string[] };
+  checks: Array<{ name: string; status: string; detail: string }>;
+  warnings: string[];
+  scannedAtUtc: string;
 };
 export type SemanticSnapshot = {
   status: string;
@@ -313,14 +337,45 @@ export function useInsightsPageBridge() {
         return;
       }
       if (message.type === "git_time_machine_snapshot") {
+        const readiness = (payload.readiness || {}) as Record<string, unknown>;
         useInsightsStore.setState({
           gitTimeMachine: {
+            repositoryRoot: s(payload.repositoryRoot),
             branchName: s(payload.branchName),
+            headHash: s(payload.headHash),
             headShortHash: s(payload.headShortHash),
             isRepository: !!payload.isRepository,
+            readOnly: payload.readOnly !== false,
+            hasChanges: !!payload.hasChanges,
             isClean: !!payload.isClean,
             changedFileCount: n(payload.changedFileCount),
-            checkpoints: arr(payload.checkpoints).map((c) => ({ shortHash: s(c.shortHash), subject: s(c.subject), authorName: s(c.authorName), authorDateUtc: s(c.authorDateUtc), isHead: !!c.isHead, rollbackCandidate: !!c.rollbackCandidate }))
+            conflictedFileCount: n(payload.conflictedFileCount),
+            diffShortStat: s(payload.diffShortStat),
+            limit: n(payload.limit),
+            checkpointsTruncated: !!payload.checkpointsTruncated,
+            snapshotNamespace: s(payload.snapshotNamespace),
+            suggestedSnapshotBranch: s(payload.suggestedSnapshotBranch),
+            checkpoints: arr(payload.checkpoints).map((c) => ({
+              hash: s(c.hash),
+              shortHash: s(c.shortHash),
+              subject: s(c.subject),
+              authorName: s(c.authorName),
+              authorDateUtc: s(c.authorDateUtc),
+              parentShortHashes: Array.isArray(c.parentShortHashes) ? c.parentShortHashes.map(String) : [],
+              isHead: !!c.isHead,
+              rollbackCandidate: !!c.rollbackCandidate,
+              riskFlags: Array.isArray(c.riskFlags) ? c.riskFlags.map(String) : []
+            })),
+            readiness: {
+              status: s(readiness.status),
+              snapshotCreationRecommended: !!readiness.snapshotCreationRecommended,
+              rollbackAvailable: !!readiness.rollbackAvailable,
+              requiresApproval: !!readiness.requiresApproval,
+              blockers: Array.isArray(readiness.blockers) ? readiness.blockers.map(String) : []
+            },
+            checks: arr(payload.checks).map((check) => ({ name: s(check.name), status: s(check.status), detail: s(check.detail) })),
+            warnings: Array.isArray(payload.warnings) ? payload.warnings.map(String) : [],
+            scannedAtUtc: s(payload.scannedAtUtc)
           }
         });
         return;

@@ -190,6 +190,17 @@
 - 계약 검사: 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과(962 assertions).
 - 브라우저 QA: `http://127.0.0.1:1420/` 인사이트 화면에서 `Commit learning`, `Self improvement 제안` 카드 렌더링과 인증 전 새로고침 disabled 상태, 콘솔 warn/error 없음 확인.
 
+### Git Time Machine readiness 상세 표시
+
+- 인사이트 화면의 `Git 타임머신` 패널이 `git_time_machine_snapshot_get` 응답의 `readiness`, `checks`, `warnings`, `checkpointsTruncated`, `suggestedSnapshotBranch`, checkpoint `riskFlags`를 보존하고 표시하도록 확장했다.
+- dirty/conflict/blocker 상태는 변경 파일·충돌·blocker 통계와 배지로 표시하고, `rollbackAvailable=false`이면 rollback은 보류 상태로만 보여준다.
+- checkpoint 목록은 author/date/hash, rollback 후보, parent 수, `current_head`/`history_rewrite_required`/`merge_commit` risk flag를 raw JSON 없이 표시한다.
+- `rollback_execution`, `git clean -fd`, snapshot GC 같은 보류 작업은 `checks[].status=skipped` 행으로만 노출하고 실행 버튼이나 apply 호출은 추가하지 않았다.
+- `insights-store.ts`가 494줄이라 500줄 계약은 통과하지만 여유가 작다. 다음 인사이트 확장 시 타입/정규화 분리를 먼저 해야 한다.
+- 검증: `npm run build` 통과. Vite chunk size 경고만 남음.
+- 계약 검사: 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과(962 assertions).
+- 브라우저 QA: `http://127.0.0.1:1420/` 인사이트 화면 리로드 후 `Git 타임머신`, `Commit learning`, `Self improvement 제안` 카드 렌더링과 인증 전 새로고침 disabled 상태, 콘솔 warn/error 없음 확인.
+
 ## 다음 연결 후보
 
 - 다음 연결 후보는 Local LLM 실제 라우팅 readiness, Self-RAG 실행 plan, Terminal PTY 승인 게이트 중 정책상 안전한 단위부터 고른다.
