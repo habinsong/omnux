@@ -179,6 +179,17 @@
 - 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과(955 assertions), 모든 `.ts/.tsx` 500줄 이하 확인(`ops-store.ts` 477줄).
 - 브라우저 QA: `http://127.0.0.1:1420/` 운영 화면에서 `Doctor / 환경 진단`, `Plan / Task 상태`, `Doctor fix preview`, `Git automation` 렌더링과 인증 전 버튼 비활성 상태, 콘솔 오류 없음, 스크린샷 `/tmp/omnux-operations-doctor-qa.png` 저장.
 
+### Commit learning / Self improvement 상세 표시
+
+- 인사이트 화면의 `Commit learning` 패널이 `commit_learning_snapshot_get` 응답의 repository/limit/scannedAt, 최근 커밋 목록, intent rollup, hotspot, warning을 보존하고 표시하도록 확장했다.
+- 최근 커밋은 subject, author/date, files changed, added/deleted lines, heuristic intent 배지로 표시해 자동 규칙 적용이 아니라 관찰용 판단 자료임을 유지했다.
+- `Self improvement 제안` 패널이 `self_improvement_snapshot_get` 응답의 source, targetPath, evidence, requiresApproval, warning을 raw JSON 없이 카드형 제안으로 표시하도록 보강했다.
+- 모든 제안은 백엔드 계약대로 read-only/승인 필요 상태만 보여주며, `SKILL.md`, memory note, 시스템 프롬프트, 루틴 생성 같은 apply 동작은 추가하지 않았다.
+- `InsightsLearningPanels.tsx`를 새로 분리해 기존 `InsightsPanels.tsx` 줄 수를 줄이고 모든 `.ts/.tsx` 500줄 이하 계약 여유를 유지했다.
+- 검증: `npm run build` 통과. Vite chunk size 경고만 남음.
+- 계약 검사: 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과(962 assertions).
+- 브라우저 QA: `http://127.0.0.1:1420/` 인사이트 화면에서 `Commit learning`, `Self improvement 제안` 카드 렌더링과 인증 전 새로고침 disabled 상태, 콘솔 warn/error 없음 확인.
+
 ## 다음 연결 후보
 
 - 다음 연결 후보는 Local LLM 실제 라우팅 readiness, Self-RAG 실행 plan, Terminal PTY 승인 게이트 중 정책상 안전한 단위부터 고른다.

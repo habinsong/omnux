@@ -7,15 +7,14 @@ import { useDesktopAuthStore } from "../auth/auth-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
 import {
   CodeRepomapPanel,
-  CommitLearningPanel,
   GitTimeMachinePanel,
   LocalLlmPanel,
   McpPanel,
-  SelfImprovementPanel,
   SemanticSearchPanel,
   TelemetryPanel,
   TerminalPanel
 } from "./InsightsPanels";
+import { CommitLearningPanel, SelfImprovementPanel } from "./InsightsLearningPanels";
 import { useInsightsPageBridge, useInsightsStore } from "./insights-store";
 
 export function InsightsPage() {

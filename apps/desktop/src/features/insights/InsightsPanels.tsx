@@ -1,13 +1,11 @@
 import type { ReactNode } from "react";
-import { BrainCircuit, GitBranch, GitCommitHorizontal, Map, Play, Send, Sparkles, Square } from "lucide-react";
+import { BrainCircuit, GitBranch, Map, Play, Send, Sparkles, Square } from "lucide-react";
 import { Badge, Button } from "../../components/ui/primitives";
 import type {
-  CommitLearningSnapshot,
   GitTimeMachineSnapshot,
   LocalLlmSnapshot,
   McpSnapshot,
   RepomapSnapshot,
-  SelfImprovementSnapshot,
   SemanticSnapshot,
   TelemetrySnapshot,
   TerminalSnapshot
@@ -365,54 +363,6 @@ export function CodeRepomapPanel({ repomap }: { repomap: RepomapSnapshot | null 
           );
         })}
         {repomap.files.length === 0 ? <Empty label="구조 지도로 표시할 symbol 없음" /> : null}
-      </div>
-    </>
-  );
-}
-
-export function CommitLearningPanel({ commitLearning }: { commitLearning: CommitLearningSnapshot | null }) {
-  if (!commitLearning) return <Empty label="새로고침하면 commit intent와 hotspot이 표시됩니다." />;
-  return (
-    <>
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="primary">{commitLearning.totalCommits} commits</Badge>
-        {commitLearning.intents.slice(0, 5).map((intent) => (
-          <Badge key={intent.intent} tone={statusTone(intent.intent)}>{intent.intent} {intent.commitCount}</Badge>
-        ))}
-      </div>
-      <div className="space-y-1">
-        {commitLearning.hotspots.slice(0, 8).map((hotspot) => (
-          <Row
-            key={hotspot.path}
-            left={hotspot.path}
-            sub={`${hotspot.changeCount} changes · ${hotspot.lastSubject}`}
-            right={<Badge tone="outline"><GitCommitHorizontal size={11} aria-hidden="true" /> {hotspot.lastCommitShortHash}</Badge>}
-          />
-        ))}
-        {commitLearning.hotspots.length === 0 ? <Empty label="최근 commit hotspot 없음" /> : null}
-      </div>
-    </>
-  );
-}
-
-export function SelfImprovementPanel({ selfImprovement }: { selfImprovement: SelfImprovementSnapshot | null }) {
-  if (!selfImprovement) return <Empty label="새로고침하면 workspace hygiene와 hotspot review 제안이 표시됩니다." />;
-  return (
-    <>
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={statusTone(selfImprovement.status)}>{selfImprovement.status}</Badge>
-        <Badge tone="outline">{selfImprovement.proposalCount} proposals</Badge>
-      </div>
-      <div className="space-y-1">
-        {selfImprovement.proposals.slice(0, 6).map((proposal) => (
-          <Row
-            key={proposal.proposalId}
-            left={proposal.title || proposal.proposalId}
-            sub={proposal.rationale || proposal.suggestedAction}
-            right={<Badge tone={statusTone(proposal.priority)}><Sparkles size={11} aria-hidden="true" /> {proposal.priority || "review"}</Badge>}
-          />
-        ))}
-        {selfImprovement.proposals.length === 0 ? <Empty label="현재 개선 제안 없음" /> : null}
       </div>
     </>
   );
