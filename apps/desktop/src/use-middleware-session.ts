@@ -3,6 +3,7 @@ import { useDesktopAuthStore } from "./features/auth/auth-store";
 import { bindDesktopSessionSocket, publishDesktopMessage, requestDesktopAuth } from "./features/middleware/desktop-message-gateway";
 import { requestDesktopOps } from "./features/middleware/ops-gateway";
 import { useOpsPageStore } from "./features/ops/ops-store";
+import { useUiLogStore } from "./features/ui-log/ui-log-store";
 import { DESKTOP_MIDDLEWARE_WS_URL } from "./middleware-contract";
 import { useDesktopShellStore } from "./shell-store";
 
@@ -11,6 +12,7 @@ type ServerMessage = Record<string, unknown> & {
 };
 
 let sessionSocket: WebSocket | null = null;
+let sessionSocketUrl = "";
 
 function stringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
@@ -105,7 +107,7 @@ function handleServerMessage(message: ServerMessage) {
       authStore.markUnauthorized("세션 인증이 만료되었다. OTP 인증 후 다시 시도할 수 있다.");
       return;
     }
-    shellStore.markBridgeStatus("error", text);
+    useUiLogStore.getState().recordLog("error", text, { source: "middleware" });
     opsStore.markDoctorError(text);
   }
 }
@@ -158,52 +160,81 @@ export function requestDesktopOpsSnapshot() {
 export function useMiddlewareSessionBridge() {
   useEffect(() => {
     let disposed = false;
-    const socket = new WebSocket(DESKTOP_MIDDLEWARE_WS_URL);
-    sessionSocket = socket;
-    bindDesktopSessionSocket(socket);
-    useDesktopShellStore.getState().markBridgeStatus("connecting", "데스크톱 WS 세션 브릿지 연결 중");
 
-    socket.addEventListener("open", () => {
-      if (!disposed) {
-        useDesktopAuthStore.getState().markSessionPending();
-        useDesktopShellStore.getState().markBridgeStatus("connected", "데스크톱 WS 세션 브릿지 연결됨");
-      }
-    });
-
-    socket.addEventListener("message", (event) => {
-      if (disposed) {
+    const connect = (wsUrl: string) => {
+      if (!wsUrl || (sessionSocket && sessionSocketUrl === wsUrl && sessionSocket.readyState <= WebSocket.OPEN)) {
         return;
       }
 
-      try {
-        handleServerMessage(JSON.parse(String(event.data || "{}")) as ServerMessage);
-      } catch (error) {
-        useDesktopShellStore.getState().markBridgeStatus(
-          "error",
-          error instanceof Error ? error.message : "미들웨어 WS 메시지 파싱 실패"
-        );
+      if (sessionSocket) {
+        try {
+          sessionSocket.close();
+        } catch (_err) {
+          // 이미 종료 중인 소켓은 무시한다.
+        }
       }
-    });
 
-    socket.addEventListener("error", () => {
-      if (!disposed) {
-        useDesktopShellStore.getState().markBridgeStatus("error", "데스크톱 WS 세션 브릿지 연결 실패");
-      }
-    });
+      const socket = new WebSocket(wsUrl);
+      sessionSocket = socket;
+      sessionSocketUrl = wsUrl;
+      bindDesktopSessionSocket(socket);
+      useDesktopShellStore.getState().markBridgeStatus("connecting", `데스크톱 WS 세션 브릿지 연결 중 (${wsUrl})`);
 
-    socket.addEventListener("close", () => {
-      if (!disposed) {
-        useDesktopShellStore.getState().markBridgeStatus("closed", "데스크톱 WS 세션 브릿지 종료");
+      socket.addEventListener("open", () => {
+        if (!disposed && sessionSocket === socket) {
+          useDesktopAuthStore.getState().markSessionPending();
+          useDesktopShellStore.getState().markBridgeStatus("connected", `데스크톱 WS 세션 브릿지 연결됨 (${wsUrl})`);
+        }
+      });
+
+      socket.addEventListener("message", (event) => {
+        if (disposed || sessionSocket !== socket) {
+          return;
+        }
+
+        try {
+          handleServerMessage(JSON.parse(String(event.data || "{}")) as ServerMessage);
+        } catch (error) {
+          useDesktopShellStore.getState().markBridgeStatus(
+            "error",
+            error instanceof Error ? error.message : "미들웨어 WS 메시지 파싱 실패"
+          );
+        }
+      });
+
+      socket.addEventListener("error", () => {
+        if (!disposed && sessionSocket === socket) {
+          useDesktopShellStore.getState().markBridgeStatus("error", `데스크톱 WS 세션 브릿지 연결 실패 (${wsUrl})`);
+        }
+      });
+
+      socket.addEventListener("close", () => {
+        if (!disposed && sessionSocket === socket) {
+          useDesktopShellStore.getState().markBridgeStatus("closed", `데스크톱 WS 세션 브릿지 종료 (${wsUrl})`);
+        }
+      });
+    };
+
+    const initialWsUrl = useDesktopShellStore.getState().runtime.wsUrl || DESKTOP_MIDDLEWARE_WS_URL;
+    connect(initialWsUrl);
+    const unsubscribe = useDesktopShellStore.subscribe((state, previous) => {
+      if (state.runtime.wsUrl !== previous.runtime.wsUrl) {
+        connect(state.runtime.wsUrl);
       }
     });
 
     return () => {
       disposed = true;
-      if (sessionSocket === socket) {
-        sessionSocket = null;
-      }
+      unsubscribe();
+      const socket = sessionSocket;
+      sessionSocket = null;
+      sessionSocketUrl = "";
       bindDesktopSessionSocket(null);
-      socket.close();
+      try {
+        socket?.close();
+      } catch (_err) {
+        // unmount 중 close 실패는 무시한다.
+      }
     };
   }, []);
 }

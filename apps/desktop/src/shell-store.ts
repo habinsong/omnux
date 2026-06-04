@@ -3,7 +3,8 @@ import {
   DESKTOP_MIDDLEWARE_HEALTH_URL,
   DESKTOP_MIDDLEWARE_READY_URL,
   DESKTOP_MIDDLEWARE_WS_URL,
-  DESKTOP_RECONNECT_POLICY
+  DESKTOP_RECONNECT_POLICY,
+  type DesktopMiddlewareEndpointCandidate
 } from "./middleware-contract";
 import { useUiLogStore } from "./features/ui-log/ui-log-store";
 export { serializeUiLogs, useUiLogStore } from "./features/ui-log/ui-log-store";
@@ -70,13 +71,14 @@ type DesktopShellState = {
     status: ProbeEndpointStatus,
     detail?: string
   ) => void;
+  setRuntimeEndpoint: (endpoint: DesktopMiddlewareEndpointCandidate) => void;
   markHealthProbe: (status: "ok" | "not_ready" | "error", detail?: string) => void;
   scheduleNextReconnect: () => void;
   markBootstrapEvent: (phase: MiddlewareBootstrapPhase, pid: number | null, message: string) => void;
   markBridgeStatus: (status: DesktopWsBridgeStatus, message?: string | null) => void;
 };
 
-const DEFAULT_MIDDLEWARE_ENDPOINT = "ws://127.0.0.1:41880/ws/";
+const DEFAULT_MIDDLEWARE_ENDPOINT = DESKTOP_MIDDLEWARE_WS_URL;
 
 function recordShellLog(
   level: "info" | "warn" | "error",
@@ -187,6 +189,25 @@ export const useDesktopShellStore = create<DesktopShellState>((set) => ({
                 readyDetail: detail || null
               }),
           lastProbeAt: new Date().toISOString()
+        }
+      };
+    }),
+  setRuntimeEndpoint: (endpoint) =>
+    set((state) => {
+      const changed = state.runtime.wsUrl !== endpoint.wsUrl;
+      if (changed) {
+        recordShellLog("info", `gateway endpoint를 ${endpoint.wsUrl}로 전환했다.`, "runtime");
+      }
+      return {
+        middleware: {
+          ...state.middleware,
+          endpoint: endpoint.wsUrl
+        },
+        runtime: {
+          ...state.runtime,
+          wsUrl: endpoint.wsUrl,
+          healthUrl: endpoint.healthUrl,
+          readyUrl: endpoint.readyUrl
         }
       };
     }),
