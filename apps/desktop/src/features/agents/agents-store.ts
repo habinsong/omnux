@@ -11,32 +11,102 @@ type Worktree = { name: string; status: string; branch: string; headShortHash: s
 type TraceAgent = { agentId: string; role: string; state: string; messageCount: number; boardEntryCount: number; lifecycleEventCount: number };
 type TraceThread = { threadId: string; title: string; messageCount: number; lastMessageUtc: string };
 type TraceIntervention = { interventionId: string; title: string; severity: string; reason: string };
+type AgentBusDraft = {
+  messageFrom: string;
+  messageTo: string;
+  messageKind: string;
+  messageBody: string;
+  boardAgentId: string;
+  boardKey: string;
+  boardValue: string;
+  boardStatus: string;
+  boardPriority: string;
+};
 
 type AgentsState = {
   bus: { messages: BusMessage[]; board: BoardEntry[]; lifecycle: LifecycleEvent[]; totalMessages: number } | null;
   watchdog: { status: string; activeCount: number; runs: WatchdogRun[] } | null;
   worktree: { status: string; totalWorktreeCount: number; cleanupCandidateCount: number; worktrees: Worktree[] } | null;
   trace: { status: string; agents: TraceAgent[]; threads: TraceThread[]; interventions: TraceIntervention[]; edgeCount: number } | null;
+  draft: AgentBusDraft;
+  submitting: "" | "message" | "board";
   loading: boolean;
   lastError: string;
+  lastAction: string;
+  setDraft: (patch: Partial<AgentBusDraft>) => void;
   loadAll: () => void;
+  postMessage: () => void;
+  putBoard: () => void;
 };
 
 function s(v: unknown): string { return typeof v === "string" ? v : v == null ? "" : String(v); }
 function n(v: unknown): number { return Number(v || 0); }
 function arr(v: unknown): Record<string, unknown>[] { return Array.isArray(v) ? (v as Record<string, unknown>[]) : []; }
+function normalizeBusSnapshot(payload: Record<string, unknown>) {
+  return {
+    messages: arr(payload.messages).map((m) => ({ from: s(m.fromAgentId || m.from), to: s(m.toAgentId || m.to), kind: s(m.kind), body: s(m.body || m.content) })),
+    board: arr(payload.board).map((b) => ({ agentId: s(b.agentId), key: s(b.key), value: s(b.value), status: s(b.status) })),
+    lifecycle: arr(payload.lifecycle).map((l) => ({ agentId: s(l.agentId), event: s(l.event || l.kind), runId: s(l.runId) })),
+    totalMessages: n(payload.totalMessages)
+  };
+}
 
-export const useAgentsStore = create<AgentsState>((set) => ({
+export const useAgentsStore = create<AgentsState>((set, get) => ({
   bus: null,
   watchdog: null,
   worktree: null,
   trace: null,
+  draft: {
+    messageFrom: "human",
+    messageTo: "",
+    messageKind: "message",
+    messageBody: "",
+    boardAgentId: "human",
+    boardKey: "progress",
+    boardValue: "",
+    boardStatus: "running",
+    boardPriority: "normal"
+  },
+  submitting: "",
   loading: false,
   lastError: "",
+  lastAction: "",
+  setDraft: (patch) => set((state) => ({ draft: { ...state.draft, ...patch } })),
   loadAll: () => {
     set({ loading: true, lastError: "" });
     const ok = requestDesktopAgents.bus() && requestDesktopAgents.watchdog() && requestDesktopAgents.worktree() && requestDesktopAgents.trace();
     if (!ok) set({ loading: false, lastError: "에이전트 스냅샷 요청을 전송하지 못했다." });
+  },
+  postMessage: () => {
+    const draft = get().draft;
+    if (!draft.messageFrom.trim() || !draft.messageBody.trim()) {
+      set({ lastError: "from agent와 메시지 본문을 입력하세요." });
+      return;
+    }
+    set({ submitting: "message", lastError: "", lastAction: "" });
+    const ok = requestDesktopAgents.postMessage({
+      fromAgentId: draft.messageFrom,
+      toAgentId: draft.messageTo,
+      kind: draft.messageKind,
+      body: draft.messageBody
+    });
+    if (!ok) set({ submitting: "", lastError: "에이전트 메시지 기록 요청을 전송하지 못했다." });
+  },
+  putBoard: () => {
+    const draft = get().draft;
+    if (!draft.boardAgentId.trim() || !draft.boardKey.trim() || !draft.boardValue.trim()) {
+      set({ lastError: "agent, key, value를 입력하세요." });
+      return;
+    }
+    set({ submitting: "board", lastError: "", lastAction: "" });
+    const ok = requestDesktopAgents.putBoard({
+      agentId: draft.boardAgentId,
+      key: draft.boardKey,
+      value: draft.boardValue,
+      status: draft.boardStatus,
+      priority: draft.boardPriority
+    });
+    if (!ok) set({ submitting: "", lastError: "에이전트 보드 저장 요청을 전송하지 못했다." });
   }
 }));
 
@@ -47,13 +117,20 @@ export function useAgentsPageBridge() {
       if (message.type === "agent_bus_snapshot") {
         useAgentsStore.setState({
           loading: false,
-          bus: {
-            messages: arr(payload.messages).map((m) => ({ from: s(m.fromAgentId || m.from), to: s(m.toAgentId || m.to), kind: s(m.kind), body: s(m.body || m.content) })),
-            board: arr(payload.board).map((b) => ({ agentId: s(b.agentId), key: s(b.key), value: s(b.value), status: s(b.status) })),
-            lifecycle: arr(payload.lifecycle).map((l) => ({ agentId: s(l.agentId), event: s(l.event || l.kind), runId: s(l.runId) })),
-            totalMessages: n(payload.totalMessages)
-          }
+          bus: normalizeBusSnapshot(payload)
         });
+        return;
+      }
+      if (message.type === "agent_message_result" || message.type === "agent_board_result") {
+        const snapshot = (payload.snapshot || {}) as Record<string, unknown>;
+        const ok = payload.ok !== false;
+        useAgentsStore.setState({
+          submitting: "",
+          bus: normalizeBusSnapshot(snapshot),
+          lastAction: ok ? s(payload.message) || message.type : "",
+          lastError: ok ? "" : s(payload.message) || "에이전트 버스 쓰기 실패"
+        });
+        if (ok) requestDesktopAgents.trace();
         return;
       }
       if (message.type === "agent_watchdog_snapshot") {
@@ -97,7 +174,7 @@ export function useAgentsPageBridge() {
         return;
       }
       if (message.type === "error") {
-        useAgentsStore.setState({ loading: false, lastError: s(message.message) || "오류" });
+        useAgentsStore.setState({ loading: false, submitting: "", lastError: s(message.message) || "오류" });
       }
     });
   }, []);
