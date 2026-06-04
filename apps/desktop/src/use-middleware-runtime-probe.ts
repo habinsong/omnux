@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { DESKTOP_MIDDLEWARE_ENDPOINT_CANDIDATES, type DesktopMiddlewareEndpointCandidate } from "./middleware-contract";
 import { useDesktopShellStore } from "./shell-store";
 
 const PONG_TIMEOUT_MS = 3500;
@@ -68,22 +69,58 @@ async function probeHttpEndpoint(
   }
 }
 
+function uniqueEndpointCandidates(): DesktopMiddlewareEndpointCandidate[] {
+  const runtime = useDesktopShellStore.getState().runtime;
+  const current = {
+    port: 0,
+    wsUrl: runtime.wsUrl,
+    healthUrl: runtime.healthUrl,
+    readyUrl: runtime.readyUrl
+  };
+  const seen = new Set<string>();
+  return [current, ...DESKTOP_MIDDLEWARE_ENDPOINT_CANDIDATES].filter((candidate) => {
+    const key = candidate.healthUrl;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+async function resolveGatewayEndpoint(): Promise<{ endpoint: DesktopMiddlewareEndpointCandidate; health: HttpProbeResult } | null> {
+  const { setRuntimeEndpoint } = useDesktopShellStore.getState();
+  let lastHealth: HttpProbeResult | null = null;
+  for (const endpoint of uniqueEndpointCandidates()) {
+    const health = await probeHttpEndpoint("healthz", endpoint.healthUrl);
+    lastHealth = health;
+    if (health.status === "ok") {
+      setRuntimeEndpoint(endpoint);
+      return { endpoint, health };
+    }
+  }
+
+  return lastHealth
+    ? { endpoint: uniqueEndpointCandidates()[0], health: lastHealth }
+    : null;
+}
+
 async function runProbe() {
   if (probeActive) {
     return;
   }
 
-  const { runtime, markWaiting, markHealthProbe } = useDesktopShellStore.getState();
+  const { markWaiting, markHealthProbe } = useDesktopShellStore.getState();
   probeActive = true;
   markWaiting();
 
-  const health = await probeHttpEndpoint("healthz", runtime.healthUrl);
+  const resolved = await resolveGatewayEndpoint();
+  const health = resolved?.health ?? { status: "error" as const, detail: "gateway endpoint unavailable" };
   if (health.status !== "ok") {
     probeActive = false;
     scheduleRetry(`healthz ${health.detail}`);
     return;
   }
 
+  const runtime = useDesktopShellStore.getState().runtime;
   const readyBefore = await probeHttpEndpoint("readyz", runtime.readyUrl);
   if (readyBefore.status === "error") {
     probeActive = false;

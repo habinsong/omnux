@@ -12,13 +12,21 @@ type DesktopTopBarProps = {
 
 type RuntimeTone = "online" | "busy" | "idle" | "offline";
 
-function runtimeStatus(bridgeStatus: string, authStatus: string): { label: string; tone: RuntimeTone } {
-  if (bridgeStatus === "connected") {
+function runtimeStatus(
+  bridgeStatus: string,
+  authStatus: string,
+  runtimePhase: string,
+  middlewareStatus: string
+): { label: string; tone: RuntimeTone } {
+  const transportReady = bridgeStatus === "connected" || runtimePhase === "connected" || middlewareStatus === "connected";
+  if (transportReady) {
     return authStatus === "authenticated"
       ? { label: "Live 미들웨어", tone: "online" }
-      : { label: "인증 필요", tone: "busy" };
+      : { label: bridgeStatus === "connected" ? "인증 필요" : "미들웨어 연결됨", tone: "online" };
   }
-  if (bridgeStatus === "connecting") return { label: "연결 중", tone: "busy" };
+  if (bridgeStatus === "connecting" || runtimePhase === "waiting" || middlewareStatus === "waiting") {
+    return { label: "연결 중", tone: "busy" };
+  }
   return { label: "오프라인", tone: "offline" };
 }
 
@@ -47,11 +55,13 @@ function currentTheme(): ThemeMode {
 
 export function DesktopTopBar({ onOpenNav, onSelectPage }: DesktopTopBarProps) {
   const bridgeStatus = useDesktopShellStore((state) => state.bridge.status);
+  const runtimePhase = useDesktopShellStore((state) => state.runtime.phase);
+  const middlewareStatus = useDesktopShellStore((state) => state.middleware.status);
   const authStatus = useDesktopAuthStore((state) => state.auth.status);
   const [advanced, setAdvanced] = useState(false);
   const [theme, setTheme] = useState<ThemeMode>(() => currentTheme());
 
-  const status = runtimeStatus(bridgeStatus, authStatus);
+  const status = runtimeStatus(bridgeStatus, authStatus, runtimePhase, middlewareStatus);
 
   const cycleTheme = () => {
     const next = THEME_ORDER[(THEME_ORDER.indexOf(theme) + 1) % THEME_ORDER.length];

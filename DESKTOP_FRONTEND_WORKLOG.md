@@ -212,6 +212,16 @@
 - 원격 대시보드 client에서는 백엔드 정책상 secret 설정이 금지되므로 UI도 비활성 안내를 표시한다.
 - 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과(983 assertions), Settings > `Models & services` 브라우저 QA에서 `Telegram 연동`, `Bot Token`, `Chat ID`, `보안 저장소 저장/삭제`, `저장`, `테스트 전송`, `연동 삭제` 렌더링과 콘솔 warn/error 없음 확인.
 
+### Runtime gateway endpoint / 오프라인 상태 보정
+
+- 데스크톱 앱 대시보드 `http://127.0.0.1:1420`은 그대로 두고, 프론트 runtime probe와 WS 세션 브릿지가 gateway endpoint 후보 `41880 -> 8080`을 순회해 실제 `/healthz`, `/readyz`, `/ws/`가 살아 있는 endpoint로 전환하도록 수정했다.
+- `middleware-contract.ts`에 endpoint 후보 생성 함수를 추가하고, `shell-store.ts`는 발견된 gateway의 health/ready/ws URL을 runtime contract에 반영한다.
+- `use-middleware-runtime-probe.ts`는 고정 `41880` healthz만 보지 않고 후보 healthz 성공 endpoint를 선택한 뒤 readyz와 WebSocket ping/pong을 이어서 확인한다.
+- `use-middleware-session.ts`는 runtime wsUrl 변경을 구독해 세션 브릿지를 해당 gateway로 재연결한다.
+- 서버가 보낸 `rate_limited` 같은 일반 `error` 메시지가 브릿지 전송 상태를 `error/offline`으로 덮어쓰지 않도록 분리하고, Activity 로그와 해당 페이지 오류로만 남긴다.
+- 상단 상태 배지는 bridge 상태뿐 아니라 runtime phase와 middleware status도 함께 보므로, health/ready/ws가 연결된 상태에서 잘못 `오프라인`으로 표시되지 않는다.
+- 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과(983 assertions), `git diff --check` 통과, 모든 `.ts/.tsx` 500줄 이하 확인.
+
 ## 다음 연결 후보
 
 - 다음 연결 후보는 Local LLM 실제 라우팅 readiness, Self-RAG 실행 plan, Terminal PTY 승인 게이트 중 정책상 안전한 단위부터 고른다.
