@@ -2,7 +2,9 @@ import { useEffect } from "react";
 import { create } from "zustand";
 import { requestDesktopSettings, subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
 import { requestDesktopLlm, type LlmCredentialInput } from "../middleware/llm-gateway";
+import { requestDesktopMemory } from "../middleware/memory-gateway";
 import { requestConfirmDialog, requestPromptDialog } from "../dialog/dialog-store";
+import { normalizeMemoryIndexStatus, normalizeMemorySearchResults, type MemoryIndexStatus, type MemorySearchResultItem } from "./settings-memory";
 
 type MemoryNoteItem = {
   name: string;
@@ -11,23 +13,15 @@ type MemoryNoteItem = {
   sizeBytes: number;
   lastWriteUtc: string;
 };
-export type MemorySearchResultItem = {
-  path: string;
-  snippet: string;
-  score: number;
-  source: string;
-  memoryTier: string;
-  lastAccessedAtUnixMs: number;
-  startLine: number;
-  endLine: number;
-};
-
 type SettingsState = {
   memoryNotes: MemoryNoteItem[];
   selectedNoteName: string;
   selectedNoteText: string;
+  selectedMemoryKind: "note" | "result" | "";
+  selectedMemoryError: string;
   memorySearchQuery: string;
   memorySearchResults: MemorySearchResultItem[];
+  memoryIndexStatus: MemoryIndexStatus;
   backupIncludeScopes: string[];
   backupPreview: { previewId: string; fileName: string; conversationCount: number; conflictCount: number; fileCount: number; error: string } | null;
   backupPackage: { fileName: string; contentBase64: string } | null;
@@ -51,6 +45,8 @@ type SettingsState = {
   setMemorySearchQuery: (value: string) => void;
   loadMemoryNotes: () => void;
   readMemoryNote: (name: string) => void;
+  openMemoryResult: (result: MemorySearchResultItem) => void;
+  rebuildMemoryIndex: () => void;
   renameMemoryNote: (name: string) => void;
   deleteSelectedMemoryNotes: () => void;
   clearMemory: () => void;
@@ -75,8 +71,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   memoryNotes: [],
   selectedNoteName: "",
   selectedNoteText: "",
+  selectedMemoryKind: "",
+  selectedMemoryError: "",
   memorySearchQuery: "",
   memorySearchResults: [],
+  memoryIndexStatus: null,
   backupIncludeScopes: BACKUP_SCOPES,
   backupPreview: null,
   backupPackage: null,
@@ -98,9 +97,25 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   readMemoryNote: (name) => {
     if (!name) return;
-    set({ selectedNoteName: name, loading: true });
+    set({ selectedNoteName: name, selectedMemoryKind: "note", selectedMemoryError: "", loading: true });
     if (!requestDesktopSettings.readMemoryNote(name)) {
       set({ loading: false, lastMessage: "메모리 노트 읽기 요청을 전송하지 못했다." });
+    }
+  },
+  openMemoryResult: (result) => {
+    const path = String(result.path || "").trim();
+    if (!path) return;
+    const fromLine = result.startLine > 0 ? result.startLine : undefined;
+    const lines = fromLine && result.endLine >= result.startLine ? Math.min(160, result.endLine - result.startLine + 1) : undefined;
+    set({ selectedNoteName: path, selectedMemoryKind: "result", selectedMemoryError: "", loading: true });
+    if (!requestDesktopMemory.get(path, fromLine, lines)) {
+      set({ loading: false, lastMessage: "메모리 상세 읽기 요청을 전송하지 못했다." });
+    }
+  },
+  rebuildMemoryIndex: () => {
+    set({ loading: true, memoryIndexStatus: null });
+    if (!requestDesktopMemory.rebuildIndex()) {
+      set({ loading: false, lastMessage: "메모리 인덱스 재구축 요청을 전송하지 못했다." });
     }
   },
   renameMemoryNote: async (name) => {
@@ -277,16 +292,18 @@ export function useSettingsPageBridge() {
 
     if (message.type === "memory_search_result") {
       useSettingsStore.setState({
-        memorySearchResults: normalizeServerList(message.results, (item) => ({
-          path: String(item.path || item.fullPath || ""),
-          snippet: String(item.snippet || ""),
-          score: Number(item.score || 0),
-          source: String(item.source || ""),
-          memoryTier: String(item.memoryTier || ""),
-          lastAccessedAtUnixMs: Number(item.lastAccessedAtUnixMs || 0),
-          startLine: Number(item.startLine || 0),
-          endLine: Number(item.endLine || 0)
-        })),
+        memorySearchResults: normalizeMemorySearchResults(message.results),
+        loading: false
+      });
+      return;
+    }
+
+    if (message.type === "memory_note_content") {
+      useSettingsStore.setState({
+        selectedNoteName: String(message.name || ""),
+        selectedNoteText: String(message.content || ""),
+        selectedMemoryKind: "note",
+        selectedMemoryError: "",
         loading: false
       });
       return;
@@ -294,7 +311,19 @@ export function useSettingsPageBridge() {
 
     if (message.type === "memory_get_result") {
       useSettingsStore.setState({
+        selectedNoteName: String(message.requestedPath || message.path || ""),
         selectedNoteText: String(message.text || ""),
+        selectedMemoryKind: "result",
+        selectedMemoryError: String(message.error || ""),
+        loading: false
+      });
+      return;
+    }
+
+    if (message.type === "memory_index_rebuild_result") {
+      useSettingsStore.setState({
+        memoryIndexStatus: normalizeMemoryIndexStatus(message),
+        lastMessage: String(message.message || "메모리 인덱스 재구축 응답 수신"),
         loading: false
       });
       return;

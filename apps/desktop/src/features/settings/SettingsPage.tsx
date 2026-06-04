@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Check, Database, Download, HardDrive, Info, Route, Search, Settings2, Trash2, Upload } from "lucide-react";
+import { Check, Database, Download, Eye, HardDrive, Info, RefreshCw, Route, Search, Settings2, Trash2, Upload } from "lucide-react";
 import { CardBoundary } from "../../CardBoundary";
 import { useDesktopShellStore } from "../../shell-store";
 import type { ShellCard } from "../../shell-store";
 import { useDesktopAuthStore } from "../auth/auth-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
-import { type MemorySearchResultItem, useSettingsPageBridge, useSettingsStore } from "./settings-store";
+import { useSettingsPageBridge, useSettingsStore } from "./settings-store";
+import type { MemorySearchResultItem } from "./settings-memory";
 import { LlmModelsPanel } from "./LlmModelsPanel";
 import { Badge, Button, Input, cn } from "../../components/ui/primitives";
 
@@ -48,7 +49,7 @@ function formatAccessTime(value: number): string {
   return date.toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" });
 }
 
-function MemorySearchResultRow({ result }: { result: MemorySearchResultItem }) {
+function MemorySearchResultRow({ result, canRequest, loading, onOpen }: { result: MemorySearchResultItem; canRequest: boolean; loading: boolean; onOpen: (result: MemorySearchResultItem) => void }) {
   const lineLabel = result.startLine > 0 ? `L${result.startLine}-${result.endLine || result.startLine}` : "";
   const tier = result.memoryTier || "tier -";
   return (
@@ -58,7 +59,12 @@ function MemorySearchResultRow({ result }: { result: MemorySearchResultItem }) {
           <span className="block truncate text-xs font-medium">{result.path}</span>
           <small className="block truncate text-[11px] text-muted-foreground">{result.snippet}</small>
         </span>
-        <Badge tone="outline" className="shrink-0">{result.score.toFixed(2)}</Badge>
+        <span className="flex shrink-0 items-center gap-1">
+          <Badge tone="outline">{result.score.toFixed(2)}</Badge>
+          <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => onOpen(result)} disabled={!canRequest || loading} title="검색 결과 상세 읽기">
+            <Eye size={13} aria-hidden="true" /> 열기
+          </Button>
+        </span>
       </div>
       <div className="mt-1.5 flex min-w-0 flex-wrap gap-1">
         <Badge
@@ -137,11 +143,27 @@ function MemoryTab({ store, canRequest, fileInputRef, onError }: { store: Store;
       <CardBoundary title="Memory & portable package" card="operations" onError={onError}>
         <div className="flex items-start justify-between gap-3">
           <p className="text-xs text-muted-foreground">대화에서 생성된 실제 메모리 노트와 검색 결과만 표시합니다.</p>
-          <div className="flex shrink-0 gap-2">
+          <div className="flex shrink-0 flex-wrap justify-end gap-2">
             <Button variant="outline" size="sm" onClick={store.loadMemoryNotes} disabled={!canRequest || store.loading}>새로고침</Button>
+            <Button variant="outline" size="sm" onClick={store.rebuildMemoryIndex} disabled={!canRequest || store.loading}>
+              <RefreshCw size={14} aria-hidden="true" /> 인덱스
+            </Button>
             <Button variant="ghost" size="sm" onClick={store.clearMemory} disabled={!canRequest}>비우기</Button>
           </div>
         </div>
+        {store.memoryIndexStatus ? (
+          <div className={cn("rounded-md border px-3 py-2 text-xs", store.memoryIndexStatus.ok ? "border-border bg-muted/40" : "border-destructive/30 bg-destructive/10 text-destructive")}>
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <Badge tone={store.memoryIndexStatus.ok ? "success" : "destructive"}>{store.memoryIndexStatus.ok ? "indexed" : "failed"}</Badge>
+              <Badge tone="outline">scanned {store.memoryIndexStatus.scannedDocuments}</Badge>
+              <Badge tone="outline">indexed {store.memoryIndexStatus.indexedDocuments}</Badge>
+              <Badge tone="outline">removed {store.memoryIndexStatus.removedDocuments}</Badge>
+              <Badge tone={store.memoryIndexStatus.ftsAvailable ? "success" : "warning"}>{store.memoryIndexStatus.ftsAvailable ? "FTS ready" : "FTS hold"}</Badge>
+              <Badge tone="outline">{store.memoryIndexStatus.elapsedMs}ms</Badge>
+            </div>
+            <p className="mt-1 truncate text-muted-foreground">{store.memoryIndexStatus.error || store.memoryIndexStatus.message}</p>
+          </div>
+        ) : null}
         <div className="flex gap-2">
           <Input
             value={store.memorySearchQuery}
@@ -170,14 +192,23 @@ function MemoryTab({ store, canRequest, fileInputRef, onError }: { store: Store;
         {store.memorySearchResults.length > 0 ? (
           <div className="space-y-1">
             {store.memorySearchResults.map((result) => (
-              <MemorySearchResultRow key={`${result.path}-${result.score}-${result.startLine}`} result={result} />
+              <MemorySearchResultRow key={`${result.path}-${result.score}-${result.startLine}`} result={result} canRequest={canRequest} loading={store.loading} onOpen={store.openMemoryResult} />
             ))}
           </div>
         ) : null}
-        {store.selectedNoteText ? <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/40 p-3 font-mono text-[11px]">{store.selectedNoteText}</pre> : null}
+        {store.selectedNoteText || store.selectedMemoryError ? (
+          <div className="rounded-md border border-border bg-muted/40">
+            <div className="flex min-w-0 items-center justify-between gap-2 border-b border-border px-3 py-2">
+              <span className="min-w-0 truncate text-xs font-medium">{store.selectedNoteName || "memory"}</span>
+              <Badge tone={store.selectedMemoryKind === "note" ? "primary" : "outline"} className="shrink-0">{store.selectedMemoryKind || "memory"}</Badge>
+            </div>
+            {store.selectedMemoryError ? <p className="px-3 py-2 text-xs text-destructive">{store.selectedMemoryError}</p> : null}
+            {store.selectedNoteText ? <pre className="max-h-56 overflow-auto whitespace-pre-wrap p-3 font-mono text-[11px]">{store.selectedNoteText}</pre> : null}
+          </div>
+        ) : null}
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => store.renameMemoryNote(store.selectedNoteName)} disabled={!canRequest || !store.selectedNoteName}>이름 변경</Button>
-          <Button variant="destructive" size="sm" onClick={() => store.deleteSelectedMemoryNotes()} disabled={!canRequest || !store.selectedNoteName}>
+          <Button variant="outline" size="sm" onClick={() => store.renameMemoryNote(store.selectedNoteName)} disabled={!canRequest || !store.selectedNoteName || store.selectedMemoryKind !== "note"}>이름 변경</Button>
+          <Button variant="destructive" size="sm" onClick={() => store.deleteSelectedMemoryNotes()} disabled={!canRequest || !store.selectedNoteName || store.selectedMemoryKind !== "note"}>
             <Trash2 size={14} aria-hidden="true" /> 삭제
           </Button>
         </div>
