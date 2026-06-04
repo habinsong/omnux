@@ -5,6 +5,7 @@ import { useDesktopAuthStore } from "../auth/auth-store";
 import { useDesktopShellStore } from "../../shell-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
 import { useAskPageBridge, useAskStore } from "./ask-store";
+import type { AskTokenUsage } from "./ask-context";
 import { filesToVisionAttachments } from "./ask-vision";
 import { AskVisionPanel } from "./AskVisionPanel";
 import { MarkdownMessage } from "./MarkdownMessage";
@@ -19,7 +20,17 @@ function formatTokenShort(value: number) {
   return String(value || 0);
 }
 
-function MessageBubble({ role, text, meta }: { role: string; text: string; meta?: string }) {
+function TokenUsageBadge({ usage }: { usage?: AskTokenUsage | null }) {
+  if (!usage) return null;
+  return (
+    <div className="mt-2 flex flex-wrap justify-end gap-1">
+      <Badge tone="outline">{formatTokenShort(usage.totalTokens)} tok</Badge>
+      {usage.source ? <Badge tone="outline">{usage.source}</Badge> : null}
+    </div>
+  );
+}
+
+function MessageBubble({ role, text, meta, tokenUsage }: { role: string; text: string; meta?: string; tokenUsage?: AskTokenUsage | null }) {
   const safeMeta = meta || "";
   if (role === "user") {
     return (
@@ -39,6 +50,7 @@ function MessageBubble({ role, text, meta }: { role: string; text: string; meta?
             <Badge tone="outline">context</Badge>
           </div>
           <MarkdownMessage text={text} />
+          <TokenUsageBadge usage={tokenUsage} />
         </div>
       </div>
     );
@@ -47,6 +59,7 @@ function MessageBubble({ role, text, meta }: { role: string; text: string; meta?
     <div className="flex justify-start">
       <div className="prose-omnux max-w-[85%] rounded-2xl rounded-bl-sm border border-border bg-card px-3.5 py-2">
         <MarkdownMessage text={text} />
+        <TokenUsageBadge usage={tokenUsage} />
       </div>
     </div>
   );
@@ -354,7 +367,7 @@ export function AskPage() {
             ) : null}
             <AskVisionPanel files={store.visionFiles} preflight={store.visionPreflight} pending={store.visionPending} onClear={store.clearVisionPreflight} />
             {store.messages.map((message, index) => (
-              <MessageBubble key={`${index}-${message.role}`} role={message.role} text={message.text} meta={message.meta} />
+              <MessageBubble key={`${index}-${message.role}`} role={message.role} text={message.text} meta={message.meta} tokenUsage={message.tokenUsage} />
             ))}
             {store.messages.length === 0 ? (
               <EmptyState icon={Send} title="메시지를 입력해 대화를 시작하세요" description="single·orchestration·multi 모드로 모델 라우팅을 비교할 수 있습니다." />

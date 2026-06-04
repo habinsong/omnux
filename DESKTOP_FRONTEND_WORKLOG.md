@@ -161,6 +161,14 @@
 - 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과(934 assertions), 모든 `.ts/.tsx` 500줄 이하 확인(`AskPage.tsx` 406줄 / `ask-store.ts` 402줄).
 - 브라우저 QA: `http://127.0.0.1:1420/` Ask 화면에서 기본 렌더링, 채팅 모드 선택 상호작용, 콘솔 오류 없음, 스크린샷 `/tmp/omnux-ask-context-compression-qa.png` 저장. 미들웨어 오프라인이라 실제 `auto-compress` 메시지 수신은 빌드/타입 검증까지만 확인.
 
+### Ask 메시지별 token usage 표시
+
+- Ask 메시지 말풍선에 `tokenUsage.totalTokens`와 `tokenUsage.source` 배지를 표시하도록 연결했다.
+- 전체 대화 token pill과 개별 응답 token badge를 분리해, 사용자가 대화 단위와 메시지 단위 비용/추정 출처를 동시에 볼 수 있게 했다.
+- `system` context 카드에도 token usage가 있으면 같은 배지를 표시하며, raw JSON이나 원문 프롬프트는 노출하지 않는다.
+- 검증: `npm run build` 통과, 루트 기준 `node scripts/check-desktop-shell-boundary-contract.mjs` 통과(934 assertions), 모든 `.ts/.tsx` 500줄 이하 확인(`AskPage.tsx` 419줄 / `ask-store.ts` 402줄).
+- 브라우저 QA: `http://127.0.0.1:1420/` Ask 화면에서 기본 렌더링, 채팅 모드 선택 상호작용, 콘솔 오류 없음, 스크린샷 `/tmp/omnux-ask-message-token-qa.png` 저장. 미들웨어 오프라인이라 실제 token badge 데이터 수신은 빌드/타입 검증까지만 확인.
+
 ## 다음 연결 후보
 
 - 다음 연결 후보는 Local LLM 실제 라우팅 readiness, Self-RAG 실행 plan, Terminal PTY 승인 게이트 중 정책상 안전한 단위부터 고른다.
