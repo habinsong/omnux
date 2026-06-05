@@ -41,12 +41,12 @@ DEFAULT_BASE_URL="http://127.0.0.1:${DEFAULT_PORT}"
 usage() {
   cat <<'EOF'
 사용법:
-  omnux           미들웨어+대시보드 시작 (첫 실행이면 setup 자동 실행) — http://127.0.0.1:41880/
-  omnux start     위와 동일
+  omnux           Tauri 데스크톱 앱 + 미들웨어 dev 실행 (포그라운드, Ctrl+C 종료)
+  omnux desktop   위와 동일
+  omnux start     미들웨어만 백그라운드 실행 (레거시 대시보드 http://127.0.0.1:41880/)
   omnux stop      미들웨어 서버 종료 (= shutdown)
   omnux shutdown  미들웨어 서버 종료
   omnux status    미들웨어 실행 상태 확인
-  omnux desktop   Tauri 데스크톱 앱 + 자체 미들웨어(41880) dev 실행 (포그라운드, Ctrl+C 종료)
   omnux setup     의존성 설치, 빌드, 검증, 명령 등록
 EOF
 }
@@ -306,7 +306,7 @@ PY
   wait_for_ready "$pid"
 
   info "서버가 준비됐습니다."
-  info "대시보드: $(current_base_url)/"
+  info "레거시 대시보드: $(current_base_url)/"
   info "로그: $LOG_FILE"
 }
 
@@ -520,24 +520,55 @@ status_server() {
   fi
 }
 
+stop_middleware_on_port() {
+  local port
+  port="$(current_port)"
+  if ! command_exists lsof; then
+    return 0
+  fi
+
+  local pids
+  pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN -n -P 2>/dev/null || true)"
+  if [ -z "$pids" ]; then
+    return 0
+  fi
+
+  info "포트 ${port}에 기존 프로세스가 있습니다. 정리합니다."
+  for pid in $pids; do
+    kill "$pid" >/dev/null 2>&1 || true
+  done
+  sleep 1
+  for pid in $pids; do
+    if is_pid_alive "$pid"; then
+      kill -9 "$pid" >/dev/null 2>&1 || true
+    fi
+  done
+  sleep 0.5
+}
+
 run_desktop() {
   command_exists npm || fail "npm이 필요합니다. 먼저 'omnux setup'을 실행하세요."
-  command_exists cargo || fail "Rust(cargo)가 필요합니다 (Tauri). https://rustup.rs 에서 설치 후 다시 시도하세요."
+  command_exists cargo || fail "Rust(cargo)가 필요합니다 (Tauri). https://rustup.rs 에서 설치 후 다시 시도하세요. 미들웨어만 실행하려면 'omnux start'를 사용하세요."
   local desktop_dir="${REPO_ROOT}/apps/desktop"
   [ -d "$desktop_dir" ] || fail "apps/desktop 디렉터리를 찾을 수 없습니다."
   if [ ! -d "${desktop_dir}/node_modules" ]; then
     info "데스크톱 의존성 설치 (apps/desktop)"
     (cd "$desktop_dir" && npm install)
   fi
+  cleanup_stale_state
+  if server_health_ok; then
+    info "이미 실행 중인 미들웨어가 있으면 데스크톱 bootstrap이 재사용합니다. url=$(current_base_url)/"
+  fi
   info "Tauri 데스크톱 dev 실행 — 자체 .NET 미들웨어(ws=41880)를 함께 띄웁니다."
-  info "OTP는 이 터미널 콘솔에 [otp] local fallback otp=... 로 출력됩니다. (Ctrl+C 종료)"
+  info "대시보드: http://localhost:1420/"
+  info "인증이 필요하면 데스크톱 앱에서 OTP 요청 버튼을 누르세요. OTP가 이 터미널에 출력됩니다. (Ctrl+C 종료)"
   cd "$desktop_dir" || fail "apps/desktop 으로 이동하지 못했습니다."
   exec npm run tauri dev
 }
 
 main() {
-  case "${1:-start}" in
-    start|"")
+  case "${1:-desktop}" in
+    start)
       start_server
       ;;
     stop|shutdown)
@@ -546,7 +577,7 @@ main() {
     status)
       status_server
       ;;
-    desktop)
+    desktop|"")
       run_desktop
       ;;
     setup)

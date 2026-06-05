@@ -1,12 +1,17 @@
 use std::{
+    io::{Read, Write},
+    net::{SocketAddr, TcpStream},
     path::{Path, PathBuf},
     sync::Mutex,
+    time::Duration,
 };
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, RunEvent};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_shell::{process::CommandEvent, ShellExt};
+
+pub mod media;
 
 const DESKTOP_MIDDLEWARE_PORT: &str = "41880";
 const DESKTOP_MIDDLEWARE_PROJECT: &str = "apps/omnux-middleware/Omnux.Middleware.csproj";
@@ -41,13 +46,20 @@ impl MiddlewareBootstrapState {
 
     fn clear_if_pid(&self, pid: u32) {
         let mut guard = self.child.lock().expect("middleware bootstrap state lock");
-        if guard.as_ref().is_some_and(|(stored_pid, _)| *stored_pid == pid) {
+        if guard
+            .as_ref()
+            .is_some_and(|(stored_pid, _)| *stored_pid == pid)
+        {
             guard.take();
         }
     }
 
     fn kill(&self) {
-        if let Some((_, child)) = self.child.lock().expect("middleware bootstrap state lock").take()
+        if let Some((_, child)) = self
+            .child
+            .lock()
+            .expect("middleware bootstrap state lock")
+            .take()
         {
             let _ = child.kill();
         }
@@ -82,6 +94,36 @@ fn current_exe_path() -> Result<String, String> {
     std::env::current_exe()
         .map_err(|error| format!("현재 실행 파일 경로를 확인하지 못했다: {error}"))
         .map(|path| path.to_string_lossy().to_string())
+}
+
+fn existing_middleware_is_healthy() -> bool {
+    http_probe_ok(DESKTOP_MIDDLEWARE_PORT, "/healthz")
+}
+
+fn http_probe_ok(port: &str, path: &str) -> bool {
+    let address = format!("127.0.0.1:{port}");
+    let Ok(socket_addr) = address.parse::<SocketAddr>() else {
+        return false;
+    };
+    let Ok(mut stream) = TcpStream::connect_timeout(&socket_addr, Duration::from_millis(250))
+    else {
+        return false;
+    };
+    let timeout = Some(Duration::from_millis(250));
+    let _ = stream.set_read_timeout(timeout);
+    let _ = stream.set_write_timeout(timeout);
+    let request =
+        format!("GET {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n");
+    if stream.write_all(request.as_bytes()).is_err() {
+        return false;
+    }
+
+    let mut buffer = [0_u8; 128];
+    let Ok(read) = stream.read(&mut buffer) else {
+        return false;
+    };
+    let response = String::from_utf8_lossy(&buffer[..read]);
+    response.starts_with("HTTP/1.1 200") || response.starts_with("HTTP/1.0 200")
 }
 
 // 자동 시작은 Tauri 공식 autostart 플러그인(승인된 셸 API)에 위임한다.
@@ -141,6 +183,19 @@ fn bootstrap_desktop_middleware(app: AppHandle) {
 
 #[cfg(debug_assertions)]
 async fn run_dev_middleware_bootstrap(app: AppHandle) -> Result<(), String> {
+    if existing_middleware_is_healthy() {
+        emit_middleware_bootstrap_event(
+            &app,
+            "started",
+            None,
+            format!("기존 .NET 미들웨어를 재사용한다 (ws={DESKTOP_MIDDLEWARE_PORT})"),
+        );
+        println!(
+            "[desktop-bootstrap] 기존 .NET 미들웨어를 재사용한다 (ws={DESKTOP_MIDDLEWARE_PORT})"
+        );
+        return Ok(());
+    }
+
     let repo_root = desktop_repo_root();
     let project_path = repo_root.join(DESKTOP_MIDDLEWARE_PROJECT);
     let project_arg = project_path.to_string_lossy().to_string();
@@ -153,7 +208,12 @@ async fn run_dev_middleware_bootstrap(app: AppHandle) -> Result<(), String> {
     let (mut rx, child) = match app
         .shell()
         .command("dotnet")
-        .args(["run", "--project", project_arg.as_str(), "--no-launch-profile"])
+        .args([
+            "run",
+            "--project",
+            project_arg.as_str(),
+            "--no-launch-profile",
+        ])
         .current_dir(repo_root)
         .env("OMNUX_WS_PORT", DESKTOP_MIDDLEWARE_PORT)
         .env("OMNUX_TELEGRAM_POLLING_DISABLED", "1")
@@ -226,6 +286,19 @@ const DESKTOP_MIDDLEWARE_SIDECAR: &str = "omnux-middleware";
 
 #[cfg(not(debug_assertions))]
 async fn run_sidecar_middleware_bootstrap(app: AppHandle) -> Result<(), String> {
+    if existing_middleware_is_healthy() {
+        emit_middleware_bootstrap_event(
+            &app,
+            "started",
+            None,
+            format!("기존 .NET 미들웨어를 재사용한다 (ws={DESKTOP_MIDDLEWARE_PORT})"),
+        );
+        println!(
+            "[desktop-bootstrap] 기존 .NET 미들웨어를 재사용한다 (ws={DESKTOP_MIDDLEWARE_PORT})"
+        );
+        return Ok(());
+    }
+
     emit_middleware_bootstrap_event(
         &app,
         "starting",
@@ -320,7 +393,10 @@ pub fn run() {
         .manage(MiddlewareBootstrapState::default())
         .invoke_handler(tauri::generate_handler![
             get_start_on_launch_state,
-            set_start_on_launch
+            set_start_on_launch,
+            crate::media::get_media_info,
+            crate::media::control_media,
+            crate::media::seek_media
         ])
         .setup(|app| {
             bootstrap_desktop_middleware(app.handle().clone());

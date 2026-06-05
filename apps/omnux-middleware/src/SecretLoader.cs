@@ -38,7 +38,12 @@ internal static class SecretLoader
                 return keychainValue;
             }
 
-            Console.Error.WriteLine($"[secrets] {providerName} keychain lookup failed, fallback source will be used.");
+            // 키체인에 없으면 파일/로컬 보안저장소/env 등 다른 소스로 폴백하는 게 정상이다.
+            // 기본 시작 시 noise가 되므로 진단이 필요할 때만(OMNUX_SECRETS_DEBUG=1) 출력한다.
+            if (string.Equals(Environment.GetEnvironmentVariable("OMNUX_SECRETS_DEBUG"), "1", StringComparison.Ordinal))
+            {
+                Console.Error.WriteLine($"[secrets] {providerName} keychain lookup failed, fallback source will be used.");
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(service) && !string.IsNullOrWhiteSpace(account))

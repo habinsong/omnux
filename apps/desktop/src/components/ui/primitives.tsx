@@ -90,8 +90,8 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        // Glass: 반투명 bg-card + backdrop-blur. Light/Dark: 토큰이 불투명이라 blur 무효, shadow/glow 적용.
-        "rounded-lg border border-border bg-card text-card-foreground shadow-[var(--shadow-card)] backdrop-blur-xl backdrop-saturate-150",
+        // Glass: 반투명 bg-card + backdrop-blur + lg-edge(엣지 라이팅). Light/Dark: 토큰 불투명 → shadow/glow.
+        "relative rounded-lg border border-border bg-card text-card-foreground shadow-[var(--shadow-card)] backdrop-blur-xl backdrop-saturate-150 lg-edge",
         className
       )}
       {...props}

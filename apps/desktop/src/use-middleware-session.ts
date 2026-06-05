@@ -231,7 +231,8 @@ export function useMiddlewareSessionBridge() {
       sessionSocket = socket;
       sessionSocketUrl = wsUrl;
       bindDesktopSessionSocket(socket);
-      useDesktopShellStore.getState().markBridgeStatus("connecting", `데스크톱 WS 세션 브릿지 연결 중 (${wsUrl})`);
+      // 연결 시도 자체는 노이즈가 되므로 메시지 없이 상태만 갱신한다(부팅/재연결 스팸 방지).
+      useDesktopShellStore.getState().markBridgeStatus("connecting");
 
       socket.addEventListener("open", () => {
         if (!disposed && sessionSocket === socket) {
@@ -258,7 +259,9 @@ export function useMiddlewareSessionBridge() {
 
       socket.addEventListener("error", () => {
         if (!disposed && sessionSocket === socket) {
-          useDesktopShellStore.getState().markBridgeStatus("error", `데스크톱 WS 세션 브릿지 연결 실패 (${wsUrl})`);
+          // attempt별 연결 실패는 기록하지 않는다(부팅 레이스/일시 단절은 정상).
+          // 실제 실패는 재연결 한도 초과 시 scheduleReconnect가 error로 보고한다.
+          useDesktopShellStore.getState().markBridgeStatus("error");
         }
       });
 
@@ -267,7 +270,8 @@ export function useMiddlewareSessionBridge() {
           bindDesktopSessionSocket(null);
           sessionSocket = null;
           sessionSocketUrl = "";
-          useDesktopShellStore.getState().markBridgeStatus("closed", `데스크톱 WS 세션 브릿지 종료 (${wsUrl})`);
+          // 소켓 종료 후 곧바로 재연결하므로 종료 자체는 기록하지 않는다(warn 스팸 방지).
+          useDesktopShellStore.getState().markBridgeStatus("closed");
           scheduleReconnect(wsUrl);
         }
       });
