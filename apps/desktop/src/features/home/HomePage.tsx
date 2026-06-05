@@ -2,16 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ArrowUpRight,
   Bot,
+  ChevronUp,
   Code2,
-  Cpu,
   FileText,
   FolderGit2,
   FolderOpen,
-  Gauge,
+  History,
   Inbox,
   MessageSquare,
   Paperclip,
-  RefreshCcw,
   Scale,
   Send,
   SlidersHorizontal,
@@ -24,14 +23,10 @@ import { useDesktopNavigationStore } from "../shell/navigation-store";
 import type { DesktopPageId } from "../shell/DesktopNavigation";
 import type { DesktopRoutePayload } from "../shell/navigation-store";
 import { useProjectsPageBridge, useProjectsStore, type ProjectItem } from "../projects/projects-store";
-import { useGitAutomationBridge, useOpsPageStore } from "../ops/ops-store";
 import {
   Badge,
   Button,
   Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   EmptyState,
   SectionLabel,
   Textarea,
@@ -110,104 +105,119 @@ function inferHeroIntent(input: string): { page: DesktopPageId; label: string; d
   return { page: "ask", label: "질문", description: "Ask 초안으로 이어집니다.", payload: base };
 }
 
-function parseMetricsRaw(raw: string) {
-  if (!raw.trim()) return null;
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
-  }
-}
+/* ============================ 아래쪽 이어서/프로젝트 드로어 ============================ */
 
-function findMetric(root: unknown, terms: string[]): { key: string; value: unknown } | null {
-  if (!root || typeof root !== "object") return null;
-  const normalizedTerms = terms.map((term) => term.toLowerCase());
-  const stack: unknown[] = [root];
-  const seen = new Set<unknown>();
-  while (stack.length > 0) {
-    const value = stack.pop();
-    if (!value || typeof value !== "object" || seen.has(value)) continue;
-    seen.add(value);
-    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-      const normalizedKey = key.toLowerCase();
-      if (normalizedTerms.some((term) => normalizedKey.includes(term))) return { key, value: child };
-      if (child && typeof child === "object") stack.push(child);
-    }
-  }
-  return null;
-}
-
-function formatBytes(value: number) {
-  if (!Number.isFinite(value)) return "-";
-  if (value < 1024) return `${Math.round(value)}B`;
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)}KB`;
-  if (value < 1024 * 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(1)}MB`;
-  return `${(value / (1024 * 1024 * 1024)).toFixed(1)}GB`;
-}
-
-function formatMetric(hit: { key: string; value: unknown } | null) {
-  if (!hit) return "-";
-  if (typeof hit.value === "number") {
-    if (/bytes|memory|rss|heap|working/i.test(hit.key)) return formatBytes(hit.value);
-    if (/percent|cpu/i.test(hit.key) && hit.value <= 100) return `${Math.round(hit.value * 10) / 10}%`;
-    return String(Math.round(hit.value * 10) / 10);
-  }
-  if (typeof hit.value === "string") return hit.value.trim() || "-";
-  if (typeof hit.value === "boolean") return hit.value ? "on" : "off";
-  if (hit.value && typeof hit.value === "object") {
-    return Object.keys(hit.value as Record<string, unknown>).slice(0, 3).join(", ") || "-";
-  }
-  return "-";
-}
-
-function ResourceUsageCard({ canRequest }: { canRequest: boolean }) {
-  useGitAutomationBridge();
-  const metrics = useOpsPageStore((state) => state.tools.context.metrics);
-  const loading = useOpsPageStore((state) => state.tools.context.setupLoading);
-  const lastError = useOpsPageStore((state) => state.tools.context.lastError);
-  const loadMetrics = useOpsPageStore((state) => state.loadMetrics);
-  const parsed = useMemo(() => parseMetricsRaw(metrics?.raw || ""), [metrics?.raw]);
-  const cpu = formatMetric(findMetric(parsed, ["cpu", "processor"]));
-  const memory = formatMetric(findMetric(parsed, ["memory", "mem", "rss", "heap"]));
-  const tasks = formatMetric(findMetric(parsed, ["task", "running", "process"]));
-
-  useEffect(() => {
-    if (canRequest && !metrics && !loading) loadMetrics();
-  }, [canRequest, loadMetrics, loading, metrics]);
-
+function ContinueProjectsDrawer({
+  recentLogs,
+  projects,
+  onActivity,
+  onProjects,
+  onOpenProject
+}: {
+  recentLogs: ShellLogEntry[];
+  projects: ProjectItem[];
+  onActivity: () => void;
+  onProjects: () => void;
+  onOpenProject: (project: ProjectItem) => void;
+}) {
+  const [open, setOpen] = useState(false);
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>리소스 사용량</CardTitle>
-        <Button variant="ghost" size="sm" onClick={loadMetrics} disabled={!canRequest || loading}>
-          <RefreshCcw size={14} aria-hidden="true" /> {loading ? "조회 중" : "갱신"}
-        </Button>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: "CPU", value: cpu, icon: Cpu },
-            { label: "메모리", value: memory, icon: Gauge },
-            { label: "작업", value: tasks, icon: Bot }
-          ].map((item) => {
-            const Icon = item.icon;
-            return (
-              <article key={item.label} className="min-w-0 rounded-md border border-border bg-muted/30 px-2.5 py-2">
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <Icon size={12} className="shrink-0" aria-hidden="true" />
-                  <span className="truncate">{item.label}</span>
-                </div>
-                <b className="mt-1 block truncate text-sm tabular-nums">{item.value}</b>
-              </article>
-            );
-          })}
+    <div className="flex shrink-0 justify-center px-4">
+      <div
+        className={cn(
+          "w-full max-w-[1080px] overflow-hidden rounded-t-2xl border border-border bg-card/95 shadow-[var(--shadow-card)] backdrop-blur-xl transition-[max-height] duration-300 ease-out",
+          open ? "max-h-[62vh]" : "max-h-[3.25rem]"
+        )}
+      >
+        <div className="flex items-center gap-2 px-4 py-2.5">
+          <button type="button" onClick={() => setOpen((value) => !value)} className="flex min-w-0 flex-1 items-center gap-4 text-left">
+            <span className="flex shrink-0 items-center gap-1.5 text-sm font-semibold">
+              <History size={15} className="text-primary" aria-hidden="true" /> 이어서 작업하기
+            </span>
+            <span className="hidden shrink-0 items-center gap-1.5 text-sm font-semibold sm:flex">
+              <FolderGit2 size={15} className="text-primary" aria-hidden="true" /> 활성 프로젝트
+            </span>
+          </button>
+          <button type="button" onClick={onActivity} className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-foreground">모든 활동 보기</button>
+          <span className="text-border" aria-hidden="true">·</span>
+          <button type="button" onClick={onProjects} className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-foreground">전체 보기</button>
+          <button
+            type="button"
+            onClick={() => setOpen((value) => !value)}
+            aria-label={open ? "접기" : "펼치기"}
+            className="ml-1 shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <ChevronUp size={16} className={cn("transition-transform duration-200", open ? "rotate-180" : "")} aria-hidden="true" />
+          </button>
         </div>
-        <p className="truncate text-xs text-muted-foreground">{metrics?.summary || (lastError ? lastError : "미들웨어 지표를 조회하면 표시됩니다.")}</p>
-      </CardContent>
-    </Card>
+
+        <div className="grid max-h-[calc(62vh-3.25rem)] grid-cols-1 gap-4 overflow-y-auto border-t border-border px-4 pb-4 pt-3 lg:grid-cols-2">
+          <div className="min-w-0 space-y-1">
+            <SectionLabel className="px-1 pb-1">이어서 작업하기</SectionLabel>
+            {recentLogs.map((log) => (
+              <button
+                key={log.id}
+                type="button"
+                onClick={onActivity}
+                className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors duration-200 hover:bg-accent"
+              >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                  <MessageSquare size={15} aria-hidden="true" />
+                </span>
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate text-sm font-medium">{log.message}</span>
+                  <span className="truncate text-[11px] text-muted-foreground">{log.source} · {formatLogTime(log.createdAt)}</span>
+                </span>
+                <Badge tone={logTone(log.level)} className="ml-auto shrink-0">{log.level}</Badge>
+              </button>
+            ))}
+            {recentLogs.length === 0 ? (
+              <EmptyState icon={Inbox} title="아직 실행 기록이 없습니다" description="질문하거나 빌드를 실행하면 여기에 활동이 쌓입니다." />
+            ) : null}
+          </div>
+
+          <div className="min-w-0 space-y-1">
+            <SectionLabel className="px-1 pb-1">활성 프로젝트</SectionLabel>
+            {projects.slice(0, 4).map((project) => (
+              <button
+                key={project.projectKey}
+                type="button"
+                onClick={() => onOpenProject(project)}
+                className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors duration-200 hover:bg-accent"
+              >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/12 text-primary">
+                  <FolderGit2 size={16} aria-hidden="true" />
+                </span>
+                <span className="flex min-w-0 flex-col">
+                  <span className="flex items-center gap-1.5">
+                    <b className="truncate text-sm font-medium">{project.name}</b>
+                    {project.isMain ? <Badge tone="primary">대표</Badge> : null}
+                  </span>
+                  <span className="truncate text-[11px] text-muted-foreground">{project.description || project.path}</span>
+                </span>
+                <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">{formatProjectTime(project.lastOpenedUtc)}</span>
+              </button>
+            ))}
+            {projects.length === 0 ? (
+              <EmptyState
+                icon={FolderGit2}
+                title="등록된 프로젝트가 없습니다"
+                description="로컬 폴더를 프로젝트로 등록하면 빠르게 이어서 작업할 수 있습니다."
+                action={
+                  <Button variant="primary" size="sm" onClick={onProjects}>
+                    <FolderGit2 size={15} aria-hidden="true" /> 프로젝트 등록
+                  </Button>
+                }
+              />
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
+
+/* ============================ 페이지 ============================ */
 
 export function HomePage() {
   useProjectsPageBridge();
@@ -229,190 +239,108 @@ export function HomePage() {
     }
   }, [canRequest, loadProjects, projects.length, projectsLoading]);
 
-  const recentLogs = useMemo(() => logs.slice(0, 5), [logs]);
+  const recentLogs = useMemo(() => logs.slice(0, 6), [logs]);
   const heroIntent = useMemo(() => inferHeroIntent(heroInput), [heroInput]);
 
-  const runHeroIntent = () => {
-    navigate(heroIntent.page, heroIntent.payload);
-  };
+  const runHeroIntent = () => navigate(heroIntent.page, heroIntent.payload);
 
   const openProject = (project: ProjectItem) => {
     touchProject(project);
-    navigate("build", {
-      projectKey: project.projectKey,
-      projectName: project.name,
-      projectPath: project.path
-    });
+    navigate("build", { projectKey: project.projectKey, projectName: project.name, projectPath: project.path });
   };
 
   return (
-    <div className="mx-auto flex min-h-full w-full max-w-[1200px] flex-col gap-8 px-6 py-10">
-      {/* Greeting + hero command input */}
-      <section className="space-y-5">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {greeting()}, habinsong <span aria-hidden="true">👋</span>
-          </h1>
-          <p className="text-sm text-muted-foreground">오늘은 무엇을 해볼까요?</p>
-        </div>
-
-        <Card className="overflow-hidden">
-          <div className="flex items-start gap-3 p-4">
-            <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary">
-              <Sparkles size={20} aria-hidden="true" />
-            </span>
-            <Textarea
-              aria-label="omnux 명령 입력"
-              rows={2}
-              value={heroInput}
-              onChange={(event) => setHeroInput(event.target.value)}
-              placeholder="omnux에게 무엇이든 물어보세요... 하고 싶은 일을 말해주세요."
-              className="border-0 px-0 py-1 focus-visible:ring-0"
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && !event.shiftKey) {
-                  event.preventDefault();
-                  runHeroIntent();
-                }
-              }}
-            />
+    <div className="relative flex h-full flex-col overflow-hidden">
+      {/* 상단 spacer — 하단 collapsed 드로어 높이와 맞춰 hero를 화면 정중앙에 둔다 */}
+      <div className="h-[3.25rem] shrink-0" aria-hidden="true" />
+      {/* 화면 정중앙: 인사 + hero 입력, 그 아래 빠른 시작 (my-auto로 중앙 정렬, 넘치면 스크롤) */}
+      <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-6 py-6">
+        <div className="my-auto w-full max-w-3xl space-y-6 xl:max-w-[920px] xl:space-y-8">
+        <section className="space-y-4 text-center xl:space-y-5">
+          <div className="space-y-1.5">
+            <h1 className="text-3xl font-semibold tracking-tight xl:text-4xl">
+              {greeting()}, habinsong <span aria-hidden="true">👋</span>
+            </h1>
+            <p className="text-sm text-muted-foreground xl:text-base">오늘은 무엇을 해볼까요?</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2 border-t border-border bg-muted/30 px-4 py-2.5">
-            <Badge tone="primary" className="max-w-[220px] truncate" title={heroIntent.description}>
-              {heroIntent.label}
-            </Badge>
-            <Button variant="ghost" size="sm" onClick={() => navigate("ask", { input: heroInput, mode: "file", openAttachmentPanel: true })}>
-              <Paperclip size={15} aria-hidden="true" /> 파일 첨부
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate("projects")}>
-              <FolderGit2 size={15} aria-hidden="true" /> 프로젝트 선택
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate("settings")}>
-              <SlidersHorizontal size={15} aria-hidden="true" /> 모델 선택
-            </Button>
-            <Button variant="primary" size="icon" className="ml-auto" aria-label={`${heroIntent.label} 열기`} onClick={runHeroIntent}>
-              <Send size={17} aria-hidden="true" />
-            </Button>
-          </div>
-        </Card>
-      </section>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-8">
-          {/* Quick start */}
-          <section className="space-y-3">
-            <SectionLabel>빠른 시작</SectionLabel>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {QUICK_ACTIONS.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => navigate(item.page, item.payload || null)}
-                    className="group relative flex flex-col items-start gap-2 rounded-lg border border-border bg-card p-4 text-left shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md active:scale-[0.99] dark:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-                  >
-                    <span className={cn("flex h-10 w-10 items-center justify-center rounded-lg", TONE_CLASS[item.tone])}>
-                      <Icon size={20} aria-hidden="true" />
-                    </span>
-                    <b className="text-sm font-semibold">{item.title}</b>
-                    <p className="text-xs leading-relaxed text-muted-foreground">{item.description}</p>
-                    <ArrowUpRight
-                      size={15}
-                      aria-hidden="true"
-                      className="absolute right-3 top-3 text-muted-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-                    />
-                  </button>
-                );
-              })}
+          <Card className="overflow-hidden text-left">
+            <div className="flex items-start gap-3 p-4 xl:gap-4 xl:p-5">
+              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary xl:h-11 xl:w-11">
+                <Sparkles size={20} className="xl:h-6 xl:w-6" aria-hidden="true" />
+              </span>
+              <Textarea
+                aria-label="omnux 명령 입력"
+                rows={2}
+                value={heroInput}
+                onChange={(event) => setHeroInput(event.target.value)}
+                placeholder="omnux에게 무엇이든 물어보세요... 하고 싶은 일을 말해주세요."
+                className="border-0 px-0 py-1 focus-visible:ring-0 xl:py-1.5 xl:text-base"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    runHeroIntent();
+                  }
+                }}
+              />
             </div>
-          </section>
+            <div className="flex flex-wrap items-center gap-2 border-t border-border bg-muted/30 px-4 py-2.5">
+              <Badge tone="primary" className="max-w-[220px] truncate" title={heroIntent.description}>{heroIntent.label}</Badge>
+              <Button variant="ghost" size="sm" onClick={() => navigate("ask", { input: heroInput, mode: "file", openAttachmentPanel: true })}>
+                <Paperclip size={15} aria-hidden="true" /> 파일 첨부
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => navigate("projects")}>
+                <FolderGit2 size={15} aria-hidden="true" /> 프로젝트 선택
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => navigate("settings")}>
+                <SlidersHorizontal size={15} aria-hidden="true" /> 모델 선택
+              </Button>
+              <Button variant="primary" size="icon" className="ml-auto" aria-label={`${heroIntent.label} 열기`} onClick={runHeroIntent}>
+                <Send size={17} aria-hidden="true" />
+              </Button>
+            </div>
+          </Card>
+        </section>
 
-          {/* Continue + active projects */}
-          <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>이어서 작업하기</CardTitle>
-                <Button variant="ghost" size="sm" onClick={() => navigate("activity")}>
-                  모든 활동 보기
-                </Button>
-              </CardHeader>
-              <CardContent className="space-y-1">
-                {recentLogs.map((log) => (
-                  <button
-                    key={log.id}
-                    type="button"
-                    onClick={() => navigate("activity")}
-                    className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors duration-200 hover:bg-accent"
-                  >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                      <MessageSquare size={15} aria-hidden="true" />
-                    </span>
-                    <span className="flex min-w-0 flex-col">
-                      <span className="truncate text-sm font-medium">{log.message}</span>
-                      <span className="truncate text-[11px] text-muted-foreground">
-                        {log.source} · {formatLogTime(log.createdAt)}
-                      </span>
-                    </span>
-                    <Badge tone={logTone(log.level)} className="ml-auto shrink-0">
-                      {log.level}
-                    </Badge>
-                  </button>
-                ))}
-                {recentLogs.length === 0 ? (
-                  <EmptyState icon={Inbox} title="아직 실행 기록이 없습니다" description="질문하거나 빌드를 실행하면 여기에 활동이 쌓입니다." />
-                ) : null}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>활성 프로젝트</CardTitle>
-                <Button variant="ghost" size="sm" onClick={() => navigate("projects")}>
-                  전체 보기
-                </Button>
-              </CardHeader>
-              <CardContent className="space-y-1">
-                {projects.slice(0, 4).map((project) => (
-                  <button
-                    key={project.projectKey}
-                    type="button"
-                    onClick={() => openProject(project)}
-                    className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors duration-200 hover:bg-accent"
-                  >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/12 text-primary">
-                      <FolderGit2 size={16} aria-hidden="true" />
-                    </span>
-                    <span className="flex min-w-0 flex-col">
-                      <span className="flex items-center gap-1.5">
-                        <b className="truncate text-sm font-medium">{project.name}</b>
-                        {project.isMain ? <Badge tone="primary">대표</Badge> : null}
-                      </span>
-                      <span className="truncate text-[11px] text-muted-foreground">{project.description || project.path}</span>
-                    </span>
-                    <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">{formatProjectTime(project.lastOpenedUtc)}</span>
-                  </button>
-                ))}
-                {projects.length === 0 ? (
-                  <EmptyState
-                    icon={FolderGit2}
-                    title="등록된 프로젝트가 없습니다"
-                    description="로컬 폴더를 프로젝트로 등록하면 빠르게 이어서 작업할 수 있습니다."
-                    action={
-                      <Button variant="primary" size="sm" onClick={() => navigate("projects")}>
-                        <FolderGit2 size={15} aria-hidden="true" /> 프로젝트 등록
-                      </Button>
-                    }
+        <section className="space-y-3">
+          <SectionLabel className="xl:text-sm">빠른 시작</SectionLabel>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:gap-4">
+            {QUICK_ACTIONS.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => navigate(item.page, item.payload || null)}
+                  className="group lg-edge relative flex flex-col items-start gap-1.5 rounded-lg border border-border bg-card p-3 text-left shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md active:scale-[0.99] dark:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 xl:gap-2 xl:p-4"
+                >
+                  <span className={cn("flex h-9 w-9 items-center justify-center rounded-lg xl:h-11 xl:w-11", TONE_CLASS[item.tone])}>
+                    <Icon size={18} className="xl:h-[22px] xl:w-[22px]" aria-hidden="true" />
+                  </span>
+                  <b className="text-sm font-semibold xl:text-base">{item.title}</b>
+                  <p className="text-xs leading-snug text-muted-foreground xl:text-sm">{item.description}</p>
+                  <ArrowUpRight
+                    size={15}
+                    aria-hidden="true"
+                    className="absolute right-3 top-3 text-muted-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100"
                   />
-                ) : null}
-              </CardContent>
-            </Card>
-          </section>
+                </button>
+              );
+            })}
+          </div>
+        </section>
         </div>
-
-        <aside className="space-y-4">
-          <ResourceUsageCard canRequest={canRequest} />
-        </aside>
       </div>
+
+      {/* 아래쪽 peek 드로어 — 클릭하면 위로 슬라이드 */}
+      <ContinueProjectsDrawer
+        recentLogs={recentLogs}
+        projects={projects}
+        onActivity={() => navigate("activity")}
+        onProjects={() => navigate("projects")}
+        onOpenProject={openProject}
+      />
+
     </div>
   );
 }

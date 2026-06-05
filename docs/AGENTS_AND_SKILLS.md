@@ -2,9 +2,11 @@
 
 [한국어](./AGENTS_AND_SKILLS.md) · [English](./en/agents-and-skills.md)
 
-업데이트 기준: 2026-05-21
+업데이트 기준: 2026-06-05
 
 omnux는 프로젝트 지침과 스킬을 런타임 문맥으로 읽는다. 기본 원칙은 단순하다. 항상 주입할 지침은 AGENTS에 두고, 필요할 때만 켤 작업 방식은 Skill로 분리한다.
+
+스킬은 데스크톱 앱, 웹 대시보드, 텔레그램 봇에서 모두 같은 방식으로 동작한다. 대화 입력창의 스킬 배지나 슬래시 명령으로 활성화/해제할 수 있다.
 
 ![스킬 탭](./assets/readme/dashboard-skills-tab.png)
 
@@ -72,6 +74,25 @@ UI 드롭다운으로 선택한 스킬은 이번 대화의 활성 스킬로 서�
 별명 정의는 `~/.omnux/skill_aliases.json` 으로 영구화된다.
 
 `/skill create`는 같은 이름의 기존 스킬을 조용히 덮어쓰지 않는다. 기존 스킬을 고치려면 스킬탭에서 해당 스킬을 열어 저장한다.
+
+## 대화 중 스킬 자동 생성
+
+대화나 텔레그램에서 "스킬 만들어줘", "이런 스킬 등록해줘" 같은 요청을 하면, 미들웨어가 응답 본문에 `<omni:skill>` 디렉티브를 출력한다. 이 디렉티브는 미들웨어 후처리에서 파싱되어 `.omni/skills/<name>/SKILL.md` 파일을 실제로 생성한다.
+
+디렉티브 형식:
+
+```xml
+<omni:skill name="kebab-case-name" description="한 줄 설명" scope="project" overwrite="false">
+스킬 본문(markdown)
+</omni:skill>
+```
+
+- `name`: 소문자/숫자/`-`만 사용. 한글·공백·언더스코어 불가.
+- `description`: 언제 이 스킬을 쓰는지 명확히. 미들웨어가 호출 판단 기준으로 사용.
+- `scope`: 기본 `project`. "전역/global" 명시 시 `global`.
+- `overwrite`: 기본 `false`. 명시 동의 시에만 `true`.
+
+본문은 짧은 메모가 아니라 반복 사용할 실행 지침이어야 한다. 8줄 이상으로 작성하고, 목표/사용 흐름/응답 원칙/출력 형식/확인 기준/피해야 할 것을 포함한다.
 
 ## 좋은 SKILL.md 기준
 

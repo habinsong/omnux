@@ -1,6 +1,6 @@
 param(
-    [ValidateSet("start", "shutdown", "setup", "help")]
-    [string]$Command = "start"
+    [ValidateSet("desktop", "start", "shutdown", "setup", "help")]
+    [string]$Command = "desktop"
 )
 
 $ErrorActionPreference = "Stop"
@@ -270,7 +270,7 @@ function Start-Server {
     Write-Info "서버 시작 중입니다. pid=$($process.Id)"
     Wait-ForReady $process.Id
     Write-Info "서버가 준비됐습니다."
-    Write-Info "대시보드: $DefaultBaseUrl/"
+    Write-Info "레거시 대시보드: $DefaultBaseUrl/"
     Write-Info "로그: $LogFile"
 }
 
@@ -293,15 +293,62 @@ function Shutdown-Server {
     Write-Info "omnux 종료 완료"
 }
 
+function Stop-MiddlewareOnPort {
+    $port = $DefaultPort
+    $connections = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
+    if (-not $connections) {
+        return
+    }
+
+    Write-Info "포트 $port에 기존 프로세스가 있습니다. 정리합니다."
+    foreach ($conn in $connections) {
+        Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 1
+}
+
+function Run-Desktop {
+    if (-not (Test-CommandExists "npm")) {
+        Stop-WithError "npm이 필요합니다. 먼저 setup을 실행하세요."
+    }
+
+    if (-not (Test-CommandExists "cargo")) {
+        Stop-WithError "Rust(cargo)가 필요합니다 (Tauri). https://rustup.rs 에서 설치 후 다시 시도하세요.`n미들웨어만 실행하려면 'omnux start'를 사용하세요."
+    }
+
+    $desktopDir = Join-Path $RepoRoot "apps\desktop"
+    if (-not (Test-Path $desktopDir)) {
+        Stop-WithError "apps\desktop 디렉터리를 찾을 수 없습니다."
+    }
+
+    if (-not (Test-Path (Join-Path $desktopDir "node_modules"))) {
+        Write-Info "데스크톱 의존성 설치 (apps/desktop)"
+        & npm install
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
+
+    Cleanup-StaleState
+    Stop-MiddlewareOnPort
+    Write-Info "Tauri 데스크톱 dev 실행 — 자체 .NET 미들웨어(ws=41880)를 함께 띄웁니다."
+    Write-Info "대시보드: http://localhost:1420/"
+    Write-Info "인증이 필요하면 데스크톱 앱에서 OTP 요청 버튼을 누르세요. OTP가 이 터미널에 출력됩니다. (Ctrl+C 종료)"
+
+    Set-Location $desktopDir
+    & npm run tauri dev
+}
+
 switch ($Command) {
+    "desktop" { Run-Desktop }
     "start" { Start-Server }
     "shutdown" { Shutdown-Server }
     "setup" { Run-Setup }
     "help" {
         @"
 사용법:
-  scripts\omnux.ps1           서버 시작 (첫 실행이면 setup 자동 실행)
-  scripts\omnux.ps1 shutdown  서버 종료
+  scripts\omnux.ps1           Tauri 데스크톱 앱 + 미들웨어 dev 실행 (포그라운드, Ctrl+C 종료)
+  scripts\omnux.ps1 desktop   위와 동일
+  scripts\omnux.ps1 start     미들웨어만 백그라운드 실행 (레거시 대시보드 http://127.0.0.1:41880/)
+  scripts\omnux.ps1 shutdown  미들웨어 서버 종료
   scripts\omnux.ps1 setup     의존성 확인, 빌드, 검증
 "@ | Write-Host
     }

@@ -17,36 +17,48 @@
    파스텔 Blob/그리드는 body 고정 레이어, 앱 루트는 투명.
    ============================================================================ */
 
-/* --- 🪟 Glass Mode (기본, Aero): light-glass + 파스텔 블루/퍼플 Blob --- */
+/* --- 🪟 Glass Mode (기본, Apple Liquid Glass): milky frosted + 이중 글래스 림 ---
+   투명도가 과해 대비가 약했던 문제 해결 → frosted 베이스를 더 하얗게(milky) 올려
+   가독성을 확보하고, 카드 가장자리에 "쿨톤 헤어라인 보더(굴절선) + 밝은 흰색
+   specular 상단 림(빛반사)"의 이중 림을 주어 Apple Liquid Glass 질감을 낸다.
+   (WebKit/Tauri는 backdrop-filter:url(SVG) 굴절을 미지원 → 순수 CSS 광택으로 구현) */
 :root {
-  --background: #e8eafc;                  /* 파스텔 베이스 (Blob이 그 위로) */
-  --foreground: #16161f;
-  --card: rgba(255, 255, 255, 0.45);      /* 반투명 (§1.2) */
-  --card-foreground: #16161f;
-  --popover: rgba(255, 255, 255, 0.80);   /* Level 2: 투명도↓ 가독성 (§3) */
-  --popover-foreground: #16161f;
-  --muted: rgba(255, 255, 255, 0.34);
-  --muted-foreground: #54546a;
-  --accent: rgba(255, 255, 255, 0.60);
-  --accent-foreground: #16161f;
-  --primary: #6366f1;                     /* indigo-500 (§1.4) */
+  --background: #e9f1fb;                   /* 쿨 블루-화이트 베이스 (Blob이 그 위로) */
+  --foreground: #15151e;
+  --card: rgba(255, 255, 255, 0.62);       /* milky 반투명 — 대비 확보 (§1.2) */
+  --card-foreground: #15151e;
+  --popover: rgba(255, 255, 255, 0.88);    /* Level 2: 투명도↓ 가독성 (§3) */
+  --popover-foreground: #15151e;
+  --muted: rgba(255, 255, 255, 0.52);
+  --muted-foreground: #4b4b60;
+  --accent: rgba(255, 255, 255, 0.72);
+  --accent-foreground: #15151e;
+  --primary: #6366f1;                      /* indigo-500 (§1.4) */
   --primary-foreground: #ffffff;
-  --secondary: rgba(255, 255, 255, 0.45);
-  --secondary-foreground: #16161f;
+  --secondary: rgba(255, 255, 255, 0.62);
+  --secondary-foreground: #15151e;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
   --success: #10b981;
   --warning: #f59e0b;
-  --border: rgba(255, 255, 255, 0.60);    /* §3 Glass border-white/20~ */
-  --border-strong: rgba(110, 110, 150, 0.28);
-  --input: rgba(255, 255, 255, 0.55);
+  --border: rgba(73, 76, 120, 0.16);       /* 쿨톤 헤어라인 — 가장자리 굴절선 정의 */
+  --border-strong: rgba(73, 76, 120, 0.30);
+  --input: rgba(255, 255, 255, 0.66);
   --ring: #6366f1;
-  --grid-line: rgba(80, 80, 140, 0.035);
-  --radius: 0.6rem;
-  --shadow-card: 0 8px 30px -12px rgba(60, 60, 120, 0.28);
-  --blob-a: rgba(99, 102, 241, 0.42);     /* indigo */
-  --blob-b: rgba(168, 85, 247, 0.34);     /* purple */
-  --blob-c: rgba(56, 189, 248, 0.30);     /* sky */
+  --grid-line: rgba(80, 80, 140, 0.04);
+  --radius: 0.7rem;                        /* liquid glass: 살짝 더 부드러운 모서리 */
+  /* 이중 림 + 2단 띄움 그림자: 상단 흰색 specular(빛반사) → 안쪽 미세 림 → 접지 → float */
+  /* 엣지 라이팅(흰색→투명 수직 그라데이션) + 2단 띄움 그림자 */
+  --shadow-card:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.95),
+    inset 0 10px 20px -14px rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 0 rgba(70, 74, 120, 0.10),
+    0 1px 2px 0 rgba(40, 42, 90, 0.08),
+    0 16px 40px -14px rgba(40, 42, 90, 0.30);
+  --blob-a: rgba(79, 143, 247, 0.50);      /* blue */
+  --blob-b: rgba(56, 189, 248, 0.48);      /* sky */
+  --blob-c: rgba(34, 211, 238, 0.44);      /* cyan */
+  --blob-d: rgba(52, 211, 153, 0.42);      /* mint/emerald */
   color-scheme: light;
 }
 
@@ -80,6 +92,7 @@
   --blob-a: rgba(0, 0, 0, 0);             /* 크리스프: Blob 숨김 */
   --blob-b: rgba(0, 0, 0, 0);
   --blob-c: rgba(0, 0, 0, 0);
+  --blob-d: rgba(0, 0, 0, 0);
   color-scheme: light;
 }
 
@@ -113,6 +126,7 @@
   --blob-a: rgba(99, 102, 241, 0.20);     /* indigo glow */
   --blob-b: rgba(244, 114, 182, 0.07);    /* warm pink */
   --blob-c: rgba(251, 146, 60, 0.06);     /* warm amber */
+  --blob-d: rgba(56, 189, 248, 0.06);     /* cool sky glow */
   color-scheme: dark;
 }
 
@@ -182,17 +196,72 @@
     -moz-osx-font-smoothing: grayscale;
     -webkit-text-size-adjust: 100%;
     font-variant-numeric: tabular-nums;  /* 숫자 고정폭 */
-    /* 파스텔 Blob (§1.2) + Blueprint grid (§2.2) — 고정 배경 레이어.
-       앱 루트는 투명이라 반투명 카드가 backdrop-blur로 이 Blob을 비춘다. */
+    /* Blueprint grid (§2.2) — 고정 격자. 파스텔 광원은 아래 body::before가 담당. */
     background-image:
-      radial-gradient(42% 38% at 12% 8%, var(--blob-a), transparent 72%),
-      radial-gradient(46% 42% at 88% 14%, var(--blob-b), transparent 72%),
-      radial-gradient(50% 48% at 50% 102%, var(--blob-c), transparent 70%),
       linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
       linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
-    background-size: 100% 100%, 100% 100%, 100% 100%, 32px 32px, 32px 32px;
-    background-attachment: fixed, fixed, fixed, fixed, fixed;
-    background-repeat: no-repeat, no-repeat, no-repeat, repeat, repeat;
+    background-size: 32px 32px, 32px 32px;
+    background-attachment: fixed, fixed;
+    background-repeat: repeat, repeat;
+  }
+
+  /* 🪟 Liquid Glass 광원 레이어 — 파스텔 Blob이 backdrop-blur 뒤에서 비친다.
+     토큰(--blob-*)으로 강도 제어: 글래스=쨍하고 살아 움직임 / 다크=은은 / 라이트=숨김. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: -30%;
+    z-index: -1;
+    pointer-events: none;
+    background-repeat: no-repeat;
+    /* 원형 광원 4개 — background-position/size 키프레임으로 개별적으로 통통 튀게 움직인다. */
+    background-image:
+      radial-gradient(circle at center, var(--blob-a) 0%, transparent 60%),
+      radial-gradient(circle at center, var(--blob-b) 0%, transparent 60%),
+      radial-gradient(circle at center, var(--blob-c) 0%, transparent 60%),
+      radial-gradient(circle at center, var(--blob-d) 0%, transparent 60%);
+    background-size: 72vmax 72vmax, 60vmax 60vmax, 66vmax 66vmax, 56vmax 56vmax;
+    background-position: 10% 16%, 84% 14%, 22% 86%, 80% 72%;
+  }
+
+  /* 미세 노이즈 텍스처(feTurbulence) — 색 밴딩 방지 + 물리적 질감. 최상단 2.8%, 클릭 통과. */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 2147483646;
+    pointer-events: none;
+    opacity: 0.028;
+    background-size: 170px 170px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='170' height='170'%3E%3Cfilter id='lgN'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='170' height='170' filter='url(%23lgN)'/%3E%3C/svg%3E");
+  }
+
+  /* 글래스 모드에서만: 원형 파스텔 광원이 통통 튀듯 움직인다(색 회전 없음 → 빨강 유입 방지). */
+  html:not(.dark):not(.theme-light) body::before {
+    will-change: background-position, background-size;
+    animation: lg-bob 17s cubic-bezier(0.37, 1.32, 0.5, 1) infinite;
+  }
+
+  /* 접근성: 모션 최소화 설정 시 애니메이션 정지. */
+  @media (prefers-reduced-motion: reduce) {
+    html body::before { animation: none !important; }
+  }
+
+  /* 4개 광원이 서로 다른 경로로 떠다니며, 살짝 커졌다 작아지는 펄스가 더해져 통통 튀는 느낌을 준다.
+     overshoot 이징(y=1.32)이 각 정점에서 살짝 튕겨 bounce를 만든다. */
+  @keyframes lg-bob {
+    0%, 100% {
+      background-position: 10% 16%, 84% 14%, 22% 86%, 80% 72%;
+      background-size: 72vmax 72vmax, 60vmax 60vmax, 66vmax 66vmax, 56vmax 56vmax;
+    }
+    33% {
+      background-position: 16% 4%, 76% 26%, 30% 74%, 70% 84%;
+      background-size: 78vmax 78vmax, 56vmax 56vmax, 70vmax 70vmax, 62vmax 62vmax;
+    }
+    66% {
+      background-position: 6% 22%, 92% 8%, 14% 92%, 88% 64%;
+      background-size: 66vmax 66vmax, 64vmax 64vmax, 60vmax 60vmax, 52vmax 52vmax;
+    }
   }
 
   /* 우아한 포커스 링 (§6) */
@@ -298,4 +367,34 @@
   .prose-omnux th { background: var(--muted); font-weight: 600; }
   .prose-omnux img { max-width: 100%; border-radius: 0.5rem; }
   .prose-omnux strong { font-weight: 600; color: var(--foreground); }
+}
+
+/* --- 🪟 Liquid Glass 엣지 라이팅 (글래스 전용) ---------------------------------
+   엣지 라이팅: 하얀색→투명 linear-gradient 1px 내부 테두리를 mask-composite로
+   "테두리 링"만 그린다(내부는 투명, 텍스트 가독성 보존, 클릭 통과).
+   라이트/다크에는 적용하지 않는다(글래스 모드 한정). */
+@layer components {
+  .lg-edge::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      150deg,
+      rgba(255, 255, 255, 0.9) 0%,
+      rgba(255, 255, 255, 0.28) 32%,
+      rgba(255, 255, 255, 0) 62%
+    );
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0;
+  }
+  html:not(.dark):not(.theme-light) .lg-edge::before {
+    opacity: 1;
+  }
 }

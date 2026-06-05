@@ -171,8 +171,10 @@ export const useDesktopShellStore = create<DesktopShellState>((set) => ({
   markHttpProbe: (endpoint, status, detail) =>
     set((state) => {
       const label = endpoint === "healthz" ? "healthz" : "readyz";
+      // 프로브 결과는 진단용 정보로만 남긴다. 부팅 중 미들웨어 미기동으로 인한 실패는 정상 과정이며,
+      // 재시도 소진 시 markHealthProbe가 별도로 error를 보고한다(중복 error/토스트 방지).
       recordShellLog(
-        status === "error" ? "error" : "info",
+        "info",
         `${label} probe=${status}${detail ? ` (${detail})` : ""}`,
         "runtime"
       );

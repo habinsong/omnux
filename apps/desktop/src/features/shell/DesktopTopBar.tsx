@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Bell, Info, Menu, Moon, Search, Sparkles, Sun, X } from "lucide-react";
+import { AlertTriangle, Bell, Info, Menu, Moon, Search, Sparkles, Sun, X, RefreshCcw } from "lucide-react";
 import { useDesktopAuthStore } from "../auth/auth-store";
 import { useDesktopShellStore } from "../../shell-store";
 import { useUiLogStore, type ShellLogEntry } from "../ui-log/ui-log-store";
@@ -25,7 +25,7 @@ function runtimeStatus(
   const transportReady = bridgeStatus === "connected" || runtimePhase === "connected" || middlewareStatus === "connected";
   if (transportReady) {
     return authStatus === "authenticated"
-      ? { label: "Live 미들웨어", tone: "online" }
+      ? { label: "", tone: "online" }
       : { label: bridgeStatus === "connected" ? "인증 필요" : "미들웨어 연결됨", tone: "online" };
   }
   if (bridgeStatus === "connecting" || runtimePhase === "waiting" || middlewareStatus === "waiting") {
@@ -105,15 +105,17 @@ export function DesktopTopBar({ onOpenNav, onOpenCommandPalette, onSelectPage }:
   };
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-card px-4 backdrop-blur-xl backdrop-saturate-150">
-      <div className="lg:hidden">
-        <IconButton icon={Menu} label="메뉴" onClick={onOpenNav} />
+    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 backdrop-blur-xl backdrop-saturate-150">
+      <div className="flex flex-1 items-center justify-start">
+        <div className="lg:hidden">
+          <IconButton icon={Menu} label="메뉴" onClick={onOpenNav} />
+        </div>
       </div>
 
       <button
         type="button"
         onClick={onOpenCommandPalette}
-        className="group flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground sm:max-w-md"
+        className="group flex h-9 w-full max-w-md shrink-0 items-center gap-2 rounded-md border border-border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground"
       >
         <Search size={16} className="shrink-0" aria-hidden="true" />
         <span className="truncate font-medium">검색하거나 명령 실행</span>
@@ -122,7 +124,7 @@ export function DesktopTopBar({ onOpenNav, onOpenCommandPalette, onSelectPage }:
         </kbd>
       </button>
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="flex flex-1 items-center justify-end gap-2">
         <div
           className="hidden items-center rounded-md border border-border bg-muted/40 p-0.5 md:inline-flex"
           title="간단히는 핵심만, 고급은 라우트·로그·콘솔까지 노출합니다."
@@ -147,14 +149,16 @@ export function DesktopTopBar({ onOpenNav, onOpenCommandPalette, onSelectPage }:
 
         <Button
           variant="outline"
-          size="sm"
-          className="gap-1.5"
+          size={status.label ? "sm" : "icon"}
+          className={status.label ? "gap-1.5" : "h-9 w-9"}
           onClick={() => onSelectPage("operations")}
-          title="런타임 상태"
+          title={status.label || "Live 미들웨어"}
         >
           <StatusDot tone={status.tone} pulse={status.tone === "online"} />
-          <span className="hidden sm:inline">{status.label}</span>
+          {status.label ? <span className="hidden sm:inline">{status.label}</span> : null}
         </Button>
+
+        <IconButton icon={RefreshCcw} label="새로고침 (F5)" onClick={() => window.location.reload()} />
 
         <div className="relative">
           <button

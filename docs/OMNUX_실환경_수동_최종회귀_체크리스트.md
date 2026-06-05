@@ -2,11 +2,24 @@
 
 [한국어](./OMNUX_실환경_수동_최종회귀_체크리스트.md) · [English](./en/manual-regression-checklist.md)
 
-업데이트 기준: 2026-06-02
+업데이트 기준: 2026-06-05
 
-릴리스 직전에 사람이 직접 눌러 보는 체크리스트다. 자동 테스트가 지나도 실제 브라우저와 텔레그램에서 깨지는 지점은 여기서 잡는다.
+릴리스 직전에 사람이 직접 눌러 보는 체크리스트다. 자동 테스트가 지나도 실제 데스크톱 앱, 웹 대시보드, 텔레그램에서 깨지는 지점은 여기서 잡는다.
 
-## 대시보드
+## 데스크톱 앱
+
+- [ ] `npm run tauri dev --prefix apps/desktop` 실행 (미들웨어 먼저 실행 중이어야 함)
+- [ ] Home 화면: Active Projects, Continue, Recent Activity, Resource Usage 카드 표시
+- [ ] Ask 화면: 단일/오케스트레이션/멀티 모드 전환, 마크다운 렌더링, Think+ 토글
+- [ ] Build 화면: 실행 폴더 생성, 최근 결과 복원
+- [ ] Logic 화면: 그래프 저장/실행
+- [ ] Explore 화면: 웹 검색, URL 가져오기
+- [ ] Automate 화면: 루틴 생성/즉시 실행
+- [ ] Settings 화면: Memory/Models 탭 전환, provider 상태
+- [ ] 테마 전환: Glass/Light/Dark 정상 동작
+- [ ] Command Palette (⌘K) 동작
+
+## 웹 대시보드
 
 - [ ] `http://127.0.0.1:8080/` 접속
 - [ ] 상태가 `연결됨 / OTP 대기` 또는 인증 상태로 표시

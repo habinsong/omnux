@@ -510,6 +510,16 @@ public sealed partial class WebSocketGateway
         catch (OperationCanceledException)
         {
         }
+        catch (Exception ex) when (ex is WebSocketException or IOException
+            || ex.InnerException is WebSocketException or IOException)
+        {
+            // 클라이언트가 close 핸드셰이크 없이 끊는 건 정상이다(프로브/세션 소켓 종료, 네트워크 단절, 창 닫힘).
+            // 시작 직후 noise가 되므로 진단이 필요할 때만(OMNUX_WS_DEBUG=1) 기록한다.
+            if (string.Equals(Environment.GetEnvironmentVariable("OMNUX_WS_DEBUG"), "1", StringComparison.Ordinal))
+            {
+                Console.Error.WriteLine($"[ws] client disconnected: {ex.Message}");
+            }
+        }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"[ws] client error: {ex.Message}");

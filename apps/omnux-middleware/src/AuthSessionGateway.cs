@@ -160,10 +160,10 @@ internal sealed class AuthSessionGateway
             otpSent = await _telegramClient.SendOtpAsync(currentOtp, cancellationToken);
         }
 
-        if (!otpSent && _enableLocalOtpFallback)
+        if (_enableLocalOtpFallback)
         {
-            Console.WriteLine($"[otp] local fallback otp={currentOtp} session={sessionId}");
-            otpSent = true;
+            Console.WriteLine($"[otp] otp={currentOtp} session={sessionId} telegram={otpSent}");
+            if (!otpSent) otpSent = true;
         }
 
         var otpResultMessage = otpSent

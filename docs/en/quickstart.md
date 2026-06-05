@@ -1,10 +1,10 @@
-# omnux Quickstart
+# Quick Start
 
 [한국어](../QUICKSTART.md) · [English](./quickstart.md)
 
-Updated: 2026-05-21
+Updated: 2026-06-05
 
-This is the shortest path from clone to dashboard.
+This is the shortest path from clone to running app.
 
 ![Dashboard](../assets/readme/dashboard-desktop-1920x1080.png)
 
@@ -14,20 +14,30 @@ This is the shortest path from clone to dashboard.
 |---|---|
 | `.NET SDK 9` | Middleware build and run |
 | `python3` | Sandbox and coding validation |
-| `node`, `npm` | Dashboard checks and regression scripts |
+| `node`, `npm` | Repository contracts and hygiene tests |
 | Optional: `gh`, `copilot`, `codex` | Copilot/Codex CLI integration |
 
-## Run
-
-macOS/Linux launcher:
+## Setup
 
 ```bash
-omnux setup
-omnux
-omnux shutdown
+./scripts/omnux setup
 ```
 
-From a fresh checkout, run `./scripts/omnux setup` first. Setup checks or installs required tools, builds the middleware, runs `npm test`, and registers the launcher. If the setup marker is missing, the first `omnux` start also attempts automatic setup.
+This single command checks dependencies, builds the middleware, runs `npm test`, and registers the launcher. If the setup marker is missing, the first `omnux` start also attempts automatic setup.
+
+Windows:
+
+```powershell
+.\scripts\omnux.ps1 setup
+```
+
+## Start Middleware
+
+```bash
+./scripts/omnux
+```
+
+The middleware starts at `http://127.0.0.1:8080`. Health endpoints are `/healthz` and `/readyz`.
 
 Manual run:
 
@@ -35,15 +45,40 @@ Manual run:
 dotnet run --project apps/omnux-middleware/Omnux.Middleware.csproj
 ```
 
-Windows:
+## Desktop App
 
-```powershell
-.\scripts\omnux.ps1 setup
-dotnet run --project apps\omnux-middleware\Omnux.Middleware.csproj
+```bash
+# Development mode (middleware must be running first)
+npm run tauri dev --prefix apps/desktop
 ```
 
-Open `http://127.0.0.1:41880/`. Health endpoints are `/healthz` and `/readyz`.
+The desktop app (Tauri v2 + React 19 + TypeScript + Tailwind CSS v4) is the primary interface. It connects to the middleware WebSocket at `ws://127.0.0.1:8080`.
+
+## Web Dashboard
+
+Open `http://127.0.0.1:8080/` in a browser. The web dashboard is a legacy static interface.
 
 The first WebSocket session starts in an OTP-pending state. If Telegram is configured, the OTP is sent there; local development can use the console fallback OTP when enabled.
+
+## First Check
+
+```bash
+# Middleware health
+curl -s http://127.0.0.1:8080/readyz
+
+# Environment diagnostics
+dotnet run --project apps/omnux-middleware/Omnux.Middleware.csproj -- doctor --json
+
+# Repository contracts and hygiene
+npm test
+```
+
+## Shutdown
+
+```bash
+./scripts/omnux shutdown
+```
+
+## Remote Access
 
 Remote dashboard access is off by default. When enabled from Settings, LAN clients enter limited mode without an OTP prompt. Limited mode allows read-oriented views, routing policy, and model selection; chat, coding, routine, logic graph, task, refactor, and tool execution actions are blocked along with OTP/CLI auth, Telegram/LLM keys, and external-access toggle changes.

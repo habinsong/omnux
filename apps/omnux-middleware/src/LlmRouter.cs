@@ -590,6 +590,10 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
             var content = mergedBuilder.ToString().Trim();
             return string.IsNullOrWhiteSpace(content) ? "Groq 응답이 비어 있습니다." : content;
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             Console.Error.WriteLine($"[groq] chat error: {ex.Message}");
