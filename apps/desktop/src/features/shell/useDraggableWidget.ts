@@ -37,53 +37,112 @@ function positionMapsEqual(left: Record<string, number>, right: Record<string, n
   return true;
 }
 
+/**
+ * 드래그 중인 위젯이 다른 위젯의 중심점을 넘으면 swap 정보를 반환한다.
+ */
+function detectOrderSwap(
+  layouts: Record<string, WidgetLayout>,
+  positions: Record<string, number>,
+  active: { readonly id: string; readonly y: number }
+): { a: string; b: string } | null {
+  const activeLayout = layouts[active.id];
+  if (!activeLayout) return null;
+
+  const entries = Object.entries(layouts);
+  if (entries.length < 2) return null;
+
+  const activeMid = active.y + activeLayout.height / 2;
+
+  for (const [otherId, otherLayout] of entries) {
+    if (otherId === active.id) continue;
+
+    const otherY = positions[otherId] ?? otherLayout.defaultY;
+    const otherMid = otherY + otherLayout.height / 2;
+
+    const activeAboveOther = activeLayout.order < otherLayout.order;
+    const shouldSwap = activeAboveOther
+      ? activeMid > otherMid
+      : activeMid < otherMid;
+
+    if (shouldSwap) {
+      return { a: active.id, b: otherId };
+    }
+  }
+
+  return null;
+}
+
 function normalizeWidgetPositions(
   positions: Record<string, number>,
   layouts: Record<string, WidgetLayout>,
   viewportHeight: number,
   active?: { readonly id: string; readonly y: number }
 ) {
-  const ordered = Object.entries(layouts).sort(([, left], [, right]) => left.order - right.order);
-  if (ordered.length === 0) return positions;
+  // 드래그 중이면 swap 감지하여 유효 레이아웃 생성
+  let effectiveLayouts = layouts;
+  let swap: { a: string; b: string } | null = null;
+
+  if (active) {
+    swap = detectOrderSwap(layouts, positions, active);
+    if (swap) {
+      const la = layouts[swap.a];
+      const lb = layouts[swap.b];
+      if (la && lb) {
+        effectiveLayouts = {
+          ...layouts,
+          [swap.a]: { ...la, order: lb.order },
+          [swap.b]: { ...lb, order: la.order }
+        };
+      }
+    }
+  }
+
+  const ordered = Object.entries(effectiveLayouts).sort(([, left], [, right]) => left.order - right.order);
+  if (ordered.length === 0) return { positions, swap };
 
   const maxBottom = Math.max(WIDGET_TOP_MARGIN, viewportHeight - WIDGET_BOTTOM_MARGIN);
   const next: Record<string, number> = { ...positions };
 
-  for (const [widgetId, layout] of ordered) {
-    const requestedY = active?.id === widgetId ? active.y : next[widgetId] ?? layout.defaultY;
-    next[widgetId] = clamp(requestedY, WIDGET_TOP_MARGIN, maxBottom - layout.height);
-  }
-
-  let previous: { readonly y: number; readonly height: number } | null = null;
-  for (const [widgetId, layout] of ordered) {
-    const currentY = next[widgetId] ?? layout.defaultY;
-    if (previous) {
-      next[widgetId] = Math.max(currentY, previous.y + previous.height + WIDGET_GAP);
+  if (active) {
+    for (const [widgetId, layout] of ordered) {
+      const requestedY = widgetId === active.id ? active.y : next[widgetId] ?? layout.defaultY;
+      next[widgetId] = clamp(requestedY, WIDGET_TOP_MARGIN, maxBottom - layout.height);
     }
-    previous = { y: next[widgetId] ?? layout.defaultY, height: layout.height };
-  }
+  } else {
+    let previous: { readonly y: number; readonly height: number } | null = null;
+    for (const [widgetId, layout] of ordered) {
+      const requestedY = next[widgetId] ?? layout.defaultY;
+      const clampedY = clamp(requestedY, WIDGET_TOP_MARGIN, maxBottom - layout.height);
+      next[widgetId] = previous
+        ? Math.max(clampedY, previous.y + previous.height + WIDGET_GAP)
+        : clampedY;
+      previous = { y: next[widgetId] ?? layout.defaultY, height: layout.height };
+    }
 
-  const lastEntry = ordered[ordered.length - 1];
-  if (!lastEntry) return next;
-  const [lastId, lastLayout] = lastEntry;
-  const overflow = (next[lastId] ?? lastLayout.defaultY) + lastLayout.height - maxBottom;
-  if (overflow > 0) {
-    for (const [widgetId] of ordered) {
-      next[widgetId] = (next[widgetId] ?? layouts[widgetId]?.defaultY ?? WIDGET_TOP_MARGIN) - overflow;
+    const lastEntry = ordered[ordered.length - 1];
+    if (lastEntry) {
+      const [lastId, lastLayout] = lastEntry;
+      const overflow = (next[lastId] ?? lastLayout.defaultY) + lastLayout.height - maxBottom;
+      if (overflow > 0) {
+        for (const [widgetId] of ordered) {
+          next[widgetId] = (next[widgetId] ?? effectiveLayouts[widgetId]?.defaultY ?? WIDGET_TOP_MARGIN) - overflow;
+        }
+      }
+    }
+
+    const firstEntry = ordered[0];
+    if (firstEntry) {
+      const [firstId, firstLayout] = firstEntry;
+      const underflow = WIDGET_TOP_MARGIN - (next[firstId] ?? firstLayout.defaultY);
+      if (underflow > 0) {
+        for (const [widgetId] of ordered) {
+          next[widgetId] = (next[widgetId] ?? effectiveLayouts[widgetId]?.defaultY ?? WIDGET_TOP_MARGIN) + underflow;
+        }
+      }
     }
   }
 
-  const firstEntry = ordered[0];
-  if (!firstEntry) return next;
-  const [firstId, firstLayout] = firstEntry;
-  const underflow = WIDGET_TOP_MARGIN - (next[firstId] ?? firstLayout.defaultY);
-  if (underflow > 0) {
-    for (const [widgetId] of ordered) {
-      next[widgetId] = (next[widgetId] ?? layouts[widgetId]?.defaultY ?? WIDGET_TOP_MARGIN) + underflow;
-    }
-  }
-
-  return next;
+  return { positions: next, swap };
 }
 
 export function useDraggableWidget(id: string, defaultY: string | number, options: DraggableWidgetOptions) {
@@ -92,15 +151,22 @@ export function useDraggableWidget(id: string, defaultY: string | number, option
   const storeY = positions[id];
   const setWidgetLayout = useDesktopWidgetStore((state) => state.setWidgetLayout);
   const setWidgetPositions = useDesktopWidgetStore((state) => state.setWidgetPositions);
+  const swapWidgetOrders = useDesktopWidgetStore((state) => state.swapWidgetOrders);
+  const globalDragging = useDesktopWidgetStore((state) => state.globalDragging);
+  const setGlobalDragging = useDesktopWidgetStore((state) => state.setGlobalDragging);
   const [viewportHeight, setViewportHeight] = useState(() =>
     typeof window === "undefined" ? DEFAULT_VIEWPORT_HEIGHT : window.innerHeight
   );
 
+  // store에서 swap된 order가 있으면 그것을 사용
+  const storeOrder = useDesktopWidgetStore((state) => state.layouts[id]?.order);
+  const effectiveOrder = storeOrder ?? options.order;
+
   const layout = useMemo<WidgetLayout>(() => ({
     defaultY: resolveDefaultY(defaultY, viewportHeight),
     height: options.height,
-    order: options.order
-  }), [defaultY, options.height, options.order, viewportHeight]);
+    order: effectiveOrder
+  }), [defaultY, options.height, effectiveOrder, viewportHeight]);
 
   // 현재 렌더링에 사용할 Y. 스토어에 있으면 스토어 값, 없으면 defaultY
   const currentY = storeY !== undefined ? storeY : layout.defaultY;
@@ -115,6 +181,9 @@ export function useDraggableWidget(id: string, defaultY: string | number, option
     moved: false // 클릭과 드래그 구분용
   });
 
+  // swap 중복 호출 방지
+  const lastSwapRef = useRef<{ a: string; b: string } | null>(null);
+
   useEffect(() => {
     setWidgetLayout(id, layout);
   }, [id, layout, setWidgetLayout]);
@@ -127,9 +196,10 @@ export function useDraggableWidget(id: string, defaultY: string | number, option
   }, []);
 
   useEffect(() => {
-    const next = normalizeWidgetPositions(positions, { ...layouts, [id]: layout }, viewportHeight);
-    if (!positionMapsEqual(positions, next)) setWidgetPositions(next);
-  }, [id, layout, layouts, positions, setWidgetPositions, viewportHeight]);
+    if (globalDragging) return;
+    const result = normalizeWidgetPositions(positions, { ...layouts, [id]: layout }, viewportHeight);
+    if (!positionMapsEqual(positions, result.positions)) setWidgetPositions(result.positions);
+  }, [id, layout, layouts, positions, setWidgetPositions, viewportHeight, globalDragging]);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     // 터치/펜/마우스 모두 대응. 왼쪽 버튼만 허용.
@@ -143,15 +213,8 @@ export function useDraggableWidget(id: string, defaultY: string | number, option
     if (typeof currentY === "number") {
       startingY = currentY;
     } else {
-      // DOM에서 실제 픽셀 구하기 (문자열 calc/퍼센트일 경우)
-      // 최상위 래퍼 기준 Y 좌표 추출.
-      // e.currentTarget은 핸들(버튼), 우리는 전체 뷰의 Y가 필요하므로 offsetParent 등을 고려해야 함.
-      // 안전하게 getBoundingClientRect를 사용하되, 부모(<main>등)가 relative면
-      // 해당 값을 약간 조정해야 할 수도 있음. 그러나 보통 fixed/absolute면 getBoundingClientRect.top 이나 offsetTop 사용.
-      
       const widgetContainer = e.currentTarget.closest(".draggable-widget-container");
       if (widgetContainer instanceof HTMLElement) {
-        // HTMLElement.offsetTop 은 offsetParent 기준 좌표
         startingY = widgetContainer.offsetTop;
       }
     }
@@ -162,6 +225,7 @@ export function useDraggableWidget(id: string, defaultY: string | number, option
       dragging: true,
       moved: false
     };
+    lastSwapRef.current = null;
   }, [currentY]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
@@ -173,21 +237,32 @@ export function useDraggableWidget(id: string, defaultY: string | number, option
     if (!dragState.current.moved && Math.abs(deltaY) > 3) {
       dragState.current.moved = true;
       setIsDragging(true);
+      setGlobalDragging(true);
     }
 
     if (dragState.current.moved) {
-      // 실시간 위치 업데이트
       const nextY = dragState.current.initialWidgetY + deltaY;
       const height = typeof window !== "undefined" ? window.innerHeight : viewportHeight;
-      const next = normalizeWidgetPositions(
+      const result = normalizeWidgetPositions(
         positions,
         { ...layouts, [id]: layout },
         height,
         { id, y: nextY }
       );
-      setWidgetPositions(next);
+      setWidgetPositions(result.positions);
+
+      // order swap 감지 → store에 반영 (중복 방지)
+      if (result.swap) {
+        const last = lastSwapRef.current;
+        if (!last || last.a !== result.swap.a || last.b !== result.swap.b) {
+          lastSwapRef.current = result.swap;
+          swapWidgetOrders(result.swap.a, result.swap.b);
+        }
+      } else {
+        lastSwapRef.current = null;
+      }
     }
-  }, [id, layout, layouts, positions, setWidgetPositions, viewportHeight]);
+  }, [id, layout, layouts, positions, setWidgetPositions, swapWidgetOrders, viewportHeight]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     if (!dragState.current.dragging) return;
@@ -196,13 +271,15 @@ export function useDraggableWidget(id: string, defaultY: string | number, option
     const wasMoved = dragState.current.moved;
     dragState.current.dragging = false;
     dragState.current.moved = false;
+    lastSwapRef.current = null;
     
     // 드래그가 끝난 직후 onClick 이벤트가 발생할 수 있으므로, 
     // 약간의 지연 후에 isDragging 플래그를 해제하여 onClick에서 필터링할 수 있게 함.
     if (wasMoved) {
+      setGlobalDragging(false);
       setTimeout(() => setIsDragging(false), 50);
     }
-  }, []);
+  }, [setGlobalDragging]);
 
   return {
     y: currentY,

@@ -39,7 +39,7 @@ type DesktopNavigationProps = {
 
 export function DesktopNavigation({ pages, activePage, onSelectPage }: DesktopNavigationProps) {
   return (
-    <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto" aria-label="Desktop pages">
+    <nav className="flex flex-1 flex-col gap-2 overflow-y-auto" aria-label="Desktop pages">
       {pages.map((page) => {
         const Icon = page.icon;
         const active = page.id === activePage;
@@ -51,12 +51,12 @@ export function DesktopNavigation({ pages, activePage, onSelectPage }: DesktopNa
             aria-current={active ? "page" : undefined}
             onClick={() => onSelectPage(page.id)}
             className={cn(
-              "group relative flex items-center gap-3 rounded-md px-3 py-2 text-left",
+              "group relative flex items-center gap-3 rounded-[12px] px-3 py-2 text-left",
               "transition-all duration-200 ease-out active:scale-[0.99]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
               active
-                ? "bg-accent text-foreground"
-                : "text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+                ? "bg-accent/80 text-foreground"
+                : "text-muted-foreground hover:bg-accent/40 hover:text-foreground"
             )}
           >
             <span
@@ -69,13 +69,14 @@ export function DesktopNavigation({ pages, activePage, onSelectPage }: DesktopNa
             {Icon ? (
               <Icon
                 size={18}
+                strokeWidth={2}
                 className={cn("shrink-0 transition-colors", active ? "text-primary" : "")}
                 aria-hidden="true"
               />
             ) : null}
-            <span className="flex min-w-0 flex-col">
-              <span className="truncate text-sm font-medium leading-tight">{page.label}</span>
-              <span className="truncate text-[11px] leading-tight text-muted-foreground">{page.description}</span>
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span className="truncate text-[14px] font-medium leading-tight">{page.label}</span>
+              <span className="truncate text-[12px] leading-tight text-muted-foreground/80">{page.description}</span>
             </span>
             {page.badge ? (
               <span className="ml-auto shrink-0 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-primary">

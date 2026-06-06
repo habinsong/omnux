@@ -31,7 +31,7 @@ import { SettingsPage } from "./features/settings/SettingsPage";
 import { DesktopDialogHost } from "./features/dialog/DesktopDialogHost";
 import { DesktopToastHost } from "./features/toast/DesktopToastHost";
 import { useDesktopNavigationStore } from "./features/shell/navigation-store";
-import { shortcutDisplay, shortcutMatches, useDesktopPreferenceStore, type ShortcutAction } from "./features/shell/preference-store";
+import { applyDesktopTheme, shortcutMatches, useDesktopPreferenceStore, type ShortcutAction } from "./features/shell/preference-store";
 import { useSpeechStore } from "./features/ask/ask-speech";
 import { useUiLogStore } from "./features/ui-log/ui-log-store";
 import { useMiddlewareBootstrapEvents } from "./use-middleware-bootstrap-events";
@@ -42,21 +42,21 @@ import {
   Home,
   LayoutDashboard,
   MessageSquare,
-  Code,
+  Hammer,
   Workflow,
-  Globe,
-  FolderGit2,
-  Play,
+  Compass,
+  Folder,
+  Repeat,
   Settings,
-  Shield,
+  Server,
   Activity,
-  BarChart3,
-  NotebookPen,
-  Wand2,
+  FileTerminal,
+  NotebookText,
+  Wrench,
   Route as RouteIcon,
   ClipboardList,
-  Replace,
-  Bot
+  GitCompare,
+  Network
 } from "lucide-react";
 
 function App() {
@@ -68,20 +68,21 @@ function App() {
   const setActivePage = useDesktopNavigationStore((state) => state.setActivePage);
   const selectArea = useDesktopNavigationStore((state) => state.selectArea);
   const shortcuts = useDesktopPreferenceStore((state) => state.shortcuts);
+  const theme = useDesktopPreferenceStore((state) => state.theme);
   const cycleTheme = useDesktopPreferenceStore((state) => state.cycleTheme);
   const activityBadge = useUiLogStore((state) => Math.min(state.logs.length, 99));
   const [mobileNav, setMobileNav] = useState(false);
-  const [subPanelOpen, setSubPanelOpen] = useState(false);
+  const [subPanelOpen, setSubPanelOpen] = useState(true);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
   const pages = useMemo<DesktopPageDefinition[]>(
     () => [
       { id: "home", label: "홈", description: "Home", icon: Home, render: () => <HomePage /> },
       { id: "ask", label: "질문", description: "Ask", icon: MessageSquare, render: () => <AskPage /> },
-      { id: "build", label: "빌드", description: "Build", icon: Code, render: () => <BuildPage /> },
-      { id: "automate", label: "자동화", description: "Automate", icon: Play, render: () => <AutomatePage /> },
-      { id: "explore", label: "탐색", description: "Explore", icon: Globe, render: () => <ExplorePage /> },
-      { id: "projects", label: "프로젝트", description: "Projects", icon: FolderGit2, render: () => <ProjectsPage /> },
+      { id: "build", label: "빌드", description: "Build", icon: Hammer, render: () => <BuildPage /> },
+      { id: "automate", label: "자동화", description: "Automate", icon: Repeat, render: () => <AutomatePage /> },
+      { id: "explore", label: "탐색", description: "Explore", icon: Compass, render: () => <ExplorePage /> },
+      { id: "projects", label: "프로젝트", description: "Projects", icon: Folder, render: () => <ProjectsPage /> },
       {
         id: "activity",
         label: "활동",
@@ -90,16 +91,16 @@ function App() {
         badge: activityBadge,
         render: () => <ActivityPage />
       },
-      { id: "logic", label: "로직", description: "Logic", icon: Workflow, render: () => <LogicPage /> },
-      { id: "insights", label: "인사이트", description: "Insights", icon: BarChart3, render: () => <InsightsPage /> },
-      { id: "notebooks", label: "노트북", description: "Notebooks", icon: NotebookPen, render: () => <NotebookPage /> },
-      { id: "skills", label: "스킬", description: "Skills", icon: Wand2, render: () => <SkillsPage /> },
+      { id: "logic", label: "규칙", description: "Rules", icon: Workflow, render: () => <LogicPage /> },
+      { id: "insights", label: "로그", description: "Logs", icon: FileTerminal, render: () => <InsightsPage /> },
+      { id: "notebooks", label: "노트", description: "Notes", icon: NotebookText, render: () => <NotebookPage /> },
+      { id: "skills", label: "도구", description: "Tools", icon: Wrench, render: () => <SkillsPage /> },
       { id: "routing", label: "라우팅", description: "Routing", icon: RouteIcon, render: () => <RoutingPolicyPage /> },
-      { id: "planning", label: "계획", description: "Plans & Tasks", icon: ClipboardList, render: () => <PlanningPage /> },
-      { id: "refactor", label: "리팩터", description: "Safe Refactor", icon: Replace, render: () => <RefactorPage /> },
-      { id: "agents", label: "에이전트", description: "Agents", icon: Bot, render: () => <AgentsPage /> },
+      { id: "planning", label: "작업", description: "Tasks", icon: ClipboardList, render: () => <PlanningPage /> },
+      { id: "refactor", label: "리뷰", description: "Review", icon: GitCompare, render: () => <RefactorPage /> },
+      { id: "agents", label: "에이전트", description: "Agents", icon: Network, render: () => <AgentsPage /> },
       { id: "settings", label: "설정", description: "Settings", icon: Settings, render: () => <SettingsPage /> },
-      { id: "operations", label: "운영", description: "Operations", icon: Shield, render: () => <OperationsPage /> },
+      { id: "operations", label: "상태", description: "Status", icon: Server, render: () => <OperationsPage /> },
       { id: "shell", label: "셸", description: "Shell", icon: LayoutDashboard, render: () => <ShellOverviewPage /> }
     ],
     [activityBadge]
@@ -112,6 +113,10 @@ function App() {
   const areaPages = activeAreaDef.pages
     .map((id) => pages.find((page) => page.id === id))
     .filter((page): page is DesktopPageDefinition => Boolean(page));
+
+  useEffect(() => {
+    applyDesktopTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -172,76 +177,60 @@ function App() {
       {/* Mobile scrim */}
       {mobileNav ? (
         <div
-          className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm lg:hidden"
+          className={cn(
+            "fixed inset-y-0 right-0 z-30 bg-white/35 backdrop-blur-sm lg:hidden dark:bg-white/10",
+            "left-14"
+          )}
           onClick={() => setMobileNav(false)}
           aria-hidden="true"
         />
       ) : null}
-
       {/* Sidebar (§2.3 GNB) */}
       <aside
         className={cn(
-          "z-40 flex shrink-0 overflow-hidden border-r border-border bg-card backdrop-blur-xl backdrop-saturate-150 transition-[width,transform] duration-200 ease-out",
-          subPanelOpen ? "w-64" : "w-14",
-          "max-lg:fixed max-lg:inset-y-0 max-lg:left-0",
+          "relative z-40 flex h-full shrink-0 overflow-hidden border-r border-border bg-card text-card-foreground shadow-[var(--shadow-card)] backdrop-blur-xl backdrop-saturate-150 transition-transform duration-200 ease-out",
+          "w-14 max-lg:fixed max-lg:inset-y-0 max-lg:left-0",
+          isHome ? "max-lg:w-14" : "max-lg:w-[316px] max-lg:max-w-full",
           mobileNav ? "max-lg:translate-x-0" : "max-lg:-translate-x-full"
         )}
       >
-        {/* 1단: 아이콘 레일 (영역 전환) */}
         <DesktopRail
           activePage={activePage}
           areaBadges={{ monitor: activityBadge }}
           onSelectArea={(area) => {
-            if (area === activeArea) {
-              setSubPanelOpen(!subPanelOpen);
+            if (area === "home") {
+              selectArea("home");
+              setActivePage("home");
+              setSubPanelOpen(false);
+              setMobileNav(false);
+            } else if (area === activeArea) {
+              selectArea(area);
+              setSubPanelOpen(mobileNav ? true : !subPanelOpen);
             } else {
               selectArea(area);
               setSubPanelOpen(true);
             }
-            setMobileNav(false);
           }}
         />
 
-        {/* 2단: 현재 영역의 페이지만 보여주는 서브패널 */}
-        <div className="flex w-[200px] shrink-0 flex-col gap-3 p-3">
-          <div className="flex items-center gap-2 px-1 pt-1">
-            <AreaIcon size={16} className="shrink-0 text-primary" aria-hidden="true" />
-            <span className="truncate text-sm font-semibold tracking-tight">{activeAreaDef.label}</span>
-          </div>
-
-          <DesktopNavigation
-            pages={areaPages}
-            activePage={activePage}
-            onSelectPage={(page) => {
-              setActivePage(page);
-              setMobileNav(false);
-            }}
-          />
-
-          <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-            <p className="leading-relaxed">
-              언제든지{" "}
-              <kbd className="rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-foreground">
-                {shortcutDisplay(shortcuts.palette)}
-              </kbd>{" "}
-              를 눌러 명령 팔레트를 여세요.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setActivePage("settings")}
-            className="flex items-center gap-2.5 rounded-lg border border-transparent px-1 py-1.5 text-left transition-colors duration-200 hover:border-border hover:bg-accent"
-          >
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold uppercase text-primary">
-              h
-            </span>
-            <span className="flex min-w-0 flex-col">
-              <span className="truncate text-sm font-medium text-foreground">habinsong</span>
-              <span className="truncate text-[11px] text-muted-foreground">로컬 워크스페이스</span>
-            </span>
-          </button>
-        </div>
+        {!isHome ? (
+          <>
+            <div className="relative z-10 hidden min-h-0 w-[260px] flex-col gap-2 px-[24px] pt-[32px] max-lg:flex">
+              <div className="flex items-center gap-2 px-2 pb-4">
+                <AreaIcon size={20} className="shrink-0 text-primary" aria-hidden="true" />
+                <span className="truncate text-[17px] font-semibold tracking-tight">{activeAreaDef.label}</span>
+              </div>
+              <DesktopNavigation
+                pages={areaPages}
+                activePage={activePage}
+                onSelectPage={(page) => {
+                  setActivePage(page);
+                  setMobileNav(false);
+                }}
+              />
+            </div>
+          </>
+        ) : null}
       </aside>
 
       {/* Main */}
@@ -249,9 +238,43 @@ function App() {
         <DesktopTopBar
           onOpenNav={() => setMobileNav(true)}
           onOpenCommandPalette={() => setCommandPaletteOpen(true)}
-          onSelectPage={setActivePage}
+          onSelectPage={(page) => {
+            setActivePage(page);
+            setMobileNav(false);
+          }}
         />
-        <div className="min-h-0 flex-1 overflow-y-auto">
+
+        {subPanelOpen && !isHome && (
+          <div
+            className={cn(
+              "z-30 hidden transition-transform duration-200 ease-out lg:block",
+              "absolute top-14 h-fit",
+              "lg:left-0 lg:w-[260px] lg:pt-[32px] lg:px-[24px] lg:bg-transparent",
+              "translate-x-0"
+            )}
+          >
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2 px-2 pb-4">
+                <AreaIcon size={20} className="shrink-0 text-primary" aria-hidden="true" />
+                <span className="truncate text-[17px] font-semibold tracking-tight">{activeAreaDef.label}</span>
+              </div>
+              <DesktopNavigation
+                pages={areaPages}
+                activePage={activePage}
+                onSelectPage={(page) => {
+                  setActivePage(page);
+                }}
+              />
+            </div>
+          </div>
+        )}
+
+        <div
+          className={cn(
+            "min-h-0 flex-1 overflow-y-auto transition-[margin] duration-200 ease-out",
+            subPanelOpen && !isHome ? "lg:ml-[260px]" : "lg:ml-0"
+          )}
+        >
           <div className={isHome ? "h-full" : "mx-auto w-full max-w-[1440px] p-6"}>
             <PageBoundary page={activePageDefinition.id}>{activePageDefinition.render()}</PageBoundary>
           </div>

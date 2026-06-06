@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Activity, Bot, FolderGit2, Home, LayoutDashboard, Settings } from "lucide-react";
+import { Activity, Cpu, FolderKanban, Home, PanelsTopLeft, Settings } from "lucide-react";
 import type { DesktopPageId } from "./DesktopNavigation";
 
 // 2단 네비게이션의 상위 "영역" 정의 — 17개 평면 메뉴를 6개 영역으로 묶는다.
@@ -15,10 +15,10 @@ export type NavAreaDefinition = {
 
 export const NAV_AREAS: NavAreaDefinition[] = [
   { id: "home", label: "홈", icon: Home, pages: ["home"] },
-  { id: "workspace", label: "워크스페이스", icon: LayoutDashboard, pages: ["ask", "build", "automate", "explore", "refactor"] },
-  { id: "projects", label: "프로젝트", icon: FolderGit2, pages: ["projects", "planning", "notebooks"] },
-  { id: "engine", label: "AI 엔진", icon: Bot, pages: ["agents", "skills", "routing", "logic"] },
-  { id: "monitor", label: "모니터링", icon: Activity, pages: ["activity", "insights", "operations"] },
+  { id: "workspace", label: "워크스페이스", icon: PanelsTopLeft, pages: ["ask", "build", "automate", "explore", "refactor"] },
+  { id: "projects", label: "프로젝트", icon: FolderKanban, pages: ["projects", "planning", "notebooks"] },
+  { id: "engine", label: "엔진", icon: Cpu, pages: ["agents", "skills", "routing", "logic"] },
+  { id: "monitor", label: "모니터", icon: Activity, pages: ["activity", "insights", "operations"] },
   { id: "system", label: "설정", icon: Settings, pages: ["settings"] }
 ];
 

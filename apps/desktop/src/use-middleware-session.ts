@@ -14,6 +14,17 @@ type ServerMessage = Record<string, unknown> & {
 let sessionSocket: WebSocket | null = null;
 let sessionSocketUrl = "";
 
+function closeSessionSocket(socket: WebSocket | null) {
+  if (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
+    return;
+  }
+  if (socket.readyState === WebSocket.CONNECTING) {
+    socket.addEventListener("open", () => socket.close(), { once: true });
+    return;
+  }
+  socket.close();
+}
+
 function stringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
@@ -183,11 +194,18 @@ export function useMiddlewareSessionBridge() {
     let disposed = false;
     let reconnectAttempts = 0;
     let reconnectTimer: number | null = null;
+    let initialConnectTimer: number | null = null;
 
     const clearReconnectTimer = () => {
       if (reconnectTimer === null) return;
       window.clearTimeout(reconnectTimer);
       reconnectTimer = null;
+    };
+
+    const clearInitialConnectTimer = () => {
+      if (initialConnectTimer === null) return;
+      window.clearTimeout(initialConnectTimer);
+      initialConnectTimer = null;
     };
 
     const scheduleReconnect = (wsUrl: string) => {
@@ -219,13 +237,7 @@ export function useMiddlewareSessionBridge() {
         return;
       }
 
-      if (sessionSocket) {
-        try {
-          sessionSocket.close();
-        } catch (_err) {
-          // 이미 종료 중인 소켓은 무시한다.
-        }
-      }
+      closeSessionSocket(sessionSocket);
 
       const socket = new WebSocket(wsUrl);
       sessionSocket = socket;
@@ -278,26 +290,27 @@ export function useMiddlewareSessionBridge() {
     };
 
     const initialWsUrl = useDesktopShellStore.getState().runtime.wsUrl || DESKTOP_MIDDLEWARE_WS_URL;
-    connect(initialWsUrl);
+    initialConnectTimer = window.setTimeout(() => {
+      initialConnectTimer = null;
+      connect(initialWsUrl);
+    }, 0);
     const unsubscribe = useDesktopShellStore.subscribe((state, previous) => {
       if (state.runtime.wsUrl !== previous.runtime.wsUrl) {
+        clearInitialConnectTimer();
         connect(state.runtime.wsUrl);
       }
     });
 
     return () => {
       disposed = true;
+      clearInitialConnectTimer();
       clearReconnectTimer();
       unsubscribe();
       const socket = sessionSocket;
       sessionSocket = null;
       sessionSocketUrl = "";
       bindDesktopSessionSocket(null);
-      try {
-        socket?.close();
-      } catch (_err) {
-        // unmount 중 close 실패는 무시한다.
-      }
+      closeSessionSocket(socket);
     };
   }, []);
 }

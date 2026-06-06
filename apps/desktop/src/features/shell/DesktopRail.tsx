@@ -56,11 +56,11 @@ export function DesktopRail({ activePage, areaBadges, onSelectArea }: DesktopRai
   const systemArea = NAV_AREAS.find((area) => area.id === "system");
 
   return (
-    <div className="flex w-14 shrink-0 flex-col items-center gap-1 border-r border-border py-3">
+    <div className="flex h-full w-14 shrink-0 flex-col items-center gap-1 border-r border-border py-3">
       {/* 로고 = 홈 영역 진입 */}
       <RailButton label="omnux · 홈" active={activeArea === "home"} onClick={() => onSelectArea("home")}>
-        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm">
-          <Layers3 size={17} aria-hidden="true" />
+        <span className="flex h-[26px] w-[26px] items-center justify-center rounded-[6px] bg-primary/90 text-primary-foreground">
+          <Layers3 size={15} strokeWidth={2.5} aria-hidden="true" />
         </span>
       </RailButton>
 
@@ -75,7 +75,7 @@ export function DesktopRail({ activePage, areaBadges, onSelectArea }: DesktopRai
               badge={areaBadges?.[area.id]}
               onClick={() => onSelectArea(area.id)}
             >
-              <Icon size={19} aria-hidden="true" />
+              <Icon size={22} strokeWidth={2} aria-hidden="true" />
             </RailButton>
           );
         })}
@@ -83,7 +83,7 @@ export function DesktopRail({ activePage, areaBadges, onSelectArea }: DesktopRai
 
       {systemArea ? (
         <RailButton label={systemArea.label} active={activeArea === "system"} onClick={() => onSelectArea("system")}>
-          <systemArea.icon size={19} aria-hidden="true" />
+          <systemArea.icon size={22} strokeWidth={2} aria-hidden="true" />
         </RailButton>
       ) : null}
     </div>

@@ -12,6 +12,7 @@ use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_shell::{process::CommandEvent, ShellExt};
 
 pub mod media;
+mod media_bridge;
 
 const DESKTOP_MIDDLEWARE_PORT: &str = "41880";
 const DESKTOP_MIDDLEWARE_PROJECT: &str = "apps/omnux-middleware/Omnux.Middleware.csproj";
@@ -96,10 +97,12 @@ fn current_exe_path() -> Result<String, String> {
         .map(|path| path.to_string_lossy().to_string())
 }
 
+#[allow(dead_code)] // prod(sidecar) 부트스트랩에서만 사용 → debug 빌드에선 미사용으로 보임
 fn existing_middleware_is_healthy() -> bool {
     http_probe_ok(DESKTOP_MIDDLEWARE_PORT, "/healthz")
 }
 
+#[allow(dead_code)]
 fn http_probe_ok(port: &str, path: &str) -> bool {
     let address = format!("127.0.0.1:{port}");
     let Ok(socket_addr) = address.parse::<SocketAddr>() else {
@@ -183,17 +186,17 @@ fn bootstrap_desktop_middleware(app: AppHandle) {
 
 #[cfg(debug_assertions)]
 async fn run_dev_middleware_bootstrap(app: AppHandle) -> Result<(), String> {
-    if existing_middleware_is_healthy() {
-        emit_middleware_bootstrap_event(
-            &app,
-            "started",
-            None,
-            format!("기존 .NET 미들웨어를 재사용한다 (ws={DESKTOP_MIDDLEWARE_PORT})"),
-        );
-        println!(
-            "[desktop-bootstrap] 기존 .NET 미들웨어를 재사용한다 (ws={DESKTOP_MIDDLEWARE_PORT})"
-        );
-        return Ok(());
+    // dev: 기존(묵은) 미들웨어를 재사용하면 소스 변경이 반영되지 않아 stale 코드에 붙는다
+    // ("unsupported message type" 의 원인). 포트를 점유한 이전 인스턴스를 정리하고 항상 새로 띄운다.
+    #[cfg(unix)]
+    {
+        let _ = std::process::Command::new("sh")
+            .arg("-c")
+            .arg(format!(
+                "lsof -ti tcp:{DESKTOP_MIDDLEWARE_PORT} -sTCP:LISTEN | xargs kill -9 2>/dev/null"
+            ))
+            .status();
+        std::thread::sleep(std::time::Duration::from_millis(400));
     }
 
     let repo_root = desktop_repo_root();
@@ -399,6 +402,7 @@ pub fn run() {
             crate::media::seek_media
         ])
         .setup(|app| {
+            media_bridge::start();
             bootstrap_desktop_middleware(app.handle().clone());
             Ok(())
         })

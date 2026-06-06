@@ -4,6 +4,9 @@ import { registerDesktopPublicRequestTypes, sendDesktopRequest } from "./desktop
 registerDesktopPublicRequestTypes(
   "get_groq_models",
   "get_copilot_models",
+  "get_gemini_models",
+  "get_nvidia_models",
+  "get_codex_models",
   "set_groq_model",
   "set_copilot_model",
   "get_copilot_status",
@@ -30,6 +33,15 @@ export const requestDesktopLlm = {
   },
   copilotModels() {
     return sendDesktopRequest({ type: "get_copilot_models" });
+  },
+  geminiModels() {
+    return sendDesktopRequest({ type: "get_gemini_models" });
+  },
+  nvidiaModels() {
+    return sendDesktopRequest({ type: "get_nvidia_models" });
+  },
+  codexModels() {
+    return sendDesktopRequest({ type: "get_codex_models" });
   },
   setGroqModel(model: string) {
     return sendDesktopRequest({ type: "set_groq_model", model: model.trim() });

@@ -11,6 +11,9 @@ internal sealed class WsSetupCommandDispatcher
     private readonly Func<WebSocket, SemaphoreSlim, CancellationToken, Task> _sendGroqModelsAsync;
     private readonly Func<WebSocket, SemaphoreSlim, CancellationToken, Task> _sendCerebrasModelsAsync;
     private readonly Func<WebSocket, SemaphoreSlim, CancellationToken, Task> _sendCopilotModelsAsync;
+    private readonly Func<WebSocket, SemaphoreSlim, CancellationToken, Task> _sendGeminiModelsAsync;
+    private readonly Func<WebSocket, SemaphoreSlim, CancellationToken, Task> _sendNvidiaModelsAsync;
+    private readonly Func<WebSocket, SemaphoreSlim, CancellationToken, Task> _sendCodexModelsAsync;
     private readonly Func<WebSocket, SemaphoreSlim, CancellationToken, bool, Task> _sendUsageStatsAsync;
     private readonly Func<WebSocket, SemaphoreSlim, string, RoutingPolicyActionResult, CancellationToken, Task> _sendRoutingPolicyResultAsync;
     private readonly Func<WebSocket, SemaphoreSlim, RoutingDecision?, CancellationToken, Task> _sendRoutingDecisionAsync;
@@ -25,6 +28,9 @@ internal sealed class WsSetupCommandDispatcher
         Func<WebSocket, SemaphoreSlim, CancellationToken, Task> sendGroqModelsAsync,
         Func<WebSocket, SemaphoreSlim, CancellationToken, Task> sendCerebrasModelsAsync,
         Func<WebSocket, SemaphoreSlim, CancellationToken, Task> sendCopilotModelsAsync,
+        Func<WebSocket, SemaphoreSlim, CancellationToken, Task> sendGeminiModelsAsync,
+        Func<WebSocket, SemaphoreSlim, CancellationToken, Task> sendNvidiaModelsAsync,
+        Func<WebSocket, SemaphoreSlim, CancellationToken, Task> sendCodexModelsAsync,
         Func<WebSocket, SemaphoreSlim, CancellationToken, bool, Task> sendUsageStatsAsync,
         Func<WebSocket, SemaphoreSlim, string, RoutingPolicyActionResult, CancellationToken, Task> sendRoutingPolicyResultAsync,
         Func<WebSocket, SemaphoreSlim, RoutingDecision?, CancellationToken, Task> sendRoutingDecisionAsync,
@@ -39,6 +45,9 @@ internal sealed class WsSetupCommandDispatcher
         _sendGroqModelsAsync = sendGroqModelsAsync;
         _sendCerebrasModelsAsync = sendCerebrasModelsAsync;
         _sendCopilotModelsAsync = sendCopilotModelsAsync;
+        _sendGeminiModelsAsync = sendGeminiModelsAsync;
+        _sendNvidiaModelsAsync = sendNvidiaModelsAsync;
+        _sendCodexModelsAsync = sendCodexModelsAsync;
         _sendUsageStatsAsync = sendUsageStatsAsync;
         _sendRoutingPolicyResultAsync = sendRoutingPolicyResultAsync;
         _sendRoutingDecisionAsync = sendRoutingDecisionAsync;
@@ -366,6 +375,24 @@ internal sealed class WsSetupCommandDispatcher
             return true;
         }
 
+        if (message.Type == "get_gemini_models")
+        {
+            await _sendGeminiModelsAsync(socket, sendLock, cancellationToken);
+            return true;
+        }
+
+        if (message.Type == "get_nvidia_models")
+        {
+            await _sendNvidiaModelsAsync(socket, sendLock, cancellationToken);
+            return true;
+        }
+
+        if (message.Type == "get_codex_models")
+        {
+            await _sendCodexModelsAsync(socket, sendLock, cancellationToken);
+            return true;
+        }
+
         if (message.Type == "set_groq_model")
         {
             if (string.IsNullOrWhiteSpace(message.Model))
@@ -457,6 +484,9 @@ internal sealed class WsSetupCommandDispatcher
             "set_copilot_model" or
             "get_groq_models" or
             "get_cerebras_models" or
+            "get_gemini_models" or
+            "get_nvidia_models" or
+            "get_codex_models" or
             "set_groq_model";
     }
 
@@ -476,6 +506,9 @@ internal sealed class WsSetupCommandDispatcher
             "get_usage_stats" or
             "get_copilot_models" or
             "get_groq_models" or
-            "get_cerebras_models";
+            "get_cerebras_models" or
+            "get_gemini_models" or
+            "get_nvidia_models" or
+            "get_codex_models";
     }
 }

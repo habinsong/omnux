@@ -7,8 +7,8 @@ pub struct MediaData {
     album: String,
     source: Option<String>,
     playing: bool,
-    position: u64,
-    duration: u64,
+    position: f64,
+    duration: f64,
     art_url: Option<String>,
 }
 
@@ -21,10 +21,9 @@ fn clean_text(value: &str) -> Option<String> {
     }
 }
 
-fn seek_target(position: u64, duration: u64, offset: i64) -> u64 {
-    let raw_target = position as i64 + offset;
-    let lower_bound = raw_target.max(0) as u64;
-    if duration > 0 {
+fn seek_target(position: f64, duration: f64, offset: f64) -> f64 {
+    let lower_bound = (position + offset).max(0.0);
+    if duration > 0.0 {
         lower_bound.min(duration)
     } else {
         lower_bound
@@ -70,8 +69,8 @@ fn media_data_from_info(info: &media_remote::NowPlayingInfo) -> Option<MediaData
         album,
         source,
         playing: info.is_playing.unwrap_or(false),
-        position: info.elapsed_time.unwrap_or(0.0) as u64,
-        duration: info.duration.unwrap_or(0.0) as u64,
+        position: info.elapsed_time.unwrap_or(0.0),
+        duration: info.duration.unwrap_or(0.0),
         art_url: album_cover_data_url(info),
     })
 }
@@ -112,9 +111,13 @@ pub async fn control_media(action: String) -> Result<(), String> {
             }
         }
         "seek_backward" | "seek_forward" => {
-            let offset = if action == "seek_backward" { -15 } else { 15 };
+            let offset = if action == "seek_backward" {
+                -15.0
+            } else {
+                15.0
+            };
             if let Some(data) = get_media_info().await? {
-                set_elapsed_time(seek_target(data.position, data.duration, offset) as f64);
+                set_elapsed_time(seek_target(data.position, data.duration, offset));
                 Ok(())
             } else {
                 let command = if action == "seek_backward" {
@@ -129,19 +132,33 @@ pub async fn control_media(action: String) -> Result<(), String> {
                 }
             }
         }
+        "next_track" => {
+            if send_command(Command::NextTrack) {
+                Ok(())
+            } else {
+                Err("다음 트랙 명령을 보내지 못했다.".to_string())
+            }
+        }
+        "previous_track" => {
+            if send_command(Command::PreviousTrack) {
+                Ok(())
+            } else {
+                Err("이전 트랙 명령을 보내지 못했다.".to_string())
+            }
+        }
         other => Err(format!("알 수 없는 미디어 제어 액션: {other}")),
     }
 }
 
 #[cfg(target_os = "macos")]
 #[tauri::command]
-pub async fn seek_media(position: u64) -> Result<(), String> {
+pub async fn seek_media(position: f64) -> Result<(), String> {
     use media_remote::set_elapsed_time;
 
     let data = get_media_info()
         .await?
         .ok_or_else(|| "이동할 미디어 세션이 없다.".to_string())?;
-    set_elapsed_time(seek_target(0, data.duration, position as i64) as f64);
+    set_elapsed_time(seek_target(0.0, data.duration, position));
     Ok(())
 }
 
@@ -221,8 +238,14 @@ pub async fn get_media_info() -> Result<Option<MediaData>, String> {
                 .unwrap_or_default(),
             source: clean_text(&info.player_name),
             playing: info.playback_state == PlaybackState::Playing,
-            position: info.position.unwrap_or(Duration::from_secs(0)).as_secs(),
-            duration: track.duration.unwrap_or(Duration::from_secs(0)).as_secs(),
+            position: info
+                .position
+                .unwrap_or(Duration::from_secs(0))
+                .as_secs_f64(),
+            duration: track
+                .duration
+                .unwrap_or(Duration::from_secs(0))
+                .as_secs_f64(),
             art_url: track.art_url.as_deref().and_then(clean_text),
         })
     }
@@ -234,14 +257,14 @@ pub async fn get_media_info() -> Result<Option<MediaData>, String> {
 }
 
 #[cfg(target_os = "linux")]
-async fn seek_linux_relative(delta_seconds: i64) -> Result<(), String> {
+async fn seek_linux_relative(delta_seconds: f64) -> Result<(), String> {
     use std::process::Command;
 
     let player = best_player_info()
         .await?
         .map(|info| info.player_name)
         .ok_or_else(|| "미디어 제어 명령을 보낼 플레이어가 없다.".to_string())?;
-    let offset = delta_seconds.saturating_mul(1_000_000);
+    let offset = (delta_seconds * 1_000_000.0).round() as i64;
     let status = Command::new("dbus-send")
         .args([
             "--session".to_string(),
@@ -272,6 +295,8 @@ pub async fn control_media(action: String) -> Result<(), String> {
     let method = match action.as_str() {
         "toggle" => "org.mpris.MediaPlayer2.Player.PlayPause",
         "seek_backward" | "seek_forward" => "org.mpris.MediaPlayer2.Player.Seek",
+        "next_track" => "org.mpris.MediaPlayer2.Player.Next",
+        "previous_track" => "org.mpris.MediaPlayer2.Player.Previous",
         other => return Err(format!("알 수 없는 미디어 제어 액션: {other}")),
     };
     let mut args = vec![
@@ -303,13 +328,13 @@ pub async fn control_media(action: String) -> Result<(), String> {
 
 #[cfg(target_os = "linux")]
 #[tauri::command]
-pub async fn seek_media(position: u64) -> Result<(), String> {
+pub async fn seek_media(position: f64) -> Result<(), String> {
     let current = best_player_info()
         .await?
         .and_then(|info| info.position)
-        .map(|value| value.as_secs())
+        .map(|value| value.as_secs_f64())
         .ok_or_else(|| "현재 재생 위치를 알 수 없다.".to_string())?;
-    seek_linux_relative(position as i64 - current as i64).await
+    seek_linux_relative(position - current).await
 }
 
 #[cfg(target_os = "windows")]
@@ -352,6 +377,16 @@ pub async fn control_media(action: String) -> Result<(), String> {
                 .await
                 .map_err(|error| format!("15초 이동 명령 실행 실패: {error}"))?
         }
+        "next_track" => session
+            .TrySkipNextAsync()
+            .map_err(|error| format!("다음 트랙 명령 생성 실패: {error}"))?
+            .await
+            .map_err(|error| format!("다음 트랙 명령 실행 실패: {error}"))?,
+        "previous_track" => session
+            .TrySkipPreviousAsync()
+            .map_err(|error| format!("이전 트랙 명령 생성 실패: {error}"))?
+            .await
+            .map_err(|error| format!("이전 트랙 명령 실행 실패: {error}"))?,
         other => return Err(format!("알 수 없는 미디어 제어 액션: {other}")),
     };
 
@@ -364,7 +399,7 @@ pub async fn control_media(action: String) -> Result<(), String> {
 
 #[cfg(target_os = "windows")]
 #[tauri::command]
-pub async fn seek_media(position: u64) -> Result<(), String> {
+pub async fn seek_media(position: f64) -> Result<(), String> {
     use windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager;
 
     let manager = GlobalSystemMediaTransportControlsSessionManager::RequestAsync()
@@ -378,7 +413,7 @@ pub async fn seek_media(position: u64) -> Result<(), String> {
         .GetTimelineProperties()
         .map_err(|error| format!("미디어 타임라인을 읽지 못했다: {error}"))?;
     let end = timeline.EndTime().map(|value| value.Duration).unwrap_or(0);
-    let target = (position as i64).saturating_mul(10_000_000);
+    let target = (position * 10_000_000.0).round() as i64;
     let target = if end > 0 { target.min(end) } else { target };
     let ok = session
         .TryChangePlaybackPositionAsync(target.max(0))

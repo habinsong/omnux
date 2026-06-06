@@ -56,6 +56,9 @@ internal static class Program
         using var telegramClient = new TelegramClient(runtimeSettings);
         using var groqModelCatalog = new GroqModelCatalog(providers, context, runtimeSettings);
         using var cerebrasModelCatalog = new CerebrasModelCatalog(providers, runtimeSettings);
+        using var geminiModelCatalog = new GeminiModelCatalog(providers, runtimeSettings);
+        using var nvidiaModelCatalog = new NvidiaModelCatalog(providers, runtimeSettings);
+        using var codexModelCatalog = new CodexModelCatalog(runtimeSettings);
         using var llmRouter = new LlmRouter(providers, paths, context, runtimeSettings, cerebrasModelCatalog);
         var persistence = ConfigurePersistence(config, pathResolver);
         var codeRunner = new UniversalCodeRunner(paths.CodeRunsRootDir, config.CodeExecutionTimeoutSec, providers.PythonBinary);
@@ -272,6 +275,9 @@ internal static class Program
             llmRouter,
             groqModelCatalog,
             cerebrasModelCatalog,
+            geminiModelCatalog,
+            nvidiaModelCatalog,
+            codexModelCatalog,
             telegramClient,
             persistence.AuthSessionStore,
             commandExecutionService,
@@ -919,6 +925,9 @@ internal static class Program
         LlmRouter llmRouter,
         GroqModelCatalog groqModelCatalog,
         CerebrasModelCatalog cerebrasModelCatalog,
+        GeminiModelCatalog geminiModelCatalog,
+        NvidiaModelCatalog nvidiaModelCatalog,
+        CodexModelCatalog codexModelCatalog,
         TelegramClient telegramClient,
         IAuthSessionStore authSessionStore,
         CommandExecutionService commandExecutionService,
@@ -965,6 +974,9 @@ internal static class Program
                 llmRouter,
                 groqModelCatalog,
                 cerebrasModelCatalog,
+                geminiModelCatalog,
+                nvidiaModelCatalog,
+                codexModelCatalog,
                 new GuardRetryTimelineStore(config.GuardRetryTimelineStatePath),
                 auditLogger,
                 appServices.SyncConfigStore,

@@ -69,6 +69,9 @@ public sealed partial class WebSocketGateway
     private readonly LlmRouter _llmRouter;
     private readonly GroqModelCatalog _groqModelCatalog;
     private readonly CerebrasModelCatalog _cerebrasModelCatalog;
+    private readonly GeminiModelCatalog _geminiModelCatalog;
+    private readonly NvidiaModelCatalog _nvidiaModelCatalog;
+    private readonly CodexModelCatalog _codexModelCatalog;
     private readonly GuardRetryTimelineStore _guardRetryTimelineStore;
     private readonly AuditLogger _auditLogger;
     private readonly HttpStaticFileEndpoint _staticFileEndpoint;
@@ -172,6 +175,9 @@ public sealed partial class WebSocketGateway
         LlmRouter llmRouter,
         GroqModelCatalog groqModelCatalog,
         CerebrasModelCatalog cerebrasModelCatalog,
+        GeminiModelCatalog geminiModelCatalog,
+        NvidiaModelCatalog nvidiaModelCatalog,
+        CodexModelCatalog codexModelCatalog,
         GuardRetryTimelineStore guardRetryTimelineStore,
         AuditLogger auditLogger,
         ISyncConfigurationStore syncConfigStore,
@@ -202,6 +208,9 @@ public sealed partial class WebSocketGateway
         _llmRouter = llmRouter;
         _groqModelCatalog = groqModelCatalog;
         _cerebrasModelCatalog = cerebrasModelCatalog;
+        _geminiModelCatalog = geminiModelCatalog;
+        _nvidiaModelCatalog = nvidiaModelCatalog;
+        _codexModelCatalog = codexModelCatalog;
         _guardRetryTimelineStore = guardRetryTimelineStore;
         _auditLogger = auditLogger;
         _staticFileEndpoint = new HttpStaticFileEndpoint(paths.DashboardIndexPath);
@@ -216,6 +225,9 @@ public sealed partial class WebSocketGateway
             SendGroqModelsAsync,
             SendCerebrasModelsAsync,
             SendCopilotModelsAsync,
+            SendGeminiModelsAsync,
+            SendNvidiaModelsAsync,
+            SendCodexModelsAsync,
             (socket, sendLock, token, forceRefresh) => SendUsageStatsAsync(socket, sendLock, token, forceRefresh),
             SendRoutingPolicyResultAsync,
             SendRoutingDecisionAsync,
@@ -618,6 +630,43 @@ public sealed partial class WebSocketGateway
 
         builder.Append("]}");
         await SendTextAsync(socket, sendLock, builder.ToString(), cancellationToken);
+    }
+
+    // Gemini/NVIDIA/Codex 는 라이브 모델 ID 목록만 보낸다(메타데이터 없이 items=string[]).
+    private async Task SendGeminiModelsAsync(WebSocket socket, SemaphoreSlim sendLock, CancellationToken cancellationToken)
+    {
+        var ids = await _geminiModelCatalog.GetModelIdsAsync(cancellationToken);
+        await SendTextAsync(socket, sendLock, BuildModelIdsMessage("gemini_models", ids), cancellationToken);
+    }
+
+    private async Task SendNvidiaModelsAsync(WebSocket socket, SemaphoreSlim sendLock, CancellationToken cancellationToken)
+    {
+        var ids = await _nvidiaModelCatalog.GetModelIdsAsync(cancellationToken);
+        await SendTextAsync(socket, sendLock, BuildModelIdsMessage("nvidia_models", ids), cancellationToken);
+    }
+
+    private async Task SendCodexModelsAsync(WebSocket socket, SemaphoreSlim sendLock, CancellationToken cancellationToken)
+    {
+        var ids = await _codexModelCatalog.GetModelIdsAsync(cancellationToken);
+        await SendTextAsync(socket, sendLock, BuildModelIdsMessage("codex_models", ids), cancellationToken);
+    }
+
+    private static string BuildModelIdsMessage(string type, IReadOnlyList<string> ids)
+    {
+        var builder = new StringBuilder();
+        builder.Append("{\"type\":\"").Append(type).Append("\",\"selected\":\"\",\"items\":[");
+        for (var i = 0; i < ids.Count; i++)
+        {
+            if (i > 0)
+            {
+                builder.Append(",");
+            }
+
+            builder.Append("\"").Append(EscapeJson(ids[i])).Append("\"");
+        }
+
+        builder.Append("]}");
+        return builder.ToString();
     }
 
     private async Task SendCopilotModelsAsync(WebSocket socket, SemaphoreSlim sendLock, CancellationToken cancellationToken)

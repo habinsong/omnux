@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Cpu, Gauge, Bot, RefreshCcw } from "lucide-react";
+import { Cpu, Gauge, Bot, RefreshCcw, ChevronLeft, ChevronRight } from "lucide-react";
 import { useGitAutomationBridge, useOpsPageStore } from "../ops/ops-store";
 import { Card, Button, cn } from "../../components/ui/primitives";
 import { useDesktopShellStore } from "../../shell-store";
@@ -78,6 +78,42 @@ function formatMetric(hit: { key: string; value: unknown } | null) {
   return "-";
 }
 
+function findNumericMetric(root: unknown, keys: string[]): number | null {
+  if (!root || typeof root !== "object") return null;
+  const normalizedKeys = new Set(keys.map((key) => key.toLowerCase()));
+  const stack: unknown[] = [root];
+  const seen = new Set<unknown>();
+  while (stack.length > 0) {
+    const value = stack.pop();
+    if (!value || typeof value !== "object" || seen.has(value)) continue;
+    seen.add(value);
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      if (normalizedKeys.has(key.toLowerCase())) {
+        const numeric = typeof child === "number" ? child : Number(child);
+        return Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
+      }
+      if (child && typeof child === "object") stack.push(child);
+    }
+  }
+  return null;
+}
+
+function clampPercent(value: number | null) {
+  return value === null ? 0 : Math.min(100, Math.max(0, value));
+}
+
+function ResourceFillIcon({ percent }: { percent: number }) {
+  const bounded = clampPercent(percent);
+  return (
+    <span className="relative block h-[18px] w-[18px]" aria-hidden="true">
+      <Cpu size={18} className="absolute inset-0 text-muted-foreground/25" />
+      <span className="absolute inset-0 overflow-hidden" style={{ width: `${bounded}%` }}>
+        <Cpu size={18} className="text-primary" />
+      </span>
+    </span>
+  );
+}
+
 export function ResourceUsageDrawer() {
   const bridgeStatus = useDesktopShellStore((state) => state.bridge.status);
   const authStatus = useDesktopAuthStore((state) => state.auth.status);
@@ -89,15 +125,37 @@ export function ResourceUsageDrawer() {
   const lastError = useOpsPageStore((state) => state.tools.context.lastError);
   const loadMetrics = useOpsPageStore((state) => state.loadMetrics);
   const [open, setOpen] = useState(false);
+  const [manualRefreshing, setManualRefreshing] = useState(false);
   const parsed = useMemo(() => parseMetricsRaw(metrics?.raw || ""), [metrics?.raw]);
-  const cpu = formatMetric(findMetric(parsed, ["cpu", "processor"]));
-  const memory = formatMetric(findMetric(parsed, ["mem"]));
+  const cpuPercent = clampPercent(findNumericMetric(parsed, ["cpu_usage", "cpu_percent"]));
+  const memoryUsedMb = findNumericMetric(parsed, ["mem_used_mb", "memory_used_mb"]);
+  const memoryTotalMb = findNumericMetric(parsed, ["mem_total_mb", "memory_total_mb"]);
+  const reportedMemoryPercent = findNumericMetric(parsed, ["mem_usage", "memory_usage", "memory_percent"]);
+  const memoryPercent = clampPercent(
+    reportedMemoryPercent ?? (
+      memoryUsedMb !== null && memoryTotalMb !== null && memoryTotalMb > 0
+        ? (memoryUsedMb / memoryTotalMb) * 100
+        : null
+    )
+  );
+  const cpu = cpuPercent > 0 || findNumericMetric(parsed, ["cpu_usage", "cpu_percent"]) !== null
+    ? `${Math.round(cpuPercent * 10) / 10}%`
+    : "-";
+  const memory = memoryUsedMb !== null && memoryTotalMb !== null
+    ? `${formatMb(memoryUsedMb)} / ${formatMb(memoryTotalMb)}`
+    : formatMetric(findMetric(parsed, ["mem"]));
   const tasks = formatMetric(findMetric(parsed, ["task", "active", "running", "job", "process"]));
   const cards = [
-    { label: "CPU", value: cpu, icon: Cpu },
-    { label: "메모리", value: memory, icon: Gauge },
-    { label: "작업", value: tasks, icon: Bot }
+    { label: "CPU", value: cpu, secondary: null, icon: Cpu },
+    {
+      label: "메모리",
+      value: memoryUsedMb !== null && memoryTotalMb !== null ? `${Math.round(memoryPercent * 10) / 10}%` : memory,
+      secondary: memoryUsedMb !== null && memoryTotalMb !== null ? memory : null,
+      icon: Gauge
+    },
+    { label: "작업", value: tasks, secondary: null, icon: Bot }
   ];
+  const resourceFillPercent = Math.max(cpuPercent, memoryPercent);
   const widgetHeight = open ? 210 : 96;
 
   const { y, isDragging, pointerHandlers } = useDraggableWidget("resource-usage", "calc(50% - 48px)", {
@@ -108,6 +166,15 @@ export function ResourceUsageDrawer() {
   useEffect(() => {
     if (canRequest && !metrics && !loading) loadMetrics();
   }, [canRequest, loadMetrics, loading, metrics]);
+
+  // 펼쳤을 때 1초마다 자동 갱신
+  useEffect(() => {
+    if (!open || !canRequest) return;
+    const interval = setInterval(() => {
+      loadMetrics();
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [open, canRequest, loadMetrics]);
 
   return (
     <div
@@ -131,19 +198,19 @@ export function ResourceUsageDrawer() {
         aria-label={open ? "리소스 사용량 접기" : "리소스 사용량 펼치기"}
         className="flex h-24 w-12 shrink-0 cursor-grab flex-col items-center justify-center gap-1 rounded-l-xl border border-r-0 border-border bg-card/60 backdrop-blur-md shadow-sm transition-colors hover:bg-accent active:cursor-grabbing"
       >
-        <Cpu size={18} className="text-primary" aria-hidden="true" />
-        {cpu !== "-" ? <span className="text-[10px] font-semibold tabular-nums text-foreground">{cpu}</span> : null}
+        <ResourceFillIcon percent={resourceFillPercent} />
+        {open ? <ChevronRight size={14} className="text-muted-foreground mt-1" aria-hidden="true" /> : <ChevronLeft size={14} className="text-muted-foreground mt-1" aria-hidden="true" />}
       </button>
 
       <Card className={cn(
-        "flex w-[17rem] flex-col overflow-hidden p-0 rounded-l-none border-l-0 transition-[max-height] duration-300 ease-out",
-        open ? "max-h-[210px]" : "max-h-[96px]"
+        "flex w-[17rem] flex-col overflow-hidden p-0 rounded-tl-none border-l-0 transition-[height] duration-300 ease-out",
+        open ? "h-[210px]" : "h-[96px]"
       )}>
         <div className="min-w-0 flex-1 p-3 bg-card/60 backdrop-blur-md h-full">
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="truncate text-sm font-semibold">리소스 사용량</span>
-            <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2" onClick={loadMetrics} disabled={!canRequest || loading}>
-              <RefreshCcw size={13} aria-hidden="true" /> {loading ? "조회 중" : "갱신"}
+            <Button variant="ghost" size="sm" className="h-9 w-9 shrink-0 p-0" onClick={() => { setManualRefreshing(true); loadMetrics(); setTimeout(() => setManualRefreshing(false), 600); }} disabled={!canRequest || manualRefreshing} aria-label="갱신">
+              <RefreshCcw size={20} className={manualRefreshing ? "animate-spin" : ""} aria-hidden="true" />
             </Button>
           </div>
           <div className="space-y-1.5">
@@ -155,7 +222,10 @@ export function ResourceUsageDrawer() {
                     <Icon size={14} className="shrink-0" aria-hidden="true" />
                     {item.label}
                   </span>
-                  <b className="shrink-0 text-sm font-semibold tabular-nums">{item.value}</b>
+                  <span className="flex shrink-0 flex-col items-end leading-tight">
+                    <b className="text-sm font-semibold tabular-nums">{item.value}</b>
+                    {item.secondary ? <span className="mt-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">{item.secondary}</span> : null}
+                  </span>
                 </div>
               );
             })}

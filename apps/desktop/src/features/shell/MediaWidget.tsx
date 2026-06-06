@@ -1,19 +1,14 @@
-import { useEffect, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { Music, Play, Pause, SkipBack, SkipForward, ChevronRight, ChevronLeft } from "lucide-react";
-import { invoke } from "@tauri-apps/api/core";
 import { Card, IconButton, cn } from "../../components/ui/primitives";
 import { useDraggableWidget } from "./useDraggableWidget";
-
-interface MediaData {
-  title: string;
-  artist: string;
-  album: string;
-  source: string | null;
-  playing: boolean;
-  position: number;
-  duration: number;
-  art_url: string | null;
-}
+import {
+  controlMedia,
+  getMediaInfo,
+  seekMedia,
+  type MediaControlAction,
+  type MediaData
+} from "./media-transport";
 
 // 임시 스펙트럼 애니메이션 바
 function AudioSpectrum({ playing }: { playing: boolean }) {
@@ -50,9 +45,12 @@ function formatTime(seconds: number) {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+/** long press 감지를 위한 상수 */
+const LONG_PRESS_THRESHOLD_MS = 500;
+
 export function MediaWidget() {
   const [open, setOpen] = useState(false);
-  const widgetHeight = open ? 300 : 96;
+  const widgetHeight = open ? 218 : 96;
   const { y, isDragging, pointerHandlers } = useDraggableWidget("media-player", "calc(50% + 80px)", {
     height: widgetHeight,
     order: 1
@@ -64,26 +62,103 @@ export function MediaWidget() {
   const [seeking, setSeeking] = useState(false);
   const [scrubPosition, setScrubPosition] = useState<number | null>(null);
 
+  const mediaRequestIdRef = useRef(0);
+  const mediaOperationRef = useRef(false);
+
+  // 보간용 refs: 마지막으로 확인된 position + 시각
+  const pollAnchorRef = useRef({ position: 0, time: 0, playing: false, duration: 0 });
+  const lastOsPositionRef = useRef(-1);
+  const lastSeekRef = useRef({ time: 0, target: -1 });
+  const [localElapsed, setLocalElapsed] = useState(0);
+
+  // rAF로 로컬 초 증가 — 폴링 응답 사이 빈틈 메움
   useEffect(() => {
-    // 1초마다 백엔드 폴링
-    const fetchMedia = async () => {
-      try {
-        const data = await invoke<MediaData | null>("get_media_info");
-        setMediaData(data);
-      } catch (err) {
-        console.error("Failed to fetch media info:", err);
+    let raf = 0;
+    const tick = () => {
+      const anchor = pollAnchorRef.current;
+      if (anchor.playing && anchor.time > 0) {
+        const dt = (performance.now() - anchor.time) / 1000;
+        setLocalElapsed(Math.min(anchor.duration, anchor.position + dt));
       }
+      raf = requestAnimationFrame(tick);
     };
-    
-    fetchMedia();
-    const interval = setInterval(fetchMedia, 1000);
-    return () => clearInterval(interval);
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
   }, []);
 
+  const applyMediaData = useCallback((data: MediaData | null) => {
+    if (!data) {
+      setMediaData(null);
+      lastOsPositionRef.current = -1;
+      return;
+    }
+
+    const now = performance.now();
+    let isStaleSeek = false;
+    if (now - lastSeekRef.current.time < 2000) {
+      if (Math.abs(data.position - lastSeekRef.current.target) > 2.0) {
+        isStaleSeek = true;
+      } else {
+        lastSeekRef.current.time = 0;
+      }
+    }
+
+    const effectiveData = isStaleSeek ? { ...data, position: lastSeekRef.current.target } : data;
+    setMediaData(effectiveData);
+
+    const prev = pollAnchorRef.current;
+    const osPositionChanged = !isStaleSeek && (lastOsPositionRef.current < 0 || Math.abs(effectiveData.position - lastOsPositionRef.current) > 0.1);
+    const resumedPlaying = effectiveData.playing && !prev.playing;
+    
+    if (!isStaleSeek) {
+      lastOsPositionRef.current = effectiveData.position;
+    }
+
+    if (osPositionChanged || resumedPlaying) {
+      pollAnchorRef.current = {
+        position: effectiveData.position,
+        time: now,
+        playing: effectiveData.playing,
+        duration: effectiveData.duration,
+      };
+      setLocalElapsed(effectiveData.position);
+    } else {
+      pollAnchorRef.current.playing = effectiveData.playing;
+      pollAnchorRef.current.duration = effectiveData.duration;
+    }
+  }, []);
+
+  const fetchMedia = useCallback(async () => {
+    if (mediaOperationRef.current) return;
+    const requestId = ++mediaRequestIdRef.current;
+    try {
+      const data = await getMediaInfo();
+      if (requestId !== mediaRequestIdRef.current) return;
+      applyMediaData(data);
+    } catch (err) {
+      console.error("Failed to fetch media info:", err);
+    }
+  }, [applyMediaData]);
+
+  useEffect(() => {
+    let disposed = false;
+    let timer: number | null = null;
+    const poll = async () => {
+      await fetchMedia();
+      if (!disposed) timer = window.setTimeout(poll, 250);
+    };
+    void poll();
+    return () => {
+      disposed = true;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [fetchMedia]);
+
   const playing = mediaData?.playing ?? false;
-  const progress = mediaData?.position ?? 0;
   const duration = mediaData?.duration ?? 0;
-  const displayedProgress = scrubPosition ?? progress;
+  const rawPosition = mediaData?.position ?? 0;
+  const livePosition = playing && !seeking && !controlPending ? localElapsed : rawPosition;
+  const displayedProgress = scrubPosition ?? livePosition;
   const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (displayedProgress / duration) * 100)) : 0;
   const canSeek = Boolean(mediaData && duration > 0 && !controlPending);
   const title = mediaData?.title || "미디어 없음";
@@ -94,25 +169,28 @@ export function MediaWidget() {
     : "시스템 미디어 세션 없음";
   const artUrl = mediaData?.art_url;
 
-  const runControl = async (action: "toggle" | "seek_backward" | "seek_forward") => {
+  const runControl = async (action: MediaControlAction) => {
     if (!mediaData || controlPending) return;
+    mediaOperationRef.current = true;
+    mediaRequestIdRef.current += 1;
     setControlPending(true);
     try {
-      await invoke("control_media", { action });
-      const data = await invoke<MediaData | null>("get_media_info");
-      setMediaData(data);
+      await controlMedia(action);
+      const data = await getMediaInfo();
+      applyMediaData(data);
     } catch (err) {
       console.error("Failed to control media:", err);
     } finally {
+      mediaOperationRef.current = false;
       setControlPending(false);
     }
   };
 
-  const clampPosition = (value: number) => Math.min(duration, Math.max(0, Math.round(value)));
+  const clampPosition = (value: number) => Math.min(duration, Math.max(0, value));
 
   const positionFromPointer = (clientX: number, element: HTMLDivElement) => {
     const rect = element.getBoundingClientRect();
-    if (rect.width <= 0 || duration <= 0) return progress;
+    if (rect.width <= 0 || duration <= 0) return displayedProgress;
     return clampPosition(((clientX - rect.left) / rect.width) * duration);
   };
 
@@ -120,14 +198,28 @@ export function MediaWidget() {
     if (!mediaData || duration <= 0 || controlPending) return;
     const target = clampPosition(position);
     setScrubPosition(target);
+    setMediaData((previous) => {
+      if (!previous) return previous;
+      return { ...previous, position: target };
+    });
+    mediaOperationRef.current = true;
+    mediaRequestIdRef.current += 1;
     setControlPending(true);
     try {
-      await invoke("seek_media", { position: target });
-      const data = await invoke<MediaData | null>("get_media_info");
-      setMediaData(data);
+      await seekMedia(target);
+      lastSeekRef.current = { time: performance.now(), target };
+      pollAnchorRef.current = {
+        position: target,
+        time: performance.now(),
+        playing: pollAnchorRef.current.playing,
+        duration: pollAnchorRef.current.duration,
+      };
+      lastOsPositionRef.current = target;
+      setLocalElapsed(target);
     } catch (err) {
       console.error("Failed to seek media:", err);
     } finally {
+      mediaOperationRef.current = false;
       setSeeking(false);
       setScrubPosition(null);
       setControlPending(false);
@@ -177,6 +269,43 @@ export function MediaWidget() {
     void seekTo(target);
   };
 
+  // ---------- long press 핸들러 (꾹 → 이전/다음 트랙) ----------
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressFiredRef = useRef(false);
+
+  const handleSkipPointerDown = (direction: "backward" | "forward") => {
+    longPressFiredRef.current = false;
+    longPressTimerRef.current = setTimeout(() => {
+      longPressFiredRef.current = true;
+      void runControl(direction === "backward" ? "previous_track" : "next_track");
+    }, LONG_PRESS_THRESHOLD_MS);
+  };
+
+  const handleSkipPointerUp = (direction: "backward" | "forward") => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    if (!longPressFiredRef.current) {
+      const offset = direction === "backward" ? -15 : 15;
+      void seekTo((mediaData?.position ?? 0) + offset);
+    }
+  };
+
+  const handleSkipPointerLeave = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  // cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    };
+  }, []);
+
   return (
     <div
       className={cn(
@@ -199,15 +328,22 @@ export function MediaWidget() {
         aria-label={open ? "미디어 제어 닫기" : "미디어 제어 열기"}
         className="flex h-24 w-12 shrink-0 cursor-grab flex-col items-center justify-center gap-1 rounded-l-xl border border-r-0 border-border bg-card/60 backdrop-blur-md shadow-sm transition-colors hover:bg-accent active:cursor-grabbing"
       >
-        <Music size={18} className="text-primary" aria-hidden="true" />
+        <span className="relative block h-[18px] w-[18px]" aria-hidden="true">
+          <Music size={18} className="absolute inset-0 text-muted-foreground/30" />
+          {playing ? (
+            <span className="media-icon-color-wave absolute inset-0 overflow-hidden">
+              <Music size={18} className="text-primary" />
+            </span>
+          ) : null}
+        </span>
         {open ? <ChevronRight size={14} className="text-muted-foreground mt-1" aria-hidden="true" /> : <ChevronLeft size={14} className="text-muted-foreground mt-1" aria-hidden="true" />}
       </button>
       
       <Card className={cn(
-        "flex w-[17rem] flex-col overflow-hidden p-0 rounded-l-none border-l-0 transition-[max-height] duration-300 ease-out",
-        open ? "max-h-[300px]" : "max-h-[96px]"
+        "flex w-[17rem] flex-col overflow-hidden p-0 rounded-tl-none border-l-0 transition-[height] duration-300 ease-out",
+        open ? "h-[218px]" : "h-[96px]"
       )}>
-        <div className="flex-1 min-w-0 p-3 bg-card/60 backdrop-blur-md h-full flex flex-col justify-center">
+        <div className="flex-1 min-w-0 p-3 bg-card/60 backdrop-blur-md h-full flex flex-col">
           {/* 헤더 및 스펙트럼 */}
           <div className="flex items-center justify-between mb-3 gap-2">
             <span className="truncate text-sm font-semibold">현재 재생 중</span>
@@ -232,7 +368,7 @@ export function MediaWidget() {
             </div>
           </div>
 
-          {/* 진행률 바 */}
+          {/* 진행률 바 — transition 제거하여 실시간 갱신 */}
           <div className="space-y-1.5 mb-4">
             <div
               role="slider"
@@ -252,7 +388,7 @@ export function MediaWidget() {
             >
               <div className="absolute left-0 top-1/2 h-1.5 w-full -translate-y-1/2 overflow-hidden rounded-full bg-muted">
                 <div
-                  className="h-full bg-primary transition-all duration-1000 ease-linear"
+                  className="h-full bg-primary"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
@@ -267,13 +403,16 @@ export function MediaWidget() {
             </div>
           </div>
 
-          {/* 컨트롤 바 */}
+          {/* 컨트롤 바 — long press로 이전/다음 트랙 */}
           <div className="flex items-center justify-center gap-4">
             <IconButton 
               icon={SkipBack} 
-              label="15초 뒤로" 
+              label="15초 뒤로 (꾹: 이전 트랙)"
               disabled={!mediaData || controlPending}
-              onClick={() => void runControl("seek_backward")} 
+              onPointerDown={() => handleSkipPointerDown("backward")}
+              onPointerUp={() => handleSkipPointerUp("backward")}
+              onPointerLeave={handleSkipPointerLeave}
+              onPointerCancel={handleSkipPointerLeave}
             />
             <button
               type="button"
@@ -286,9 +425,12 @@ export function MediaWidget() {
             </button>
             <IconButton 
               icon={SkipForward} 
-              label="15초 앞으로" 
+              label="15초 앞으로 (꾹: 다음 트랙)"
               disabled={!mediaData || controlPending}
-              onClick={() => void runControl("seek_forward")} 
+              onPointerDown={() => handleSkipPointerDown("forward")}
+              onPointerUp={() => handleSkipPointerUp("forward")}
+              onPointerLeave={handleSkipPointerLeave}
+              onPointerCancel={handleSkipPointerLeave}
             />
           </div>
         </div>

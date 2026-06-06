@@ -5,13 +5,14 @@ import type { AskProvider } from "./ask-store";
 
 export const PROVIDER_KEYS: Exclude<AskProvider, "auto">[] = ["groq", "gemini", "cerebras", "nvidia", "copilot", "codex"];
 export const NONE_MODEL = "none";
-export const DEFAULT_GROQ_SINGLE_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
-export const DEFAULT_GROQ_WORKER_MODEL = "openai/gpt-oss-120b";
-export const DEFAULT_GEMINI_WORKER_MODEL = "gemini-3-flash-preview";
+// 2026-06 각 제공자 공식 문서/체인지로그 기준. llama-4-scout(Groq deprecate)→gpt-oss로 교체.
+export const DEFAULT_GROQ_SINGLE_MODEL = "openai/gpt-oss-120b";
+export const DEFAULT_GROQ_WORKER_MODEL = "openai/gpt-oss-20b";
+export const DEFAULT_GEMINI_WORKER_MODEL = "gemini-3.5-flash";
 export const DEFAULT_CEREBRAS_MODEL = "gpt-oss-120b";
 export const DEFAULT_NVIDIA_MODEL = "meta/llama-3.1-70b-instruct";
 export const DEFAULT_COPILOT_MODEL = "gpt-5-mini";
-export const DEFAULT_CODEX_MODEL = "gpt-5.4";
+export const DEFAULT_CODEX_MODEL = "gpt-5.5";
 
 export const PROVIDER_LABEL: Record<AskProvider, string> = {
   auto: "자동",
@@ -25,47 +26,39 @@ export const PROVIDER_LABEL: Record<AskProvider, string> = {
 
 // 미들웨어 응답이 비어 있거나 늦어져도 질문탭 선택지가 비지 않도록 하는 정적 모델 목록.
 export const STATIC_MODEL_OPTIONS: Partial<Record<AskProvider, string[]>> = {
-  groq: [DEFAULT_GROQ_SINGLE_MODEL, DEFAULT_GROQ_WORKER_MODEL],
+  // Groq/Copilot/Cerebras 는 백엔드 라이브 카탈로그가 이 목록을 덮어쓴다(여긴 fallback).
+  groq: [DEFAULT_GROQ_SINGLE_MODEL, DEFAULT_GROQ_WORKER_MODEL, "qwen/qwen3-32b"],
   gemini: [
-    DEFAULT_GEMINI_WORKER_MODEL,
-    "gemini-3-pro-preview",
-    "gemini-3.1-pro-preview",
+    "gemini-3.5-flash",
+    "gemini-3.1-pro",
+    "gemini-3-flash",
     "gemini-3.1-flash-lite",
-    "gemini-3.1-flash-lite-preview",
-    "gemini-2.5-pro"
+    "gemini-2.5-pro",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite"
   ],
-  cerebras: [DEFAULT_CEREBRAS_MODEL, "zai-glm-4.7"],
+  cerebras: [DEFAULT_CEREBRAS_MODEL, "qwen-3-32b", "zai-glm-4.7"],
   nvidia: [
     DEFAULT_NVIDIA_MODEL,
     "meta/llama-3.3-70b-instruct",
     "nvidia/llama-3.3-nemotron-super-49b-v1.5",
-    "nvidia/nemotron-3-super-120b-a12b",
-    "openai/gpt-oss-120b",
-    "qwen/qwen3-coder-480b-a35b-instruct"
+    "openai/gpt-oss-120b"
   ],
   copilot: [
-    "claude-sonnet-4.6",
-    "claude-sonnet-4.5",
-    "claude-sonnet-4",
-    "claude-haiku-4.5",
-    "claude-opus-4.7",
-    "claude-opus-4.6",
-    "claude-opus-4.6-fast",
-    "claude-opus-4.5",
-    "gemini-3-pro-preview",
-    "gemini-3-flash-preview",
-    "gemini-3.1-flash-lite",
     "gpt-5.5",
-    "gpt-5.4",
     "gpt-5.4-mini",
+    "gpt-5.4-nano",
     "gpt-5.3-codex",
     "gpt-5.2-codex",
-    "gpt-5.2",
     DEFAULT_COPILOT_MODEL,
     "gpt-4.1",
-    "grok-code-fast-1"
+    "claude-sonnet-4.5",
+    "claude-haiku-4.5",
+    "gemini-3.1-pro",
+    "gemini-3-flash",
+    "gemini-2.5-pro"
   ],
-  codex: [DEFAULT_CODEX_MODEL, "gpt-5.5", "gpt-5.4-mini", "gpt-5.3-codex", "gpt-5.2-codex", "gpt-5.2"]
+  codex: [DEFAULT_CODEX_MODEL, "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.3-codex", "gpt-5.2-codex"]
 };
 
 export type ProviderCatalogs = Partial<Record<Exclude<AskProvider, "auto">, string[]>>;
