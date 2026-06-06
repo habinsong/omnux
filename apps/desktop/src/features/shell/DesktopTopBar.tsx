@@ -5,7 +5,7 @@ import { useDesktopShellStore } from "../../shell-store";
 import { useUiLogStore, type ShellLogEntry } from "../ui-log/ui-log-store";
 import type { DesktopPageId } from "./DesktopNavigation";
 import { Badge, Button, IconButton, StatusDot, cn } from "../../components/ui/primitives";
-import { DETAIL_LABEL, THEME_LABEL, useDesktopPreferenceStore, type DetailLevel } from "./preference-store";
+import { THEME_LABEL, useDesktopPreferenceStore } from "./preference-store";
 
 type DesktopTopBarProps = {
   onOpenNav: () => void;
@@ -24,9 +24,9 @@ function runtimeStatus(
 ): { label: string; tone: RuntimeTone } {
   const transportReady = bridgeStatus === "connected" || runtimePhase === "connected" || middlewareStatus === "connected";
   if (transportReady) {
-    return authStatus === "authenticated"
-      ? { label: "", tone: "online" }
-      : { label: bridgeStatus === "connected" ? "인증 필요" : "미들웨어 연결됨", tone: "online" };
+    if (authStatus === "authenticated") return { label: "", tone: "online" };
+    if (authStatus === "unknown") return { label: "연결 중", tone: "busy" };
+    return { label: bridgeStatus === "connected" ? "인증 필요" : "미들웨어 연결됨", tone: "online" };
   }
   if (bridgeStatus === "connecting" || runtimePhase === "waiting" || middlewareStatus === "waiting") {
     return { label: "연결 중", tone: "busy" };
@@ -62,8 +62,6 @@ export function DesktopTopBar({ onOpenNav, onOpenCommandPalette, onSelectPage }:
   const middlewareStatus = useDesktopShellStore((state) => state.middleware.status);
   const authStatus = useDesktopAuthStore((state) => state.auth.status);
   const logs = useUiLogStore((state) => state.logs);
-  const detailLevel = useDesktopPreferenceStore((state) => state.detailLevel);
-  const setDetailLevel = useDesktopPreferenceStore((state) => state.setDetailLevel);
   const theme = useDesktopPreferenceStore((state) => state.theme);
   const cycleTheme = useDesktopPreferenceStore((state) => state.cycleTheme);
   const [notificationOpen, setNotificationOpen] = useState(false);
@@ -105,17 +103,17 @@ export function DesktopTopBar({ onOpenNav, onOpenCommandPalette, onSelectPage }:
   };
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 backdrop-blur-xl backdrop-saturate-150">
-      <div className="flex flex-1 items-center justify-start">
+    <header className="sticky top-0 z-20 flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-2 px-3 py-2 sm:h-14 sm:flex-nowrap sm:gap-3 sm:px-5 sm:py-0">
+      <div className="order-1 flex min-w-0 flex-none items-center justify-start sm:flex-1">
         <div className="lg:hidden">
-          <IconButton icon={Menu} label="메뉴" onClick={onOpenNav} />
+          <IconButton icon={Menu} label="메뉴" className="h-8 w-8" onClick={onOpenNav} />
         </div>
       </div>
 
       <button
         type="button"
         onClick={onOpenCommandPalette}
-        className="group flex h-9 w-full max-w-md shrink-0 items-center gap-2 rounded-md border border-border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground"
+        className="group order-3 flex h-9 min-w-0 basis-full items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground sm:order-2 sm:w-full sm:max-w-lg sm:basis-auto"
       >
         <Search size={16} className="shrink-0" aria-hidden="true" />
         <span className="truncate font-medium">검색하거나 명령 실행</span>
@@ -124,33 +122,11 @@ export function DesktopTopBar({ onOpenNav, onOpenCommandPalette, onSelectPage }:
         </kbd>
       </button>
 
-      <div className="flex flex-1 items-center justify-end gap-2">
-        <div
-          className="hidden items-center rounded-md border border-border bg-muted/40 p-0.5 md:inline-flex"
-          title="간단히는 핵심만, 고급은 라우트·로그·콘솔까지 노출합니다."
-        >
-          {(["simple", "advanced"] as DetailLevel[]).map((level) => {
-            const on = level === detailLevel;
-            return (
-              <button
-                key={level}
-                type="button"
-                onClick={() => setDetailLevel(level)}
-                className={cn(
-                  "rounded px-2.5 py-1 text-xs font-medium transition-colors duration-200",
-                  on ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {DETAIL_LABEL[level]}
-              </button>
-            );
-          })}
-        </div>
-
+      <div className="order-2 flex min-w-0 flex-1 items-center justify-end gap-1 sm:order-3 sm:gap-1.5">
         <Button
-          variant="outline"
+          variant="ghost"
           size={status.label ? "sm" : "icon"}
-          className={status.label ? "gap-1.5" : "h-9 w-9"}
+          className={cn("h-8 shrink-0", status.label ? "gap-1.5 px-2 sm:px-3" : "w-8")}
           onClick={() => onSelectPage("operations")}
           title={status.label || "Live 미들웨어"}
         >
@@ -158,12 +134,12 @@ export function DesktopTopBar({ onOpenNav, onOpenCommandPalette, onSelectPage }:
           {status.label ? <span className="hidden sm:inline">{status.label}</span> : null}
         </Button>
 
-        <IconButton icon={RefreshCcw} label="새로고침 (F5)" onClick={() => window.location.reload()} />
+        <IconButton icon={RefreshCcw} label="새로고침 (F5)" className="h-8 w-8" onClick={() => window.location.reload()} />
 
         <div className="relative">
           <button
             type="button"
-            className="relative inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+            className="relative inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
             aria-label={`알림${unreadCount > 0 ? ` ${unreadCount}개` : ""}`}
             title="알림"
             onClick={toggleNotifications}
@@ -224,7 +200,7 @@ export function DesktopTopBar({ onOpenNav, onOpenCommandPalette, onSelectPage }:
             </div>
           ) : null}
         </div>
-        <IconButton icon={ThemeIcon} label={`테마: ${THEME_LABEL[theme]} (클릭하여 전환)`} onClick={cycleTheme} />
+        <IconButton icon={ThemeIcon} label={`테마: ${THEME_LABEL[theme]} (클릭하여 전환)`} className="h-8 w-8" onClick={cycleTheme} />
       </div>
     </header>
   );

@@ -89,7 +89,7 @@ const savedAuth = readSavedAuthToken();
 
 export const useDesktopAuthStore = create<DesktopAuthState>((set) => ({
   auth: {
-    status: savedAuth.token ? "required" : "unknown",
+    status: "unknown",
     sessionId: null,
     authToken: savedAuth.token || null,
     expiresAtUtc: savedAuth.expiresAtUtc,
@@ -104,7 +104,7 @@ export const useDesktopAuthStore = create<DesktopAuthState>((set) => ({
     set((state) => ({
       auth: {
         ...state.auth,
-        status: "required",
+        status: "unknown",
         sessionId: null,
         otpRequestStatus: "idle",
         lastMessage: state.auth.authToken ? "저장된 인증 토큰 resume 대기" : "세션 인증 확인 중"
@@ -112,16 +112,19 @@ export const useDesktopAuthStore = create<DesktopAuthState>((set) => ({
     })),
   markAuthRequired: (sessionId, telegramConfigured, remoteDashboardClient) =>
     set((state) => {
-      useUiLogStore.getState().recordLog("info", "미들웨어가 OTP 인증을 요구했다.", { source: "auth" });
+      const resuming = Boolean(state.auth.authToken);
+      if (!resuming) {
+        useUiLogStore.getState().recordLog("info", "미들웨어가 OTP 인증을 요구했다.", { source: "auth" });
+      }
       return {
         auth: {
           ...state.auth,
-          status: "required",
+          status: resuming ? "unknown" : "required",
           sessionId,
           telegramConfigured,
           remoteDashboardClient,
           otpRequestStatus: "idle",
-          lastMessage: "OTP 인증 필요"
+          lastMessage: resuming ? "저장된 인증 토큰 resume 대기" : "OTP 인증 필요"
         }
       };
     }),

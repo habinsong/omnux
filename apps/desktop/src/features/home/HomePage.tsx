@@ -1,20 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowUpRight,
-  Bot,
   ChevronUp,
-  Code2,
-  FileText,
   FolderGit2,
-  FolderOpen,
   History,
   Inbox,
-  MessageSquare,
-  Paperclip,
-  Scale,
-  Send,
-  SlidersHorizontal,
-  Sparkles
+  MessageSquare
 } from "lucide-react";
 import { useDesktopShellStore } from "../../shell-store";
 import { useDesktopAuthStore } from "../auth/auth-store";
@@ -26,40 +16,31 @@ import { useProjectsPageBridge, useProjectsStore, type ProjectItem } from "../pr
 import {
   Badge,
   Button,
-  Card,
   EmptyState,
   SectionLabel,
-  Textarea,
   cn
 } from "../../components/ui/primitives";
+import { HeroComposer } from "./HeroComposer";
 
 type QuickAction = {
-  id: string;
-  title: string;
-  description: string;
-  page: DesktopPageId;
-  payload?: DesktopRoutePayload;
-  icon: typeof MessageSquare;
-  tone: string;
+  readonly id: string;
+  readonly title: string;
+  readonly description: string;
+  readonly page: DesktopPageId;
+  readonly payload?: DesktopRoutePayload;
 };
 
-const QUICK_ACTIONS: QuickAction[] = [
-  { id: "ask", title: "AI에게 질문", description: "답변·설명·요약·아이디어를 얻으세요.", page: "ask", icon: MessageSquare, tone: "violet" },
-  { id: "build", title: "코드 작업", description: "코드를 편집·리팩터·디버그하고 빌드하세요.", page: "build", icon: Code2, tone: "blue" },
-  { id: "file", title: "파일 분석", description: "문서·로그·이미지·데이터를 분석하세요.", page: "ask", payload: { mode: "file", openAttachmentPanel: true }, icon: FileText, tone: "amber" },
-  { id: "automate", title: "자동화 만들기", description: "작업을 자동화하고 텔레그램과 연결하세요.", page: "automate", payload: { create: true }, icon: Bot, tone: "indigo" },
-  { id: "compare", title: "모델 비교", description: "여러 LLM의 응답을 비교하세요.", page: "ask", payload: { mode: "compare" }, icon: Scale, tone: "teal" },
-  { id: "project", title: "프로젝트 열기", description: "기존 프로젝트를 이어서 작업하세요.", page: "projects", icon: FolderOpen, tone: "green" }
+const QUICK_ACTION_ROWS: readonly (readonly QuickAction[])[] = [
+  [
+    { id: "automate", title: "자동화", description: "반복 작업 연결", page: "automate", payload: { create: true } },
+    { id: "logic", title: "로직", description: "노드로 흐름 만들기", page: "logic" },
+    { id: "skills", title: "스킬", description: "작업 방식 정하기", page: "skills" }
+  ],
+  [
+    { id: "planning", title: "계획", description: "목표를 작업으로 나누기", page: "planning" },
+    { id: "notebooks", title: "노트북", description: "기록과 결정 모으기", page: "notebooks" }
+  ]
 ];
-
-const TONE_CLASS: Record<string, string> = {
-  violet: "bg-violet-500/12 text-violet-500",
-  blue: "bg-blue-500/12 text-blue-500",
-  amber: "bg-amber-500/12 text-amber-500",
-  indigo: "bg-indigo-500/12 text-indigo-500",
-  teal: "bg-teal-500/12 text-teal-500",
-  green: "bg-emerald-500/12 text-emerald-500"
-};
 
 function greeting() {
   const hour = new Date().getHours();
@@ -86,25 +67,6 @@ function logTone(level: ShellLogEntry["level"]): "destructive" | "warning" | "su
   return "success";
 }
 
-function inferHeroIntent(input: string): { page: DesktopPageId; label: string; description: string; payload: DesktopRoutePayload } {
-  const text = input.trim();
-  const normalized = text.toLowerCase();
-  const base = text ? { input: text } : {};
-  if (/(자동화|루틴|예약|매일|매주|telegram|텔레그램|알림|schedule|routine|automate)/.test(normalized)) {
-    return { page: "automate", label: "자동화", description: "새 루틴 초안으로 이어집니다.", payload: { ...base, create: true } };
-  }
-  if (/(코드|빌드|구현|수정|디버그|리팩터|파일 고쳐|build|code|debug|fix|refactor)/.test(normalized)) {
-    return { page: "build", label: "빌드", description: "코드 작업 초안으로 이어집니다.", payload: base };
-  }
-  if (/(비교|compare|multi|여러 모델|모델별)/.test(normalized)) {
-    return { page: "ask", label: "모델 비교", description: "Ask multi 비교 모드로 이어집니다.", payload: { ...base, mode: "compare" } };
-  }
-  if (/(파일|문서|로그|첨부|이미지|pdf|csv|file|document|log|image)/.test(normalized)) {
-    return { page: "ask", label: "파일 분석", description: "첨부 패널이 열린 Ask로 이어집니다.", payload: { ...base, mode: "file", openAttachmentPanel: true } };
-  }
-  return { page: "ask", label: "질문", description: "Ask 초안으로 이어집니다.", payload: base };
-}
-
 /* ============================ 아래쪽 이어서/프로젝트 드로어 ============================ */
 
 function ContinueProjectsDrawer({
@@ -125,7 +87,7 @@ function ContinueProjectsDrawer({
     <div className="flex shrink-0 justify-center px-4">
       <div
         className={cn(
-          "w-full max-w-[1080px] overflow-hidden rounded-t-2xl border border-border bg-card/95 shadow-[var(--shadow-card)] backdrop-blur-xl transition-[max-height] duration-300 ease-out",
+          "w-full max-w-[1080px] overflow-hidden rounded-t-2xl border border-border bg-card/85 shadow-[var(--shadow-card)] backdrop-blur-xl transition-[max-height] duration-300 ease-out",
           open ? "max-h-[62vh]" : "max-h-[3.25rem]"
         )}
       >
@@ -231,7 +193,6 @@ export function HomePage() {
   const loadProjects = useProjectsStore((state) => state.loadProjects);
   const touchProject = useProjectsStore((state) => state.touchProject);
   const canRequest = bridgeStatus === "connected" && authStatus === "authenticated";
-  const [heroInput, setHeroInput] = useState("");
 
   useEffect(() => {
     if (canRequest && !projectsLoading && projects.length === 0) {
@@ -240,9 +201,6 @@ export function HomePage() {
   }, [canRequest, loadProjects, projects.length, projectsLoading]);
 
   const recentLogs = useMemo(() => logs.slice(0, 6), [logs]);
-  const heroIntent = useMemo(() => inferHeroIntent(heroInput), [heroInput]);
-
-  const runHeroIntent = () => navigate(heroIntent.page, heroIntent.payload);
 
   const openProject = (project: ProjectItem) => {
     touchProject(project);
@@ -251,82 +209,37 @@ export function HomePage() {
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden">
-      {/* 상단 spacer — 하단 collapsed 드로어 높이와 맞춰 hero를 화면 정중앙에 둔다 */}
-      <div className="h-[3.25rem] shrink-0" aria-hidden="true" />
       {/* 화면 정중앙: 인사 + hero 입력, 그 아래 빠른 시작 (my-auto로 중앙 정렬, 넘치면 스크롤) */}
       <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-6 py-6">
-        <div className="my-auto w-full max-w-3xl space-y-6 xl:max-w-[920px] xl:space-y-8">
-        <section className="space-y-4 text-center xl:space-y-5">
-          <div className="space-y-1.5">
-            <h1 className="text-3xl font-semibold tracking-tight xl:text-4xl">
-              {greeting()}, habinsong <span aria-hidden="true">👋</span>
-            </h1>
-            <p className="text-sm text-muted-foreground xl:text-base">오늘은 무엇을 해볼까요?</p>
-          </div>
-
-          <Card className="overflow-hidden text-left">
-            <div className="flex items-start gap-3 p-4 xl:gap-4 xl:p-5">
-              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary xl:h-11 xl:w-11">
-                <Sparkles size={20} className="xl:h-6 xl:w-6" aria-hidden="true" />
-              </span>
-              <Textarea
-                aria-label="omnux 명령 입력"
-                rows={2}
-                value={heroInput}
-                onChange={(event) => setHeroInput(event.target.value)}
-                placeholder="omnux에게 무엇이든 물어보세요... 하고 싶은 일을 말해주세요."
-                className="border-0 px-0 py-1 focus-visible:ring-0 xl:py-1.5 xl:text-base"
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    runHeroIntent();
-                  }
-                }}
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-2 border-t border-border bg-muted/30 px-4 py-2.5">
-              <Badge tone="primary" className="max-w-[220px] truncate" title={heroIntent.description}>{heroIntent.label}</Badge>
-              <Button variant="ghost" size="sm" onClick={() => navigate("ask", { input: heroInput, mode: "file", openAttachmentPanel: true })}>
-                <Paperclip size={15} aria-hidden="true" /> 파일 첨부
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => navigate("projects")}>
-                <FolderGit2 size={15} aria-hidden="true" /> 프로젝트 선택
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => navigate("settings")}>
-                <SlidersHorizontal size={15} aria-hidden="true" /> 모델 선택
-              </Button>
-              <Button variant="primary" size="icon" className="ml-auto" aria-label={`${heroIntent.label} 열기`} onClick={runHeroIntent}>
-                <Send size={17} aria-hidden="true" />
-              </Button>
-            </div>
-          </Card>
+        <div className="my-auto w-full max-w-2xl space-y-6 xl:max-w-3xl xl:space-y-8">
+        <section className="space-y-4 text-center">
+          <h1 className="text-3xl font-semibold tracking-tight xl:text-4xl">
+            {greeting()}, habinsong
+          </h1>
+          <HeroComposer />
         </section>
 
         <section className="space-y-3">
-          <SectionLabel className="xl:text-sm">빠른 시작</SectionLabel>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:gap-4">
-            {QUICK_ACTIONS.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => navigate(item.page, item.payload || null)}
-                  className="group lg-edge relative flex flex-col items-start gap-1.5 rounded-lg border border-border bg-card p-3 text-left shadow-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md active:scale-[0.99] dark:shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 xl:gap-2 xl:p-4"
-                >
-                  <span className={cn("flex h-9 w-9 items-center justify-center rounded-lg xl:h-11 xl:w-11", TONE_CLASS[item.tone])}>
-                    <Icon size={18} className="xl:h-[22px] xl:w-[22px]" aria-hidden="true" />
-                  </span>
-                  <b className="text-sm font-semibold xl:text-base">{item.title}</b>
-                  <p className="text-xs leading-snug text-muted-foreground xl:text-sm">{item.description}</p>
-                  <ArrowUpRight
-                    size={15}
-                    aria-hidden="true"
-                    className="absolute right-3 top-3 text-muted-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-                  />
-                </button>
-              );
-            })}
+
+          <div className="flex w-full flex-col items-center gap-2.5">
+            {QUICK_ACTION_ROWS.map((row, rowIndex) => (
+              <div key={`quick-action-row-${rowIndex}`} className="flex flex-row justify-center gap-3">
+                {row.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => navigate(item.page, item.payload || null)}
+                      className="group flex h-10 w-fit max-w-full min-w-0 items-center justify-center gap-2 rounded-full border border-border bg-card/60 px-3 text-center text-sm leading-none shadow-sm transition-all duration-300 hover:bg-card hover:scale-[1.03] hover:shadow-lg hover:text-[#6D5EF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 dark:bg-white/8 dark:hover:bg-card"
+                    >
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <b className="shrink-0 font-semibold">{item.title}</b>
+                        <span className="shrink-0 text-muted-foreground transition-colors group-hover:text-[#6D5EF7]" aria-hidden="true">·</span>
+                        <span className="truncate text-muted-foreground transition-colors group-hover:text-[#6D5EF7]">{item.description}</span>
+                      </span>
+                    </button>
+                ))}
+              </div>
+            ))}
           </div>
         </section>
         </div>

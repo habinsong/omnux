@@ -10,6 +10,25 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@keyframes media-icon-color-wave {
+  0%, 100% {
+    clip-path: polygon(0 58%, 18% 48%, 38% 61%, 58% 45%, 78% 57%, 100% 48%, 100% 100%, 0 100%);
+  }
+  50% {
+    clip-path: polygon(0 43%, 18% 56%, 38% 42%, 58% 59%, 78% 45%, 100% 57%, 100% 100%, 0 100%);
+  }
+}
+
+.media-icon-color-wave {
+  animation: media-icon-color-wave 0.9s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .media-icon-color-wave {
+    animation: none;
+  }
+}
+
 /* ============================================================================
    3-Tier Theme Architecture (§1) — 🪟 Glass(기본) / 🌞 Light / 🌙 Dark(Warm-Glow)
    Primary Brand = Indigo (§1.4). 하드코딩 HEX 금지, 오직 토큰으로만.
@@ -25,17 +44,17 @@
 :root {
   --background: #e9f1fb;                   /* 쿨 블루-화이트 베이스 (Blob이 그 위로) */
   --foreground: #15151e;
-  --card: rgba(255, 255, 255, 0.62);       /* milky 반투명 — 대비 확보 (§1.2) */
+  --card: rgba(255, 255, 255, 0.78);       /* milky 반투명 — 대비 확보 (§1.2) */
   --card-foreground: #15151e;
   --popover: rgba(255, 255, 255, 0.88);    /* Level 2: 투명도↓ 가독성 (§3) */
   --popover-foreground: #15151e;
-  --muted: rgba(255, 255, 255, 0.52);
+  --muted: rgba(255, 255, 255, 0.62);
   --muted-foreground: #4b4b60;
-  --accent: rgba(255, 255, 255, 0.72);
+  --accent: rgba(255, 255, 255, 0.80);
   --accent-foreground: #15151e;
   --primary: #6366f1;                      /* indigo-500 (§1.4) */
   --primary-foreground: #ffffff;
-  --secondary: rgba(255, 255, 255, 0.62);
+  --secondary: rgba(255, 255, 255, 0.74);
   --secondary-foreground: #15151e;
   --destructive: #ef4444;
   --destructive-foreground: #ffffff;
@@ -45,7 +64,7 @@
   --border-strong: rgba(73, 76, 120, 0.30);
   --input: rgba(255, 255, 255, 0.66);
   --ring: #6366f1;
-  --grid-line: rgba(80, 80, 140, 0.04);
+  --grid-line: rgba(80, 80, 140, 0.032);
   --radius: 0.7rem;                        /* liquid glass: 살짝 더 부드러운 모서리 */
   /* 이중 림 + 2단 띄움 그림자: 상단 흰색 specular(빛반사) → 안쪽 미세 림 → 접지 → float */
   /* 엣지 라이팅(흰색→투명 수직 그라데이션) + 2단 띄움 그림자 */
@@ -54,11 +73,11 @@
     inset 0 10px 20px -14px rgba(255, 255, 255, 0.55),
     inset 0 -1px 0 0 rgba(70, 74, 120, 0.10),
     0 1px 2px 0 rgba(40, 42, 90, 0.08),
-    0 16px 40px -14px rgba(40, 42, 90, 0.30);
-  --blob-a: rgba(79, 143, 247, 0.50);      /* blue */
-  --blob-b: rgba(56, 189, 248, 0.48);      /* sky */
-  --blob-c: rgba(34, 211, 238, 0.44);      /* cyan */
-  --blob-d: rgba(52, 211, 153, 0.42);      /* mint/emerald */
+    0 12px 28px -14px rgba(40, 42, 90, 0.18);
+  --blob-a: rgba(79, 143, 247, 0.30);      /* blue */
+  --blob-b: rgba(56, 189, 248, 0.29);      /* sky */
+  --blob-c: rgba(34, 211, 238, 0.26);      /* cyan */
+  --blob-d: rgba(52, 211, 153, 0.25);      /* mint/emerald */
   color-scheme: light;
 }
 
@@ -86,9 +105,9 @@
   --border-strong: rgba(9, 9, 11, 0.15);
   --input: rgba(9, 9, 11, 0.12);
   --ring: #6366f1;
-  --grid-line: rgba(9, 9, 11, 0.04);
+  --grid-line: rgba(9, 9, 11, 0.032);
   --radius: 0.6rem;
-  --shadow-card: 0 1px 2px rgba(9, 9, 11, 0.06), 0 1px 3px rgba(9, 9, 11, 0.05);
+  --shadow-card: 0 1px 2px rgba(9, 9, 11, 0.04), 0 1px 3px rgba(9, 9, 11, 0.035);
   --blob-a: rgba(0, 0, 0, 0);             /* 크리스프: Blob 숨김 */
   --blob-b: rgba(0, 0, 0, 0);
   --blob-c: rgba(0, 0, 0, 0);
@@ -105,7 +124,7 @@
   --popover: #222226;                     /* L2 명도↑ (§3) */
   --popover-foreground: #f5f5f7;
   --muted: #202024;
-  --muted-foreground: #a1a1aa;
+  --muted-foreground: #b5b5bd;
   --accent: #26262c;
   --accent-foreground: #f5f5f7;
   --primary: #6366f1;
@@ -116,17 +135,17 @@
   --destructive-foreground: #ffffff;
   --success: #10b981;
   --warning: #f59e0b;
-  --border: rgba(255, 255, 255, 0.08);    /* 얇고 미세한 투명 보더 */
-  --border-strong: rgba(255, 255, 255, 0.14);
+  --border: rgba(255, 255, 255, 0.10);    /* 얇고 미세한 투명 보더 */
+  --border-strong: rgba(255, 255, 255, 0.16);
   --input: rgba(255, 255, 255, 0.12);
   --ring: #818cf8;
-  --grid-line: rgba(255, 255, 255, 0.025);
+  --grid-line: rgba(255, 255, 255, 0.018);
   --radius: 0.6rem;
-  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.03), 0 14px 34px -18px rgba(99, 102, 241, 0.40);
-  --blob-a: rgba(99, 102, 241, 0.20);     /* indigo glow */
-  --blob-b: rgba(244, 114, 182, 0.07);    /* warm pink */
-  --blob-c: rgba(251, 146, 60, 0.06);     /* warm amber */
-  --blob-d: rgba(56, 189, 248, 0.06);     /* cool sky glow */
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 12px 28px -18px rgba(0, 0, 0, 0.30);
+  --blob-a: rgba(99, 102, 241, 0.10);     /* indigo glow */
+  --blob-b: rgba(244, 114, 182, 0.035);   /* warm pink */
+  --blob-c: rgba(251, 146, 60, 0.03);     /* warm amber */
+  --blob-d: rgba(56, 189, 248, 0.03);     /* cool sky glow */
   color-scheme: dark;
 }
 

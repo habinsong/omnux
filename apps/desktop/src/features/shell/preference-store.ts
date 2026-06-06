@@ -49,7 +49,7 @@ type PreferenceState = {
   resetShortcuts: () => void;
 };
 
-export const THEME_ORDER: ThemeMode[] = ["glass", "light", "dark"];
+export const THEME_ORDER: ThemeMode[] = ["light", "dark", "glass"];
 export const THEME_LABEL: Record<ThemeMode, string> = { glass: "글래스", light: "라이트", dark: "다크" };
 export const DETAIL_LABEL: Record<DetailLevel, string> = { simple: "간단히", advanced: "고급" };
 export const MODEL_PROVIDER_ORDER: ModelProviderId[] = ["groq", "gemini", "codex", "copilot", "cerebras", "nvidia"];
@@ -133,7 +133,7 @@ const KEY_LABELS: Record<string, string> = {
 };
 
 function normalizeTheme(value: string | null): ThemeMode {
-  return value === "light" || value === "dark" || value === "glass" ? value : "glass";
+  return value === "light" || value === "dark" || value === "glass" ? value : "light";
 }
 
 function normalizeDetail(value: string | null): DetailLevel {
@@ -141,11 +141,11 @@ function normalizeDetail(value: string | null): DetailLevel {
 }
 
 function readStoredTheme(): ThemeMode {
-  if (typeof window === "undefined") return "glass";
+  if (typeof window === "undefined") return "light";
   try {
     return normalizeTheme(window.localStorage.getItem(THEME_STORAGE_KEY));
   } catch {
-    return "glass";
+    return "light";
   }
 }
 
@@ -286,7 +286,7 @@ function saveShortcuts(next: ShortcutPreferences) {
   try {
     window.localStorage.setItem(SHORTCUT_STORAGE_KEY, JSON.stringify(next));
   } catch {
-    /* localStorage 불가 시 화면 상태만 유지한다. */
+    return;
   }
 }
 
@@ -302,7 +302,7 @@ function saveTheme(next: ThemeMode) {
   try {
     window.localStorage.setItem(THEME_STORAGE_KEY, next);
   } catch {
-    /* localStorage 불가 시 화면 상태만 유지한다. */
+    return;
   }
 }
 
@@ -311,7 +311,7 @@ function saveDetail(next: DetailLevel) {
   try {
     window.localStorage.setItem(DETAIL_STORAGE_KEY, next);
   } catch {
-    /* localStorage 불가 시 화면 상태만 유지한다. */
+    return;
   }
 }
 
@@ -320,7 +320,7 @@ function saveStartOnLaunchPreference(next: boolean) {
   try {
     window.localStorage.setItem(START_ON_LAUNCH_STORAGE_KEY, String(next));
   } catch {
-    /* localStorage 불가 시 화면 상태만 유지한다. */
+    return;
   }
 }
 
@@ -329,7 +329,7 @@ function saveModelProviderPriority(next: ModelProviderId[]) {
   try {
     window.localStorage.setItem(MODEL_PRIORITY_STORAGE_KEY, JSON.stringify(normalizeModelProviderPriority(next)));
   } catch {
-    /* localStorage 불가 시 화면 상태만 유지한다. */
+    return;
   }
 }
 

@@ -921,6 +921,9 @@ export const useBuildStore = create<BuildState>((set, get) => ({
     requestDesktopLlm.groqModels();
     requestDesktopLlm.copilotModels();
     requestDesktopSettings.cerebrasModels();
+    requestDesktopLlm.geminiModels();
+    requestDesktopLlm.nvidiaModels();
+    requestDesktopLlm.codexModels();
   },
   loadConversations: () => {
     set({ loadingConversations: true, lastError: null });
@@ -1579,6 +1582,30 @@ export function useBuildPageBridge() {
         useBuildStore.setState((prev) => ({
           modelCatalogs: { ...prev.modelCatalogs, cerebras: normalizeModelIds(message.items) },
           selectedModels: { ...prev.selectedModels, ...(message.selected ? { cerebras: String(message.selected) } : {}) }
+        }));
+        return;
+      }
+
+      if (message.type === "gemini_models") {
+        useBuildStore.setState((prev) => ({
+          modelCatalogs: { ...prev.modelCatalogs, gemini: normalizeModelIds(message.items) },
+          selectedModels: { ...prev.selectedModels, ...(message.selected ? { gemini: String(message.selected) } : {}) }
+        }));
+        return;
+      }
+
+      if (message.type === "nvidia_models") {
+        useBuildStore.setState((prev) => ({
+          modelCatalogs: { ...prev.modelCatalogs, nvidia: normalizeModelIds(message.items) },
+          selectedModels: { ...prev.selectedModels, ...(message.selected ? { nvidia: String(message.selected) } : {}) }
+        }));
+        return;
+      }
+
+      if (message.type === "codex_models") {
+        useBuildStore.setState((prev) => ({
+          modelCatalogs: { ...prev.modelCatalogs, codex: normalizeModelIds(message.items) },
+          selectedModels: { ...prev.selectedModels, ...(message.selected ? { codex: String(message.selected) } : {}) }
         }));
         return;
       }

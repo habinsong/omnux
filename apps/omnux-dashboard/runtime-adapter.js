@@ -13,6 +13,8 @@
     codexStatus: null,
     groqModels: null,
     cerebrasModels: null,
+    geminiModels: null,
+    nvidiaModels: null,
     copilotModels: null,
     settingsResult: null,
     otpResult: null,
@@ -149,6 +151,10 @@
       state.groqModels = { ...(state.groqModels || {}), selected: msg.model || state.groqModels?.selected || '' };
     } else if (msg.type === 'cerebras_models') {
       state.cerebrasModels = msg;
+    } else if (msg.type === 'gemini_models') {
+      state.geminiModels = msg;
+    } else if (msg.type === 'nvidia_models') {
+      state.nvidiaModels = msg;
     } else if (msg.type === 'copilot_models') {
       state.copilotModels = msg;
     } else if (msg.type === 'copilot_model_set') {

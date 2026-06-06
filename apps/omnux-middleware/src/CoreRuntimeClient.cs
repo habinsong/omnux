@@ -12,15 +12,23 @@ public interface ICoreRuntimeClient
 
 public sealed class DotNetCoreRuntimeClient : ICoreRuntimeClient
 {
+    private static readonly object WindowsCpuLock = new();
+    private static ulong _previousWindowsIdle;
+    private static ulong _previousWindowsKernel;
+    private static ulong _previousWindowsUser;
+
     public Task<string> GetMetricsAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var cpuUsage = ResolveCpuLoad1m();
-        var memFreeMb = ResolveAvailableMemoryMb();
+        var cpuUsage = ResolveCpuUsagePercent();
+        var memory = ResolveMemory();
         return Task.FromResult(
             "status=ok "
             + $"cpu_usage={cpuUsage.ToString("0.00", CultureInfo.InvariantCulture)} "
-            + $"mem_free_mb={memFreeMb.ToString(CultureInfo.InvariantCulture)}"
+            + $"mem_used_mb={memory.UsedMb.ToString(CultureInfo.InvariantCulture)} "
+            + $"mem_total_mb={memory.TotalMb.ToString(CultureInfo.InvariantCulture)} "
+            + $"mem_free_mb={memory.AvailableMb.ToString(CultureInfo.InvariantCulture)} "
+            + $"mem_usage={memory.UsagePercent.ToString("0.00", CultureInfo.InvariantCulture)}"
         );
     }
 
@@ -71,13 +79,21 @@ public sealed class DotNetCoreRuntimeClient : ICoreRuntimeClient
         }
     }
 
-    private static double ResolveCpuLoad1m()
+    private static double ResolveCpuUsagePercent()
     {
         try
         {
-            return !OperatingSystem.IsWindows() && NativeMethods.getloadavg(out var load1, 1) == 1
-                ? load1
-                : -1.0d;
+            if (OperatingSystem.IsWindows())
+            {
+                return ResolveWindowsCpuUsagePercent();
+            }
+
+            var output = RunTextCommand("ps", "-A", "-o", "%cpu=");
+            var total = output
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(value => double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) ? parsed : 0.0d)
+                .Sum();
+            return Math.Clamp(total / Math.Max(1, Environment.ProcessorCount), 0.0d, 100.0d);
         }
         catch
         {
@@ -85,49 +101,167 @@ public sealed class DotNetCoreRuntimeClient : ICoreRuntimeClient
         }
     }
 
-    private static long ResolveAvailableMemoryMb()
+    private static double ResolveWindowsCpuUsagePercent()
+    {
+        if (!NativeMethods.GetSystemTimes(out var idleTime, out var kernelTime, out var userTime))
+        {
+            return -1.0d;
+        }
+
+        var idle = idleTime.ToUInt64();
+        var kernel = kernelTime.ToUInt64();
+        var user = userTime.ToUInt64();
+        lock (WindowsCpuLock)
+        {
+            var idleDelta = idle - _previousWindowsIdle;
+            var kernelDelta = kernel - _previousWindowsKernel;
+            var userDelta = user - _previousWindowsUser;
+            _previousWindowsIdle = idle;
+            _previousWindowsKernel = kernel;
+            _previousWindowsUser = user;
+            var total = kernelDelta + userDelta;
+            if (total == 0 || idleDelta > total)
+            {
+                return 0.0d;
+            }
+            return Math.Clamp((total - idleDelta) * 100.0d / total, 0.0d, 100.0d);
+        }
+    }
+
+    private static MemorySnapshot ResolveMemory()
     {
         try
         {
             if (OperatingSystem.IsWindows())
             {
-                var status = new NativeMethods.MemoryStatusEx();
-                status.dwLength = (uint)Marshal.SizeOf<NativeMethods.MemoryStatusEx>();
-                return NativeMethods.GlobalMemoryStatusEx(ref status)
-                    ? (long)(status.ullAvailPhys / (1024UL * 1024UL))
-                    : -1;
+                var status = new NativeMethods.MemoryStatusEx
+                {
+                    dwLength = (uint)Marshal.SizeOf<NativeMethods.MemoryStatusEx>()
+                };
+                if (!NativeMethods.GlobalMemoryStatusEx(ref status))
+                {
+                    return MemorySnapshot.Unavailable;
+                }
+                var totalBytes = status.ullTotalPhys > long.MaxValue ? long.MaxValue : (long)status.ullTotalPhys;
+                var availableBytes = status.ullAvailPhys > long.MaxValue ? long.MaxValue : (long)status.ullAvailPhys;
+                return MemorySnapshot.FromBytes(totalBytes, availableBytes);
             }
 
-            var pages = OperatingSystem.IsLinux()
-                ? NativeMethods.sysconf(NativeMethods.LinuxScAvailPhysPages)
-                : OperatingSystem.IsMacOS()
-                    ? NativeMethods.sysconf(NativeMethods.MacScPhysPages)
-                    : -1;
-            var pageSize = Environment.SystemPageSize;
-            if (pages <= 0 || pageSize <= 0)
+            if (OperatingSystem.IsLinux())
             {
-                return -1;
+                var values = File.ReadLines("/proc/meminfo")
+                    .Select(line => line.Split(':', 2))
+                    .Where(parts => parts.Length == 2)
+                    .ToDictionary(
+                        parts => parts[0],
+                        parts => ParseLeadingLong(parts[1]) * 1024L,
+                        StringComparer.Ordinal
+                    );
+                var total = values.GetValueOrDefault("MemTotal", -1);
+                var available = values.GetValueOrDefault("MemAvailable", values.GetValueOrDefault("MemFree", -1));
+                return MemorySnapshot.FromBytes(total, available);
             }
 
-            return (long)(((double)pages * pageSize) / (1024.0d * 1024.0d));
+            if (OperatingSystem.IsMacOS())
+            {
+                var total = ParseLeadingLong(RunTextCommand("sysctl", "-n", "hw.memsize"));
+                var vmStat = RunTextCommand("vm_stat");
+                return MemorySnapshot.FromBytes(total, ResolveMacAvailableBytes(vmStat));
+            }
         }
         catch
         {
-            return -1;
+            return MemorySnapshot.Unavailable;
+        }
+
+        return MemorySnapshot.Unavailable;
+    }
+
+    private static long ResolveMacAvailableBytes(string vmStat)
+    {
+        var pageSize = 4096L;
+        var availablePages = 0L;
+        foreach (var line in vmStat.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (line.Contains("page size of", StringComparison.OrdinalIgnoreCase))
+            {
+                var marker = line.IndexOf("page size of", StringComparison.OrdinalIgnoreCase);
+                pageSize = ParseLeadingLong(line[(marker + "page size of".Length)..]);
+                continue;
+            }
+
+            var parts = line.Split(':', 2);
+            if (parts.Length != 2)
+            {
+                continue;
+            }
+            if (parts[0] is "Pages free" or "Pages inactive" or "Pages speculative" or "Pages purgeable")
+            {
+                availablePages += ParseLeadingLong(parts[1]);
+            }
+        }
+        return availablePages * Math.Max(1, pageSize);
+    }
+
+    private static long ParseLeadingLong(string value)
+    {
+        var digits = new string(value.Trim().TakeWhile(char.IsDigit).ToArray());
+        return long.TryParse(digits, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : -1;
+    }
+
+    private static string RunTextCommand(string fileName, params string[] arguments)
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo(fileName)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            }
+        };
+        foreach (var argument in arguments)
+        {
+            process.StartInfo.ArgumentList.Add(argument);
+        }
+        process.Start();
+        var output = process.StandardOutput.ReadToEnd();
+        if (!process.WaitForExit(2000))
+        {
+            process.Kill(entireProcessTree: true);
+            return string.Empty;
+        }
+        return process.ExitCode == 0 ? output : string.Empty;
+    }
+
+    private readonly record struct MemorySnapshot(long UsedMb, long TotalMb, long AvailableMb, double UsagePercent)
+    {
+        public static MemorySnapshot Unavailable => new(-1, -1, -1, -1.0d);
+
+        public static MemorySnapshot FromBytes(long totalBytes, long availableBytes)
+        {
+            if (totalBytes <= 0 || availableBytes < 0)
+            {
+                return Unavailable;
+            }
+            var boundedAvailable = Math.Min(totalBytes, availableBytes);
+            var usedBytes = totalBytes - boundedAvailable;
+            const long bytesPerMb = 1024L * 1024L;
+            return new(
+                usedBytes / bytesPerMb,
+                totalBytes / bytesPerMb,
+                boundedAvailable / bytesPerMb,
+                usedBytes * 100.0d / totalBytes
+            );
         }
     }
 
     private static class NativeMethods
     {
         public const int SigTerm = 15;
-        public const int LinuxScAvailPhysPages = 86;
-        public const int MacScPhysPages = 200;
-
-        [DllImport("libc", SetLastError = false)]
-        public static extern int getloadavg(out double loadavg, int nelem);
-
-        [DllImport("libc", SetLastError = false)]
-        public static extern long sysconf(int name);
 
         [DllImport("libc", SetLastError = true)]
         public static extern int kill(int pid, int sig);
@@ -135,6 +269,19 @@ public sealed class DotNetCoreRuntimeClient : ICoreRuntimeClient
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool GlobalMemoryStatusEx(ref MemoryStatusEx lpBuffer);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool GetSystemTimes(out FileTime idleTime, out FileTime kernelTime, out FileTime userTime);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct FileTime
+        {
+            public uint Low;
+            public uint High;
+
+            public readonly ulong ToUInt64() => ((ulong)High << 32) | Low;
+        }
 
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
         public struct MemoryStatusEx

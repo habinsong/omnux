@@ -2,25 +2,28 @@
 
 [한국어](../기술스택_정리.md) · [English](./tech-stack.md)
 
-Updated: 2026-06-02
+Updated: 2026-06-05
 
 omnux is not one large framework. It keeps small runtimes separated by responsibility.
 
 | Area | Stack | Responsibility |
 |---|---|---|
-| Core runtime | .NET 9 | Metrics, guarded kill, WebSocket/HTTP, Telegram, file state, provider routing, domain orchestration |
-| Dashboard | HTML/CSS/JavaScript | Static dashboard without a bundler |
-| Desktop shell | Rust + TypeScript + React | Tauri app shell, window lifecycle, runtime bootstrap, UI boundary |
+| Core runtime | .NET 9 (`PublishAot=true`) | Metrics, guarded kill, WebSocket/HTTP, Telegram, file state, provider routing, domain orchestration |
+| Desktop frontend | Tauri v2 + React 19 + TypeScript + Tailwind CSS v4 | App shell (Rust) + UI (React), Zustand state management, react-markdown rendering |
+| Desktop build | Vite 7 + `@tailwindcss/vite` | Fast HMR, Tailwind v4 integrated build |
+| Desktop UI | Tailwind CSS v4, lucide-react, shadcn/ui tokens | 3-tier theme (Glass/Light/Dark), B2B SaaS design system |
+| Dashboard | HTML/CSS/JavaScript | Static dashboard without a bundler (legacy) |
 | Executor | Python | Simple code execution and verification |
 | Tests/scripts | Node.js, npm scripts | Repository hygiene, contract checks, frontend syntax checks |
-| State | JSON, Markdown, SQLite where useful | Human-readable local operational state and records |
+| State | JSON, Markdown, SQLite FTS | Human-readable operational state and records |
 
 ## Language Boundaries
 
-- Rust owns only the app shell and window lifecycle. It must not own provider/API/state/domain logic.
-- TypeScript and JavaScript are for the desktop/dashboard UI shell and contract verification scripts.
-- Python is for sandbox execution and code verification.
-- Node.js is for tests, hygiene checks, and contract checks.
+- Rust owns only the Tauri app shell (window management). It must not own provider/API/state/domain logic.
+- TypeScript and React are for the desktop UI only. Business logic belongs to the .NET middleware.
+- JavaScript is for the legacy web dashboard and contract verification scripts.
+- Python is for sandbox execution and code verification only.
+- Node.js is for tests, hygiene checks, and contract checks only.
 - New business logic and state orchestration belong to the .NET 9 middleware by default.
 
 ## Canonical Source Homes

@@ -116,6 +116,9 @@ const READ_ONLY_DEDUPE_REQUESTS = new Set<string>([
   "get_groq_models",
   "get_copilot_models",
   "get_cerebras_models",
+  "get_gemini_models",
+  "get_nvidia_models",
+  "get_codex_models",
   "get_copilot_status",
   "get_codex_status",
   "get_usage_stats",
@@ -196,16 +199,32 @@ export function registerDesktopPublicRequestTypes(...types: string[]): void {
 const listeners = new Set<DesktopMessageListener>();
 let sessionSocket: WebSocket | null = null;
 
+let isAuthSubscribed = false;
+
 export function bindDesktopSessionSocket(socket: WebSocket | null) {
   sessionSocket = socket;
+
+  if (!isAuthSubscribed) {
+    isAuthSubscribed = true;
+    useDesktopAuthStore.subscribe((state, prev) => {
+      if (state.auth.status === "authenticated" && prev.auth.status !== "authenticated") {
+        flushPendingReadOnlyRequests();
+      }
+    });
+  }
+
   if (!socket) return;
   if (socket.readyState === WebSocket.OPEN) {
-    flushPendingReadOnlyRequests();
+    if (useDesktopAuthStore.getState().auth.status === "authenticated") {
+      flushPendingReadOnlyRequests();
+    }
     return;
   }
   socket.addEventListener("open", () => {
     if (sessionSocket === socket) {
-      flushPendingReadOnlyRequests();
+      if (useDesktopAuthStore.getState().auth.status === "authenticated") {
+        flushPendingReadOnlyRequests();
+      }
     }
   }, { once: true });
 }
@@ -262,11 +281,19 @@ function flushPendingReadOnlyRequests() {
   if (!socket || socket.readyState !== WebSocket.OPEN || pendingReadOnlyRequests.size === 0) {
     return;
   }
+  
+  const authStatus = useDesktopAuthStore.getState().auth.status;
   const pending = [...pendingReadOnlyRequests.values()]
     .sort((a, b) => a.queuedAt - b.queuedAt)
     .map((entry) => entry.payload);
+  
   pendingReadOnlyRequests.clear();
+  
   for (const payload of pending) {
+    if (!DESKTOP_PUBLIC_REQUESTS.has(payload.type) && authStatus !== "authenticated") {
+      queueReadOnlyRequest(payload);
+      continue;
+    }
     if (!shouldSkipDuplicateReadOnlyRequest(payload)) {
       socket.send(JSON.stringify(payload));
     }
@@ -306,12 +333,17 @@ function flushTrailingReadOnlyRequests(): void {
   const items = [...trailingReadOnlyRequests.values()];
   trailingReadOnlyRequests.clear();
   const socket = sessionSocket;
+  const authStatus = useDesktopAuthStore.getState().auth.status;
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     // 끊긴 상태면 재연결 큐로 넘겨 재연결 후 결국 응답을 받게 한다.
     for (const payload of items) queueReadOnlyRequest(payload);
     return;
   }
   for (const payload of items) {
+    if (!DESKTOP_PUBLIC_REQUESTS.has(payload.type) && authStatus !== "authenticated") {
+      queueReadOnlyRequest(payload);
+      continue;
+    }
     // 윈도우가 지난 요청만 실제 전송한다. 아직 윈도우 안이면 그 사이 실제 전송이 있었다는 뜻이고,
     // 그 전송의 응답이 loading을 풀어 주므로 여기서는 버려도 안전하다.
     if (!shouldSkipDuplicateReadOnlyRequest(payload)) {
