@@ -75,20 +75,6 @@ internal sealed class WsSetupCommandDispatcher
             return true;
         }
 
-        var remoteRestrictionMessage = remoteDashboardClient
-            ? GetRemoteRestrictionMessage(messageType)
-            : string.Empty;
-        if (!string.IsNullOrWhiteSpace(remoteRestrictionMessage))
-        {
-            await WebSocketGateway.SendTextAsync(
-                socket,
-                sendLock,
-                $"{{\"type\":\"error\",\"message\":\"{remoteRestrictionMessage}\"}}",
-                cancellationToken
-            );
-            return true;
-        }
-
         if (!isAuthenticated)
         {
             if (!IsLocalBootstrapMessage(messageType))
@@ -114,6 +100,24 @@ internal sealed class WsSetupCommandDispatcher
             );
             await _sendSettingsStateAsync(socket, sendLock, cancellationToken, remoteDashboardClient);
             _requestListenerRebind();
+            return true;
+        }
+
+        if (message.Type == "rules_get")
+        {
+            await SendUserRulesStateAsync(socket, sendLock, "get", _settingsService.GetUserRules(), cancellationToken);
+            return true;
+        }
+
+        if (message.Type == "rules_save")
+        {
+            await SendUserRulesStateAsync(socket, sendLock, "save", _settingsService.SaveUserRules(message.Text), cancellationToken);
+            return true;
+        }
+
+        if (message.Type == "rules_delete")
+        {
+            await SendUserRulesStateAsync(socket, sendLock, "delete", _settingsService.DeleteUserRules(), cancellationToken);
             return true;
         }
 
@@ -190,6 +194,57 @@ internal sealed class WsSetupCommandDispatcher
                 socket,
                 sendLock,
                 $"{{\"type\":\"settings_result\",\"ok\":{(IsSettingsOperationSuccess(result) ? "true" : "false")},\"message\":\"{WebSocketGateway.EscapeJson(result)}\"}}",
+                cancellationToken
+            );
+            await _sendSettingsStateAsync(socket, sendLock, cancellationToken, remoteDashboardClient);
+            return true;
+        }
+
+        if (message.Type == "totp_enroll_begin")
+        {
+            var enrollment = _settingsService.BeginTotpEnrollment();
+            await WebSocketGateway.SendTextAsync(
+                socket,
+                sendLock,
+                "{"
+                + "\"type\":\"totp_enroll_result\","
+                + "\"ok\":true,"
+                + $"\"secret\":\"{WebSocketGateway.EscapeJson(enrollment.Secret)}\","
+                + $"\"otpauthUri\":\"{WebSocketGateway.EscapeJson(enrollment.OtpAuthUri)}\","
+                + $"\"account\":\"{WebSocketGateway.EscapeJson(enrollment.Account)}\","
+                + $"\"issuer\":\"{WebSocketGateway.EscapeJson(enrollment.Issuer)}\""
+                + "}",
+                cancellationToken
+            );
+            return true;
+        }
+
+        if (message.Type == "totp_enroll_confirm")
+        {
+            var confirmed = _settingsService.ConfirmTotpEnrollment(message.TotpCode);
+            var confirmMessage = confirmed
+                ? "인증 앱이 등록되었습니다."
+                : "코드가 올바르지 않거나 등록 세션이 만료되었습니다. QR을 다시 발급해 주세요.";
+            await WebSocketGateway.SendTextAsync(
+                socket,
+                sendLock,
+                $"{{\"type\":\"totp_confirm_result\",\"ok\":{(confirmed ? "true" : "false")},\"message\":\"{WebSocketGateway.EscapeJson(confirmMessage)}\"}}",
+                cancellationToken
+            );
+            await _sendSettingsStateAsync(socket, sendLock, cancellationToken, remoteDashboardClient);
+            return true;
+        }
+
+        if (message.Type == "totp_disable")
+        {
+            var disabled = _settingsService.DisableTotp();
+            var disableMessage = disabled
+                ? "인증 앱 등록을 해제했습니다."
+                : "인증 앱 해제에 실패했습니다.";
+            await WebSocketGateway.SendTextAsync(
+                socket,
+                sendLock,
+                $"{{\"type\":\"totp_disable_result\",\"ok\":{(disabled ? "true" : "false")},\"message\":\"{WebSocketGateway.EscapeJson(disableMessage)}\"}}",
                 cancellationToken
             );
             await _sendSettingsStateAsync(socket, sendLock, cancellationToken, remoteDashboardClient);
@@ -465,12 +520,18 @@ internal sealed class WsSetupCommandDispatcher
             "get_settings" or
             "get_setup_state" or
             "set_external_dashboard_access" or
+            "rules_get" or
+            "rules_save" or
+            "rules_delete" or
             "routing_policy_get" or
             "routing_policy_save" or
             "routing_policy_reset" or
             "routing_decision_get_last" or
             "set_telegram_credentials" or
             "delete_telegram_credentials" or
+            "totp_enroll_begin" or
+            "totp_enroll_confirm" or
+            "totp_disable" or
             "set_llm_credentials" or
             "delete_llm_credentials" or
             "test_telegram" or
@@ -495,6 +556,9 @@ internal sealed class WsSetupCommandDispatcher
         return messageType is
             "set_telegram_credentials" or
             "delete_telegram_credentials" or
+            "totp_enroll_begin" or
+            "totp_enroll_confirm" or
+            "totp_disable" or
             "set_llm_credentials" or
             "delete_llm_credentials" or
             "test_telegram" or
@@ -511,4 +575,22 @@ internal sealed class WsSetupCommandDispatcher
             "get_nvidia_models" or
             "get_codex_models";
     }
+    private static async Task SendUserRulesStateAsync(
+        WebSocket socket,
+        SemaphoreSlim sendLock,
+        string action,
+        UserRulesSnapshot snapshot,
+        CancellationToken cancellationToken
+    )
+    {
+        var json = "{"
+            + "\"type\":\"user_rules_state\","
+            + $"\"action\":\"{WebSocketGateway.EscapeJson(action)}\","
+            + $"\"exists\":{(snapshot.Exists ? "true" : "false")},"
+            + $"\"updatedUtc\":\"{WebSocketGateway.EscapeJson(snapshot.UpdatedUtc)}\","
+            + $"\"text\":\"{WebSocketGateway.EscapeJson(snapshot.Text)}\""
+            + "}";
+        await WebSocketGateway.SendTextAsync(socket, sendLock, json, cancellationToken);
+    }
+
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { BookOpen, CheckCircle2, ClipboardList, FileText, GitPullRequestArrow, Lightbulb, RefreshCcw, Search, ScrollText, Send, ShieldCheck, Wand2, X } from "lucide-react";
+import { BookOpen, CheckCircle2, ClipboardList, FileText, GitPullRequestArrow, Lightbulb, RefreshCcw, Search, ScrollText, Send, ShieldCheck, Wrench, X } from "lucide-react";
 import { CardBoundary } from "../../CardBoundary";
 import { useDesktopShellStore } from "../../shell-store";
 import { useDesktopAuthStore } from "../auth/auth-store";
@@ -18,10 +18,10 @@ const KINDS: Array<{ key: NotebookKind; label: string; icon: typeof Lightbulb; t
 ];
 
 const DOCS: Array<{ field: "learnings" | "decisions" | "verification" | "handoff"; label: string; icon: typeof Lightbulb; tint: string }> = [
-  { field: "learnings", label: "학습 (learning)", icon: Lightbulb, tint: "bg-blue-500/12 text-blue-500" },
-  { field: "decisions", label: "결정 (decision)", icon: ScrollText, tint: "bg-violet-500/12 text-violet-500" },
-  { field: "verification", label: "검증 (verification)", icon: CheckCircle2, tint: "bg-emerald-500/12 text-emerald-500" },
-  { field: "handoff", label: "핸드오프 (handoff)", icon: GitPullRequestArrow, tint: "bg-amber-500/12 text-amber-500" }
+  { field: "learnings", label: "학습", icon: Lightbulb, tint: "bg-blue-500/12 text-blue-500" },
+  { field: "decisions", label: "결정", icon: ScrollText, tint: "bg-violet-500/12 text-violet-500" },
+  { field: "verification", label: "검증", icon: CheckCircle2, tint: "bg-emerald-500/12 text-emerald-500" },
+  { field: "handoff", label: "이어보기", icon: GitPullRequestArrow, tint: "bg-amber-500/12 text-amber-500" }
 ];
 
 function countWords(value: string) {
@@ -37,6 +37,10 @@ function docMatches(document: { content: string; path: string }, label: string, 
 
 function isNotebookKind(value: NotebookKind | "handoff"): value is NotebookKind {
   return value === "learning" || value === "decision" || value === "verification";
+}
+
+function notebookKindLabel(kind: NotebookKind): string {
+  return KINDS.find((item) => item.key === kind)?.label || kind;
 }
 
 function NotebookMetric({ label, value, helper }: { label: string; value: string; helper: string }) {
@@ -93,14 +97,14 @@ function buildTaskVerificationDraft(): string {
   if (!graph && !output) return "";
   const nodes = graph?.nodes || [];
   return [
-    "태스크 그래프에서 가져온 검증 메모",
+    "작업 그래프에서 가져온 검증 메모",
     "",
     graph ? `그래프: ${graph.graphId}` : "",
     graph ? `상태: ${graph.status || "-"}` : "",
-    nodes.length ? `노드 요약:\n${shortLines(nodes.map((node) => `${node.taskId} · ${node.status || "-"} · ${node.title || node.category || "-"}`), 10)}` : "",
+    nodes.length ? `작업 요약:\n${shortLines(nodes.map((node) => `${node.taskId} · ${node.status || "-"} · ${node.title || node.category || "-"}`), 10)}` : "",
     output ? `\n최근 출력: ${output.taskId} · ${output.status || "-"}` : "",
-    output?.stdout ? `stdout:\n${output.stdout.slice(0, 1200)}` : "",
-    output?.stderr ? `stderr:\n${output.stderr.slice(0, 1200)}` : ""
+    output?.stdout ? `표준 출력:\n${output.stdout.slice(0, 1200)}` : "",
+    output?.stderr ? `오류 출력:\n${output.stderr.slice(0, 1200)}` : ""
   ].filter(Boolean).join("\n");
 }
 
@@ -110,12 +114,12 @@ function buildDoctorVerificationDraft(): string {
   const fix = doctor.fixResult;
   if (!report && !fix) return "";
   return [
-    "Doctor에서 가져온 검증 메모",
+    "상태 점검에서 가져온 검증 메모",
     "",
     report ? `보고서: ${report.reportId || "-"}` : "",
-    report ? `상태: ${report.status} · ok=${report.okCount} warn=${report.warnCount} fail=${report.failCount} skip=${report.skipCount}` : "",
+    report ? `상태: ${report.status} · 정상=${report.okCount} 경고=${report.warnCount} 실패=${report.failCount} 건너뜀=${report.skipCount}` : "",
     report?.checks.length ? `체크:\n${shortLines(report.checks.map((check) => `${check.status} · ${check.summary || check.id}`), 10)}` : "",
-    fix ? `\nFix preview/apply: ${fix.action || "-"} · ${fix.ok ? "ok" : "not ok"}` : "",
+    fix ? `\n수정 미리보기/적용: ${fix.action || "-"} · ${fix.ok ? "정상" : "확인 필요"}` : "",
     fix?.message ? `메시지: ${fix.message}` : "",
     fix?.actions.length ? `액션:\n${shortLines(fix.actions.map((action) => `${action.kind} · ${action.target} · ${action.status}`), 8)}` : ""
   ].filter(Boolean).join("\n");
@@ -125,13 +129,13 @@ function buildRefactorVerificationDraft(): string {
   const refactor = useRefactorStore.getState();
   if (!refactor.previewId && !refactor.previewDiff && !refactor.lastMessage && !refactor.loadedPath) return "";
   return [
-    "Safe Refactor에서 가져온 검증 메모",
+    "리뷰에서 가져온 검증 메모",
     "",
     `파일: ${refactor.loadedPath || refactor.path || "-"}`,
-    `상태: ${refactor.applied ? "applied" : refactor.previewId ? "previewed" : "checked"}`,
+    `상태: ${refactor.applied ? "적용" : refactor.previewId ? "미리보기" : "확인"}`,
     refactor.lastMessage ? `메시지: ${refactor.lastMessage}` : "",
     refactor.issues.length ? `이슈:\n${shortLines(refactor.issues, 8)}` : "",
-    refactor.previewDiff ? `Diff preview:\n${refactor.previewDiff.slice(0, 1800)}` : ""
+    refactor.previewDiff ? `변경 미리보기:\n${refactor.previewDiff.slice(0, 1800)}` : ""
   ].filter(Boolean).join("\n");
 }
 
@@ -145,33 +149,33 @@ function QuickImportPanel({ onImport }: { onImport: (kind: NotebookKind, text: s
     {
       key: "plan-decision",
       label: "계획 결정",
-      description: selectedPlan ? selectedPlan.title || selectedPlan.planId : "Planning에서 계획을 선택하면 가져올 수 있습니다.",
+      description: selectedPlan ? selectedPlan.title || selectedPlan.planId : "작업 탭에서 계획을 선택하면 가져올 수 있습니다.",
       kind: "decision",
       icon: ClipboardList,
       text: buildPlanDecisionDraft()
     },
     {
       key: "task-verification",
-      label: "태스크 검증",
-      description: selectedGraph ? `${selectedGraph.graphId} · ${selectedGraph.status}` : output ? `${output.taskId} 출력` : "Planning에서 그래프나 태스크 출력을 열면 가져올 수 있습니다.",
+      label: "작업 검증",
+      description: selectedGraph ? `${selectedGraph.graphId} · ${selectedGraph.status}` : output ? `${output.taskId} 출력` : "작업에서 그래프나 출력 결과를 열면 가져올 수 있습니다.",
       kind: "verification",
       icon: CheckCircle2,
       text: buildTaskVerificationDraft()
     },
     {
       key: "doctor-verification",
-      label: "Doctor 검증",
-      description: doctor.report ? `${doctor.report.status} · fail ${doctor.report.failCount}` : doctor.fixResult ? doctor.fixResult.message : "Operations에서 Doctor를 실행하면 가져올 수 있습니다.",
+      label: "상태 점검",
+      description: doctor.report ? `${doctor.report.status} · 실패 ${doctor.report.failCount}` : doctor.fixResult ? doctor.fixResult.message : "모니터에서 상태 점검을 실행하면 가져올 수 있습니다.",
       kind: "verification",
       icon: ShieldCheck,
       text: buildDoctorVerificationDraft()
     },
     {
       key: "refactor-verification",
-      label: "Refactor 검증",
-      description: refactor.loadedPath || refactor.path || "Refactor preview/read 결과를 가져옵니다.",
+      label: "리뷰 검증",
+      description: refactor.loadedPath || refactor.path || "리뷰 미리보기와 읽기 결과를 가져옵니다.",
       kind: "verification",
-      icon: Wand2,
+      icon: Wrench,
       text: buildRefactorVerificationDraft()
     }
   ], [doctor, output, refactor, selectedGraph, selectedPlan]);
@@ -206,7 +210,7 @@ function QuickImportPanel({ onImport }: { onImport: (kind: NotebookKind, text: s
               <span className="min-w-0">
                 <span className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate text-sm font-medium">{source.label}</span>
-                  <Badge tone={source.kind === "decision" ? "primary" : "success"} className="shrink-0">{source.kind}</Badge>
+                  <Badge tone={source.kind === "decision" ? "primary" : "success"} className="shrink-0">{notebookKindLabel(source.kind)}</Badge>
                 </span>
                 <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{source.description}</span>
               </span>
@@ -282,18 +286,18 @@ export function NotebookPage() {
   }, [canRequest]);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">노트북 / 핸드오프</h1>
-          <p className="text-sm text-muted-foreground">학습·결정·검증을 컨텍스트 노트북에 누적하고, 작업을 다른 세션/디바이스로 핸드오프합니다.</p>
+    <div className="dashboard-tab space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold tracking-tight">노트</h1>
+          <p className="text-sm text-muted-foreground">결정, 확인, 이어보기 메모를 프로젝트 기준으로 남깁니다.</p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           <Button variant="outline" size="sm" onClick={store.load} disabled={!canRequest || store.loading}>
             <RefreshCcw size={15} aria-hidden="true" /> {store.loading ? "조회 중" : "새로고침"}
           </Button>
           <Button variant="primary" size="sm" onClick={store.createHandoff} disabled={!canRequest || store.pending}>
-            <GitPullRequestArrow size={15} aria-hidden="true" /> 핸드오프 생성
+            <GitPullRequestArrow size={15} aria-hidden="true" /> 이어보기 문서
           </Button>
         </div>
       </div>
@@ -306,17 +310,17 @@ export function NotebookPage() {
           <div className="flex items-center gap-2">
             <BookOpen size={16} aria-hidden="true" /> <span className="text-sm font-semibold">노트북에 기록</span>
           </div>
-          <div className="flex min-w-[220px] items-center gap-2">
-            <Input value={store.projectKeyDraft} placeholder="projectKey (비우면 기본)" onChange={(event) => store.setProjectKeyDraft(event.target.value)} />
+          <div className="flex min-w-[220px] flex-wrap items-center gap-2">
+            <Input value={store.projectKeyDraft} placeholder="프로젝트 기준 (비우면 기본)" onChange={(event) => store.setProjectKeyDraft(event.target.value)} />
             <Button variant="outline" size="sm" onClick={store.load} disabled={!canRequest || store.loading}>적용</Button>
           </div>
         </div>
 
         <section className="grid grid-cols-2 gap-2 md:grid-cols-4">
-          <NotebookMetric label="남긴 문서" value={`${coverageCount}/4`} helper="학습·결정·검증·핸드오프" />
+          <NotebookMetric label="남긴 문서" value={`${coverageCount}/4`} helper="학습·결정·검증·이어보기" />
           <NotebookMetric label="작성 대상" value={activeKind.label} helper="현재 저장 위치" />
-          <NotebookMetric label="초안 길이" value={`${store.appendText.trim().length}자`} helper={`${countWords(store.appendText)} words`} />
-          <NotebookMetric label="프로젝트" value={store.projectKeyDraft || "기본"} helper="조회/저장 projectKey" />
+          <NotebookMetric label="초안 길이" value={`${store.appendText.trim().length}자`} helper={`${countWords(store.appendText)}단어`} />
+          <NotebookMetric label="프로젝트" value={store.projectKeyDraft || "기본"} helper="조회/저장 기준" />
         </section>
 
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
@@ -370,7 +374,7 @@ export function NotebookPage() {
                     {kind ? (
                       <Button variant="ghost" size="sm" className="mt-2 h-7 px-2" onClick={() => store.insertTemplate(kind)} disabled={!canRequest}>시작</Button>
                     ) : (
-                      <Button variant="outline" size="sm" className="mt-2 h-7 px-2" onClick={store.createHandoff} disabled={!canRequest || store.pending}>핸드오프</Button>
+                      <Button variant="outline" size="sm" className="mt-2 h-7 px-2" onClick={store.createHandoff} disabled={!canRequest || store.pending}>이어보기</Button>
                     )}
                   </article>
                 );

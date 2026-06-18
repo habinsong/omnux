@@ -37,12 +37,12 @@ public sealed class ProviderModelSelectionPolicyTests
     {
         var result = ProviderModelSelectionPolicy.NormalizePinnedProviderModelSelection(
             "gemini",
-            " gemini-2.5-pro ",
+            " gemini-3.1-pro ",
             "gpt-5-mini",
             model => model?.Trim()
         );
 
-        Assert.Equal("gemini-2.5-pro", result);
+        Assert.Equal("gemini-3.1-pro", result);
     }
 
     [Fact]

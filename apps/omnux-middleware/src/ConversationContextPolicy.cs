@@ -200,6 +200,73 @@ internal static class ConversationContextPolicy
         return ContainsAny(text, "뭐야", "무엇", "설명", "알려", "정리", "원리", "방법", "비교", "추천", "분석", "어떻게", "왜", "what", "how", "why", "explain");
     }
 
+    /// <summary>
+    /// 직전 답변의 사실성·최신성·정확성·출처를 되묻는 확인성 후속 질문인지 판별한다.
+    /// 예: "최신 정보 가져온거야?", "이거 맞아?", "정확해?", "출처는?".
+    /// 이런 입력은 새 웹검색을 다시 돌리는 대신 직전 대화 맥락을 기준으로 답해야 한다.
+    /// 새 조회/검색을 명시적으로 요청("찾아줘", "검색해줘")하면 검증이 아니라 새 요청이므로 제외한다.
+    /// </summary>
+    public static bool LooksLikeAnswerVerificationFollowUp(string input)
+    {
+        var text = NormalizeInput(input);
+        if (text.Length == 0 || text.Length > 40)
+        {
+            return false;
+        }
+
+        if (ContainsAny(text, "찾아", "검색", "search", "look up", "lookup"))
+        {
+            return false;
+        }
+
+        return ContainsAny(
+            text,
+            "가져온거야",
+            "가져온 거야",
+            "가져온게",
+            "가져온 게",
+            "가져왔어",
+            "가져온 정보",
+            "최신 맞",
+            "최신이야",
+            "최신인",
+            "최신 정보야",
+            "최신 정보 가져",
+            "최신거야",
+            "최신 거야",
+            "업데이트된거",
+            "업데이트된 거",
+            "맞아",
+            "맞나",
+            "맞지",
+            "맞음",
+            "정확해",
+            "정확한거",
+            "정확한 거",
+            "정확히 맞",
+            "확실해",
+            "확실한거",
+            "확실한 거",
+            "사실이야",
+            "사실인",
+            "사실 맞",
+            "진짜야",
+            "진짜임",
+            "진짜인",
+            "진짜 맞",
+            "출처가",
+            "출처는",
+            "출처 어디",
+            "출처 뭐",
+            "근거가",
+            "근거는",
+            "확인한거",
+            "확인한 거",
+            "확인했어",
+            "검증된",
+            "검증했어");
+    }
+
     public static bool HasMeaningfulTokenOverlap(
         IReadOnlySet<string> left,
         IReadOnlySet<string> right,

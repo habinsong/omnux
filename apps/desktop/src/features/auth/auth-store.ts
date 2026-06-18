@@ -7,7 +7,6 @@ export type DesktopOtpRequestStatus = "idle" | "pending" | "sent" | "failed";
 export type DesktopAuthContract = {
   status: DesktopAuthStatus;
   sessionId: string | null;
-  authToken: string | null;
   expiresAtUtc: string | null;
   expiresAtLocal: string | null;
   ttlHours: number | null;
@@ -20,7 +19,6 @@ export type DesktopAuthContract = {
 type AuthResultPayload = {
   ok: boolean;
   resumed?: boolean;
-  authToken?: string;
   expiresAtUtc?: string;
   expiresAtLocal?: string;
   ttlHours?: number;
@@ -40,39 +38,7 @@ type DesktopAuthState = {
 const AUTH_TOKEN_KEY = "omnux_auth_token";
 const AUTH_EXPIRES_KEY = "omnux_auth_expires_utc";
 
-function readSavedAuthToken(): { token: string; expiresAtUtc: string | null } {
-  if (typeof window === "undefined") {
-    return { token: "", expiresAtUtc: null };
-  }
-
-  try {
-    return {
-      token: window.localStorage.getItem(AUTH_TOKEN_KEY) || "",
-      expiresAtUtc: window.localStorage.getItem(AUTH_EXPIRES_KEY) || null
-    };
-  } catch (_error) {
-    return { token: "", expiresAtUtc: null };
-  }
-}
-
-function saveAuthSession(token: string, expiresAtUtc?: string | null) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  try {
-    if (token) {
-      window.localStorage.setItem(AUTH_TOKEN_KEY, token);
-    }
-    if (expiresAtUtc) {
-      window.localStorage.setItem(AUTH_EXPIRES_KEY, expiresAtUtc);
-    }
-  } catch (_error) {
-    // 인증 토큰 저장 실패는 현재 세션 진행을 막지 않는다.
-  }
-}
-
-function clearAuthSession() {
+function clearLegacyAuthSession() {
   if (typeof window === "undefined") {
     return;
   }
@@ -85,20 +51,19 @@ function clearAuthSession() {
   }
 }
 
-const savedAuth = readSavedAuthToken();
+clearLegacyAuthSession();
 
 export const useDesktopAuthStore = create<DesktopAuthState>((set) => ({
   auth: {
     status: "unknown",
     sessionId: null,
-    authToken: savedAuth.token || null,
-    expiresAtUtc: savedAuth.expiresAtUtc,
+    expiresAtUtc: null,
     expiresAtLocal: null,
     ttlHours: null,
     telegramConfigured: false,
     remoteDashboardClient: false,
     otpRequestStatus: "idle",
-    lastMessage: savedAuth.token ? "저장된 인증 토큰 resume 대기" : null
+    lastMessage: null
   },
   markSessionPending: () =>
     set((state) => ({
@@ -107,24 +72,21 @@ export const useDesktopAuthStore = create<DesktopAuthState>((set) => ({
         status: "unknown",
         sessionId: null,
         otpRequestStatus: "idle",
-        lastMessage: state.auth.authToken ? "저장된 인증 토큰 resume 대기" : "세션 인증 확인 중"
+        lastMessage: "세션 인증 확인 중"
       }
     })),
   markAuthRequired: (sessionId, telegramConfigured, remoteDashboardClient) =>
     set((state) => {
-      const resuming = Boolean(state.auth.authToken);
-      if (!resuming) {
-        useUiLogStore.getState().recordLog("info", "미들웨어가 OTP 인증을 요구했다.", { source: "auth" });
-      }
+      useUiLogStore.getState().recordLog("info", "미들웨어가 OTP 인증을 요구했다.", { source: "auth" });
       return {
         auth: {
           ...state.auth,
-          status: resuming ? "unknown" : "required",
+          status: "required",
           sessionId,
           telegramConfigured,
           remoteDashboardClient,
           otpRequestStatus: "idle",
-          lastMessage: resuming ? "저장된 인증 토큰 resume 대기" : "OTP 인증 필요"
+          lastMessage: "OTP 인증 필요"
         }
       };
     }),
@@ -149,25 +111,22 @@ export const useDesktopAuthStore = create<DesktopAuthState>((set) => ({
     }),
   markAuthResult: (payload) =>
     set((state) => {
-      if (payload.ok && payload.authToken) {
-        saveAuthSession(payload.authToken, payload.expiresAtUtc);
-      }
-      if (!payload.ok) {
-        clearAuthSession();
-      }
+      clearLegacyAuthSession();
 
       const message = payload.ok
         ? payload.resumed
-          ? "저장된 인증 토큰으로 세션을 복구했다."
+          ? "서버 인증 세션으로 연결을 복구했다."
           : "OTP 인증을 완료했다."
         : "OTP 인증에 실패했다.";
+      if (payload.ok) {
+        useUiLogStore.getState().clearAuthFailureLogs();
+      }
       useUiLogStore.getState().recordLog(payload.ok ? "info" : "error", message, { source: "auth" });
 
       return {
         auth: {
           ...state.auth,
           status: payload.ok ? "authenticated" : "failed",
-          authToken: payload.ok ? payload.authToken || state.auth.authToken : null,
           expiresAtUtc: payload.ok ? payload.expiresAtUtc || state.auth.expiresAtUtc : null,
           expiresAtLocal: payload.ok ? payload.expiresAtLocal || state.auth.expiresAtLocal : null,
           ttlHours: payload.ok ? payload.ttlHours || state.auth.ttlHours : null,
@@ -179,13 +138,12 @@ export const useDesktopAuthStore = create<DesktopAuthState>((set) => ({
     }),
   markUnauthorized: (message = "인증 세션이 만료되었다.") =>
     set((state) => {
-      clearAuthSession();
+      clearLegacyAuthSession();
       useUiLogStore.getState().recordLog("warn", message, { source: "auth" });
       return {
         auth: {
           ...state.auth,
           status: "required",
-          authToken: null,
           expiresAtUtc: null,
           expiresAtLocal: null,
           ttlHours: null,

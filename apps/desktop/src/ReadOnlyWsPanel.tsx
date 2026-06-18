@@ -1,28 +1,42 @@
-import { useCallback, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useDesktopAuthStore } from "./features/auth/auth-store";
 import { useOpsPageStore } from "./features/ops/ops-store";
 import { useDesktopShellStore } from "./shell-store";
 import { ShellFault } from "./ShellFault";
-import { Badge, Button, Input } from "./components/ui/primitives";
+import { Badge, Button } from "./components/ui/primitives";
 import {
   requestDesktopDoctorLast,
-  requestDesktopOpsSnapshot,
-  requestDesktopOtp,
-  submitDesktopOtp
+  requestDesktopOpsSnapshot
 } from "./use-middleware-session";
-
-// 서버(WebSocketGateway)와 동일하게 OTP 인증 유지시간을 1~168시간으로 제한한다.
-function clampTtlHours(raw: string): number {
-  const hours = Math.round(Number(raw));
-  if (!Number.isFinite(hours)) return 1;
-  return Math.min(168, Math.max(1, hours));
-}
 
 function statusTone(status: string): "success" | "warning" | "destructive" | "default" {
   if (/(connected|authenticated|ok|ready)/i.test(status)) return "success";
   if (/(error|fail|blocked|disconnected)/i.test(status)) return "destructive";
   if (/(connecting|waiting|pending)/i.test(status)) return "warning";
   return "default";
+}
+
+function statusLabel(status: string | null | undefined): string {
+  const text = status?.trim();
+  if (!text) return "-";
+  const labels: Record<string, string> = {
+    authenticated: "인증됨",
+    blocked: "막힘",
+    connected: "연결됨",
+    connecting: "연결 중",
+    disconnected: "끊김",
+    error: "오류",
+    fail: "실패",
+    failed: "실패",
+    ok: "정상",
+    pending: "대기",
+    ready: "준비됨",
+    unknown: "알 수 없음",
+    warn: "주의",
+    warning: "주의",
+    waiting: "대기 중"
+  };
+  return labels[text.toLowerCase()] || text;
 }
 
 function KV({ k, children }: { k: string; children: ReactNode }) {
@@ -39,17 +53,10 @@ export function ReadOnlyWsPanel() {
   const auth = useDesktopAuthStore((state) => state.auth);
   const doctor = useOpsPageStore((state) => state.doctor);
   const ops = useOpsPageStore((state) => state.ops);
-  const [otp, setOtp] = useState("");
-  const [ttlHours, setTtlHours] = useState(24);
-
-  const authenticateWithOtp = useCallback(() => {
-    submitDesktopOtp(otp, ttlHours);
-    setOtp("");
-  }, [otp, ttlHours]);
 
   const detail = (text?: string | null) => (text ? <span className="max-w-[220px] truncate text-[10px] text-muted-foreground">{text}</span> : null);
   const doctorSummary = doctor.report
-    ? `ok=${doctor.report.okCount} warn=${doctor.report.warnCount} fail=${doctor.report.failCount}`
+    ? `정상 ${doctor.report.okCount} · 주의 ${doctor.report.warnCount} · 실패 ${doctor.report.failCount}`
     : doctor.found === false
       ? "보고서 없음"
       : "조회 전";
@@ -60,56 +67,31 @@ export function ReadOnlyWsPanel() {
       {doctor.lastError ? <ShellFault label={doctor.lastError} /> : null}
       {ops.lastError ? <ShellFault label={ops.lastError} /> : null}
       <dl>
-        <KV k="bridge"><Badge tone={statusTone(bridge.status)}>{bridge.status}</Badge></KV>
-        <KV k="auth">
-          <Badge tone={statusTone(auth.status)}>{auth.status}</Badge>
-          {detail(auth.lastMessage || "세션 이벤트 대기")}
+        <KV k="연결"><Badge tone={statusTone(bridge.status)}>{statusLabel(bridge.status)}</Badge></KV>
+        <KV k="인증">
+          <Badge tone={statusTone(auth.status)}>{statusLabel(auth.status)}</Badge>
         </KV>
-        <KV k="session"><span className="font-mono">{auth.sessionId || "-"}</span></KV>
-        <KV k="expires"><span className="font-mono">{auth.expiresAtLocal || auth.expiresAtUtc || "-"}</span></KV>
-        <KV k="doctor">
+        <KV k="세션"><span className="font-mono">{auth.sessionId || "-"}</span></KV>
+        <KV k="만료"><span className="font-mono">{auth.expiresAtLocal || auth.expiresAtUtc || "-"}</span></KV>
+        <KV k="진단">
           <span>{doctor.loading || doctor.running ? "조회 중..." : doctorSummary}</span>
           {detail(doctor.report?.reportId)}
         </KV>
-        <KV k="plans">
+        <KV k="계획">
           <span>{ops.loadingPlans ? "조회 중..." : `${ops.planCount}건`}</span>
           {detail(ops.latestPlanTitle)}
         </KV>
-        <KV k="tasks">
+        <KV k="작업">
           <span>{ops.loadingTaskGraphs ? "조회 중..." : `${ops.taskGraphCount}건`}</span>
-          {detail(ops.latestTaskGraphStatus)}
+          {ops.latestTaskGraphStatus ? detail(statusLabel(ops.latestTaskGraphStatus)) : null}
         </KV>
       </dl>
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="primary" size="sm" disabled={bridge.status !== "connected" || auth.otpRequestStatus === "pending"} onClick={requestDesktopOtp}>
-          {auth.otpRequestStatus === "pending" ? "OTP 요청 중..." : "OTP 요청"}
-        </Button>
-        <Input
-          className="h-8 w-28 text-center font-mono tracking-widest"
-          inputMode="numeric"
-          maxLength={6}
-          placeholder="OTP 6자리"
-          value={otp}
-          onChange={(event) => setOtp(event.target.value)}
-        />
-        <label className="flex items-center gap-1 text-xs text-muted-foreground">
-          유지
-          <Input
-            className="h-8 w-16 text-center font-mono"
-            type="number"
-            min={1}
-            max={168}
-            value={ttlHours}
-            onChange={(event) => setTtlHours(clampTtlHours(event.target.value))}
-          />
-          시간
-        </label>
-        <Button variant="outline" size="sm" disabled={bridge.status !== "connected"} onClick={authenticateWithOtp}>인증</Button>
         <Button variant="outline" size="sm" disabled={auth.status !== "authenticated" || doctor.loading} onClick={requestDesktopDoctorLast}>
-          최근 Doctor 보고서
+          최근 진단 보고서
         </Button>
         <Button variant="outline" size="sm" disabled={auth.status !== "authenticated" || ops.loadingPlans || ops.loadingTaskGraphs} onClick={requestDesktopOpsSnapshot}>
-          운영 목록 조회
+          작업 목록 조회
         </Button>
       </div>
     </div>

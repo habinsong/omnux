@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { BrainCircuit, Clock, GitBranch, Map as MapIcon, Play, Route, Send, ShieldCheck, Sparkles, Square, Wrench } from "lucide-react";
+import { BrainCircuit, Clock, GitBranch, Map as MapIcon, Play, Route, Send, ShieldCheck, Square, Wrench } from "lucide-react";
 import { Badge, Button } from "../../components/ui/primitives";
 import type { CodingExecution, CodingResult, CodingRuntime } from "../build/build-store";
 import type {
@@ -91,12 +91,12 @@ export function Empty({ label }: { label: string }) {
 }
 
 export function TelemetryPanel({ telemetry }: { telemetry: TelemetrySnapshot | null }) {
-  if (!telemetry) return <Empty label="새로고침하면 provider별 토큰·지연이 표시됩니다." />;
+  if (!telemetry) return <Empty label="새로고침하면 제공자별 사용량과 지연 시간이 표시됩니다." />;
   return (
     <>
       <div className="grid grid-cols-3 gap-2">
         <Stat label="총 호출" value={telemetry.totalEvents} />
-        <Stat label="총 토큰" value={telemetry.total.totalTokens.toLocaleString()} />
+        <Stat label="총 사용량" value={telemetry.total.totalTokens.toLocaleString()} />
         <Stat label="평균 지연" value={`${telemetry.total.averageDurationMs}ms`} />
       </div>
       <div className="space-y-1">
@@ -104,11 +104,11 @@ export function TelemetryPanel({ telemetry }: { telemetry: TelemetrySnapshot | n
           <Row
             key={provider.provider}
             left={provider.provider}
-            sub={`${provider.eventCount} calls · 평균 ${provider.averageDurationMs}ms`}
-            right={<Badge tone="primary">{provider.totalTokens.toLocaleString()} tok</Badge>}
+            sub={`${provider.eventCount}회 · 평균 ${provider.averageDurationMs}ms`}
+            right={<Badge tone="primary">사용량 {provider.totalTokens.toLocaleString()}</Badge>}
           />
         ))}
-        {telemetry.providers.length === 0 ? <Empty label="telemetry 이벤트 없음" /> : null}
+        {telemetry.providers.length === 0 ? <Empty label="호출 기록 없음" /> : null}
       </div>
     </>
   );
@@ -179,9 +179,9 @@ function buildRouteMetrics(events: TelemetryTraceEvent[]): RouteMetric[] {
 }
 
 export function RouteMetricsPanel({ telemetry }: { telemetry: TelemetrySnapshot | null }) {
-  if (!telemetry) return <Empty label="새로고침하면 provider route metrics가 표시됩니다." />;
+  if (!telemetry) return <Empty label="새로고침하면 작업 경로별 호출 기록이 표시됩니다." />;
   const events = telemetry.events;
-  if (events.length === 0) return <Empty label="최근 telemetry 이벤트가 없어 route metrics를 계산할 수 없습니다." />;
+  if (events.length === 0) return <Empty label="최근 호출 기록이 없어 작업 경로를 계산할 수 없습니다." />;
   const routes = buildRouteMetrics(events);
   const attentionCount = events.filter((event) => isAttentionStatus(event.status, event.error)).length;
   const cascadeCount = events.filter((event) => event.modelRoutingCascadeEligible).length;
@@ -191,29 +191,29 @@ export function RouteMetricsPanel({ telemetry }: { telemetry: TelemetrySnapshot 
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="primary"><Route size={11} aria-hidden="true" /> telemetry events</Badge>
-        <Badge tone="outline">{telemetry.filteredEvents || events.length}/{telemetry.totalEvents || events.length} filtered</Badge>
-        <Badge tone="outline">{shortTime(telemetry.snapshotUtc)} snapshot</Badge>
+        <Badge tone="primary"><Route size={11} aria-hidden="true" /> 호출 기록</Badge>
+        <Badge tone="outline">{telemetry.filteredEvents || events.length}/{telemetry.totalEvents || events.length} 표시</Badge>
+        <Badge tone="outline">{shortTime(telemetry.snapshotUtc)} 기준</Badge>
       </div>
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        <Stat label="route" value={routes.length} sub={`${events.length} events`} />
-        <Stat label="attention" value={attentionCount} sub="error/timeout/quality" />
-        <Stat label="cascade" value={cascadeCount} sub="eligible routes" />
-        <Stat label="cache" value={cacheEligibleCount} sub="prompt cache 후보" />
+        <Stat label="경로" value={routes.length} sub={`${events.length}건`} />
+        <Stat label="주의" value={attentionCount} sub="오류/시간 초과/품질" />
+        <Stat label="연결 후보" value={cascadeCount} sub="이어 실행 가능" />
+        <Stat label="캐시" value={cacheEligibleCount} sub="입력 캐시 후보" />
       </div>
       <div className="space-y-1">
         {routes.slice(0, 8).map((route) => (
           <Row
             key={route.key}
             left={`${route.provider}:${route.model}`}
-            sub={`${route.source} · ${route.recommendedTier || "tier -"} · ${route.complexity || "complexity -"} · avg ${route.averageDurationMs}ms · ${route.totalTokens.toLocaleString()} tok`}
+            sub={`${route.source} · ${route.recommendedTier || "등급 -"} · ${route.complexity || "복잡도 -"} · 평균 ${route.averageDurationMs}ms · 사용량 ${route.totalTokens.toLocaleString()}`}
             right={
               <div className="flex shrink-0 items-center gap-1">
-                {route.attentionCount > 0 ? <Badge tone="destructive">{route.attentionCount} issue</Badge> : null}
-                {route.cascadeCount > 0 ? <Badge tone="primary">{route.cascadeCount} cascade</Badge> : null}
-                {route.cacheEligibleCount > 0 ? <Badge tone="success">{route.cacheEligibleCount} cache</Badge> : null}
-                {route.streamingCount > 0 ? <Badge tone="outline">{route.streamingCount} stream</Badge> : null}
-                <Badge tone={route.cascadeCount > 0 ? "primary" : "outline"}>{route.eventCount} calls</Badge>
+                {route.attentionCount > 0 ? <Badge tone="destructive">문제 {route.attentionCount}</Badge> : null}
+                {route.cascadeCount > 0 ? <Badge tone="primary">연결 {route.cascadeCount}</Badge> : null}
+                {route.cacheEligibleCount > 0 ? <Badge tone="success">캐시 {route.cacheEligibleCount}</Badge> : null}
+                {route.streamingCount > 0 ? <Badge tone="outline">스트림 {route.streamingCount}</Badge> : null}
+                <Badge tone={route.cascadeCount > 0 ? "primary" : "outline"}>호출 {route.eventCount}</Badge>
               </div>
             }
           />
@@ -223,19 +223,19 @@ export function RouteMetricsPanel({ telemetry }: { telemetry: TelemetrySnapshot 
         {signalEvents.map((event) => (
           <Row
             key={`signal-${event.id}`}
-            left={event.modelRoutingReason || event.modelRoutingSignals || "routing signal"}
-            sub={`${event.provider}:${event.model} · ${event.modelRoutingComplexity || "complexity -"} · ${event.source || "source -"}`}
-            right={<Badge tone={event.modelRoutingCascadeEligible ? "primary" : "outline"}>{event.modelRoutingRecommendedTier || "tier -"}</Badge>}
+            left={event.modelRoutingReason || event.modelRoutingSignals || "경로 신호"}
+            sub={`${event.provider}:${event.model} · ${event.modelRoutingComplexity || "복잡도 -"} · ${event.source || "출처 -"}`}
+            right={<Badge tone={event.modelRoutingCascadeEligible ? "primary" : "outline"}>{event.modelRoutingRecommendedTier || "등급 -"}</Badge>}
           />
         ))}
-        {signalEvents.length === 0 ? <Empty label="routing reason/signal이 포함된 telemetry 이벤트 없음" /> : null}
+        {signalEvents.length === 0 ? <Empty label="경로 판단 사유가 포함된 호출 기록 없음" /> : null}
       </div>
     </>
   );
 }
 
 const SANDBOX_LIMITS = [
-  { key: "timeout", label: "실행 timeout", value: "10s", detail: "executor.py --timeout 기본값" },
+  { key: "timeout", label: "제한 시간", value: "10s", detail: "실행 제한 기본값" },
   { key: "memory", label: "메모리 상한", value: "200 MB", detail: "RLIMIT_AS 기본값" },
   { key: "cpu", label: "CPU 시간", value: "10s", detail: "RLIMIT_CPU 기본값" }
 ];
@@ -247,10 +247,10 @@ export function SandboxQualityPanel({ doctor }: { doctor: InsightsDoctorSnapshot
     <>
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={sandbox ? statusTone(sandbox.status) : doctor.found === false ? "outline" : "warning"}>
-          <ShieldCheck size={11} aria-hidden="true" /> {sandbox?.status || (doctor.found === false ? "no report" : "pending")}
+          <ShieldCheck size={11} aria-hidden="true" /> {sandbox?.status || (doctor.found === false ? "보고서 없음" : "대기")}
         </Badge>
-        <Badge tone="outline">doctor_get_last</Badge>
-        <Badge tone="outline">{report ? shortTime(report.createdAtUtc) : "report -"}</Badge>
+        <Badge tone="outline">최근 진단</Badge>
+        <Badge tone="outline">{report ? shortTime(report.createdAtUtc) : "보고서 -"}</Badge>
       </div>
       <div className="grid grid-cols-3 gap-2">
         {SANDBOX_LIMITS.map((limit) => <Stat key={limit.key} label={limit.label} value={limit.value} sub={limit.detail} />)}
@@ -258,27 +258,27 @@ export function SandboxQualityPanel({ doctor }: { doctor: InsightsDoctorSnapshot
       {sandbox ? (
         <div className="space-y-1">
           <Row
-            left={sandbox.summary || "sandbox smoke"}
-            sub={sandbox.detail || "Doctor sandbox check"}
+            left={sandbox.summary || "샌드박스 점검"}
+            sub={sandbox.detail || "최근 진단의 샌드박스 항목"}
             right={<Badge tone={statusTone(sandbox.status)}>{sandbox.status || "-"}</Badge>}
           />
           {sandbox.suggestedActions.slice(0, 4).map((action) => (
-            <Row key={action} left="suggested action" sub={action} right={<Badge tone="warning">review</Badge>} />
+            <Row key={action} left="제안" sub={action} right={<Badge tone="warning">검토</Badge>} />
           ))}
         </div>
       ) : (
-        <Empty label={doctor.found === false ? "저장된 Doctor 보고서가 없어 sandbox smoke 결과를 표시할 수 없습니다." : "Doctor 최근 보고서를 조회 중입니다."} />
+        <Empty label={doctor.found === false ? "저장된 진단 보고서가 없어 샌드박스 결과를 표시할 수 없습니다." : "최근 진단 보고서를 조회 중입니다."} />
       )}
       <div className="space-y-1">
         <Row
-          left="executor isolation"
+          left="실행 격리"
           sub="임시 작업 폴더, HOME/TMP 격리, 사용자 site-package 차단"
-          right={<Badge tone="success">configured</Badge>}
+          right={<Badge tone="success">설정됨</Badge>}
         />
         <Row
-          left="resource usage telemetry"
+          left="사용량 기록"
           sub="실행별 실제 RSS/CPU 사용량 WS 계약은 아직 없습니다."
-          right={<Badge tone="outline">contract gap</Badge>}
+          right={<Badge tone="outline">계약 없음</Badge>}
         />
       </div>
     </>
@@ -421,14 +421,14 @@ export function RepairTimelinePanel({
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="warning"><Wrench size={11} aria-hidden="true" /> 전용 event store 없음</Badge>
-        <Badge tone="primary">Build/telemetry 파생</Badge>
-        <Badge tone={result ? "success" : "outline"}>{result ? "최근 Build 있음" : "Build 결과 없음"}</Badge>
+        <Badge tone="warning"><Wrench size={11} aria-hidden="true" /> 전용 기록 없음</Badge>
+        <Badge tone="primary">빌드/호출 기록 기반</Badge>
+        <Badge tone={result ? "success" : "outline"}>{result ? "최근 빌드 있음" : "빌드 결과 없음"}</Badge>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        <Stat label="repair" value={repairCount} sub="marker/retry" />
-        <Stat label="quality" value={qualityCount} sub="gate/citation" />
-        <Stat label="attention" value={attentionCount} sub="error/timeout" />
+        <Stat label="복구" value={repairCount} sub="표식/재시도" />
+        <Stat label="품질" value={qualityCount} sub="게이트/근거" />
+        <Stat label="주의" value={attentionCount} sub="오류/시간 초과" />
       </div>
       <div className="space-y-1">
         {items.map((item) => (
@@ -444,7 +444,7 @@ export function RepairTimelinePanel({
             }
           />
         ))}
-        {items.length === 0 ? <Empty label="최근 Build 결과와 telemetry에서 repair/quality 마커가 발견되지 않았습니다." /> : null}
+        {items.length === 0 ? <Empty label="최근 빌드 결과와 호출 기록에서 복구/품질 표식이 발견되지 않았습니다." /> : null}
       </div>
     </>
   );
@@ -460,20 +460,20 @@ export function GitTimeMachinePanel({ git }: { git: GitTimeMachineSnapshot | nul
         <Badge tone="outline"><GitBranch size={11} aria-hidden="true" /> {git.branchName}</Badge>
         <Badge tone="outline" className="font-mono">{git.headShortHash}</Badge>
         <Badge tone={statusTone(git.readiness.status)}>{git.readiness.status || "status -"}</Badge>
-        <Badge tone={git.readOnly ? "outline" : "warning"}>{git.readOnly ? "read-only" : "mutable"}</Badge>
-        <Badge tone={git.isClean ? "success" : "warning"}>{git.isClean ? "clean" : `${git.changedFileCount} changed`}</Badge>
-        {git.checkpointsTruncated ? <Badge tone="warning">truncated</Badge> : null}
+        <Badge tone={git.readOnly ? "outline" : "warning"}>{git.readOnly ? "읽기 전용" : "변경 가능"}</Badge>
+        <Badge tone={git.isClean ? "success" : "warning"}>{git.isClean ? "깨끗함" : `변경 ${git.changedFileCount}`}</Badge>
+        {git.checkpointsTruncated ? <Badge tone="warning">일부만 표시</Badge> : null}
       </div>
       <div className="grid grid-cols-3 gap-2">
         <Stat label="변경 파일" value={git.changedFileCount} sub={git.diffShortStat || "worktree"} />
         <Stat label="충돌" value={git.conflictedFileCount} sub={blocked ? git.readiness.blockers.join(", ") : "blocker 없음"} />
-        <Stat label="체크포인트" value={git.checkpoints.length} sub={`limit ${git.limit || "-"}`} />
+        <Stat label="체크포인트" value={git.checkpoints.length} sub={`표시 ${git.limit || "-"}`} />
       </div>
       <div className="flex min-w-0 flex-wrap gap-1">
         <Badge tone={git.readiness.rollbackAvailable ? "primary" : "outline"}>
-          rollback {git.readiness.rollbackAvailable ? "review 가능" : "보류"}
+          되돌리기 {git.readiness.rollbackAvailable ? "검토 가능" : "보류"}
         </Badge>
-        {git.readiness.snapshotCreationRecommended ? <Badge tone="warning">snapshot 권장</Badge> : null}
+        {git.readiness.snapshotCreationRecommended ? <Badge tone="warning">체크포인트 권장</Badge> : null}
         {git.suggestedSnapshotBranch ? <Badge tone="outline" className="max-w-full truncate">{git.suggestedSnapshotBranch}</Badge> : null}
         {git.readiness.blockers.map((blocker) => <Badge key={blocker} tone="destructive" className="max-w-full truncate">{blocker}</Badge>)}
         {git.warnings.map((warning) => <Badge key={warning} tone="warning" className="max-w-full truncate">{warning}</Badge>)}
@@ -484,7 +484,7 @@ export function GitTimeMachinePanel({ git }: { git: GitTimeMachineSnapshot | nul
             key={checkpoint.shortHash}
             left={checkpoint.subject}
             sub={`${checkpoint.authorName || "author -"} · ${shortDate(checkpoint.authorDateUtc)} · ${checkpoint.shortHash}`}
-            right={checkpoint.isHead ? <Badge tone="primary">HEAD</Badge> : checkpoint.rollbackCandidate ? <Badge tone="outline">rollback</Badge> : null}
+            right={checkpoint.isHead ? <Badge tone="primary">현재</Badge> : checkpoint.rollbackCandidate ? <Badge tone="outline">되돌리기</Badge> : null}
           />
         ))}
         {git.checkpoints.length === 0 ? <Empty label="체크포인트 없음" /> : null}
@@ -495,7 +495,7 @@ export function GitTimeMachinePanel({ git }: { git: GitTimeMachineSnapshot | nul
             <Row
               key={`risk-${checkpoint.shortHash}`}
               left={checkpoint.shortHash}
-              sub={checkpoint.riskFlags.join(", ") || "risk flag 없음"}
+              sub={checkpoint.riskFlags.join(", ") || "위험 표시 없음"}
               right={<Badge tone={checkpoint.rollbackCandidate ? "warning" : "outline"}>{checkpoint.parentShortHashes.length || 0} parent</Badge>}
             />
           ))}
@@ -517,9 +517,9 @@ export function McpPanel({ mcp }: { mcp: McpSnapshot | null }) {
   return (
     <>
       <div className="grid grid-cols-3 gap-2">
-        <Stat label="configs" value={mcp.configFiles.length} sub={`${mcp.configFiles.filter((file) => file.exists).length} found`} />
-        <Stat label="servers" value={mcp.totalServers} sub={`${readyCount} ready`} />
-        <Stat label="errors" value={mcp.errors.length} sub={mcp.scannedAtUtc || "scan time -"} />
+        <Stat label="설정" value={mcp.configFiles.length} sub={`${mcp.configFiles.filter((file) => file.exists).length}개 발견`} />
+        <Stat label="서버" value={mcp.totalServers} sub={`${readyCount}개 준비`} />
+        <Stat label="오류" value={mcp.errors.length} sub={mcp.scannedAtUtc || "점검 시간 -"} />
       </div>
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" disabled>
@@ -529,7 +529,7 @@ export function McpPanel({ mcp }: { mcp: McpSnapshot | null }) {
           <Send size={13} aria-hidden="true" /> JSON-RPC
         </Button>
         <Button variant="outline" size="sm" disabled>
-          <Sparkles size={13} aria-hidden="true" /> Tool 주입
+          <Wrench size={13} aria-hidden="true" /> 도구 연결
         </Button>
       </div>
       <div className="grid grid-cols-1 gap-2 lg:grid-cols-[260px_minmax(0,1fr)]">
@@ -537,7 +537,7 @@ export function McpPanel({ mcp }: { mcp: McpSnapshot | null }) {
           {mcp.configFiles.map((file) => (
             <Row key={`${file.source}-${file.path}`} left={file.source} sub={file.error || file.path} right={<Badge tone={statusTone(file.status)}>{file.status}</Badge>} />
           ))}
-          {mcp.configFiles.length === 0 ? <Empty label="MCP config 후보 없음" /> : null}
+          {mcp.configFiles.length === 0 ? <Empty label="도구 서버 설정 후보 없음" /> : null}
           {mcp.errors.map((error) => (
             <Row key={`${error.source}-${error.code}`} left={error.code} sub={error.message || error.path} right={<Badge tone="destructive">{error.source}</Badge>} />
           ))}
@@ -549,7 +549,7 @@ export function McpPanel({ mcp }: { mcp: McpSnapshot | null }) {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{server.name || server.serverId}</p>
                   <p className="truncate text-[11px] text-muted-foreground">
-                    {server.transport} · {server.command || server.url || "config"} · {server.message}
+                    {server.transport} · {server.command || server.url || "설정"} · {server.message}
                   </p>
                 </div>
                 <Badge tone={statusTone(server.readiness.status)}>{server.readiness.status || server.status}</Badge>
@@ -558,7 +558,7 @@ export function McpPanel({ mcp }: { mcp: McpSnapshot | null }) {
                 {server.argsPreview.length > 0 ? <Badge tone="outline" className="max-w-full truncate">{server.argsPreview.join(" ")}</Badge> : null}
                 {server.workingDirectory ? <Badge tone="outline" className="max-w-full truncate">{server.workingDirectory}</Badge> : null}
                 {server.envKeys.slice(0, 4).map((key) => <Badge key={key} tone="warning" className="max-w-full truncate">{key}</Badge>)}
-                {!server.enabled ? <Badge tone="outline">disabled</Badge> : null}
+                {!server.enabled ? <Badge tone="outline">꺼짐</Badge> : null}
               </div>
               {server.readiness.checks.length > 0 ? (
                 <div className="mt-1 space-y-1">
@@ -569,7 +569,7 @@ export function McpPanel({ mcp }: { mcp: McpSnapshot | null }) {
               ) : null}
             </article>
           ))}
-          {mcp.servers.length === 0 ? <Empty label={`발견된 MCP 서버 없음 (설정 파일 ${mcp.configFiles.length})`} /> : null}
+          {mcp.servers.length === 0 ? <Empty label={`발견된 도구 서버 없음 (설정 파일 ${mcp.configFiles.length})`} /> : null}
         </div>
       </div>
     </>
@@ -577,19 +577,19 @@ export function McpPanel({ mcp }: { mcp: McpSnapshot | null }) {
 }
 
 export function LocalLlmPanel({ local }: { local: LocalLlmSnapshot | null }) {
-  if (!local) return <Empty label="새로고침하면 로컬 LLM endpoint·모델이 표시됩니다." />;
+  if (!local) return <Empty label="새로고침하면 로컬 모델 연결점과 모델 목록이 표시됩니다." />;
   const models = local.endpoints.flatMap((endpoint) => endpoint.models.map((model) => ({ ...model, endpointName: endpoint.name })));
   return (
     <>
       <div className="grid grid-cols-3 gap-2">
-        <Stat label="endpoint" value={local.availableEndpointCount} sub={`${local.endpoints.length} scanned`} />
-        <Stat label="models" value={local.totalModelCount} sub={local.scannedAtUtc || "scan time -"} />
-        <Stat label="offline" value={local.offlineReady ? "ready" : "hold"} sub={local.offlineMode.status || "not_requested"} />
+        <Stat label="연결점" value={local.availableEndpointCount} sub={`${local.endpoints.length}개 점검`} />
+        <Stat label="모델" value={local.totalModelCount} sub={local.scannedAtUtc || "점검 시간 -"} />
+        <Stat label="오프라인" value={local.offlineReady ? "준비" : "보류"} sub={local.offlineMode.status || "요청 전"} />
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={local.offlineReady ? "success" : "warning"}>{local.offlineReady ? "offline ready" : "offline not ready"}</Badge>
+        <Badge tone={local.offlineReady ? "success" : "warning"}>{local.offlineReady ? "오프라인 준비" : "오프라인 보류"}</Badge>
         <Badge tone={statusTone(local.offlineMode.status)}>{local.offlineMode.status || "not_requested"}</Badge>
-        <Badge tone={local.offlineMode.requested ? "primary" : "outline"}>{local.offlineMode.requested ? "requested" : "manual only"}</Badge>
+        <Badge tone={local.offlineMode.requested ? "primary" : "outline"}>{local.offlineMode.requested ? "요청됨" : "수동"}</Badge>
         {local.offlineMode.requestedBy.map((name) => <Badge key={name} tone="outline" className="max-w-full truncate font-mono">{name}</Badge>)}
       </div>
       <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
@@ -598,11 +598,11 @@ export function LocalLlmPanel({ local }: { local: LocalLlmSnapshot | null }) {
             <Row
               key={endpoint.name}
               left={`${endpoint.name} (${endpoint.kind})`}
-              sub={endpoint.error || `${endpoint.baseUrl} · ${endpoint.modelCount} models · ${endpoint.elapsedMs}ms`}
+              sub={endpoint.error || `${endpoint.baseUrl} · 모델 ${endpoint.modelCount} · ${endpoint.elapsedMs}ms`}
               right={<Badge tone={statusTone(endpoint.status)}>{endpoint.status}</Badge>}
             />
           ))}
-          {local.endpoints.length === 0 ? <Empty label="로컬 LLM endpoint 없음" /> : null}
+          {local.endpoints.length === 0 ? <Empty label="로컬 모델 연결점 없음" /> : null}
         </div>
         <div className="min-w-0 space-y-1">
           {local.offlineMode.checks.map((check) => (
@@ -610,7 +610,7 @@ export function LocalLlmPanel({ local }: { local: LocalLlmSnapshot | null }) {
           ))}
           {local.offlineMode.cloudProviderKeysPresent.length > 0 ? (
             <Row
-              left="cloud credentials"
+              left="클라우드 자격증명"
               sub={local.offlineMode.cloudProviderKeysPresent.join(", ")}
               right={<Badge tone="warning">{local.offlineMode.cloudProviderKeysPresent.length}</Badge>}
             />
@@ -640,7 +640,7 @@ export function LocalLlmPanel({ local }: { local: LocalLlmSnapshot | null }) {
 }
 
 export function TerminalPanel({ terminal }: { terminal: TerminalSnapshot | null }) {
-  if (!terminal) return <Empty label="새로고침하면 shell·toolchain 가용성이 표시됩니다." />;
+  if (!terminal) return <Empty label="새로고침하면 셸과 도구 가용성이 표시됩니다." />;
   const tools = [...terminal.shells, ...terminal.toolchains];
   const availableTools = tools.filter((item) => item.status === "available").length;
   return (
@@ -651,9 +651,9 @@ export function TerminalPanel({ terminal }: { terminal: TerminalSnapshot | null 
         <Badge tone="outline">{terminal.scannedAtUtc || "scan time -"}</Badge>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        <Stat label="shell" value={terminal.shells.length} sub={`${terminal.shells.filter((item) => item.status === "available").length} available`} />
-        <Stat label="toolchain" value={terminal.toolchains.length} sub={`${availableTools} usable total`} />
-        <Stat label="checks" value={terminal.checks.length} sub={terminal.ptySessionEnabled ? "execution enabled" : "snapshot only"} />
+        <Stat label="셸" value={terminal.shells.length} sub={`${terminal.shells.filter((item) => item.status === "available").length}개 사용 가능`} />
+        <Stat label="도구" value={terminal.toolchains.length} sub={`총 ${availableTools}개 사용 가능`} />
+        <Stat label="점검" value={terminal.checks.length} sub={terminal.ptySessionEnabled ? "실행 가능" : "읽기 전용"} />
       </div>
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" disabled={!terminal.ptySessionEnabled}>
@@ -676,13 +676,13 @@ export function TerminalPanel({ terminal }: { terminal: TerminalSnapshot | null 
               right={<Badge tone={statusTone(item.status)}>{item.status}</Badge>}
             />
           ))}
-          {tools.length === 0 ? <Empty label="조회된 shell/toolchain 없음" /> : null}
+          {tools.length === 0 ? <Empty label="조회된 셸/도구 없음" /> : null}
         </div>
         <div className="min-w-0 space-y-1">
           {terminal.checks.map((check) => (
             <Row key={check.name} left={check.name} sub={check.message} right={<Badge tone={statusTone(check.status)}>{check.status}</Badge>} />
           ))}
-          {terminal.checks.length === 0 ? <Empty label="terminal readiness check 없음" /> : null}
+          {terminal.checks.length === 0 ? <Empty label="터미널 점검 항목 없음" /> : null}
         </div>
       </div>
     </>
@@ -690,7 +690,7 @@ export function TerminalPanel({ terminal }: { terminal: TerminalSnapshot | null 
 }
 
 export function SemanticSearchPanel({ semantic }: { semantic: SemanticSnapshot | null }) {
-  if (!semantic) return <Empty label="새로고침하면 FTS·sqlite-vec·로컬 임베딩 readiness가 표시됩니다." />;
+  if (!semantic) return <Empty label="새로고침하면 검색 인덱스와 로컬 임베딩 상태가 표시됩니다." />;
   const blockedActions = [
     ["임베딩 생성", semantic.embeddingGenerationEnabled],
     ["벡터 검색", semantic.vectorSearchEnabled],
@@ -700,10 +700,10 @@ export function SemanticSearchPanel({ semantic }: { semantic: SemanticSnapshot |
     <>
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={statusTone(semantic.status)}>{semantic.status}</Badge>
-        <Badge tone={semantic.readOnly ? "outline" : "warning"}>{semantic.readOnly ? "read-only" : "mutable"}</Badge>
+        <Badge tone={semantic.readOnly ? "outline" : "warning"}>{semantic.readOnly ? "읽기 전용" : "변경 가능"}</Badge>
         <Badge tone={semantic.index.ftsAvailable ? "success" : "destructive"}>FTS {semantic.index.ftsAvailable ? "on" : "off"}</Badge>
         <Badge tone={semantic.index.sqliteVecAvailable ? "success" : "outline"}>sqlite-vec {semantic.index.sqliteVecAvailable ? "ready" : "보류"}</Badge>
-        <Badge tone={semantic.codeSearchRecommended ? "primary" : "default"}>{semantic.codeSearchRecommended ? "FTS/Repomap 우선" : "semantic 후보"}</Badge>
+        <Badge tone={semantic.codeSearchRecommended ? "primary" : "default"}>{semantic.codeSearchRecommended ? "텍스트/구조 우선" : "의미 검색 후보"}</Badge>
       </div>
       <div className="grid grid-cols-3 gap-2">
         <Stat label="파일" value={semantic.index.fileCount.toLocaleString()} />
@@ -713,7 +713,7 @@ export function SemanticSearchPanel({ semantic }: { semantic: SemanticSnapshot |
       <div className="flex flex-wrap gap-2">
         {blockedActions.map(([label, enabled]) => (
           <Button key={label} variant="outline" size="sm" disabled={!enabled}>
-            <Sparkles size={13} aria-hidden="true" /> {label}
+            <BrainCircuit size={13} aria-hidden="true" /> {label}
           </Button>
         ))}
       </div>
@@ -735,8 +735,8 @@ export function SemanticSearchPanel({ semantic }: { semantic: SemanticSnapshot |
       ) : null}
       {semantic.recommendations.length > 0 || semantic.warnings.length > 0 ? (
         <div className="space-y-1">
-          {semantic.recommendations.slice(0, 3).map((item) => <Row key={`rec-${item}`} left="recommendation" sub={item} right={<Badge tone="primary">review</Badge>} />)}
-          {semantic.warnings.slice(0, 3).map((item) => <Row key={`warn-${item}`} left="warning" sub={item} right={<Badge tone="warning">warn</Badge>} />)}
+          {semantic.recommendations.slice(0, 3).map((item) => <Row key={`rec-${item}`} left="제안" sub={item} right={<Badge tone="primary">검토</Badge>} />)}
+          {semantic.warnings.slice(0, 3).map((item) => <Row key={`warn-${item}`} left="주의" sub={item} right={<Badge tone="warning">주의</Badge>} />)}
         </div>
       ) : null}
     </>
@@ -749,9 +749,9 @@ export function CodeRepomapPanel({ repomap }: { repomap: RepomapSnapshot | null 
     <>
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={statusTone(repomap.status)}>{repomap.status}</Badge>
-        <Badge tone="outline">{repomap.mappedFileCount}/{repomap.scannedFileCount} files</Badge>
-        <Badge tone="primary">{repomap.symbolCount.toLocaleString()} symbols</Badge>
-        {repomap.truncated ? <Badge tone="warning">truncated</Badge> : null}
+        <Badge tone="outline">{repomap.mappedFileCount}/{repomap.scannedFileCount} 파일</Badge>
+        <Badge tone="primary">{repomap.symbolCount.toLocaleString()} 심볼</Badge>
+        {repomap.truncated ? <Badge tone="warning">일부만 표시</Badge> : null}
       </div>
       <div className="space-y-1">
         {repomap.files.slice(0, 8).map((file) => {

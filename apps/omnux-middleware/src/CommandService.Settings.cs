@@ -38,6 +38,17 @@ public sealed partial class CommandService
     public string SetExternalDashboardEnabled(bool enabled)
         => _settingsAppService.SetExternalDashboardEnabled(enabled);
 
+    public TotpAuthenticatorStore TotpAuthenticator => _settingsAppService.TotpAuthenticator;
+
+    public TotpEnrollment BeginTotpEnrollment()
+        => _settingsAppService.BeginTotpEnrollment();
+
+    public bool ConfirmTotpEnrollment(string? code)
+        => _settingsAppService.ConfirmTotpEnrollment(code);
+
+    public bool DisableTotp()
+        => _settingsAppService.DisableTotp();
+
     public GeminiUsage GetGeminiUsageSnapshot()
         => _settingsAppService.GetGeminiUsageSnapshot();
 
@@ -78,4 +89,22 @@ public sealed partial class CommandService
 
     public bool TrySetSelectedCopilotModel(string modelId)
         => _settingsAppService.TrySetSelectedCopilotModel(modelId);
+    // P1-2: 사용자 전역 규칙/페르소나 (ISettingsApplicationService)
+    public UserRulesSnapshot GetUserRules()
+        => UserRuleStore.Read();
+
+    public UserRulesSnapshot SaveUserRules(string? text)
+    {
+        var snapshot = UserRuleStore.Save(text);
+        _auditLogger.Log("web", "user_rules", "save", $"chars={snapshot.Text.Length}");
+        return snapshot;
+    }
+
+    public UserRulesSnapshot DeleteUserRules()
+    {
+        var snapshot = UserRuleStore.Delete();
+        _auditLogger.Log("web", "user_rules", "delete", $"exists={snapshot.Exists}");
+        return snapshot;
+    }
+
 }

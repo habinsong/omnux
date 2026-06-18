@@ -72,6 +72,21 @@ async function waitForHttpOk(url, logs) {
   throw new Error(`gateway did not become healthy: ${lastError}\n${logs()}`);
 }
 
+async function waitForLocalFallbackOtp(logs) {
+  for (let i = 0; i < 100; i += 1) {
+    const text = logs();
+    const matches = [...text.matchAll(/\[otp\]\s+otp=(\d{6})\s+session=([a-f0-9]+)/gi)];
+    const latest = matches.at(-1);
+    if (latest) {
+      return latest[1];
+    }
+
+    await sleep(100);
+  }
+
+  throw new Error(`local fallback otp was not printed\n${logs()}`);
+}
+
 async function fetchWithDesktopOrigin(url) {
   return fetch(url, {
     headers: {
@@ -464,7 +479,36 @@ async function main() {
       "local unauthorized protected message"
     );
     assert.equal(unauthorized.message, "unauthorized", "local protected messages should require auth");
+
+    const appAuthSession = await openRawWebSocketSession({ port });
+    await appAuthSession.waitForJson(
+      (message) => message.type === "auth_required",
+      "app auth session auth_required"
+    );
+    appAuthSession.sendJson({ type: "request_otp" });
+    const otpResult = await appAuthSession.waitForJson(
+      (message) => message.type === "otp_request_result",
+      "app auth session otp_request_result"
+    );
+    assert.equal(otpResult.ok, true, "local fallback otp request should succeed");
+    const otp = await waitForLocalFallbackOtp(() => logs.join(""));
+    appAuthSession.sendJson({ type: "auth", otp, authTtlHours: 24 });
+    const appAuth = await appAuthSession.waitForJson(
+      (message) => message.type === "auth_result" && message.ok === true,
+      "app auth session auth_result"
+    );
+    assert.equal(appAuth.ok, true, "app auth session should authenticate");
+
+    localSession.sendJson({ type: "ping" });
+    const promotedAuth = await localSession.waitForJson(
+      (message) => message.type === "auth_result" && message.ok === true && message.resumed === true,
+      "already-open local session trusted auth promotion"
+    );
+    assert.equal(promotedAuth.authToken, "", "trusted auth promotion must not send a bearer token");
+    assert.equal(promotedAuth.remoteDashboardClient, false, "trusted auth promotion should keep local mode");
+    appAuthSession.close();
     localSession.close();
+    await sleep(250);
 
     const remoteChecks = [];
     if (externalHost) {
@@ -481,6 +525,31 @@ async function main() {
       assert.equal(remoteAuth.remoteDashboardClient, true, "remote dashboard client should be marked remote");
       assert.equal(remoteAuth.remoteLimited, true, "remote dashboard client should enter limited mode");
 
+      remoteSession.sendJson({ type: "auth", otp: "000000" });
+      const blockedAuth = await remoteSession.waitForJson(
+        (message) => message.type === "error" && message.message === "forbidden_remote_limited_action",
+        "remote limited auth block"
+      );
+
+      remoteSession.sendJson({ type: "request_otp" });
+      const blockedOtpRequest = await remoteSession.waitForJson(
+        (message) =>
+          message.type === "error"
+          && message.message === "forbidden_remote_limited_action"
+          && message !== blockedAuth,
+        "remote limited otp request block"
+      );
+
+      remoteSession.sendJson({ type: "resume_auth", authToken: "invalid-remote-token" });
+      const blockedResumeAuth = await remoteSession.waitForJson(
+        (message) =>
+          message.type === "error"
+          && message.message === "forbidden_remote_limited_action"
+          && message !== blockedAuth
+          && message !== blockedOtpRequest,
+        "remote limited auth resume block"
+      );
+
       const remoteSettings = await remoteSession.waitForJson(
         (message) => message.type === "settings_state",
         "remote settings_state"
@@ -490,15 +559,55 @@ async function main() {
       remoteSession.sendJson({ type: "list_conversations", scope: "chat", mode: "single" });
       const conversations = await remoteSession.waitForJson(
         (message) => message.type === "conversations",
-        "remote read-only conversations"
+        "remote read-only conversations",
+        10000
       );
       assert.equal(conversations.scope, "chat", "remote read-only conversation list should preserve scope");
       assert.equal(conversations.mode, "single", "remote read-only conversation list should preserve mode");
       assert.ok(Array.isArray(conversations.items), "remote read-only conversation list should return items");
 
+      remoteSession.sendJson({ type: "projects_list" });
+      const projectsState = await remoteSession.waitForJson(
+        (message) => message.type === "projects_state",
+        "remote read-only projects"
+      );
+      assert.ok(Array.isArray(projectsState.items), "remote read-only projects should return items");
+
+      remoteSession.sendJson({ type: "get_routines" });
+      const routinesState = await remoteSession.waitForJson(
+        (message) => message.type === "routines_state",
+        "remote read-only routines"
+      );
+      assert.ok(Array.isArray(routinesState.items), "remote read-only routines should return items");
+
+      remoteSession.sendJson({ type: "get_metrics" });
+      const firstMetrics = await remoteSession.waitForJson(
+        (message) => message.type === "metrics",
+        "remote read-only metrics first response"
+      );
+      assert.ok(
+        Object.hasOwn(firstMetrics, "payload"),
+        "remote read-only metrics first response should return payload"
+      );
+
+      remoteSession.sendJson({ type: "get_metrics" });
+      const secondMetrics = await remoteSession.waitForJson(
+        (message) => message.type === "metrics" && message !== firstMetrics,
+        "remote read-only metrics second response"
+      );
+      assert.ok(
+        Object.hasOwn(secondMetrics, "payload"),
+        "remote read-only metrics second response should return payload"
+      );
+
       remoteSession.sendJson({ type: "llm_chat_single", input: "remote execution should be blocked" });
       const blocked = await remoteSession.waitForJson(
-        (message) => message.type === "error" && message.message === "forbidden_remote_limited_action",
+        (message) =>
+          message.type === "error"
+          && message.message === "forbidden_remote_limited_action"
+          && message !== blockedAuth
+          && message !== blockedOtpRequest
+          && message !== blockedResumeAuth,
         "remote limited execution block"
       );
       assert.equal(
@@ -511,7 +620,11 @@ async function main() {
       remoteChecks.push(
         "websocket_no_origin_remote_reject",
         "remote_limited_auto_auth",
+        "remote_limited_auth_messages_block",
         "remote_limited_read_only_allow",
+        "remote_limited_projects_read_allow",
+        "remote_limited_routines_read_allow",
+        "remote_limited_metrics_read_allow",
         "remote_limited_execution_block"
       );
     } else {
@@ -549,6 +662,7 @@ async function main() {
         "websocket_no_origin_local_accept",
         "websocket_bad_origin_reject",
         "websocket_local_unauthorized_protected_reject",
+        "websocket_local_open_session_trusted_auth_promote",
         ...remoteChecks,
         "readyz_after_ping",
         "desktop_readyz_cors",

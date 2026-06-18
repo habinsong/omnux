@@ -1,20 +1,21 @@
 import { useEffect, type ReactNode } from "react";
 import { BrainCircuit, Clock3, RefreshCcw, RotateCcw, Route, Save, Server } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { CardBoundary } from "../../CardBoundary";
 import { useDesktopShellStore } from "../../shell-store";
 import { useDesktopAuthStore } from "../auth/auth-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
 import { type RoutingDecision, type RoutingLocalLlm, useRoutingPageBridge, useRoutingStore } from "./routing-store";
-import { Badge, Button, EmptyState, Input, SectionLabel } from "../../components/ui/primitives";
+import { Badge, Button, Input, SectionLabel } from "../../components/ui/primitives";
 
 const CATEGORY_META: Record<string, { label: string; hint: string }> = {
   generalChat: { label: "일반 채팅", hint: "기본 단일/오케스트레이션 채팅" },
   planner: { label: "계획 생성", hint: "작업 계획 초안 생성" },
   reviewer: { label: "계획 리뷰", hint: "작업 계획 검토" },
   searchTimeSensitive: { label: "최신성 검색", hint: "실시간 웹 필요 여부 판단" },
-  searchFallback: { label: "검색 보조", hint: "검색 fallback 보조 판단" },
+  searchFallback: { label: "검색 보조", hint: "검색 보조 판단" },
   deepCode: { label: "깊은 코딩", hint: "대형 구현과 통합 작업" },
-  safeRefactor: { label: "안전 리팩터", hint: "구조 정리와 안전 수정" },
+  safeRefactor: { label: "안전 리뷰", hint: "구조 정리와 안전 수정" },
   quickFix: { label: "빠른 수정", hint: "짧은 버그 수정과 검증" },
   visualUi: { label: "UI 작업", hint: "레이아웃과 스타일 작업" },
   routineBuilder: { label: "루틴 빌더", hint: "루틴 생성과 갱신" },
@@ -30,6 +31,36 @@ function statusTone(status: string): "success" | "warning" | "destructive" | "pr
   if (/(skipped|not_requested|snapshot)/.test(value)) return "outline";
   if (/(selected|override|resolved)/.test(value)) return "primary";
   return "default";
+}
+
+function statusLabel(status: string): string {
+  const value = status.toLowerCase();
+  if (!value) return "-";
+  if (/(available|ok|ready|clean|ready_for_manual_routing)/.test(value)) return "정상";
+  if (/(not_requested)/.test(value)) return "확인 전";
+  if (/(skipped)/.test(value)) return "건너뜀";
+  if (/(unavailable)/.test(value)) return "사용 불가";
+  if (/(failed|error)/.test(value)) return "실패";
+  if (/(blocked)/.test(value)) return "차단";
+  if (/(warning|requested|manual)/.test(value)) return "수동 확인";
+  if (/(selected|override|resolved)/.test(value)) return "선택됨";
+  return status;
+}
+
+function checkLabel(name: string): string {
+  if (name === "offline_flag") return "오프라인 설정";
+  if (name === "local_models") return "로컬 모델";
+  if (name === "cloud_credentials") return "클라우드 키";
+  if (name === "provider_routing") return "경로 전환";
+  return name;
+}
+
+function checkMessage(check: RoutingLocalLlm["checks"][number]): string {
+  if (check.name === "offline_flag") return "오프라인 모드 요청 여부를 확인했습니다.";
+  if (check.name === "local_models") return check.status === "ok" ? "사용 가능한 로컬 모델이 있습니다." : "사용 가능한 로컬 모델이 없습니다.";
+  if (check.name === "cloud_credentials") return check.status === "ok" ? "클라우드 키가 준비되어 있습니다." : "감지된 클라우드 키가 없습니다.";
+  if (check.name === "provider_routing") return check.status === "ok" ? "경로 전환을 사용할 수 있습니다." : "자동 경로 전환은 아직 비활성입니다.";
+  return check.message;
 }
 
 function formatTimestamp(value: string): string {
@@ -48,6 +79,18 @@ function ProviderBadges({ providers, emptyLabel = "없음" }: { providers: strin
           {provider}
         </Badge>
       ))}
+    </div>
+  );
+}
+
+function CompactEmptyState({ icon: Icon, title, description }: { icon: LucideIcon; title: string; description: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-md border border-border bg-muted/25 px-2.5 py-2">
+      <Icon size={14} className="shrink-0 text-muted-foreground" aria-hidden="true" />
+      <span className="min-w-0">
+        <span className="block text-xs font-medium">{title}</span>
+        <span className="block text-[11px] text-muted-foreground">{description}</span>
+      </span>
     </div>
   );
 }
@@ -72,21 +115,21 @@ export function RoutingPolicyPage() {
   const decision = store.snapshot.lastDecision;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">라우팅 정책</h1>
-          <p className="text-sm text-muted-foreground">의도(intent)별 LLM provider 체인을 쉼표로 지정합니다. override가 default를 덮어씁니다.</p>
+    <div className="dashboard-tab space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold tracking-tight">라우팅</h1>
+          <p className="text-sm text-muted-foreground">작업 종류별 실행 경로를 조정하고 최근 선택을 확인합니다.</p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           <Button variant="outline" size="sm" onClick={store.load} disabled={!canRequest || store.loading}>
             <RefreshCcw size={15} aria-hidden="true" /> {store.loading ? "조회 중" : "새로고침"}
           </Button>
           <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={store.reset} disabled={!canRequest || store.pending}>
-            <RotateCcw size={15} aria-hidden="true" /> override 초기화
+            <RotateCcw size={15} aria-hidden="true" /> 초기화
           </Button>
           <Button variant="primary" size="sm" onClick={store.save} disabled={!canRequest || store.pending}>
-            <Save size={15} aria-hidden="true" /> {store.pending ? "저장 중" : "override 저장"}
+            <Save size={15} aria-hidden="true" /> {store.pending ? "저장 중" : "저장"}
           </Button>
         </div>
       </div>
@@ -94,15 +137,15 @@ export function RoutingPolicyPage() {
       {store.lastMessage ? <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">{store.lastMessage}</p> : null}
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <CardBoundary title="Intent 체인" card="operations" onError={recordCardError}>
+        <CardBoundary title="작업 경로" card="operations" onError={recordCardError}>
           {keys.length === 0 ? (
-            <EmptyState icon={Route} title="라우팅 체인 없음" description={canRequest ? "새로고침하면 intent별 provider 체인이 표시됩니다." : "미들웨어 연결 후 표시됩니다."} />
+            <CompactEmptyState icon={Route} title="경로 없음" description={canRequest ? "새로고침하면 작업별 실행 경로가 표시됩니다." : "미들웨어 연결 후 표시됩니다."} />
           ) : (
             <div className="grid grid-cols-1 gap-2 2xl:grid-cols-2">
               {keys.map((key) => {
                 const def = (store.snapshot.defaultChains[key] || []).join(", ");
                 const hasOverride = (store.snapshot.overrideChains[key] || []).length > 0;
-                const meta = CATEGORY_META[key] || { label: key, hint: "사용자 정의 intent" };
+                const meta = CATEGORY_META[key] || { label: key, hint: "사용자 정의 작업" };
                 return (
                   <div key={key} className="min-w-0 rounded-md border border-border bg-card/60 p-2.5">
                     <div className="flex min-w-0 items-start justify-between gap-2">
@@ -110,12 +153,12 @@ export function RoutingPolicyPage() {
                         <div className="truncate text-sm font-medium">{meta.label}</div>
                         <div className="truncate text-[11px] text-muted-foreground">{meta.hint}</div>
                       </div>
-                      <Badge tone={hasOverride ? "primary" : "outline"}>{hasOverride ? "override" : "default"}</Badge>
+                      <Badge tone={hasOverride ? "primary" : "outline"}>{hasOverride ? "사용자 지정" : "기본"}</Badge>
                     </div>
-                    <Input className="mt-1.5 font-mono text-xs" value={store.draftChains[key] ?? ""} placeholder={def || "provider1, provider2"} onChange={(event) => store.setDraft(key, event.target.value)} />
+                    <Input className="mt-1.5 font-mono text-xs" value={store.draftChains[key] ?? ""} placeholder={def || "예: codex, groq"} onChange={(event) => store.setDraft(key, event.target.value)} />
                     <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-[11px] text-muted-foreground">
                       <span className="truncate font-mono">{key}</span>
-                      {def ? <span className="truncate">default: {def}</span> : null}
+                      {def ? <span className="truncate">기본: {def}</span> : null}
                     </div>
                   </div>
                 );
@@ -125,13 +168,13 @@ export function RoutingPolicyPage() {
         </CardBoundary>
 
         <div className="space-y-4 self-start">
-          <CardBoundary title="최근 라우팅 결정" card="logs" onError={recordCardError}>
+          <CardBoundary title="최근 선택" card="logs" onError={recordCardError}>
             <Button variant="outline" size="sm" onClick={store.loadDecision} disabled={!canRequest}>
-              <RefreshCcw size={14} aria-hidden="true" /> 최근 결정 조회
+              <RefreshCcw size={14} aria-hidden="true" /> 최근 선택 조회
             </Button>
             <RoutingDecisionPanel decision={decision} />
           </CardBoundary>
-          <CardBoundary title="로컬 LLM readiness" card="middleware" onError={recordCardError}>
+          <CardBoundary title="로컬 모델 상태" card="middleware" onError={recordCardError}>
             <LocalLlmRoutingPanel local={store.localLlm} loading={store.localLoading} canRequest={canRequest} onRefresh={store.loadLocalLlm} />
           </CardBoundary>
         </div>
@@ -142,7 +185,7 @@ export function RoutingPolicyPage() {
 
 function RoutingDecisionPanel({ decision }: { decision: RoutingDecision | null }) {
   if (!decision) {
-    return <EmptyState icon={Clock3} title="라우팅 결정 없음" description="최근 LLM 호출이 생기면 선택된 provider와 체인이 표시됩니다." className="mt-3 py-8" />;
+    return <div className="mt-3"><CompactEmptyState icon={Clock3} title="최근 선택 없음" description="최근 실행 경로가 생기면 선택 결과가 표시됩니다." /></div>;
   }
   return (
     <div className="mt-3 space-y-3">
@@ -157,10 +200,10 @@ function RoutingDecisionPanel({ decision }: { decision: RoutingDecision | null }
         <p className="mt-1 text-sm text-foreground">{decision.reason || "결정 사유 없음"}</p>
       </div>
       <div className="space-y-2">
-        <DecisionRow label="provider 체인">
+        <DecisionRow label="선택 경로">
           <ProviderBadges providers={decision.providerChain} />
         </DecisionRow>
-        <DecisionRow label="사용 가능 provider">
+        <DecisionRow label="사용 가능 경로">
           <ProviderBadges providers={decision.availableProviders} />
         </DecisionRow>
       </div>
@@ -173,9 +216,9 @@ function LocalLlmRoutingPanel({ local, loading, canRequest, onRefresh }: { local
     return (
       <div className="space-y-3">
         <Button variant="outline" size="sm" onClick={onRefresh} disabled={!canRequest || loading}>
-          <RefreshCcw size={14} aria-hidden="true" /> {loading ? "조회 중" : "readiness 조회"}
+          <RefreshCcw size={14} aria-hidden="true" /> {loading ? "조회 중" : "상태 조회"}
         </Button>
-        <EmptyState icon={Server} title="로컬 모델 상태 없음" description="Ollama / LM Studio discovery 결과를 라우팅 판단 보조 정보로 표시합니다." className="py-8" />
+        <CompactEmptyState icon={Server} title="로컬 모델 상태 없음" description="Ollama / LM Studio 확인 결과를 보조 정보로 표시합니다." />
       </div>
     );
   }
@@ -186,32 +229,32 @@ function LocalLlmRoutingPanel({ local, loading, canRequest, onRefresh }: { local
           <RefreshCcw size={14} aria-hidden="true" /> {loading ? "조회 중" : "새로고침"}
         </Button>
         <Badge tone={local.offlineReady ? "success" : "warning"}>{local.offlineReady ? "오프라인 준비" : "수동 확인"}</Badge>
-        <Badge tone={statusTone(local.offlineStatus)}>{local.offlineStatus || "not_requested"}</Badge>
+        <Badge tone={statusTone(local.offlineStatus)}>{statusLabel(local.offlineStatus || "not_requested")}</Badge>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        <DecisionStat label="엔드포인트" value={local.availableEndpointCount.toLocaleString()} mono />
+        <DecisionStat label="연결점" value={local.availableEndpointCount.toLocaleString()} mono />
         <DecisionStat label="모델" value={local.totalModelCount.toLocaleString()} mono />
         <DecisionStat label="클라우드 키" value={local.cloudProviderKeysPresent.length.toLocaleString()} mono />
       </div>
       <div className="space-y-1">
         {local.endpoints.slice(0, 4).map((endpoint) => (
           <DecisionRow key={`${endpoint.name}-${endpoint.baseUrl}`} label={`${endpoint.name} · ${endpoint.kind}`}>
-            <Badge tone={statusTone(endpoint.status)}>{endpoint.status}</Badge>
+            <Badge tone={statusTone(endpoint.status)}>{statusLabel(endpoint.status)}</Badge>
             <Badge tone="outline">{endpoint.modelCount} 모델</Badge>
           </DecisionRow>
         ))}
-        {local.endpoints.length === 0 ? <p className="py-2 text-center text-xs text-muted-foreground">발견된 로컬 endpoint 없음</p> : null}
+        {local.endpoints.length === 0 ? <p className="py-2 text-center text-xs text-muted-foreground">발견된 로컬 연결점 없음</p> : null}
       </div>
       <div className="space-y-1">
         {local.checks.slice(0, 4).map((check) => (
-          <DecisionRow key={check.name} label={check.name} sub={check.message}>
-            <Badge tone={statusTone(check.status)}>{check.status}</Badge>
+          <DecisionRow key={check.name} label={checkLabel(check.name)} sub={checkMessage(check)}>
+            <Badge tone={statusTone(check.status)}>{statusLabel(check.status)}</Badge>
           </DecisionRow>
         ))}
       </div>
       <div className="rounded-md border border-border bg-muted/30 p-2 text-[11px] text-muted-foreground">
         <BrainCircuit size={13} className="mr-1 inline-block align-[-2px]" aria-hidden="true" />
-        discovery/readiness 전용입니다. 실제 provider 자동 전환과 cloud 차단은 아직 실행하지 않습니다.
+        상태 확인 전용입니다. 실제 경로 자동 전환과 클라우드 차단은 아직 실행하지 않습니다.
       </div>
     </div>
   );

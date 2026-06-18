@@ -86,7 +86,7 @@ public sealed partial class CommandService
                 || isSkillCreationRequested
                 || isSkillDeactivationRequested
                 || hasActiveSkill);
-        var notebookContext = BuildNotebookPromptContext(normalizedInput, sessionKey);
+        var notebookContext = BuildNotebookPromptContext(normalizedInput, sessionKey, source);
 
         if (shouldIncludeProjectContext)
         {
@@ -895,10 +895,15 @@ public sealed partial class CommandService
                 "최근 대화");
     }
 
-    private string BuildNotebookPromptContext(string input, string? sessionKey)
+    private string BuildNotebookPromptContext(string input, string? sessionKey, string source)
     {
         var normalized = (input ?? string.Empty).Trim().ToLowerInvariant();
         var scope = TryExtractSessionScope(sessionKey);
+        if (source.Equals("web", StringComparison.OrdinalIgnoreCase) && scope != "coding")
+        {
+            return string.Empty;
+        }
+
         var shouldUseNotebook =
             scope == "coding"
             || ContainsAny(

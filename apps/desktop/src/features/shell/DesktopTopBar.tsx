@@ -6,6 +6,7 @@ import { useUiLogStore, type ShellLogEntry } from "../ui-log/ui-log-store";
 import type { DesktopPageId } from "./DesktopNavigation";
 import { Badge, Button, IconButton, StatusDot, cn } from "../../components/ui/primitives";
 import { THEME_LABEL, useDesktopPreferenceStore } from "./preference-store";
+import { MEDIA_REFRESH_RECHECK_DELAY_MS, MEDIA_REFRESH_RECHECK_EVENT, markMediaRefreshRecheck } from "./media-transport";
 
 type DesktopTopBarProps = {
   onOpenNav: () => void;
@@ -43,6 +44,12 @@ function readNotificationSeenAt() {
 function writeNotificationSeenAt(value: number) {
   if (typeof window === "undefined") return;
   window.localStorage.setItem(NOTIFICATION_SEEN_KEY, String(value));
+}
+
+function reloadDesktopShell() {
+  markMediaRefreshRecheck();
+  window.setTimeout(() => window.dispatchEvent(new Event(MEDIA_REFRESH_RECHECK_EVENT)), MEDIA_REFRESH_RECHECK_DELAY_MS);
+  window.location.reload();
 }
 
 function logTimeMs(log: ShellLogEntry) {
@@ -134,7 +141,7 @@ export function DesktopTopBar({ onOpenNav, onOpenCommandPalette, onSelectPage }:
           {status.label ? <span className="hidden sm:inline">{status.label}</span> : null}
         </Button>
 
-        <IconButton icon={RefreshCcw} label="새로고침 (F5)" className="h-8 w-8" onClick={() => window.location.reload()} />
+        <IconButton icon={RefreshCcw} label="새로고침 (F5)" className="h-8 w-8" onClick={reloadDesktopShell} />
 
         <div className="relative">
           <button

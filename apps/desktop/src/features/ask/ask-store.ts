@@ -17,7 +17,7 @@ import { requestDesktopRag } from "../middleware/rag-gateway";
 import { requestDesktopVision } from "../middleware/vision-gateway";
 import { requestConfirmDialog, requestPromptDialog } from "../dialog/dialog-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
-import { emptyAskContext, normalizeAskMessage, normalizeConversationContext, type AskConversationContext, type AskMessage } from "./ask-context";
+import { emptyAskContext, normalizeAskMessage, normalizeConversationContext, type AskActionSuggestion, type AskConversationContext, type AskMessage } from "./ask-context";
 import { normalizeVisionPreflight, type AskVisionAttachment, type AskVisionPreflight } from "./ask-vision";
 import {
   buildRagExecution,
@@ -41,6 +41,8 @@ import {
   DEFAULT_GROQ_SINGLE_MODEL,
   DEFAULT_GROQ_WORKER_MODEL,
   DEFAULT_NVIDIA_MODEL,
+  getDefaultVisionModel,
+  mergeModelOptions,
   NONE_MODEL,
   STATIC_MODEL_OPTIONS
 } from "./ask-models";
@@ -229,6 +231,7 @@ type AskState = {
   setAttachmentDragActive: (active: boolean) => void;
   saveInputAsRoutine: () => void;
   createPlanFromInput: () => void;
+  runActionSuggestion: (suggestion: AskActionSuggestion) => void;
   saveMessageToNotebook: (messageIndex: number, text: string, meta?: string) => void;
   createPlanFromMessage: (messageIndex: number, text: string, meta?: string) => void;
   setSearchInput: (query: string) => void;
@@ -384,6 +387,37 @@ function countArray(value: unknown): number {
   return Array.isArray(value) ? value.length : 0;
 }
 
+function normalizeActionSuggestions(raw: unknown): AskActionSuggestion[] {
+  if (!Array.isArray(raw)) return [];
+  const result: AskActionSuggestion[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const payload = item as Record<string, unknown>;
+    const kind = String(payload.kind || "");
+    const label = String(payload.label || "").trim();
+    const prompt = String(payload.prompt || "").trim();
+    if ((kind === "plan" || kind === "routine" || kind === "agent") && label && prompt) {
+      const scheduleKind = String(payload.scheduleKind || "");
+      const scheduleTime = String(payload.scheduleTime || "").trim();
+      const weekdaysRaw = payload.scheduleWeekdays;
+      const scheduleWeekdays = Array.isArray(weekdaysRaw)
+        ? weekdaysRaw.map((v) => Number(v)).filter((v) => Number.isInteger(v) && v >= 0 && v <= 6)
+        : undefined;
+      const dayRaw = Number(payload.scheduleDayOfMonth);
+      result.push({
+        kind,
+        label,
+        prompt,
+        scheduleKind: scheduleKind === "daily" || scheduleKind === "weekly" || scheduleKind === "monthly" ? scheduleKind : undefined,
+        scheduleTime: scheduleTime || undefined,
+        scheduleWeekdays: scheduleWeekdays && scheduleWeekdays.length > 0 ? scheduleWeekdays : undefined,
+        scheduleDayOfMonth: Number.isInteger(dayRaw) && dayRaw >= 1 && dayRaw <= 31 ? dayRaw : undefined
+      });
+    }
+  }
+  return result;
+}
+
 function enrichLatestAssistantMessage(messages: AskMessage[], message: DesktopServerMessage): AskMessage[] {
   if (messages.length === 0) return messages;
   const provider = String(readField(message, "provider", "Provider") || "");
@@ -391,7 +425,8 @@ function enrichLatestAssistantMessage(messages: AskMessage[], message: DesktopSe
   const route = String(readField(message, "route", "Route") || "");
   const citationCount = countArray(readField(message, "citations", "Citations"));
   const grounded = citationCount > 0 || /web|url|ground|citation|검색|근거/i.test(route);
-  if (!provider && !model && !route && !grounded) return messages;
+  const actionSuggestions = normalizeActionSuggestions(readField(message, "actionSuggestions", "ActionSuggestions"));
+  if (!provider && !model && !route && !grounded && actionSuggestions.length === 0) return messages;
   const next = [...messages];
   for (let index = next.length - 1; index >= 0; index -= 1) {
     const current = next[index];
@@ -402,7 +437,8 @@ function enrichLatestAssistantMessage(messages: AskMessage[], message: DesktopSe
       model: model || current.model,
       route: route || current.route,
       grounded: grounded || current.grounded,
-      citationCount: citationCount || current.citationCount
+      citationCount: citationCount || current.citationCount,
+      actionSuggestions: actionSuggestions.length > 0 ? actionSuggestions : current.actionSuggestions
     };
     break;
   }
@@ -789,6 +825,17 @@ export const useAskStore = create<AskState>((set, get) => ({
       if (next.length >= 6) break;
       next.push(item);
     }
+    // P0-7: 이미지가 첨부되면 비전 preflight 를 자동 실행해 전송 전에 용량/포맷 문제를
+    // AskVisionPanel 로 안내한다. 수동 "이미지 점검" 버튼은 그대로 유지.
+    const addedImages = items.filter((item) => item.isImage);
+    if (addedImages.length > 0) {
+      const images = next.filter((item) => item.isImage);
+      const text = String(get().input || "첨부 이미지 사전 점검").trim();
+      set({ visionFiles: images, visionPending: true, visionPreflight: null });
+      if (!requestDesktopVision.preflight({ ...getDefaultVisionModel(), text, attachments: images })) {
+        set({ visionPending: false });
+      }
+    }
     set({
       attachments: next,
       attachmentPanelOpen: true,
@@ -827,6 +874,38 @@ export const useAskStore = create<AskState>((set, get) => ({
     if (!requestDesktopPlan.create(text)) {
       set({ lastError: "작업계획 생성 요청을 전송하지 못했다." });
     }
+  },
+  // P0-6 제안 카드 실행 — 기존 WS 타입을 그대로 호출한다 (자동 실행 없음, 사용자가 클릭해야 동작).
+  runActionSuggestion: (suggestion) => {
+    const prompt = String(suggestion.prompt || "").trim();
+    if (prompt.length < 5) {
+      set({ lastError: "실행할 제안 내용이 비어 있습니다." });
+      return;
+    }
+    let ok = false;
+    if (suggestion.kind === "plan") {
+      ok = requestDesktopPlan.create(prompt);
+    } else if (suggestion.kind === "routine") {
+      // P1-1b: 서버가 파싱한 자연어 스케줄("매일 아침 9시" 등)이 있으면 그대로 생성.
+      ok = requestDesktopRoutine.createRoutine({
+        title: prompt.slice(0, 40),
+        request: prompt,
+        scheduleKind: suggestion.scheduleKind || "manual",
+        scheduleTime: suggestion.scheduleTime || "08:00",
+        weekdays: suggestion.scheduleWeekdays || [],
+        dayOfMonth: suggestion.scheduleDayOfMonth || 1,
+        runImmediately: false,
+        notifyTelegram: false
+      });
+    } else if (suggestion.kind === "agent") {
+      ok = requestDesktopExplore.sessionsSpawn(prompt);
+    }
+    if (!ok) {
+      set({ lastError: "제안 실행 요청을 전송하지 못했다." });
+      return;
+    }
+    set({ lastError: null });
+    useUiLogStore.getState().recordLog("info", `제안 실행: ${suggestion.label}`, { source: "operations" });
   },
   saveMessageToNotebook: (messageIndex, text, meta = "") => {
     const body = String(text || "").trim();
@@ -935,7 +1014,7 @@ export const useAskStore = create<AskState>((set, get) => ({
     if (attachments.length === 0) return;
     const text = String(get().input || "첨부 이미지를 UI 구현자가 바로 사용할 수 있게 분석해줘").trim();
     set({ visionPending: true, visionPreflight: null, lastError: null });
-    if (!requestDesktopVision.preflight({ provider: "gemini", model: "gemini-2.5-pro", text, attachments })) {
+    if (!requestDesktopVision.preflight({ ...getDefaultVisionModel(), text, attachments })) {
       set({ visionPending: false, lastError: "Vision preflight 요청을 전송하지 못했다." });
     }
   },
@@ -1217,7 +1296,7 @@ export function useAskPageBridge() {
 
     if (message.type === "groq_models") {
       useAskStore.setState((prev) => ({
-        modelCatalogs: { ...prev.modelCatalogs, groq: normalizeModelIds(message.items) },
+        modelCatalogs: { ...prev.modelCatalogs, groq: mergeModelOptions("groq", normalizeModelIds(message.items)) },
         selectedModels: { ...prev.selectedModels, ...(message.selected ? { groq: String(message.selected) } : {}) }
       }));
       return;
@@ -1225,7 +1304,7 @@ export function useAskPageBridge() {
 
     if (message.type === "copilot_models") {
       useAskStore.setState((prev) => ({
-        modelCatalogs: { ...prev.modelCatalogs, copilot: normalizeModelIds(message.items) },
+        modelCatalogs: { ...prev.modelCatalogs, copilot: mergeModelOptions("copilot", normalizeModelIds(message.items)) },
         selectedModels: { ...prev.selectedModels, ...(message.selected ? { copilot: String(message.selected) } : {}) }
       }));
       return;
@@ -1233,7 +1312,7 @@ export function useAskPageBridge() {
 
     if (message.type === "cerebras_models") {
       useAskStore.setState((prev) => ({
-        modelCatalogs: { ...prev.modelCatalogs, cerebras: normalizeModelIds(message.items) },
+        modelCatalogs: { ...prev.modelCatalogs, cerebras: mergeModelOptions("cerebras", normalizeModelIds(message.items)) },
         selectedModels: { ...prev.selectedModels, ...(message.selected ? { cerebras: String(message.selected) } : {}) }
       }));
       return;
@@ -1241,7 +1320,7 @@ export function useAskPageBridge() {
 
     if (message.type === "gemini_models") {
       useAskStore.setState((prev) => ({
-        modelCatalogs: { ...prev.modelCatalogs, gemini: normalizeModelIds(message.items) },
+        modelCatalogs: { ...prev.modelCatalogs, gemini: mergeModelOptions("gemini", normalizeModelIds(message.items)) },
         selectedModels: { ...prev.selectedModels, ...(message.selected ? { gemini: String(message.selected) } : {}) }
       }));
       return;
@@ -1249,7 +1328,7 @@ export function useAskPageBridge() {
 
     if (message.type === "nvidia_models") {
       useAskStore.setState((prev) => ({
-        modelCatalogs: { ...prev.modelCatalogs, nvidia: normalizeModelIds(message.items) },
+        modelCatalogs: { ...prev.modelCatalogs, nvidia: mergeModelOptions("nvidia", normalizeModelIds(message.items)) },
         selectedModels: { ...prev.selectedModels, ...(message.selected ? { nvidia: String(message.selected) } : {}) }
       }));
       return;
@@ -1257,7 +1336,7 @@ export function useAskPageBridge() {
 
     if (message.type === "codex_models") {
       useAskStore.setState((prev) => ({
-        modelCatalogs: { ...prev.modelCatalogs, codex: normalizeModelIds(message.items) },
+        modelCatalogs: { ...prev.modelCatalogs, codex: mergeModelOptions("codex", normalizeModelIds(message.items)) },
         selectedModels: { ...prev.selectedModels, ...(message.selected ? { codex: String(message.selected) } : {}) }
       }));
       return;

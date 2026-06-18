@@ -17,10 +17,10 @@ export function RefactorPage() {
   const canRequest = bridgeStatus === "connected" && authStatus === "authenticated";
 
   return (
-    <div className="space-y-4">
+    <div className="dashboard-tab space-y-4">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Safe Refactor</h1>
-        <p className="text-sm text-muted-foreground">파일을 읽고 → AST/LSP로 미리보기 → 승인 시 적용. 미리보기 없이는 적용되지 않습니다.</p>
+        <h1 className="text-xl font-semibold tracking-tight">리뷰</h1>
+        <p className="text-sm leading-relaxed text-muted-foreground">파일을 읽고, 변경 미리보기를 확인한 뒤 적용합니다.</p>
       </div>
       {store.lastError ? <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{store.lastError}</p> : null}
       {store.lastMessage ? <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">{store.lastMessage}</p> : null}
@@ -47,7 +47,7 @@ export function RefactorPage() {
         <CardBoundary title="Anchor 교체" card="operations" onError={recordCardError} hideTitle>
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2 text-sm font-semibold">
-              <ScanText size={15} className="shrink-0" aria-hidden="true" /> <span className="truncate">Anchor 교체 (refactor_preview)</span>
+              <ScanText size={15} className="shrink-0" aria-hidden="true" /> <span className="truncate">줄 범위 교체</span>
             </div>
             {store.anchorLines.length > 0 ? <Badge tone="outline">{store.anchorLines.length} lines</Badge> : null}
           </div>
@@ -71,7 +71,7 @@ export function RefactorPage() {
         </CardBoundary>
 
         <CardBoundary title="AST 치환" card="operations" onError={recordCardError} hideTitle>
-          <div className="flex items-center gap-2 text-sm font-semibold"><Replace size={15} aria-hidden="true" /> AST 치환 (ast_replace)</div>
+          <div className="flex items-center gap-2 text-sm font-semibold"><Replace size={15} aria-hidden="true" /> AST 치환</div>
           <label className={FIELD_LABEL}>
             패턴
             <Input className="font-mono text-xs" value={store.pattern} placeholder="ast-grep 패턴" onChange={(event) => store.setField("pattern", event.target.value)} />
@@ -86,7 +86,7 @@ export function RefactorPage() {
         </CardBoundary>
 
         <CardBoundary title="LSP 심볼 이름 변경" card="operations" onError={recordCardError} hideTitle>
-          <div className="flex items-center gap-2 text-sm font-semibold"><Type size={15} aria-hidden="true" /> 심볼 이름 변경 (lsp_rename)</div>
+          <div className="flex items-center gap-2 text-sm font-semibold"><Type size={15} aria-hidden="true" /> 심볼 이름 변경</div>
           <label className={FIELD_LABEL}>
             심볼
             <Input className="font-mono text-xs" value={store.symbol} placeholder="기존 심볼 이름" onChange={(event) => store.setField("symbol", event.target.value)} />

@@ -170,7 +170,7 @@ function SessionsPanel({ store, canRequest, onError }: PanelProps) {
       </div>
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <section className="space-y-2 rounded-md border border-border bg-muted/30 p-3" aria-label="선택 세션 메시지 전송">
-          <h3 className="font-mono text-xs font-semibold text-primary">sessions_send</h3>
+          <h3 className="text-xs font-semibold text-primary">선택 세션에 보내기</h3>
           <Textarea
             rows={3}
             value={store.sessionMessage}
@@ -189,7 +189,7 @@ function SessionsPanel({ store, canRequest, onError }: PanelProps) {
           {store.sessionSendResult?.reply ? <pre className={PRE_CLASS}>{store.sessionSendResult.reply}</pre> : null}
         </section>
         <section className="space-y-2 rounded-md border border-border bg-muted/30 p-3" aria-label="새 세션 생성">
-          <h3 className="font-mono text-xs font-semibold text-primary">sessions_spawn</h3>
+          <h3 className="text-xs font-semibold text-primary">새 세션 만들기</h3>
           <div className="grid grid-cols-2 gap-2">
             <select className={SELECT_CLASS} value={store.spawnRuntime} onChange={(event) => store.setSpawnRuntime(event.target.value)}>
               <option value="acp">acp</option>
@@ -323,10 +323,10 @@ export function ExplorePage() {
   const panelProps: PanelProps = { store, canRequest, onError: recordCardError };
 
   return (
-    <div className="space-y-4">
+    <div className="dashboard-tab space-y-4">
       <div>
         <h1 className="text-xl font-semibold tracking-tight">탐색</h1>
-        <p className="text-sm text-muted-foreground">웹 검색, URL fetch, 세션 이력, 브라우저와 캔버스 상태를 한 화면에서 확인합니다.</p>
+        <p className="text-sm leading-relaxed text-muted-foreground">검색, URL 본문, 세션, 브라우저 상태를 빠르게 확인합니다.</p>
       </div>
       <div className="inline-flex flex-wrap gap-0.5 rounded-md border border-border bg-muted/40 p-0.5" role="tablist" aria-label="Explore">
         {TABS.map((tab) => {

@@ -19,6 +19,30 @@ export type MediaControlAction =
   | "previous_track";
 
 const MEDIA_BRIDGE_ORIGIN = "http://127.0.0.1:41881";
+const MEDIA_REFRESH_RECHECK_KEY = "omnux:media-refresh-recheck";
+export const MEDIA_REFRESH_RECHECK_DELAY_MS = 2000;
+export const MEDIA_REFRESH_RECHECK_EVENT = "omnux:media-refresh-recheck";
+
+function pageLoadedByRefresh(): boolean {
+  if (typeof performance === "undefined" || typeof PerformanceNavigationTiming === "undefined") return false;
+  const navigation = performance.getEntriesByType("navigation")[0];
+  return navigation instanceof PerformanceNavigationTiming && navigation.type === "reload";
+}
+
+export function markMediaRefreshRecheck(): void {
+  if (typeof window === "undefined") return;
+  window.sessionStorage.setItem(MEDIA_REFRESH_RECHECK_KEY, String(Date.now()));
+}
+
+export function consumeMediaRefreshRecheck(): boolean {
+  if (typeof window === "undefined") return false;
+  const marked = window.sessionStorage.getItem(MEDIA_REFRESH_RECHECK_KEY);
+  if (marked !== null) {
+    window.sessionStorage.removeItem(MEDIA_REFRESH_RECHECK_KEY);
+    return true;
+  }
+  return pageLoadedByRefresh();
+}
 
 async function requestBridge<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${MEDIA_BRIDGE_ORIGIN}${path}`, {

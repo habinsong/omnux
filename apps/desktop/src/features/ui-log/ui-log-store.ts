@@ -24,6 +24,7 @@ type UiLogState = {
   recordLog: (level: ShellLogLevel, message: string, options?: RecordLogOptions) => void;
   recordCardError: (card: ShellCard, message: string, componentStack?: string | null) => void;
   recordShellError: (message: string, componentStack?: string | null) => void;
+  clearAuthFailureLogs: () => void;
   clearLogs: () => void;
 };
 
@@ -49,6 +50,10 @@ function createLog(
 
 function pushLog(logs: ShellLogEntry[], entry: ShellLogEntry): ShellLogEntry[] {
   return [entry, ...logs].slice(0, MAX_LOGS);
+}
+
+function isOtpAuthFailureLog(log: ShellLogEntry): boolean {
+  return log.source === "auth" && log.level === "error" && log.message.includes("OTP 인증에 실패");
 }
 
 function normalizeSavedLog(item: ShellLogEntry): ShellLogEntry | null {
@@ -102,10 +107,11 @@ function readSavedLogs(): ShellLogEntry[] {
       return [];
     }
 
-    return entries
+    const logs = entries
       .map(normalizeSavedLog)
       .filter((item): item is ShellLogEntry => Boolean(item))
       .slice(0, MAX_LOGS);
+    return logs;
   } catch (_error) {
     return [];
   }
@@ -186,6 +192,15 @@ export const useUiLogStore = create<UiLogState>((set) => ({
     });
     pushLogToast(entry);
   },
+  clearAuthFailureLogs: () =>
+    set((state) => {
+      const logs = state.logs.filter((log) => !isOtpAuthFailureLog(log));
+      if (logs.length === state.logs.length) {
+        return state;
+      }
+      saveLogs(logs);
+      return { logs };
+    }),
   clearLogs: () =>
     set(() => {
       saveLogs([]);

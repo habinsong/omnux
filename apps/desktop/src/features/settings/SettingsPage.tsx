@@ -11,9 +11,11 @@ import { CliAuthCard, LlmKeysCard, LlmModelSelectCard, LlmUsageCard, useLlmSetti
 import { Badge, Button, Input, cn } from "../../components/ui/primitives";
 import { SettingsTelegramPanel } from "./SettingsTelegramPanel";
 import { SettingsOtpPanel } from "./SettingsOtpPanel";
+import { SettingsUserRulesPanel } from "./SettingsUserRulesPanel";
 import { SettingsExternalAccessPanel } from "./SettingsExternalAccessPanel";
 import { useStartOnLaunchStore } from "./start-on-launch-store";
 import { useTelegramSettingsBridge, useTelegramSettingsStore } from "./settings-telegram-store";
+import { useTotpSettingsBridge } from "./settings-totp-store";
 import { useProviderCredentialsBridge } from "./settings-provider-credentials-store";
 import { useExternalAccessBridge } from "./settings-external-store";
 import {
@@ -963,6 +965,7 @@ type SettingsGroup = { key: string; label: string; summary: string; icon: typeof
 export function SettingsPage() {
   useSettingsPageBridge();
   useTelegramSettingsBridge();
+  useTotpSettingsBridge();
   useProviderCredentialsBridge();
   useExternalAccessBridge();
   const bridgeStatus = useDesktopShellStore((state) => state.bridge.status);
@@ -1009,7 +1012,8 @@ export function SettingsPage() {
         { key: "general-permissions", label: "전역 권한", render: () => <GlobalPermissionsCard onError={recordCardError} /> },
         { key: "general-default-project", label: "기본 프로젝트", render: () => <DefaultProjectCard canRequest={canRequest} onError={recordCardError} /> },
         { key: "general-status", label: "연결 상태", render: () => <StatusCard bridgeStatus={bridgeStatus} authStatus={authStatus} lastMessage={store.lastMessage} loading={store.loading} onError={recordCardError} /> },
-        { key: "general-otp", label: "OTP 인증", render: () => <SettingsOtpPanel bridgeConnected={canSetupRequest} onError={recordCardError} /> }
+        { key: "general-otp", label: "OTP 인증", render: () => <SettingsOtpPanel bridgeConnected={canSetupRequest} onError={recordCardError} /> },
+        { key: "general-user-rules", label: "사용자 규칙", render: () => <SettingsUserRulesPanel canRequest={canSetupRequest} /> }
       ]
     },
     {

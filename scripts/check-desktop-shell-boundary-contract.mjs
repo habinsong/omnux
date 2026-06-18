@@ -385,29 +385,34 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     "useOpsPageStore",
     "desktop ReadOnlyWsPanel.tsx ops page store ownership"
   );
-  assertIncludes(
+  assertNotIncludes(
     readOnlyPanelSource,
     "requestDesktopOtp",
-    "desktop ReadOnlyWsPanel.tsx otp request action"
+    "desktop ReadOnlyWsPanel.tsx has no duplicate otp request action"
   );
-  assertIncludes(
+  assertNotIncludes(
     readOnlyPanelSource,
     "submitDesktopOtp",
-    "desktop ReadOnlyWsPanel.tsx otp submit action"
+    "desktop ReadOnlyWsPanel.tsx has no duplicate otp submit action"
   );
-  assertIncludes(
+  assertNotIncludes(
     readOnlyPanelSource,
     "OTP 요청",
-    "desktop ReadOnlyWsPanel.tsx otp request control"
+    "desktop ReadOnlyWsPanel.tsx has no duplicate otp request control"
+  );
+  assertNotIncludes(
+    readOnlyPanelSource,
+    "auth.lastMessage",
+    "desktop ReadOnlyWsPanel.tsx has no duplicate otp auth message surface"
   );
   assertIncludes(
     readOnlyPanelSource,
-    "최근 Doctor 보고서",
+    "최근 진단 보고서",
     "desktop ReadOnlyWsPanel.tsx read-only doctor query control"
   );
   assertIncludes(
     readOnlyPanelSource,
-    "운영 목록 조회",
+    "작업 목록 조회",
     "desktop ReadOnlyWsPanel.tsx read-only operations query control"
   );
   assertIncludes(
@@ -968,6 +973,46 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     "emit_middleware_bootstrap_event",
     "desktop rust middleware bootstrap event helper"
   );
+  const devBootstrapSource = rustShellSource.slice(
+    rustShellSource.indexOf("async fn run_dev_middleware_bootstrap"),
+    rustShellSource.indexOf("#[cfg(not(debug_assertions))]", rustShellSource.indexOf("async fn run_dev_middleware_bootstrap"))
+  );
+  assertionCount += 1;
+  assert.ok(
+    devBootstrapSource.includes("existing_middleware_is_healthy()"),
+    "desktop dev middleware bootstrap must reuse an existing healthy listener before spawning dotnet"
+  );
+  const mediaWidgetSource = read("apps/desktop/src/features/shell/MediaWidget.tsx");
+  assertIncludes(
+    mediaWidgetSource,
+    "MEDIA_STARTUP_DELAY_MS",
+    "desktop media widget defers first media probe after shell paint"
+  );
+  assertIncludes(
+    mediaWidgetSource,
+    "const MEDIA_POLL_INTERVAL_MS = 2000;",
+    "desktop media widget refreshes system media often enough to avoid stale playback time"
+  );
+  assertNotIncludes(
+    mediaWidgetSource,
+    "requestAnimationFrame(tick)",
+    "desktop media widget must not update React state every animation frame"
+  );
+  assertNotIncludes(
+    mediaWidgetSource,
+    "setTimeout(poll, 250)",
+    "desktop media widget must not poll system media every 250ms during startup"
+  );
+  assertIncludes(
+    mediaWidgetSource,
+    "playing && !seeking && !controlPending",
+    "desktop media widget must show interpolated playback time while collapsed"
+  );
+  assertIncludes(
+    mediaWidgetSource,
+    "clampMediaPosition",
+    "desktop media widget clamps invalid or negative media position before display"
+  );
 
   const tauriConfig = JSON.parse(read("apps/desktop/src-tauri/tauri.conf.json"));
   assertionCount += 1;
@@ -1053,10 +1098,10 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     "request_otp",
     "desktop gateway otp request"
   );
-  assertIncludes(
+  assertNotIncludes(
     gatewaySource,
     "resume_auth",
-    "desktop gateway auth resume request"
+    "desktop gateway must not expose token resume request"
   );
   assertIncludes(
     gatewaySource,

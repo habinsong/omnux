@@ -399,7 +399,12 @@ internal sealed class WsAiCommandDispatcher
                         Model: message.Model,
                         Language: message.Language ?? "auto",
                         LinkedMemoryNotes: message.MemoryNotes,
+                        GroqModel: message.GroqModel,
+                        GeminiModel: message.GeminiModel,
+                        CerebrasModel: message.CerebrasModel,
                         NvidiaModel: message.NvidiaModel,
+                        CopilotModel: message.CopilotModel,
+                        CodexModel: message.CodexModel,
                         Attachments: message.Attachments,
                         WebUrls: message.WebUrls,
                         WebSearchEnabled: message.WebSearchEnabled,
@@ -714,7 +719,9 @@ internal sealed class WsAiCommandDispatcher
             Math.Max(0, result.RetryAttempt),
             Math.Max(0, result.RetryMaxAttempts),
             normalizedRetryStopReason,
-            result.Latency
+            result.Latency,
+            result.ActionSuggestions,
+            result.NotebookAction
         );
         var json = JsonSerializer.Serialize(response, WsAiJsonContext.Default.ChatResultWsResponse);
         await WebSocketGateway.SendTextAsync(socket, sendLock, json, cancellationToken);

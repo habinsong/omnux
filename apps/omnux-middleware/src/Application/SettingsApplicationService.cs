@@ -10,6 +10,7 @@ public sealed class SettingsApplicationService : ISettingsApplicationService
     private readonly CodexCliWrapper _codexWrapper;
     private readonly TelegramClient _telegramClient;
     private readonly ICoreRuntimeClient _coreClient;
+    private readonly TotpAuthenticatorStore _totp = new();
 
     public SettingsApplicationService(
         RuntimeSettings runtimeSettings,
@@ -37,6 +38,23 @@ public sealed class SettingsApplicationService : ISettingsApplicationService
 
     public RoutingPolicyActionResult GetRoutingPolicySnapshot()
         => _routingPolicyResolver.GetSnapshotResult();
+
+    public UserRulesSnapshot GetUserRules()
+        => UserRuleStore.Read();
+
+    public UserRulesSnapshot SaveUserRules(string? text)
+    {
+        var snapshot = UserRuleStore.Save(text);
+        _auditLogger.Log("web", "user_rules", "save", $"chars={snapshot.Text.Length}");
+        return snapshot;
+    }
+
+    public UserRulesSnapshot DeleteUserRules()
+    {
+        var snapshot = UserRuleStore.Delete();
+        _auditLogger.Log("web", "user_rules", "delete", $"exists={snapshot.Exists}");
+        return snapshot;
+    }
 
     public RoutingPolicyActionResult SaveRoutingPolicy(RoutingPolicy? policy)
     {
@@ -102,6 +120,29 @@ public sealed class SettingsApplicationService : ISettingsApplicationService
         var result = _runtimeSettings.SetExternalDashboardEnabled(enabled);
         _auditLogger.Log("web", "set_external_dashboard_access", "ok", result);
         return result;
+    }
+
+    public TotpAuthenticatorStore TotpAuthenticator => _totp;
+
+    public TotpEnrollment BeginTotpEnrollment()
+    {
+        var enrollment = _totp.BeginEnrollment();
+        _auditLogger.Log("web", "totp_enroll_begin", "ok", $"account={enrollment.Account}");
+        return enrollment;
+    }
+
+    public bool ConfirmTotpEnrollment(string? code)
+    {
+        var ok = _totp.ConfirmEnrollment(code);
+        _auditLogger.Log("web", "totp_enroll_confirm", ok ? "ok" : "error", ok ? "enrolled" : "invalid_code");
+        return ok;
+    }
+
+    public bool DisableTotp()
+    {
+        var ok = _totp.Disable();
+        _auditLogger.Log("web", "totp_disable", ok ? "ok" : "error", "");
+        return ok;
     }
 
     public GeminiUsage GetGeminiUsageSnapshot()

@@ -292,6 +292,7 @@ public sealed partial class WebSocketGateway
         public string RawJson { get; set; } = string.Empty;
         public string? Type { get; set; }
         public string? Otp { get; set; }
+        public string? TotpCode { get; set; }
         public string? AuthToken { get; set; }
         public string? Text { get; set; }
         public string? Message { get; set; }

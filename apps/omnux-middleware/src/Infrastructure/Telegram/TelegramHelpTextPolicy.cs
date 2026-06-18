@@ -94,7 +94,7 @@ internal static class TelegramHelpTextPolicy
                    - "오케스트레이션 코딩으로 지금 워크스페이스 점검하고 개선해줘"
                    - "다중 코딩으로 같은 요구사항 비교해줘"
                    - "단일 코딩 제공자를 Codex로 바꿔"
-                   - "다중 코딩 워커 Gemini 모델을 gemini-2.5-pro로 설정해"
+                   - "다중 코딩 워커 Gemini 모델을 gemini-3.1-pro로 설정해"
                    - "최근 코딩 결과 보여줘"
                    - "코딩 파일 1 보여줘"
 

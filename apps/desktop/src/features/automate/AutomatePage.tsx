@@ -1,7 +1,6 @@
 import { useEffect, useMemo, type ReactNode } from "react";
 import {
   AlertTriangle,
-  Bot,
   CalendarClock,
   Check,
   Clock,
@@ -18,7 +17,6 @@ import {
   Search,
   Send,
   Settings,
-  Sparkles,
   TerminalSquare,
   Trash2,
   X
@@ -64,7 +62,7 @@ const EXECUTION_MODES = [
   { value: "web", label: "일반 답변" },
   { value: "url", label: "URL 참조" },
   { value: "script", label: "스크립트" },
-  { value: "browser_agent", label: "브라우저 에이전트" }
+  { value: "browser_agent", label: "브라우저 실행" }
 ];
 
 const SCHEDULE_KINDS = [
@@ -89,7 +87,7 @@ function messageLooksDangerous(message: string) {
 }
 
 function modeLabel(value: string) {
-  if (value === "browser_agent") return "브라우저 에이전트";
+  if (value === "browser_agent") return "브라우저 실행";
   if (value === "url") return "URL 참조";
   if (value === "web") return "일반 답변";
   return "스크립트";
@@ -230,7 +228,7 @@ function PreviewPanel({ preview }: { preview: RoutinePreview | null }) {
         <strong className="truncate">{preview.scheduleText || "-"}</strong>
       </div>
       <div className="flex min-w-0 items-center gap-2">
-        <Sparkles size={14} className="shrink-0 text-muted-foreground" aria-hidden="true" />
+        <FileText size={14} className="shrink-0 text-muted-foreground" aria-hidden="true" />
         <span className="shrink-0 text-xs text-muted-foreground">실행</span>
         <strong className="truncate">{`${modeLabel(preview.resolvedExecutionMode)} / ${preview.executionRoute || "-"}`}</strong>
       </div>
@@ -351,9 +349,9 @@ function RoutineLibrary({ routines, canRequest }: { routines: RoutineItem[]; can
       <div className="min-h-0 space-y-2 overflow-y-auto pr-1">
         {routines.length === 0 ? (
           <EmptyState
-            icon={Bot}
+            icon={ListChecks}
             title="등록된 루틴이 없습니다"
-            description="새 루틴을 만들어 반복 작업을 자동화하세요."
+            description="반복 작업을 등록하면 이곳에서 실행과 기록을 관리합니다."
             action={
               <Button variant="primary" size="sm" onClick={() => store.setCreatePanelOpen(true)}>
                 <Plus size={15} aria-hidden="true" /> 새 루틴
@@ -565,7 +563,7 @@ function EditPanel({ selected, canRequest }: { selected: RoutineItem; canRequest
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => store.previewRoutine("edit")} disabled={!canRequest || store.updating}>
-              <Sparkles size={14} aria-hidden="true" /> 미리보기
+              <FileText size={14} aria-hidden="true" /> 미리보기
             </Button>
             <Button variant="primary" size="sm" onClick={store.updateRoutine} disabled={!canRequest || store.updating}>
               <Save size={14} aria-hidden="true" /> {store.updating ? "저장 중" : "수정 저장"}
@@ -611,7 +609,7 @@ function RunHistoryPanel({ selected, canRequest }: { selected: RoutineItem; canR
       <EmptyState
         icon={History}
         title="실행 이력이 아직 없습니다"
-        description="웹 테스트나 예약 실행 후 이 영역에 결과가 쌓입니다."
+        description="수동 실행이나 예약 실행 후 이 영역에 결과가 쌓입니다."
         action={
           <Button variant="primary" size="sm" onClick={() => store.runRoutine(selected.id)} disabled={!canRequest || store.pending}>
             <Play size={14} aria-hidden="true" /> 지금 실행
@@ -765,7 +763,7 @@ function DetailHeader({ selected, canRequest }: { selected: RoutineItem; canRequ
         </div>
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           <Button variant="primary" size="sm" onClick={() => store.runRoutine(selected.id)} disabled={!canRequest || store.pending}>
-            <Play size={14} aria-hidden="true" /> 웹 테스트
+            <Play size={14} aria-hidden="true" /> 실행
           </Button>
           {browserAgent ? (
             <Button variant="outline" size="sm" onClick={() => store.testBrowserAgentRoutine(selected.id)} disabled={!canRequest || store.pending}>
@@ -954,11 +952,11 @@ export function AutomatePage() {
   }, [routeVersion]);
 
   return (
-    <div className="space-y-4">
+    <div className="dashboard-tab space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="truncate text-xl font-semibold tracking-tight">자동화</h1>
-          <p className="truncate text-sm text-muted-foreground">예약 루틴과 실행 결과를 한 화면에서 관리합니다.</p>
+          <p className="text-sm leading-relaxed text-muted-foreground">예약, 실행 결과, 알림을 한 화면에서 관리합니다.</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={store.loadRoutines} disabled={!canRequest || store.pending}>
@@ -974,10 +972,10 @@ export function AutomatePage() {
       </div>
 
       <div className="grid grid-cols-2 gap-2 xl:grid-cols-6">
-        <StatCard label="전체 루틴" value={store.routines.length} note="등록된 자동화 작업" />
+        <StatCard label="전체 루틴" value={store.routines.length} note="등록된 반복 작업" />
         <StatCard label="활성 루틴" value={stats.enabled} note={`비활성 ${Math.max(0, store.routines.length - stats.enabled)}개`} />
         <StatCard label="예약 대기" value={stats.scheduled} note="다음 실행 시간이 잡힌 루틴" />
-        <StatCard label="브라우저" value={stats.browser} note="브라우저 에이전트 루틴" />
+        <StatCard label="브라우저" value={stats.browser} note="브라우저 실행 루틴" />
         <StatCard label="최근 오류" value={stats.failed} note="마지막 실행 기준" />
         <StatCard label="텔레그램" value={telegramConfigured ? "연결" : "미설정"} note={telegramConfigured ? "응답 전송 가능" : "설정에서 연결"} />
       </div>

@@ -8,16 +8,19 @@ internal sealed class AuthSessionGateway
 {
     private readonly IAuthSessionStore _sessionManager;
     private readonly TelegramClient _telegramClient;
+    private readonly TotpAuthenticatorStore _totp;
     private readonly bool _enableLocalOtpFallback;
 
     public AuthSessionGateway(
         IAuthSessionStore sessionManager,
         TelegramClient telegramClient,
+        TotpAuthenticatorStore totp,
         bool enableLocalOtpFallback
     )
     {
         _sessionManager = sessionManager;
         _telegramClient = telegramClient;
+        _totp = totp;
         _enableLocalOtpFallback = enableLocalOtpFallback;
     }
 
@@ -56,6 +59,11 @@ internal sealed class AuthSessionGateway
             return sessionId;
         }
 
+        if (await TryPromoteFromActiveTrustedAsync(sessionId, socket, sendLock, cancellationToken))
+        {
+            return sessionId;
+        }
+
         await WebSocketGateway.SendTextAsync(
             socket,
             sendLock,
@@ -63,6 +71,7 @@ internal sealed class AuthSessionGateway
             + "\"type\":\"auth_required\","
             + $"\"sessionId\":\"{WebSocketGateway.EscapeJson(sessionId)}\","
             + $"\"telegramConfigured\":{(_telegramClient.IsConfigured ? "true" : "false")},"
+            + $"\"totpEnrolled\":{(_totp.IsEnrolled ? "true" : "false")},"
             + $"\"remoteDashboardClient\":{(remoteDashboardClient ? "true" : "false")}"
             + "}",
             cancellationToken
@@ -129,6 +138,44 @@ internal sealed class AuthSessionGateway
         return default;
     }
 
+    public async Task<bool> TryPromoteFromActiveTrustedAsync(
+        string? sessionId,
+        WebSocket socket,
+        SemaphoreSlim sendLock,
+        CancellationToken cancellationToken
+    )
+    {
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            return false;
+        }
+
+        if (!_sessionManager.TryGetActiveTrusted(out var activeExpiresAtUtc)
+            || !_sessionManager.MarkAuthenticatedFromTrusted(sessionId, activeExpiresAtUtc))
+        {
+            return false;
+        }
+
+        var remainingHours = Math.Max(1, (int)Math.Ceiling((activeExpiresAtUtc - DateTimeOffset.UtcNow).TotalHours));
+        await WebSocketGateway.SendTextAsync(
+            socket,
+            sendLock,
+            "{"
+            + "\"type\":\"auth_result\","
+            + "\"ok\":true,"
+            + "\"resumed\":true,"
+            + "\"authToken\":\"\","
+            + $"\"expiresAtUtc\":\"{WebSocketGateway.EscapeJson(activeExpiresAtUtc.ToString("O"))}\","
+            + $"\"expiresAtLocal\":\"{WebSocketGateway.EscapeJson(WebSocketGateway.FormatLocalDateTime(activeExpiresAtUtc))}\","
+            + $"\"localUtcOffset\":\"{WebSocketGateway.EscapeJson(WebSocketGateway.FormatUtcOffset(activeExpiresAtUtc.ToLocalTime().Offset))}\","
+            + $"\"ttlHours\":{remainingHours},"
+            + "\"remoteDashboardClient\":false"
+            + "}",
+            cancellationToken
+        );
+        return true;
+    }
+
     private async Task HandleRequestOtpAsync(
         string? sessionId,
         WebSocket socket,
@@ -193,9 +240,13 @@ internal sealed class AuthSessionGateway
     {
         var ticket = new TrustedAuthTicket(string.Empty, DateTimeOffset.MinValue);
         var trustedTtl = WebSocketGateway.ResolveTrustedAuthTtl(authTtlHours);
-        var ok = !string.IsNullOrWhiteSpace(sessionId)
-                 && !string.IsNullOrWhiteSpace(otp)
-                 && _sessionManager.Authenticate(sessionId, otp, trustedTtl, out ticket);
+        var hasCredentials = !string.IsNullOrWhiteSpace(sessionId) && !string.IsNullOrWhiteSpace(otp);
+        // 1차: 서버 발급(텔레그램 전달식) OTP 비교. 실패하면 등록된 인증 앱(TOTP) 코드로 검증한다.
+        var ok = hasCredentials && _sessionManager.Authenticate(sessionId!, otp!, trustedTtl, out ticket);
+        if (!ok && hasCredentials && _totp.IsEnrolled && _totp.VerifyLogin(otp))
+        {
+            ok = _sessionManager.AuthenticateTrusted(sessionId!, trustedTtl, out ticket);
+        }
         await WebSocketGateway.SendTextAsync(
             socket,
             sendLock,
@@ -203,7 +254,7 @@ internal sealed class AuthSessionGateway
             + "\"type\":\"auth_result\","
             + $"\"ok\":{(ok ? "true" : "false")},"
             + "\"resumed\":false,"
-            + $"\"authToken\":\"{WebSocketGateway.EscapeJson(ok ? ticket.Token : string.Empty)}\","
+            + "\"authToken\":\"\","
             + $"\"expiresAtUtc\":\"{WebSocketGateway.EscapeJson(ok ? ticket.ExpiresAtUtc.ToString("O") : string.Empty)}\","
             + $"\"expiresAtLocal\":\"{WebSocketGateway.EscapeJson(ok ? WebSocketGateway.FormatLocalDateTime(ticket.ExpiresAtUtc) : string.Empty)}\","
             + $"\"localUtcOffset\":\"{WebSocketGateway.EscapeJson(ok ? WebSocketGateway.FormatUtcOffset(ticket.ExpiresAtUtc.ToLocalTime().Offset) : string.Empty)}\","
@@ -238,7 +289,7 @@ internal sealed class AuthSessionGateway
             + "\"type\":\"auth_result\","
             + $"\"ok\":{(resumed ? "true" : "false")},"
             + "\"resumed\":true,"
-            + $"\"authToken\":\"{WebSocketGateway.EscapeJson(resumed ? authToken ?? string.Empty : string.Empty)}\","
+            + "\"authToken\":\"\","
             + $"\"expiresAtUtc\":\"{WebSocketGateway.EscapeJson(resumed ? expiresAtUtc.ToString("O") : string.Empty)}\","
             + $"\"expiresAtLocal\":\"{WebSocketGateway.EscapeJson(resumed ? WebSocketGateway.FormatLocalDateTime(expiresAtUtc) : string.Empty)}\","
             + $"\"localUtcOffset\":\"{WebSocketGateway.EscapeJson(resumed ? WebSocketGateway.FormatUtcOffset(expiresAtUtc.ToLocalTime().Offset) : string.Empty)}\","

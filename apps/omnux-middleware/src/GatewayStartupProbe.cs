@@ -735,6 +735,19 @@ internal sealed class GatewayStartupProbe
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            // 실 클라이언트(데스크톱 등)의 ping/pong 이 이미 게이트웨이 카운터에 기록됐다면
+            // websocket 경로는 증명된 것 — 자가 다이얼을 생략해 콜드스타트 probe 예산을 아낀다.
+            if (TryReadGatewayRoundTripCountFromHealthSnapshot(out var observedRoundTrips)
+                && observedRoundTrips > 0)
+            {
+                Console.WriteLine(
+                    "[web] startup probe websocket ping/pong satisfied by observed client roundtrip "
+                    + $"(count={observedRoundTrips.ToString(CultureInfo.InvariantCulture)}, attempt={attempt})"
+                );
+                return true;
+            }
+
             var wsPingPongAttempt = await TryRunWebSocketPingPongSingleAttemptAsync(cancellationToken);
             if (wsPingPongAttempt.Success)
             {

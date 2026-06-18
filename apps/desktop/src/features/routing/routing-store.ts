@@ -72,7 +72,7 @@ export const useRoutingStore = create<RoutingState>((set, get) => ({
   },
   loadLocalLlm: () => {
     set({ localLoading: true, lastError: "" });
-    if (!requestDesktopInsights.localLlm()) set({ localLoading: false, lastError: "로컬 LLM readiness 요청을 전송하지 못했다." });
+    if (!requestDesktopInsights.localLlm()) set({ localLoading: false, lastError: "로컬 모델 상태 요청을 전송하지 못했다." });
   },
   setDraft: (key, value) => set((state) => ({ draftChains: { ...state.draftChains, [key]: value } })),
   save: () => {
@@ -85,7 +85,7 @@ export const useRoutingStore = create<RoutingState>((set, get) => ({
     if (!requestDesktopRouting.save(policy)) set({ pending: false, lastError: "라우팅 정책 저장 요청을 전송하지 못했다." });
   },
   reset: async () => {
-    const confirmed = await requestConfirmDialog({ title: "override 초기화", message: "사용자 override 라우팅 체인을 모두 기본값으로 되돌릴까요?", confirmLabel: "초기화", tone: "danger" });
+    const confirmed = await requestConfirmDialog({ title: "사용자 지정 초기화", message: "사용자 지정 실행 경로를 모두 기본값으로 되돌릴까요?", confirmLabel: "초기화", tone: "danger" });
     if (!confirmed) return;
     set({ pending: true, lastError: "" });
     if (!requestDesktopRouting.reset()) set({ pending: false, lastError: "라우팅 정책 초기화 요청을 전송하지 못했다." });

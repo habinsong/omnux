@@ -105,20 +105,20 @@ function ProjectCard({
 
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <span>
-          <b className="text-foreground">{project.runs}</b> runs
+          <b className="text-foreground">{project.runs}</b> 실행
         </span>
         <span>
-          <b className="text-foreground">{project.automations}</b> automations
+          <b className="text-foreground">{project.automations}</b> 루틴
         </span>
         <span className="ml-auto">{formatDate(project.lastOpenedUtc)}</span>
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-3">
         <Button variant="outline" size="sm" onClick={(event) => stop(event, onAsk)}>
-          <MessageSquare size={14} aria-hidden="true" /> Ask
+          <MessageSquare size={14} aria-hidden="true" /> 질문
         </Button>
         <Button variant="outline" size="sm" onClick={(event) => stop(event, onBuild)}>
-          <Code2 size={14} aria-hidden="true" /> Build
+          <Code2 size={14} aria-hidden="true" /> 빌드
         </Button>
       </div>
     </article>
@@ -159,11 +159,11 @@ export function ProjectsPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="dashboard-tab space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">프로젝트</h1>
-          <p className="text-sm text-muted-foreground">존재하는 로컬 폴더를 등록하고, 마지막 사용 시각과 대표 상태를 실제 백엔드 결과로 갱신합니다.</p>
+          <p className="text-sm leading-relaxed text-muted-foreground">로컬 폴더를 등록하고 질문·빌드·자동화의 기준으로 사용합니다.</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button variant="outline" size="sm" disabled={!canRequest || store.loading} onClick={store.loadProjects}>
@@ -185,7 +185,7 @@ export function ProjectsPage() {
       {editorOpen ? (
         <CardBoundary title={selectedProject ? "프로젝트 수정" : "프로젝트 등록"} card="operations" onError={recordCardError}>
           <div className="flex items-start justify-between gap-3">
-            <p className="text-xs text-muted-foreground">로컬에 실제 존재하는 폴더만 등록됩니다. 등록 결과는 백엔드 projects_state 응답으로 확정합니다.</p>
+            <p className="text-xs leading-relaxed text-muted-foreground">로컬에 실제 존재하는 폴더만 등록됩니다.</p>
             <IconButton icon={X} label="닫기" onClick={() => setEditorOpen(false)} />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -237,7 +237,7 @@ export function ProjectsPage() {
         <EmptyState
           icon={FolderGit2}
           title="등록된 프로젝트가 없습니다"
-          description="로컬 폴더 경로를 등록하면 Ask, Build, Automate에서 같은 프로젝트를 사용할 수 있습니다."
+          description="로컬 폴더 경로를 등록하면 질문, 빌드, 자동화에서 같은 작업 기준을 사용할 수 있습니다."
           action={
             <Button variant="primary" size="sm" onClick={openNewProjectEditor}>
               <Plus size={15} aria-hidden="true" /> 프로젝트 추가

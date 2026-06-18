@@ -174,6 +174,9 @@ public sealed class DefaultStatePathResolver : IStatePathResolver
         var cwd = Directory.GetCurrentDirectory();
         var candidates = new[]
         {
+            Path.GetFullPath(Path.Combine(baseDir, "../../../../desktop/dist/index.html")),
+            Path.GetFullPath(Path.Combine(cwd, "apps/desktop/dist/index.html")),
+            Path.GetFullPath(Path.Combine(cwd, "desktop/dist/index.html")),
             Path.GetFullPath(Path.Combine(baseDir, "../../../../omnux-dashboard/index.html")),
             Path.GetFullPath(Path.Combine(cwd, "apps/omnux-dashboard/index.html")),
             Path.GetFullPath(Path.Combine(cwd, "omnux-dashboard/index.html")),

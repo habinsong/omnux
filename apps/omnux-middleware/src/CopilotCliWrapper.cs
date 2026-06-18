@@ -26,52 +26,8 @@ public sealed class CopilotCliWrapper
         "\"([a-zA-Z0-9._/-]+)\"",
         RegexOptions.Compiled
     );
-    private static readonly IReadOnlyList<string> FallbackModelIds = new[]
-    {
-        "claude-sonnet-4.6",
-        "claude-sonnet-4.5",
-        "claude-sonnet-4",
-        "claude-haiku-4.5",
-        "claude-opus-4.7",
-        "claude-opus-4.6",
-        "claude-opus-4.6-fast",
-        "claude-opus-4.5",
-        "gemini-3-pro-preview",
-        "gemini-3-flash-preview",
-        "gemini-3.1-flash-lite",
-        "gpt-5.5",
-        "gpt-5.4",
-        "gpt-5.4-mini",
-        "gpt-5.3-codex",
-        "gpt-5.2-codex",
-        "gpt-5.2",
-        "gpt-5-mini",
-        "gpt-4.1",
-        "grok-code-fast-1"
-    };
-    private static readonly Dictionary<string, CopilotModelMeta> KnownModelMeta = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["claude-sonnet-4.6"] = new("Anthropic", "1x"),
-        ["claude-sonnet-4.5"] = new("Anthropic", "1x"),
-        ["claude-sonnet-4"] = new("Anthropic", "1x"),
-        ["claude-haiku-4.5"] = new("Anthropic", "0.33x"),
-        ["claude-opus-4.7"] = new("Anthropic", "3x"),
-        ["claude-opus-4.6"] = new("Anthropic", "3x"),
-        ["claude-opus-4.6-fast"] = new("Anthropic", "30x"),
-        ["claude-opus-4.5"] = new("Anthropic", "3x"),
-        ["gemini-3-pro-preview"] = new("Google", "1x"),
-        ["gemini-3-flash-preview"] = new("Google", "1x"),
-        ["gemini-3.1-flash-lite"] = new("Google", "1x"),
-        ["gpt-5.5"] = new("OpenAI", "7.5x"),
-        ["gpt-5.4"] = new("OpenAI", "1x"),
-        ["gpt-5.4-mini"] = new("OpenAI", "0.33x"),
-        ["gpt-5.3-codex"] = new("OpenAI", "1x"),
-        ["gpt-5.2-codex"] = new("OpenAI", "1x"),
-        ["gpt-5.2"] = new("OpenAI", "1x"),
-        ["gpt-5-mini"] = new("OpenAI", "0x"),
-        ["gpt-4.1"] = new("OpenAI", "0x"),
-        ["grok-code-fast-1"] = new("xAI", "0.25x")
-    };
+    private static readonly IReadOnlyList<string> FallbackModelIds = ModelRegistry.GetFallbackModels("copilot").ToList();
+    private static readonly Dictionary<string, CopilotModelMeta> KnownModelMeta = new(ModelRegistry.CopilotKnownMeta);
 
     private readonly string _ghBinaryPath;
     private readonly string _copilotBinaryPath;
@@ -1354,7 +1310,6 @@ public sealed class CopilotCliWrapper
     }
 
     private sealed record ProcessResult(int ExitCode, string StdOut, string StdErr);
-    private sealed record CopilotModelMeta(string Provider, string PremiumMultiplier);
     private sealed record PremiumUsageRawItem(string Model, double Quantity);
 }
 

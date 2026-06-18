@@ -339,9 +339,6 @@ export function handleDashboardServerMessage(msg, context) {
     setters.setAuthed(ok)
     if (ok) {
       const expiryText = msg.expiresAtLocal || msg.expiresAtUtc || ""
-      if (msg.authToken) {
-        actions.saveAuthToken(msg.authToken, expiryText)
-      }
       setters.setAuthLocalOffset(msg.localUtcOffset || "")
       if (Number.isFinite(msg.ttlHours) && Number(msg.ttlHours) > 0) {
         setters.setAuthTtlHours(String(msg.ttlHours))

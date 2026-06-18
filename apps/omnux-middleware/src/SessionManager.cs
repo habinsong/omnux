@@ -70,6 +70,39 @@ public sealed class SessionManager : IAuthSessionStore
         }
     }
 
+    public bool AuthenticateTrusted(string sessionId, TimeSpan trustedTtl, out TrustedAuthTicket ticket)
+    {
+        ticket = new TrustedAuthTicket(string.Empty, DateTimeOffset.MinValue);
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            return false;
+        }
+
+        // 호출자가 이미 강한 인증(TOTP 등)으로 신원을 증명했으므로 세션 OTP 비교 없이 신뢰 토큰을 발급한다.
+        // TOTP 자체가 증거이므로 3분 pending 창이 지나 세션 레코드가 없어도 해당 연결을 승격한다.
+        var trustedExpiresAtUtc = DateTimeOffset.UtcNow.Add(trustedTtl);
+        var trustedToken = CreateSignedToken(sessionId, trustedExpiresAtUtc);
+
+        _sessions.AddOrUpdate(
+            sessionId,
+            _ => new SessionRecord(string.Empty, trustedExpiresAtUtc, authenticated: true),
+            (_, existing) =>
+            {
+                lock (existing)
+                {
+                    existing.Authenticated = true;
+                    existing.ExpiresAtUtc = trustedExpiresAtUtc;
+                }
+
+                return existing;
+            }
+        );
+
+        SaveTrustedSessionLocked(trustedToken, trustedExpiresAtUtc);
+        ticket = new TrustedAuthTicket(trustedToken, trustedExpiresAtUtc);
+        return true;
+    }
+
     public bool TryResumeTrusted(string authToken, out DateTimeOffset expiresAtUtc)
     {
         expiresAtUtc = DateTimeOffset.MinValue;
@@ -97,6 +130,24 @@ public sealed class SessionManager : IAuthSessionStore
         }
 
         expiresAtUtc = trusted.ExpiresAtUtc;
+        return true;
+    }
+
+    public bool TryGetActiveTrusted(out DateTimeOffset expiresAtUtc)
+    {
+        expiresAtUtc = DateTimeOffset.MinValue;
+        LoadTrustedSessions();
+        PruneExpiredTrustedSessions();
+        var active = _trustedSessions.Values
+            .Where(x => x.ExpiresAtUtc > DateTimeOffset.UtcNow)
+            .OrderByDescending(x => x.ExpiresAtUtc)
+            .FirstOrDefault();
+        if (active == null)
+        {
+            return false;
+        }
+
+        expiresAtUtc = active.ExpiresAtUtc;
         return true;
     }
 

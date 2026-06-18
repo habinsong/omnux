@@ -232,6 +232,12 @@ public sealed record ChatLatencyMetrics(
     long SanitizeMs,
     string DecisionPath
 );
+public sealed record AskNotebookAction(
+    bool Ok,
+    string Kind,
+    string Message,
+    string? ProjectKey
+);
 public sealed record ConversationChatResult(
     string Mode,
     string ConversationId,
@@ -249,7 +255,9 @@ public sealed record ConversationChatResult(
     int RetryMaxAttempts = 0,
     string RetryStopReason = "-",
     ChatLatencyMetrics? Latency = null,
-    string? RequestId = null
+    string? RequestId = null,
+    IReadOnlyList<AskActionSuggestion>? ActionSuggestions = null,
+    AskNotebookAction? NotebookAction = null
 );
 public sealed record ConversationSearchHit(
     string ConversationId,

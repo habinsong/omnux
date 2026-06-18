@@ -1,0 +1,93 @@
+{
+  "_comment": "단일 소스 오브 트루스: omnux 전체의 LLM 제공자/모델 정의. TS/C#/JS 모두 여기서 읽는다.",
+  "_updated": "2026-06-07",
+  "providers": {
+    "groq": {
+      "label": "Groq",
+      "default": "meta-llama/llama-4-scout-17b-16e-instruct",
+      "workerDefault": "meta-llama/llama-4-scout-17b-16e-instruct",
+      "fallback": [
+        "meta-llama/llama-4-scout-17b-16e-instruct",
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+        "qwen/qwen3-32b",
+        "groq/compound",
+        "groq/compound-mini",
+        "openai/gpt-oss-safeguard-20b"
+      ]
+    },
+    "gemini": {
+      "label": "Gemini",
+      "default": "gemini-3.1-flash-lite",
+      "workerDefault": "gemini-3.1-flash-lite",
+      "fallback": [
+        "gemini-3.5-flash",
+        "gemini-3.1-pro",
+        "gemini-3-flash",
+        "gemini-3.1-flash-lite"
+      ]
+    },
+    "cerebras": {
+      "label": "Cerebras",
+      "default": "gpt-oss-120b",
+      "workerDefault": "gpt-oss-120b",
+      "fallback": [
+        "gpt-oss-120b",
+        "qwen-3-32b",
+        "zai-glm-4.7"
+      ]
+    },
+    "nvidia": {
+      "label": "NVIDIA NIM",
+      "default": "meta/llama-3.1-70b-instruct",
+      "workerDefault": "meta/llama-3.1-70b-instruct",
+      "fallback": [
+        "meta/llama-3.1-70b-instruct",
+        "meta/llama-3.3-70b-instruct",
+        "nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        "openai/gpt-oss-120b"
+      ]
+    },
+    "copilot": {
+      "label": "Copilot",
+      "default": "gpt-5-mini",
+      "workerDefault": "none",
+      "fallback": [
+        "gpt-5.5",
+        "gpt-5.4-mini",
+        "gpt-5.4-nano",
+        "gpt-5.3-codex",
+        "gpt-5-mini",
+        "claude-sonnet-4.5",
+        "claude-haiku-4.5",
+        "gemini-3.1-pro",
+        "gemini-3-flash"
+      ],
+      "knownMeta": {
+        "claude-sonnet-4.5": { "owner": "Anthropic", "costMultiplier": "1x" },
+        "claude-haiku-4.5": { "owner": "Anthropic", "costMultiplier": "0.33x" },
+        "gpt-5.5": { "owner": "OpenAI", "costMultiplier": "7.5x" },
+        "gpt-5.4-mini": { "owner": "OpenAI", "costMultiplier": "0.33x" },
+        "gpt-5.4-nano": { "owner": "OpenAI", "costMultiplier": "0.1x" },
+        "gpt-5.3-codex": { "owner": "OpenAI", "costMultiplier": "1x" },
+        "gpt-5-mini": { "owner": "OpenAI", "costMultiplier": "0x" },
+        "gemini-3.1-pro": { "owner": "Google", "costMultiplier": "1x" },
+        "gemini-3-flash": { "owner": "Google", "costMultiplier": "1x" }
+      }
+    },
+    "codex": {
+      "label": "Codex",
+      "default": "gpt-5.5",
+      "workerDefault": "none",
+      "fallback": [
+        "gpt-5.5",
+        "gpt-5.4",
+        "gpt-5.4-mini",
+        "gpt-5.4-nano",
+        "gpt-5.3-codex"
+      ]
+    }
+  }
+}

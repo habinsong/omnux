@@ -5,6 +5,18 @@ export type AskTokenUsage = {
   source: string;
 };
 
+export type AskActionSuggestion = {
+  kind: "plan" | "routine" | "agent";
+  label: string;
+  prompt: string;
+  /** routine 카드에서 자연어 스케줄 파싱이 성공했을 때만 — create_routine 에 그대로 사용. */
+  scheduleKind?: "daily" | "weekly" | "monthly";
+  scheduleTime?: string;
+  /** DayOfWeek 정수(0=일 … 6=토). */
+  scheduleWeekdays?: number[];
+  scheduleDayOfMonth?: number;
+};
+
 export type AskMessage = {
   role: "user" | "ai" | "system";
   text: string;
@@ -17,6 +29,8 @@ export type AskMessage = {
   source: "dashboard" | "telegram" | "system";
   grounded: boolean;
   citationCount: number;
+  /** P0-6 제안 카드 — 서버가 입력 의도에서 감지해 최신 응답에만 첨부. */
+  actionSuggestions?: AskActionSuggestion[];
 };
 
 export type AskConversationContext = {

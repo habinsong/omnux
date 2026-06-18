@@ -402,7 +402,8 @@ function run() {
 
   assert.equal(store.authed, true);
   assert.equal(store.status, "세션 인증됨");
-  assert.equal(store.authExpiry, "2026-03-10T12:00:00Z");
+  assert.equal(store.authExpiry, "");
+  assert.deepEqual(calls.savedAuth, []);
   assert.deepEqual(
     calls.sent,
     [

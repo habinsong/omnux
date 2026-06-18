@@ -7,16 +7,7 @@ namespace Omnux.Middleware;
 // API 키가 없거나 실패하면 정적 폴백(검증된 2026-06 목록)을 반환한다.
 public sealed class GeminiModelCatalog : IDisposable
 {
-    private static readonly string[] StaticFallback =
-    {
-        "gemini-3.5-flash",
-        "gemini-3.1-pro",
-        "gemini-3-flash",
-        "gemini-3.1-flash-lite",
-        "gemini-2.5-pro",
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite"
-    };
+    private static readonly string[] StaticFallback = ModelRegistry.GetFallbackModels("gemini").ToArray();
 
     private readonly ProviderOptions _providers;
     private readonly RuntimeSettings _runtimeSettings;
@@ -105,7 +96,19 @@ public sealed class GeminiModelCatalog : IDisposable
 
                 if (id.Contains("embedding", StringComparison.OrdinalIgnoreCase)
                     || id.Contains("imagen", StringComparison.OrdinalIgnoreCase)
-                    || id.Contains("aqa", StringComparison.OrdinalIgnoreCase))
+                    || id.Contains("aqa", StringComparison.OrdinalIgnoreCase)
+                    || id.Contains("-exp", StringComparison.OrdinalIgnoreCase)
+                    || id.Contains("-thinking", StringComparison.OrdinalIgnoreCase)
+                    || id.Contains("tts", StringComparison.OrdinalIgnoreCase)
+                    || id.Contains("live-", StringComparison.OrdinalIgnoreCase)
+                    || id.Contains("robotics", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                // 구형 세대(1.x·2.x)는 노출하지 않는다 — gemini-3 이상만 허용.
+                if (id.StartsWith("gemini-1.", StringComparison.OrdinalIgnoreCase)
+                    || id.StartsWith("gemini-2.", StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }

@@ -113,7 +113,7 @@ export const useNotebookStore = create<NotebookState>((set, get) => ({
   },
   createHandoff: () => {
     set({ pending: true, lastError: "" });
-    if (!requestDesktopNotebook.createHandoff(get().projectKeyDraft)) set({ pending: false, lastError: "핸드오프 생성 요청을 전송하지 못했다." });
+    if (!requestDesktopNotebook.createHandoff(get().projectKeyDraft)) set({ pending: false, lastError: "이어보기 문서 생성 요청을 전송하지 못했다." });
   }
 }));
 
