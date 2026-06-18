@@ -154,6 +154,17 @@ assertIncludes(omnuxCli, "$HOME/.cargo/bin", "CLI wrapper restores rustup cargo 
 assertIncludes(omnuxCli, "/opt/homebrew/bin", "CLI wrapper supports Apple Silicon Homebrew path");
 assertIncludes(omnuxCli, "/usr/local/bin", "CLI wrapper supports Intel Homebrew path");
 assertIncludes(omnuxCli, "install_linux_packages_if_command_missing", "CLI wrapper uses portable Linux package install helper");
+assertIncludes(omnuxCli, "install_linux_tauri_dependencies", "CLI wrapper installs Linux Tauri system dependencies");
+assertIncludes(omnuxCli, "ensure_desktop_system_dependencies", "CLI wrapper checks desktop system dependencies before Tauri dev");
+assertIncludes(omnuxCli, "linux_tauri_pkg_config_ok", "CLI wrapper verifies Linux Tauri pkg-config modules");
+assertIncludes(omnuxCli, "pkg-config --exists", "CLI wrapper checks pkg-config modules directly");
+assertIncludes(omnuxCli, "glib-2.0", "CLI wrapper verifies glib pkg-config module");
+assertIncludes(omnuxCli, "gobject-2.0", "CLI wrapper verifies gobject pkg-config module");
+assertIncludes(omnuxCli, "gtk+-3.0", "CLI wrapper verifies GTK pkg-config module");
+assertIncludes(omnuxCli, "webkit2gtk-4.1", "CLI wrapper verifies WebKitGTK pkg-config module");
+assertIncludes(omnuxCli, "libglib2.0-dev", "CLI wrapper installs Debian glib development package");
+assertIncludes(omnuxCli, "webkit2gtk4.1-devel", "CLI wrapper installs Fedora WebKitGTK development package");
+assertIncludes(omnuxCli, "ensure_desktop_system_dependencies\n  local desktop_dir", "CLI wrapper runs Linux Tauri dependency check from desktop path before Tauri dev");
 assertIncludes(omnuxCli, "dnf", "CLI wrapper supports dnf Linux package manager");
 assertIncludes(omnuxCli, "pacman", "CLI wrapper supports pacman Linux package manager");
 assertIncludes(omnuxCli, "zypper", "CLI wrapper supports zypper Linux package manager");

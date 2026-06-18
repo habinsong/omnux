@@ -79,3 +79,4 @@ apps/omninode-middleware/styles.css
 # IDE and tooling
 .omo/
 .codex/
+!develop.md
