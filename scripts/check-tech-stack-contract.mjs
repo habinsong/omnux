@@ -77,6 +77,7 @@ const packageJson = read("package.json");
 const englishReadme = read("README.en.md");
 const dashboardShell = read("apps/omnux-dashboard/shell.js");
 const testRunner = read("scripts/run-omnux-tests.mjs");
+const omnuxCli = read("scripts/omnux");
 assertIncludes(techStack, "데스크톱 셸", "기술 스택 문서");
 assertIncludes(techStack, "Rust + TypeScript + React", "데스크톱 셸 언어 조합");
 assertIncludes(techStack, "metrics, guarded kill", "코어 런타임 역할 경계");
@@ -148,6 +149,16 @@ assertIncludes(englishReadme, "# omnux", "영문 README canonical title");
 assertIncludes(dashboardShell, "brand-name' }, 'omnux'", "대시보드 셸 canonical brand");
 assertIncludes(testRunner, "scripts\", \"check-repo-hygiene.mjs", "npm test runs repo hygiene gate");
 assertIncludes(testRunner, "scripts\", \"check-tech-stack-contract.mjs", "npm test runs tech stack contract");
+assertIncludes(omnuxCli, "normalize_tool_path", "CLI wrapper normalizes non-interactive tool PATH");
+assertIncludes(omnuxCli, "$HOME/.cargo/bin", "CLI wrapper restores rustup cargo path");
+assertIncludes(omnuxCli, "/opt/homebrew/bin", "CLI wrapper supports Apple Silicon Homebrew path");
+assertIncludes(omnuxCli, "/usr/local/bin", "CLI wrapper supports Intel Homebrew path");
+assertIncludes(omnuxCli, "install_linux_packages_if_command_missing", "CLI wrapper uses portable Linux package install helper");
+assertIncludes(omnuxCli, "dnf", "CLI wrapper supports dnf Linux package manager");
+assertIncludes(omnuxCli, "pacman", "CLI wrapper supports pacman Linux package manager");
+assertIncludes(omnuxCli, "zypper", "CLI wrapper supports zypper Linux package manager");
+assertIncludes(omnuxCli, "apk", "CLI wrapper supports apk Linux package manager");
+assertNotIncludes(omnuxCli, "command_exists cargo || fail", "CLI wrapper must not check cargo before PATH normalization helper");
 assertFilesMatch(
   "apps/omnux-middleware/src",
   (filePath) => filePath.endsWith(".cs"),

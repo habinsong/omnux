@@ -76,6 +76,40 @@ command_exists() {
   command -v "$1" >/dev/null 2>&1
 }
 
+ensure_command() {
+  local command_name="$1"
+  local message="$2"
+  command_exists "$command_name" || fail "$message"
+}
+
+append_path_if_dir() {
+  local dir="$1"
+  [ -n "$dir" ] || return 0
+  [ -d "$dir" ] || return 0
+  case ":${PATH:-}:" in
+    *":$dir:"*) ;;
+    *) PATH="${PATH:+$PATH:}$dir" ;;
+  esac
+}
+
+normalize_tool_path() {
+  if [ -n "${HOME:-}" ]; then
+    append_path_if_dir "$HOME/.cargo/bin"
+    append_path_if_dir "$HOME/.local/bin"
+    append_path_if_dir "$HOME/.npm-global/bin"
+    append_path_if_dir "$HOME/.dotnet/tools"
+  fi
+
+  append_path_if_dir "/opt/homebrew/bin"
+  append_path_if_dir "/opt/homebrew/sbin"
+  append_path_if_dir "/usr/local/bin"
+  append_path_if_dir "/usr/local/sbin"
+  append_path_if_dir "/usr/local/share/dotnet"
+  export PATH
+}
+
+normalize_tool_path
+
 read_pid_file() {
   if [ -f "$PID_FILE" ]; then
     tr -d '[:space:]' < "$PID_FILE"
@@ -437,9 +471,11 @@ detect_install_dir() {
   IFS=':' read -r -a path_entries <<< "$PATH"
 
   local preferred=(
-    "/opt/homebrew/bin"
-    "$HOME/.npm-global/bin"
     "$HOME/.local/bin"
+    "$HOME/.npm-global/bin"
+    "$HOME/bin"
+    "/opt/homebrew/bin"
+    "/usr/local/bin"
   )
 
   for candidate in "${preferred[@]}"; do
@@ -502,25 +538,129 @@ brew_install_cask_if_missing() {
   brew list --cask "$cask_name" >/dev/null 2>&1 || brew install --cask "$cask_name"
 }
 
-apt_install_packages_if_command_missing() {
+run_with_privilege() {
+  if [ "$(id -u)" -eq 0 ]; then
+    "$@"
+    return $?
+  fi
+
+  command_exists sudo || fail "sudo가 없어 패키지 자동 설치를 할 수 없습니다: $*"
+  sudo -n "$@"
+}
+
+linux_package_manager() {
+  local manager
+  for manager in apt-get dnf yum pacman zypper apk; do
+    if command_exists "$manager"; then
+      printf '%s\n' "$manager"
+      return 0
+    fi
+  done
+  return 1
+}
+
+linux_packages_for_command() {
   local command_name="$1"
+  local manager="$2"
+  case "$manager:$command_name" in
+    apt-get:cc|apt-get:make) printf '%s\n' build-essential ;;
+    dnf:cc|dnf:make|yum:cc|yum:make) printf '%s\n' gcc gcc-c++ make ;;
+    pacman:cc|pacman:make) printf '%s\n' base-devel ;;
+    zypper:cc|zypper:make) printf '%s\n' gcc gcc-c++ make ;;
+    apk:cc|apk:make) printf '%s\n' build-base ;;
+
+    apt-get:node) printf '%s\n' nodejs ;;
+    dnf:node|yum:node|pacman:node|zypper:node|apk:node) printf '%s\n' nodejs ;;
+
+    apt-get:npm|dnf:npm|yum:npm|pacman:npm|zypper:npm|apk:npm) printf '%s\n' npm ;;
+
+    apt-get:python3|dnf:python3|yum:python3|zypper:python3) printf '%s\n' python3 python3-pip ;;
+    pacman:python3) printf '%s\n' python python-pip ;;
+    apk:python3) printf '%s\n' python3 py3-pip ;;
+
+    apt-get:sqlite3|zypper:sqlite3) printf '%s\n' sqlite3 ;;
+    dnf:sqlite3|yum:sqlite3|pacman:sqlite3|apk:sqlite3) printf '%s\n' sqlite ;;
+
+    apt-get:curl|dnf:curl|yum:curl|pacman:curl|zypper:curl|apk:curl) printf '%s\n' curl ;;
+
+    apt-get:dotnet|dnf:dotnet|yum:dotnet|zypper:dotnet) printf '%s\n' dotnet-sdk-9.0 ;;
+    pacman:dotnet) printf '%s\n' dotnet-sdk ;;
+    apk:dotnet) printf '%s\n' dotnet9-sdk ;;
+    *) return 1 ;;
+  esac
+}
+
+install_linux_packages() {
+  local manager="$1"
   shift
   local packages=("$@")
+  [ "${#packages[@]}" -gt 0 ] || return 0
+
+  info "${manager}로 ${packages[*]} 설치 중"
+  case "$manager" in
+    apt-get)
+      run_with_privilege apt-get update
+      run_with_privilege apt-get install -y "${packages[@]}"
+      ;;
+    dnf)
+      run_with_privilege dnf install -y "${packages[@]}"
+      ;;
+    yum)
+      run_with_privilege yum install -y "${packages[@]}"
+      ;;
+    pacman)
+      run_with_privilege pacman -Sy --needed --noconfirm "${packages[@]}"
+      ;;
+    zypper)
+      run_with_privilege zypper --non-interactive install "${packages[@]}"
+      ;;
+    apk)
+      run_with_privilege apk add --no-cache "${packages[@]}"
+      ;;
+    *)
+      fail "지원하지 않는 Linux 패키지 매니저입니다: $manager"
+      ;;
+  esac
+}
+
+install_linux_packages_if_command_missing() {
+  local command_name="$1"
   if command_exists "$command_name"; then
     return 0
   fi
 
-  command_exists apt-get || fail "apt-get을 찾지 못했습니다. 필요한 도구를 직접 설치하세요: ${packages[*]}"
-  info "apt-get으로 ${packages[*]} 설치 중"
-  if [ "$(id -u)" -eq 0 ]; then
-    apt-get update
-    apt-get install -y "${packages[@]}"
-    return 0
+  local manager
+  manager="$(linux_package_manager)" || fail "지원되는 Linux 패키지 매니저를 찾지 못했습니다. 필요한 도구를 직접 설치하세요: $command_name"
+
+  local packages=()
+  while IFS= read -r package_name; do
+    [ -n "$package_name" ] && packages+=("$package_name")
+  done < <(linux_packages_for_command "$command_name" "$manager")
+
+  if [ "${#packages[@]}" -eq 0 ]; then
+    fail "${manager}에서 $command_name 설치 패키지를 결정하지 못했습니다. 직접 설치 후 다시 실행하세요."
   fi
 
-  command_exists sudo || fail "sudo가 없어 패키지 자동 설치를 할 수 없습니다: ${packages[*]}"
-  sudo -n apt-get update
-  sudo -n apt-get install -y "${packages[@]}"
+  install_linux_packages "$manager" "${packages[@]}"
+  command_exists "$command_name" || fail "$command_name 설치 후에도 PATH에서 찾지 못했습니다. 터미널을 다시 열거나 PATH를 확인하세요."
+}
+
+install_optional_linux_python_modules() {
+  local manager
+  manager="$(linux_package_manager)" || return 0
+
+  local packages=()
+  case "$manager" in
+    apt-get) packages=(python3-tk python3-pygame python3-matplotlib python3-numpy python3-requests python3-bs4 python3-pil) ;;
+    dnf|yum) packages=(python3-tkinter python3-pygame python3-matplotlib python3-numpy python3-requests python3-beautifulsoup4 python3-pillow) ;;
+    pacman) packages=(tk python-pygame python-matplotlib python-numpy python-requests python-beautifulsoup4 python-pillow) ;;
+    zypper) packages=(python3-tk python3-pygame python3-matplotlib python3-numpy python3-requests python3-beautifulsoup4 python3-Pillow) ;;
+    apk) packages=(py3-tkinter py3-pygame py3-matplotlib py3-numpy py3-requests py3-beautifulsoup4 py3-pillow) ;;
+  esac
+
+  if [ "${#packages[@]}" -gt 0 ]; then
+    install_linux_packages "$manager" "${packages[@]}" 2>/dev/null || true
+  fi
 }
 
 run_setup() {
@@ -539,21 +679,17 @@ run_setup() {
       python3 -m pip install --quiet pygame matplotlib numpy requests beautifulsoup4 pillow flask fastapi uvicorn tkinter-inter 2>/dev/null || true
       ;;
     Linux)
-      apt_install_packages_if_command_missing cc build-essential
-      apt_install_packages_if_command_missing make build-essential
-      apt_install_packages_if_command_missing node nodejs
-      apt_install_packages_if_command_missing npm npm
-      apt_install_packages_if_command_missing python3 python3 python3-pip
-      apt_install_packages_if_command_missing sqlite3 sqlite3
-      apt_install_packages_if_command_missing curl curl
-      apt_install_packages_if_command_missing dotnet dotnet-sdk-9.0
+      install_linux_packages_if_command_missing cc
+      install_linux_packages_if_command_missing make
+      install_linux_packages_if_command_missing node
+      install_linux_packages_if_command_missing npm
+      install_linux_packages_if_command_missing python3
+      install_linux_packages_if_command_missing sqlite3
+      install_linux_packages_if_command_missing curl
+      install_linux_packages_if_command_missing dotnet
       # 파이썬 GUI/게임/과학 모듈 (tkinter, pygame, matplotlib 등)
       info "파이썬 추가 모듈 설치 중"
-      if command_exists sudo && [ "$(id -u)" -ne 0 ]; then
-        sudo -n apt-get install -y python3-tk python3-pygame python3-matplotlib python3-numpy python3-requests python3-beautifulsoup4 python3-pillow 2>/dev/null || true
-      elif [ "$(id -u)" -eq 0 ]; then
-        apt-get install -y python3-tk python3-pygame python3-matplotlib python3-numpy python3-requests python3-beautifulsoup4 python3-pillow 2>/dev/null || true
-      fi
+      install_optional_linux_python_modules
       # pip 전용 모듈 (apt에 없는 것들)
       python3 -m pip install --quiet flask fastapi uvicorn 2>/dev/null || true
       ;;
@@ -622,8 +758,8 @@ stop_middleware_on_port() {
 }
 
 run_desktop() {
-  command_exists npm || fail "npm이 필요합니다. 먼저 'omnux setup'을 실행하세요."
-  command_exists cargo || fail "Rust(cargo)가 필요합니다 (Tauri). https://rustup.rs 에서 설치 후 다시 시도하세요. 미들웨어만 실행하려면 'omnux start'를 사용하세요."
+  ensure_command npm "npm이 필요합니다. 먼저 'omnux setup'을 실행하세요."
+  ensure_command cargo "Rust(cargo)가 필요합니다 (Tauri). https://rustup.rs 에서 설치 후 다시 시도하세요. 미들웨어만 실행하려면 'omnux start'를 사용하세요."
   local desktop_dir="${REPO_ROOT}/apps/desktop"
   [ -d "$desktop_dir" ] || fail "apps/desktop 디렉터리를 찾을 수 없습니다."
   if [ ! -d "${desktop_dir}/node_modules" ]; then
