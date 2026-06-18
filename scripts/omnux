@@ -545,7 +545,8 @@ run_with_privilege() {
   fi
 
   command_exists sudo || fail "sudo가 없어 패키지 자동 설치를 할 수 없습니다: $*"
-  sudo -n "$@"
+  sudo -v || fail "sudo 권한을 얻지 못했습니다."
+  sudo "$@"
 }
 
 linux_package_manager() {
