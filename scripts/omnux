@@ -603,8 +603,13 @@ install_linux_packages() {
   info "${manager}로 ${packages[*]} 설치 중"
   case "$manager" in
     apt-get)
-      run_with_privilege apt-get update
-      run_with_privilege apt-get install -y "${packages[@]}"
+      run_with_privilege apt-get update || true
+      if ! run_with_privilege apt-get install -y "${packages[@]}"; then
+        info "패키지 설치 실패: 의존성 문제(--fix-broken) 자동 복구를 시도합니다..."
+        run_with_privilege apt-get --fix-broken install -y
+        info "복구 완료 후 재설치를 시도합니다..."
+        run_with_privilege apt-get install -y "${packages[@]}"
+      fi
       ;;
     dnf)
       run_with_privilege dnf install -y "${packages[@]}"
