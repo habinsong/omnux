@@ -88,17 +88,22 @@ public sealed class DotNetCoreRuntimeClient : ICoreRuntimeClient
                 return ResolveWindowsCpuUsagePercent();
             }
 
-            var output = RunTextCommand("ps", "-A", "-o", "%cpu=");
-            var total = output
-                .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(value => double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) ? parsed : 0.0d)
-                .Sum();
-            return Math.Clamp(total / Math.Max(1, Environment.ProcessorCount), 0.0d, 100.0d);
+            return ResolvePosixLoadAveragePercent();
         }
         catch
         {
             return -1.0d;
         }
+    }
+
+    private static double ResolvePosixLoadAveragePercent()
+    {
+        var loadAverage = new double[1];
+        if (NativeMethods.getloadavg(loadAverage, loadAverage.Length) != loadAverage.Length)
+        {
+            return -1.0d;
+        }
+        return Math.Clamp(loadAverage[0] * 100.0d / Math.Max(1, Environment.ProcessorCount), 0.0d, 100.0d);
     }
 
     private static double ResolveWindowsCpuUsagePercent()
@@ -265,6 +270,9 @@ public sealed class DotNetCoreRuntimeClient : ICoreRuntimeClient
 
         [DllImport("libc", SetLastError = true)]
         public static extern int kill(int pid, int sig);
+
+        [DllImport("libc", SetLastError = true)]
+        public static extern int getloadavg([Out] double[] loadAverage, int count);
 
         [DllImport("kernel32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]

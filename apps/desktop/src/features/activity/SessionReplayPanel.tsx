@@ -35,10 +35,10 @@ function ReplayEventRow({ event }: { event: SessionReplayEvent }) {
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-1.5">
             <span className="truncate text-sm font-medium">{event.title || event.kind || event.source}</span>
-            <Badge tone={severityTone(event.severity)} className="shrink-0">{event.severity || "event"}</Badge>
+            <Badge tone={severityTone(event.severity)} className="shrink-0">{event.severity || "기록"}</Badge>
           </div>
           <div className="truncate text-[11px] text-muted-foreground">
-            {event.source || "source"} · {event.kind || "kind"} · {event.correlation || "correlation"}
+            {event.source || "출처"} · {event.kind || "종류"} · {event.correlation || "연결"}
           </div>
         </div>
         <time dateTime={event.timestampUtc} className="shrink-0 text-[10px] text-muted-foreground">{formatTime(event.timestampUtc)}</time>
@@ -47,7 +47,7 @@ function ReplayEventRow({ event }: { event: SessionReplayEvent }) {
       {event.bodyPreview ? <p className="mt-1.5 max-h-20 overflow-auto whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-[11px] text-muted-foreground">{event.bodyPreview}</p> : null}
       <div className="mt-2 flex min-w-0 flex-wrap gap-1">
         {detail ? <Badge tone="outline" className="max-w-full truncate">{detail}</Badge> : null}
-        {event.totalTokens > 0 ? <Badge tone="primary">{event.totalTokens.toLocaleString()} tok</Badge> : null}
+        {event.totalTokens > 0 ? <Badge tone="primary">사용량 {event.totalTokens.toLocaleString()}</Badge> : null}
         {event.durationMs > 0 ? <Badge tone="outline">{event.durationMs}ms</Badge> : null}
         {event.meta ? <Badge tone="outline" className="max-w-full truncate">{event.meta}</Badge> : null}
       </div>
@@ -65,8 +65,8 @@ export function SessionReplayPanel({ canRequest }: { canRequest: boolean }) {
     <section className="space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <SectionLabel>Session replay</SectionLabel>
-          <p className="mt-1 text-sm text-muted-foreground">대화·telemetry·agent event를 시간순 타임라인으로 조회합니다.</p>
+          <SectionLabel>세션 타임라인</SectionLabel>
+          <p className="mt-1 text-sm text-muted-foreground">대화, 실행, 작업자 기록을 시간순으로 확인합니다.</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Button variant="outline" size="sm" onClick={store.clear} disabled={store.loading}>
@@ -79,16 +79,16 @@ export function SessionReplayPanel({ canRequest }: { canRequest: boolean }) {
       </div>
 
       <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
-        <Input className="font-mono text-xs" placeholder="conversationId" value={query.conversationId} onChange={(event) => store.setQuery({ conversationId: event.target.value })} />
-        <Input className="font-mono text-xs" placeholder="runId" value={query.runId} onChange={(event) => store.setQuery({ runId: event.target.value })} />
-        <Input className="font-mono text-xs" placeholder="agentId" value={query.agentId} onChange={(event) => store.setQuery({ agentId: event.target.value })} />
-        <Input className="font-mono text-xs" placeholder="groupId" value={query.groupId} onChange={(event) => store.setQuery({ groupId: event.target.value })} />
+        <Input className="font-mono text-xs" placeholder="대화 ID" value={query.conversationId} onChange={(event) => store.setQuery({ conversationId: event.target.value })} />
+        <Input className="font-mono text-xs" placeholder="실행 ID" value={query.runId} onChange={(event) => store.setQuery({ runId: event.target.value })} />
+        <Input className="font-mono text-xs" placeholder="작업자 ID" value={query.agentId} onChange={(event) => store.setQuery({ agentId: event.target.value })} />
+        <Input className="font-mono text-xs" placeholder="그룹 ID" value={query.groupId} onChange={(event) => store.setQuery({ groupId: event.target.value })} />
       </div>
       <div className="grid grid-cols-1 gap-2 md:grid-cols-[120px_repeat(3,minmax(0,1fr))]">
-        <Input className="font-mono text-xs" inputMode="numeric" placeholder="limit" value={query.limit} onChange={(event) => store.setQuery({ limit: event.target.value })} />
-        <ReplayToggle label="본문 preview 포함" checked={query.includeText} onChange={(includeText) => store.setQuery({ includeText })} />
-        <ReplayToggle label="LLM telemetry 포함" checked={query.includeTelemetry} onChange={(includeTelemetry) => store.setQuery({ includeTelemetry })} />
-        <ReplayToggle label="Agent event 포함" checked={query.includeAgentEvents} onChange={(includeAgentEvents) => store.setQuery({ includeAgentEvents })} />
+        <Input className="font-mono text-xs" inputMode="numeric" placeholder="표시 수" value={query.limit} onChange={(event) => store.setQuery({ limit: event.target.value })} />
+        <ReplayToggle label="본문 미리보기" checked={query.includeText} onChange={(includeText) => store.setQuery({ includeText })} />
+        <ReplayToggle label="호출 기록 포함" checked={query.includeTelemetry} onChange={(includeTelemetry) => store.setQuery({ includeTelemetry })} />
+        <ReplayToggle label="작업자 기록 포함" checked={query.includeAgentEvents} onChange={(includeAgentEvents) => store.setQuery({ includeAgentEvents })} />
       </div>
 
       {store.lastError ? <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{store.lastError}</p> : null}
@@ -96,36 +96,36 @@ export function SessionReplayPanel({ canRequest }: { canRequest: boolean }) {
       {snapshot ? (
         <>
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
-            <ReplayStat label="events" value={`${snapshot.returnedEvents}/${snapshot.totalEvents || snapshot.returnedEvents}`} />
-            <ReplayStat label="messages" value={snapshot.summary.conversationMessageCount.toLocaleString()} />
-            <ReplayStat label="telemetry" value={snapshot.summary.telemetryEventCount.toLocaleString()} />
-            <ReplayStat label="agent" value={snapshot.summary.agentEventCount.toLocaleString()} />
-            <ReplayStat label="tokens" value={snapshot.summary.totalTokens.toLocaleString()} />
+            <ReplayStat label="기록" value={`${snapshot.returnedEvents}/${snapshot.totalEvents || snapshot.returnedEvents}`} />
+            <ReplayStat label="메시지" value={snapshot.summary.conversationMessageCount.toLocaleString()} />
+            <ReplayStat label="호출" value={snapshot.summary.telemetryEventCount.toLocaleString()} />
+            <ReplayStat label="작업자" value={snapshot.summary.agentEventCount.toLocaleString()} />
+            <ReplayStat label="사용량" value={snapshot.summary.totalTokens.toLocaleString()} />
           </div>
           <div className="flex flex-wrap gap-1">
-            {snapshot.conversationId ? <Badge tone="outline" className="max-w-full truncate">conversation {snapshot.conversationId}</Badge> : null}
-            {snapshot.runId ? <Badge tone="outline" className="max-w-full truncate">run {snapshot.runId}</Badge> : null}
-            {snapshot.agentId ? <Badge tone="outline" className="max-w-full truncate">agent {snapshot.agentId}</Badge> : null}
-            {snapshot.groupId ? <Badge tone="outline" className="max-w-full truncate">group {snapshot.groupId}</Badge> : null}
-            <Badge tone={snapshot.summary.errorCount > 0 ? "destructive" : "success"}>{snapshot.summary.errorCount} errors</Badge>
-            <Badge tone={snapshot.summary.warningCount > 0 ? "warning" : "outline"}>{snapshot.summary.warningCount} warnings</Badge>
+            {snapshot.conversationId ? <Badge tone="outline" className="max-w-full truncate">대화 {snapshot.conversationId}</Badge> : null}
+            {snapshot.runId ? <Badge tone="outline" className="max-w-full truncate">실행 {snapshot.runId}</Badge> : null}
+            {snapshot.agentId ? <Badge tone="outline" className="max-w-full truncate">작업자 {snapshot.agentId}</Badge> : null}
+            {snapshot.groupId ? <Badge tone="outline" className="max-w-full truncate">그룹 {snapshot.groupId}</Badge> : null}
+            <Badge tone={snapshot.summary.errorCount > 0 ? "destructive" : "success"}>오류 {snapshot.summary.errorCount}</Badge>
+            <Badge tone={snapshot.summary.warningCount > 0 ? "warning" : "outline"}>주의 {snapshot.summary.warningCount}</Badge>
           </div>
           <div className="space-y-2">
             {snapshot.events.slice(0, 12).map((event) => <ReplayEventRow key={event.id || `${event.source}-${event.timestampUtc}`} event={event} />)}
-            {snapshot.events.length === 0 ? <EmptyState icon={Timer} title="리플레이 이벤트 없음" description="조건에 맞는 대화·telemetry·agent event가 없습니다." /> : null}
+            {snapshot.events.length === 0 ? <EmptyState icon={Timer} title="타임라인 기록 없음" description="조건에 맞는 대화, 호출, 작업자 기록이 없습니다." /> : null}
           </div>
         </>
       ) : (
         <EmptyState
           icon={History}
-          title="세션 리플레이 조회 전"
-          description="conversation, run, agent, group 중 하나를 입력해 디버깅 타임라인을 조회하세요."
-          action={<Badge tone="outline"><ShieldCheck size={12} aria-hidden="true" /> read-only</Badge>}
+          title="세션 타임라인 조회 전"
+          description="대화, 실행, 작업자, 그룹 ID 중 하나를 입력해 확인할 흐름을 조회하세요."
+          action={<Badge tone="outline"><ShieldCheck size={12} aria-hidden="true" /> 읽기 전용</Badge>}
         />
       )}
 
       <p className={cn("rounded-md border border-border bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground", query.includeText && "border-warning/30 bg-warning/10 text-warning")}>
-        includeText는 기존 저장 본문을 새로 저장하지 않고 응답 preview만 표시합니다. Telemetry 이벤트는 prompt/response 원문을 포함하지 않습니다.
+        본문 미리보기는 기존 저장 내용을 새로 저장하지 않고 조회 결과에만 표시합니다. 호출 기록은 요청·응답 원문을 포함하지 않습니다.
       </p>
     </section>
   );

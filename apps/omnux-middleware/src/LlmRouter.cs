@@ -456,6 +456,91 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         return PlanningPromptPolicy.BuildFallbackPlanReview(plan);
     }
 
+    /// <summary>
+    /// Groq compound(서버측 웹검색 내장)로 웹 근거 답변 생성 — Gemini grounding 폴백용
+    /// (ASK_ORCHESTRATION_PLAN.md P0-4). 키 없음/실패/빈 응답이면 null 을 반환해
+    /// 호출측이 기존 실패 흐름을 그대로 타게 한다.
+    /// </summary>
+    public async Task<GroqCompoundWebAnswer?> GenerateGroqCompoundWebAnswerAsync(
+        string systemPrompt,
+        string userInput,
+        CancellationToken cancellationToken
+    )
+    {
+        var groqApiKey = _runtimeSettings.GetGroqApiKey();
+        if (string.IsNullOrWhiteSpace(groqApiKey))
+        {
+            return null;
+        }
+
+        var model = GroqCompoundResponseParser.ResolveCompoundModel();
+        var endpoint = $"{_providers.GroqBaseUrl.TrimEnd('/')}/chat/completions";
+        var body = "{"
+            + $"\"model\":\"{EscapeJson(model)}\","
+            + "\"temperature\":0.3,"
+            + "\"max_tokens\":1024,"
+            + "\"messages\":["
+            + $"{{\"role\":\"system\",\"content\":\"{EscapeJson(systemPrompt)}\"}},"
+            + $"{{\"role\":\"user\",\"content\":\"{EscapeJson(userInput)}\"}}"
+            + "]"
+            + "}";
+
+        // 413(request_too_large)은 compound 가 서버측에서 끼워 넣는 "검색 결과 덤프" 크기에
+        // 좌우되는 확률적 실패다(같은 시각, 같은 키로 쿼리에 따라 200/413 갈림 — 실측).
+        // 재검색이 더 작은 덤프를 가져올 수 있으므로 1회만 재시도한다. 429는 재시도 무의미.
+        for (var attempt = 1; attempt <= 2; attempt += 1)
+        {
+            try
+            {
+                // compound 는 서버측 검색 1회 + 합성이라 보통 2~8초. 30초로 타임박스.
+                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timeoutCts.CancelAfter(TimeSpan.FromSeconds(30));
+
+                using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", groqApiKey);
+                request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+
+                using var response = await _httpClient.SendAsync(request, timeoutCts.Token);
+                var responseBody = await response.Content.ReadAsStringAsync(timeoutCts.Token);
+                CaptureGroqRateLimitHeaders(
+                    model,
+                    response.Headers,
+                    response.StatusCode == System.Net.HttpStatusCode.TooManyRequests
+                );
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var failurePreview = responseBody.Length > 240 ? responseBody[..240] : responseBody;
+                    Console.Error.WriteLine(
+                        $"[groq] compound web fallback failed ({(int)response.StatusCode}, attempt={attempt}): {failurePreview}"
+                    );
+                    var retryableEntityTooLarge =
+                        (int)response.StatusCode == 413 && attempt < 2;
+                    if (retryableEntityTooLarge)
+                    {
+                        continue;
+                    }
+
+                    return null;
+                }
+
+                CaptureGroqUsage(model, responseBody);
+                return GroqCompoundResponseParser.TryParse(responseBody);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[groq] compound web fallback error: {ex.Message}");
+                return null;
+            }
+        }
+
+        return null;
+    }
+
     public Task<string> GenerateGroqChatAsync(
         string userInput,
         string? modelOverride,

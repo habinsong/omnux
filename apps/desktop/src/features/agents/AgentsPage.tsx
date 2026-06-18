@@ -1,12 +1,13 @@
 import { useEffect } from "react";
 import { Activity, GitBranch, Inbox, Network, RefreshCcw } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { CardBoundary } from "../../CardBoundary";
 import { useDesktopShellStore } from "../../shell-store";
 import { useDesktopAuthStore } from "../auth/auth-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
 import { AgentBusWritePanel } from "./AgentBusWritePanel";
 import { useAgentsPageBridge, useAgentsStore } from "./agents-store";
-import { Badge, Button, EmptyState } from "../../components/ui/primitives";
+import { Badge, Button } from "../../components/ui/primitives";
 
 function healthTone(value: string): "success" | "warning" | "destructive" | "primary" | "default" {
   const v = value.toLowerCase();
@@ -15,6 +16,18 @@ function healthTone(value: string): "success" | "warning" | "destructive" | "pri
   if (/(failed|error|killed)/.test(v)) return "destructive";
   if (/(running|dispatching|active)/.test(v)) return "primary";
   return "default";
+}
+
+function CompactEmptyState({ icon: Icon, title, description }: { icon: LucideIcon; title: string; description: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-md border border-border bg-muted/25 px-2.5 py-2">
+      <Icon size={14} className="shrink-0 text-muted-foreground" aria-hidden="true" />
+      <span className="min-w-0">
+        <span className="block text-xs font-medium">{title}</span>
+        <span className="block text-[11px] text-muted-foreground">{description}</span>
+      </span>
+    </div>
+  );
 }
 
 export function AgentsPage() {
@@ -36,30 +49,30 @@ export function AgentsPage() {
   const trace = store.trace;
 
   return (
-    <div className="space-y-4">
+    <div className="dashboard-tab space-y-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight">에이전트</h1>
-          <p className="text-sm text-muted-foreground">멀티 에이전트 메시지 버스·보드 기록과 watchdog, worktree 격리 스냅샷을 한 화면에서 확인합니다.</p>
+          <p className="text-sm text-muted-foreground">작업자 간 메시지, 공유 상태, 실행 흐름을 조용히 점검합니다.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={store.loadAll} disabled={!canRequest || store.loading}>
+        <Button variant="outline" size="sm" className="shrink-0" onClick={store.loadAll} disabled={!canRequest || store.loading}>
           <RefreshCcw size={15} aria-hidden="true" /> {store.loading ? "조회 중" : "새로고침"}
         </Button>
       </div>
       {store.lastError ? <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{store.lastError}</p> : null}
 
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <CardBoundary title="버스 기록" card="operations" onError={recordCardError}>
+        <CardBoundary title="조율 기록" card="operations" onError={recordCardError}>
           <AgentBusWritePanel canRequest={canRequest} />
         </CardBoundary>
 
-        <CardBoundary title="에이전트 버스" card="logs" onError={recordCardError}>
+        <CardBoundary title="공유 상태" card="logs" onError={recordCardError}>
           {bus ? (
             <>
               <div className="flex flex-wrap gap-2">
                 <Badge tone="primary">메시지 {bus.totalMessages || bus.messages.length}</Badge>
                 <Badge tone="outline">보드 {bus.board.length}</Badge>
-                <Badge tone="outline">생명주기 {bus.lifecycle.length}</Badge>
+                <Badge tone="outline">상태 변경 {bus.lifecycle.length}</Badge>
               </div>
               <div className="space-y-1">
                 {bus.messages.slice(0, 6).map((m, i) => (
@@ -77,20 +90,20 @@ export function AgentsPage() {
                     {b.status ? <Badge tone={healthTone(b.status)}>{b.status}</Badge> : null}
                   </div>
                 ))}
-                {bus.messages.length === 0 && bus.board.length === 0 ? <EmptyState icon={Inbox} title="버스 활동 없음" description="에이전트 간 메시지/보드 활동이 여기에 표시됩니다." /> : null}
+                {bus.messages.length === 0 && bus.board.length === 0 ? <CompactEmptyState icon={Inbox} title="공유 기록 없음" description="작업자 간 메시지와 보드 상태가 여기에 표시됩니다." /> : null}
               </div>
             </>
           ) : (
-            <EmptyState icon={Inbox} title="버스 스냅샷 없음" description="새로고침하면 에이전트 버스가 표시됩니다." />
+            <CompactEmptyState icon={Inbox} title="공유 상태 없음" description="새로고침하면 작업자 간 공유 기록이 표시됩니다." />
           )}
         </CardBoundary>
 
-        <CardBoundary title="Watchdog (활성 실행)" card="runtime" onError={recordCardError}>
+        <CardBoundary title="활성 실행" card="runtime" onError={recordCardError}>
           {watchdog ? (
             <>
               <div className="flex items-center gap-2">
                 <Badge tone={healthTone(watchdog.status)}>{watchdog.status}</Badge>
-                <Badge tone="outline">{watchdog.activeCount} active</Badge>
+                <Badge tone="outline">활성 {watchdog.activeCount}</Badge>
               </div>
               <div className="space-y-1">
                 {watchdog.runs.map((r) => (
@@ -102,21 +115,21 @@ export function AgentsPage() {
                     <Badge tone={healthTone(r.health)}>{r.health || r.state}</Badge>
                   </div>
                 ))}
-                {watchdog.runs.length === 0 ? <EmptyState icon={Activity} title="활성 실행 없음" description="실행 중인 sessions_spawn 에이전트가 없습니다." /> : null}
+                {watchdog.runs.length === 0 ? <CompactEmptyState icon={Activity} title="활성 실행 없음" description="현재 실행 중인 작업자가 없습니다." /> : null}
               </div>
             </>
           ) : (
-            <EmptyState icon={Activity} title="watchdog 스냅샷 없음" description="새로고침하면 활성 실행 상태가 표시됩니다." />
+            <CompactEmptyState icon={Activity} title="실행 상태 없음" description="새로고침하면 활성 실행 상태가 표시됩니다." />
           )}
         </CardBoundary>
 
-        <CardBoundary title="Worktree 격리" card="operations" onError={recordCardError}>
+        <CardBoundary title="작업 폴더" card="operations" onError={recordCardError}>
           {worktree ? (
             <>
               <div className="flex flex-wrap gap-2">
                 <Badge tone={healthTone(worktree.status)}>{worktree.status}</Badge>
-                <Badge tone="outline">{worktree.totalWorktreeCount} worktrees</Badge>
-                {worktree.cleanupCandidateCount > 0 ? <Badge tone="warning">{worktree.cleanupCandidateCount} cleanup</Badge> : null}
+                <Badge tone="outline">폴더 {worktree.totalWorktreeCount}</Badge>
+                {worktree.cleanupCandidateCount > 0 ? <Badge tone="warning">정리 {worktree.cleanupCandidateCount}</Badge> : null}
               </div>
               <div className="space-y-1">
                 {worktree.worktrees.map((w) => (
@@ -125,33 +138,33 @@ export function AgentsPage() {
                       <span className="block truncate font-mono text-xs">{w.name}</span>
                       <span className="flex items-center gap-1 truncate text-[11px] text-muted-foreground"><GitBranch size={10} aria-hidden="true" /> {w.branch || w.headShortHash || "-"}</span>
                     </span>
-                    <Badge tone={w.hasChanges ? "warning" : healthTone(w.status)}>{w.hasChanges ? "dirty" : w.status || "clean"}</Badge>
+                    <Badge tone={w.hasChanges ? "warning" : healthTone(w.status)}>{w.hasChanges ? "변경 있음" : w.status || "정리됨"}</Badge>
                   </div>
                 ))}
-                {worktree.worktrees.length === 0 ? <EmptyState icon={GitBranch} title="worktree 없음" description="격리된 에이전트 worktree가 없습니다." /> : null}
+                {worktree.worktrees.length === 0 ? <CompactEmptyState icon={GitBranch} title="작업 폴더 없음" description="분리된 작업 폴더가 없습니다." /> : null}
               </div>
             </>
           ) : (
-            <EmptyState icon={GitBranch} title="worktree 스냅샷 없음" description="새로고침하면 worktree 격리 상태가 표시됩니다." />
+            <CompactEmptyState icon={GitBranch} title="작업 폴더 상태 없음" description="새로고침하면 분리된 작업 폴더 상태가 표시됩니다." />
           )}
         </CardBoundary>
 
-        <CardBoundary title="Trace projection" card="logs" onError={recordCardError}>
+        <CardBoundary title="흐름" card="logs" onError={recordCardError}>
           {trace ? (
             <>
               <div className="flex flex-wrap gap-2">
-                <Badge tone={healthTone(trace.status)}>{trace.status || "snapshot"}</Badge>
-                <Badge tone="outline">{trace.agents.length} agents</Badge>
-                <Badge tone="outline">{trace.threads.length} threads</Badge>
-                <Badge tone={trace.interventions.length > 0 ? "warning" : "outline"}>{trace.interventions.length} interventions</Badge>
-                <Badge tone="outline">{trace.edgeCount} edges</Badge>
+                <Badge tone={healthTone(trace.status)}>{trace.status || "상태"}</Badge>
+                <Badge tone="outline">작업자 {trace.agents.length}</Badge>
+                <Badge tone="outline">스레드 {trace.threads.length}</Badge>
+                <Badge tone={trace.interventions.length > 0 ? "warning" : "outline"}>개입 {trace.interventions.length}</Badge>
+                <Badge tone="outline">연결 {trace.edgeCount}</Badge>
               </div>
               <div className="space-y-1">
                 {trace.interventions.slice(0, 4).map((item) => (
                   <div key={item.interventionId} className="rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5">
                     <div className="flex items-center justify-between gap-2 text-xs">
                       <span className="truncate font-medium">{item.title || item.reason || item.interventionId}</span>
-                      <Badge tone={healthTone(item.severity)}>{item.severity || "review"}</Badge>
+                      <Badge tone={healthTone(item.severity)}>{item.severity || "검토"}</Badge>
                     </div>
                     {item.reason ? <div className="truncate text-[11px] text-muted-foreground">{item.reason}</div> : null}
                   </div>
@@ -160,22 +173,22 @@ export function AgentsPage() {
                   <div key={agent.agentId} className="flex items-center justify-between gap-2 rounded-md border border-border bg-card/60 px-2.5 py-2">
                     <span className="min-w-0">
                       <span className="block truncate font-mono text-xs">{agent.agentId}</span>
-                      <span className="block truncate text-[11px] text-muted-foreground">{agent.role || "agent"} · {agent.messageCount} msg · {agent.lifecycleEventCount} events</span>
+                      <span className="block truncate text-[11px] text-muted-foreground">{agent.role || "작업자"} · 메시지 {agent.messageCount} · 상태 {agent.lifecycleEventCount}</span>
                     </span>
-                    <Badge tone={healthTone(agent.state)}>{agent.state || "idle"}</Badge>
+                    <Badge tone={healthTone(agent.state)}>{agent.state || "대기"}</Badge>
                   </div>
                 ))}
                 {trace.threads.slice(0, 4).map((thread) => (
                   <div key={thread.threadId} className="rounded-md bg-muted/40 px-2.5 py-1.5 text-xs">
                     <div className="truncate font-medium">{thread.title || thread.threadId}</div>
-                    <div className="truncate text-[11px] text-muted-foreground">{thread.messageCount} messages · {thread.lastMessageUtc}</div>
+                    <div className="truncate text-[11px] text-muted-foreground">메시지 {thread.messageCount} · {thread.lastMessageUtc}</div>
                   </div>
                 ))}
-                {trace.agents.length === 0 && trace.threads.length === 0 ? <EmptyState icon={Network} title="trace 없음" description="에이전트 bus 이벤트가 쌓이면 trace graph가 표시됩니다." /> : null}
+                {trace.agents.length === 0 && trace.threads.length === 0 ? <CompactEmptyState icon={Network} title="흐름 없음" description="공유 기록이 쌓이면 작업 흐름이 표시됩니다." /> : null}
               </div>
             </>
           ) : (
-            <EmptyState icon={Network} title="trace 스냅샷 없음" description="새로고침하면 agent bus 기반 trace projection이 표시됩니다." />
+            <CompactEmptyState icon={Network} title="흐름 상태 없음" description="새로고침하면 공유 기록 기반 흐름이 표시됩니다." />
           )}
         </CardBoundary>
       </section>

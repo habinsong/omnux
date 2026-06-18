@@ -12,9 +12,9 @@ public sealed class ClipboardVisionToolTests
         var snapshot = new ClipboardVisionTool(() => FixedNow).BuildPreflight(new ClipboardVisionPreflightInput(
             new[] { new InputAttachment("screen.png", "image/png", "iVBORw0KGgo=", 8, true) },
             Provider: "gemini",
-            Model: "gemini-2.5-pro",
+            Model: "gemini-3.1-pro",
             GroqModel: null,
-            GeminiModel: "gemini-2.5-pro",
+            GeminiModel: "gemini-3.1-pro",
             Text: "이 UI를 분석해줘"
         ));
 

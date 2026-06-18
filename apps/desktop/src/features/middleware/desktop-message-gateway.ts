@@ -7,7 +7,6 @@ export type DesktopServerMessage = Record<string, unknown> & {
 
 export type DesktopRequestType =
   | "request_otp"
-  | "resume_auth"
   | "auth"
   | "doctor_get_last"
   | "plan_list"
@@ -86,7 +85,7 @@ export type DesktopRequestPayload = Record<string, unknown> & {
 export type DesktopMessageListener = (message: DesktopServerMessage) => void;
 
 const DESKTOP_ALLOWED_REQUESTS = new Set<string>([
-  "request_otp", "resume_auth", "auth", "doctor_get_last", "plan_list", "task_graph_list",
+  "request_otp", "auth", "doctor_get_last", "plan_list", "task_graph_list",
   "projects_list", "project_create", "project_update", "project_delete", "project_touch",
   "list_conversations", "get_conversation", "create_conversation", "update_conversation_meta",
   "delete_conversation", "conversation_search", "llm_chat_single", "llm_chat_orchestration", "llm_chat_multi",
@@ -94,7 +93,7 @@ const DESKTOP_ALLOWED_REQUESTS = new Set<string>([
   "clear_memory", "memory_search", "backup_export_prepare", "backup_import_preview", "backup_import_apply",
   "sync_config_read", "sync_config_write", "cloud_sync_upload", "cloud_sync_download",
   "get_cerebras_models", "web_search", "web_fetch", "sessions_list", "sessions_history", "sessions_send",
-  "sessions_spawn", "browser", "canvas", "get_routines", "get_routine_scheduler_status", "run_routine",
+  "sessions_spawn", "browser", "canvas", "rules_get", "rules_save", "rules_delete", "get_routines", "get_routine_scheduler_status", "run_routine",
   "test_routine_telegram", "test_browser_agent_routine", "get_routine_run_detail", "resend_routine_run_telegram",
   "update_routine", "toggle_routine", "delete_routine", "create_routine", "preview_routine", "coding_run_single", "coding_run_orchestration",
   "coding_run_multi", "coding_execute_result", "refactor_restore", "logic_graph_list", "logic_graph_get",
@@ -103,7 +102,6 @@ const DESKTOP_ALLOWED_REQUESTS = new Set<string>([
 ]);
 const DESKTOP_PUBLIC_REQUESTS = new Set<string>([
   "request_otp",
-  "resume_auth",
   "auth",
   "get_cerebras_models"
 ]);
@@ -397,9 +395,6 @@ export const requestDesktopAuth = {
   otp() {
     return sendDesktopRequest({ type: "request_otp" });
   },
-  resume(sessionId: string, authToken: string) {
-    return sendDesktopRequest({ type: "resume_auth", sessionId, authToken });
-  },
   submit(otp: string, authTtlHours = 24) {
     return sendDesktopRequest({ type: "auth", otp, authTtlHours });
   }
@@ -599,6 +594,15 @@ export const requestDesktopExplore = {
 };
 
 export const requestDesktopSettings = {
+  userRulesGet() {
+    return sendDesktopRequest({ type: "rules_get" });
+  },
+  userRulesSave(text: string) {
+    return sendDesktopRequest({ type: "rules_save", text });
+  },
+  userRulesDelete() {
+    return sendDesktopRequest({ type: "rules_delete" });
+  },
   listMemoryNotes() {
     return sendDesktopRequest({ type: "list_memory_notes" });
   },

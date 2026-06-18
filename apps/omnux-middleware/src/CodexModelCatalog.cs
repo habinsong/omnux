@@ -9,15 +9,7 @@ public sealed class CodexModelCatalog : IDisposable
 {
     private const string OpenAiModelsEndpoint = "https://api.openai.com/v1/models";
 
-    private static readonly string[] StaticFallback =
-    {
-        "gpt-5.5",
-        "gpt-5.4",
-        "gpt-5.4-mini",
-        "gpt-5.4-nano",
-        "gpt-5.3-codex",
-        "gpt-5.2-codex"
-    };
+    private static readonly string[] StaticFallback = ModelRegistry.GetFallbackModels("codex").ToArray();
 
     private readonly RuntimeSettings _runtimeSettings;
     private readonly HttpClient _httpClient;

@@ -8,6 +8,8 @@
     "test:quiet": "node ./scripts/run-omnux-tests.mjs"
   },
   "devDependencies": {
-    "playwright": "^1.58.2"
+    "playwright": "^1.58.2",
+    "typescript": "~5.8.3",
+    "typescript-language-server": "^5.3.0"
   }
 }

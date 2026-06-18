@@ -11,12 +11,8 @@ public sealed class GroqModelCatalog : IDisposable
         ["llama-3.3-70b-versatile"] = new("Production", "280", "300K TPM / 1K RPM", "1K", "14.4K", "300K", "1M", "-", "-", "131072", "32768", "-", "$0.59", "$0.79"),
         ["openai/gpt-oss-120b"] = new("Production", "500", "250K TPM / 1K RPM", "1K", "14.4K", "250K", "1M", "-", "-", "131072", "65536", "-", "$0.15", "$0.60"),
         ["openai/gpt-oss-20b"] = new("Production", "1000", "250K TPM / 1K RPM", "1K", "14.4K", "250K", "1M", "-", "-", "131072", "65536", "-", "$0.075", "$0.30"),
-        ["whisper-large-v3"] = new("Production", "-", "200K ASH / 300 RPM", "300", "2K", "-", "-", "200K", "2K", "-", "-", "100 MB", "$0.111 / hour", "-"),
-        ["whisper-large-v3-turbo"] = new("Production", "-", "400K ASH / 400 RPM", "400", "2K", "-", "-", "400K", "7K", "-", "-", "-", "$0.04 / hour", "-"),
         ["groq/compound"] = new("Production", "450", "200K TPM / 200 RPM", "200", "1K", "200K", "200K", "-", "-", "131072", "8192", "-", "$0.59", "$0.79"),
         ["groq/compound-mini"] = new("Production", "450", "200K TPM / 200 RPM", "200", "3K", "200K", "200K", "-", "-", "131072", "8192", "-", "$0.30", "$0.50"),
-        ["canopylabs/orpheus-arabic-saudi"] = new("Preview", "-", "50K TPM / 250 RPM", "250", "1K", "50K", "100K", "-", "-", "4000", "50000", "-", "$0.00", "$0.00"),
-        ["canopylabs/orpheus-v1-english"] = new("Preview", "-", "50K TPM / 250 RPM", "250", "1K", "50K", "100K", "-", "-", "4000", "50000", "-", "$0.00", "$0.00"),
         ["meta-llama/llama-4-scout-17b-16e-instruct"] = new("Preview", "750", "300K TPM / 1K RPM", "1K", "14.4K", "300K", "1M", "-", "-", "131072", "8192", "20 MB", "$0.11", "$0.34"),
         ["meta-llama/llama-prompt-guard-2-22m"] = new("Preview", "-", "30K TPM / 100 RPM", "100", "500", "30K", "15K", "-", "-", "512", "512", "-", "$0.03", "$0.03"),
         ["meta-llama/llama-prompt-guard-2-86m"] = new("Preview", "-", "30K TPM / 100 RPM", "100", "500", "30K", "15K", "-", "-", "512", "512", "-", "$0.04", "$0.04"),
@@ -46,10 +42,19 @@ public sealed class GroqModelCatalog : IDisposable
 
         if (!string.IsNullOrWhiteSpace(_runtimeSettings.GetGroqApiKey()))
         {
-            var remoteIds = await FetchRemoteModelsAsync(cancellationToken);
-            foreach (var modelId in remoteIds)
+            try
             {
-                ids.Add(modelId);
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                cts.CancelAfter(TimeSpan.FromSeconds(1));
+                var remoteIds = await FetchRemoteModelsAsync(cts.Token);
+                foreach (var modelId in remoteIds)
+                {
+                    ids.Add(modelId);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // Timeout, fallback to static specs
             }
         }
 

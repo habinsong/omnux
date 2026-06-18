@@ -16,6 +16,9 @@ public sealed class RemoteLimitedMessagePolicyTests
     [InlineData("skills_list")]
     [InlineData("commands_list")]
     [InlineData("notebook_get")]
+    [InlineData("projects_list")]
+    [InlineData("get_routines")]
+    [InlineData("get_metrics")]
     public void AllowsReadOrientedMessages(string messageType)
     {
         Assert.True(RemoteLimitedMessagePolicy.IsAllowed(messageType));
@@ -29,6 +32,7 @@ public sealed class RemoteLimitedMessagePolicyTests
     [InlineData("task_graph_run")]
     [InlineData("refactor_apply")]
     [InlineData("tool_execute")]
+    [InlineData("auth")]
     [InlineData("request_otp")]
     [InlineData("resume_auth")]
     [InlineData("")]

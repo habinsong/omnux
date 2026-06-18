@@ -44,8 +44,8 @@ usage() {
   omnux           Tauri 데스크톱 앱 + 미들웨어 dev 실행 (포그라운드, Ctrl+C 종료)
   omnux desktop   위와 동일
   omnux start     미들웨어만 백그라운드 실행 (레거시 대시보드 http://127.0.0.1:41880/)
-  omnux stop      미들웨어 서버 종료 (= shutdown)
-  omnux shutdown  미들웨어 서버 종료
+  omnux stop      omnux 전체 종료 (= shutdown)
+  omnux shutdown  데스크톱 앱 + 미들웨어 등 모든 omnux 프로세스 종료
   omnux status    미들웨어 실행 상태 확인
   omnux setup     의존성 설치, 빌드, 검증, 명령 등록
 EOF
@@ -336,23 +336,98 @@ stop_pid_gracefully() {
   info "$label 강제 종료 완료 (pid=$pid)"
 }
 
+# cmdline 패턴으로 묶이는 프로세스를 graceful(SIGTERM) → 강제(SIGKILL)로 정리.
+# 자기 자신($$)과 부모 셸은 제외해 shutdown 도중 자살하지 않게 한다.
+kill_processes_by_pattern() {
+  local pattern="$1"
+  local label="$2"
+  command_exists pgrep || return 0
+
+  local pids
+  pids="$(pgrep -f "$pattern" 2>/dev/null | grep -vE "^($$|${PPID:-0})$" || true)"
+  if [ -z "$pids" ]; then
+    return 0
+  fi
+
+  info "$label 종료 중 (pid:$(printf ' %s' $pids))"
+  local p
+  for p in $pids; do
+    kill "$p" >/dev/null 2>&1 || true
+  done
+
+  local attempt=0
+  while [ "$attempt" -lt 8 ]; do
+    local alive=""
+    for p in $pids; do
+      is_pid_alive "$p" && alive="$alive $p"
+    done
+    if [ -z "$alive" ]; then
+      info "$label 종료 완료"
+      return 0
+    fi
+    sleep 1
+    attempt=$((attempt + 1))
+  done
+
+  for p in $pids; do
+    is_pid_alive "$p" && kill -9 "$p" >/dev/null 2>&1 || true
+  done
+  info "$label 강제 종료 완료"
+}
+
+# 전용 포트의 LISTEN 프로세스를 정리.
+stop_listeners_on_port() {
+  local port="$1"
+  local label="$2"
+  command_exists lsof || return 0
+
+  local pids
+  pids="$(lsof -tiTCP:"$port" -sTCP:LISTEN -n -P 2>/dev/null | grep -vE "^($$|${PPID:-0})$" || true)"
+  if [ -z "$pids" ]; then
+    return 0
+  fi
+
+  info "$label(포트 $port) 정리 중 (pid:$(printf ' %s' $pids))"
+  local p
+  for p in $pids; do
+    kill "$p" >/dev/null 2>&1 || true
+  done
+  sleep 1
+  for p in $pids; do
+    is_pid_alive "$p" && kill -9 "$p" >/dev/null 2>&1 || true
+  done
+}
+
+# 미들웨어뿐 아니라 데스크톱 앱·tauri dev·vite 까지 omnux 관련 프로세스를 모두 종료한다.
 shutdown_server() {
   ensure_state_dir
   cleanup_stale_state
 
+  info "omnux 전체 종료를 시작합니다 (데스크톱 + 미들웨어)."
+
+  # 1) CLI(omnux start)가 추적하던 백그라운드 미들웨어 PID
   local pid
   pid="$(read_pid_file || true)"
   if [ -z "$pid" ] && attach_to_existing_server_if_possible; then
     pid="$(read_pid_file || true)"
   fi
-
-  if [ -z "$pid" ]; then
-    info "종료할 서버 PID를 찾지 못했습니다."
-    return 0
+  if [ -n "$pid" ]; then
+    stop_pid_gracefully "$pid" "미들웨어(CLI)"
   fi
-
-  stop_pid_gracefully "$pid" "미들웨어"
   rm -f "$PID_FILE"
+
+  # 2) 데스크톱(Tauri) 앱 + tauri dev + vite — 먼저 내려야 미들웨어를 재spawn 하지 않는다.
+  kill_processes_by_pattern "omnux_desktop" "데스크톱 앱"
+  kill_processes_by_pattern "tauri dev" "tauri dev"
+  kill_processes_by_pattern "${REPO_ROOT}/apps/desktop" "데스크톱 dev(vite/npm)"
+
+  # 3) 미들웨어 — 데스크톱이 spawn 한 것 포함 (이름 기반: dotnet run + 빌드 바이너리 모두 매칭)
+  kill_processes_by_pattern "Omnux.Middleware" "미들웨어"
+
+  # 4) 전용 포트에 남은 프로세스 정리 (미들웨어 41880 + 데스크톱 dev 1420)
+  stop_listeners_on_port "$(current_port)" "미들웨어"
+  stop_listeners_on_port "1420" "데스크톱 dev"
+
   info "omnux 종료 완료"
 }
 

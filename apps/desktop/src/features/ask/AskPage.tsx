@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import {
   BrainCircuit,
   CalendarPlus,
@@ -24,11 +25,12 @@ import {
   Scale,
   Search,
   Send,
-  Sparkles,
+  SlidersHorizontal,
   Tag,
   Trash2,
   Volume2,
   VolumeX,
+  Workflow,
   X
 } from "lucide-react";
 import { CardBoundary } from "../../CardBoundary";
@@ -38,7 +40,7 @@ import { useUiLogStore } from "../ui-log/ui-log-store";
 import { useDesktopNavigationStore } from "../shell/navigation-store";
 import { shortcutMatches, useDesktopPreferenceStore, type ModelProviderId } from "../shell/preference-store";
 import { ASK_PROVIDER_OPTIONS, useAskPageBridge, useAskStore, type AskChatMode, type AskConversationItem, type AskInputAttachment, type AskModelProvider } from "./ask-store";
-import type { AskTokenUsage } from "./ask-context";
+import type { AskActionSuggestion, AskTokenUsage } from "./ask-context";
 import { filesToVisionAttachments } from "./ask-vision";
 import {
   extractSpeechTranscript,
@@ -51,7 +53,7 @@ import {
 } from "./ask-speech";
 import { AskVisionPanel } from "./AskVisionPanel";
 import { MarkdownMessage } from "./MarkdownMessage";
-import { Badge, Button, EmptyState, Input, Spinner, Textarea, cn } from "../../components/ui/primitives";
+import { Badge, Button, Card, EmptyState, Input, Spinner, cn } from "../../components/ui/primitives";
 import { NONE_MODEL, PROVIDER_KEYS, PROVIDER_LABEL, modelOptionsForProvider } from "./ask-models";
 import { ContextPickerPanel } from "../context-picker/ContextPickerPanel";
 import { appendContextSelectionBundle } from "../context-picker/context-picker-store";
@@ -162,12 +164,19 @@ function buildMessageHandoff(kind: "build" | "automate" | "compare", text: strin
   ].filter(Boolean).join("\n");
 }
 
-function MessageActions({ messageKey, messageIndex, text, meta = "", canRequest }: { messageKey: string; messageIndex: number; text: string; meta?: string; canRequest: boolean }) {
+const SUGGESTION_ICON: Record<AskActionSuggestion["kind"], typeof CalendarPlus> = {
+  routine: CalendarPlus,
+  plan: ClipboardList,
+  agent: Workflow
+};
+
+function MessageActions({ messageKey, messageIndex, text, meta = "", canRequest, suggestions }: { messageKey: string; messageIndex: number; text: string; meta?: string; canRequest: boolean; suggestions?: AskActionSuggestion[] }) {
   const navigate = useDesktopNavigationStore((state) => state.setActivePage);
   const speakingKey = useSpeechStore((state) => state.speakingKey);
   const toggleSpeak = useSpeechStore((state) => state.toggle);
   const saveMessageToNotebook = useAskStore((state) => state.saveMessageToNotebook);
   const createPlanFromMessage = useAskStore((state) => state.createPlanFromMessage);
+  const runActionSuggestion = useAskStore((state) => state.runActionSuggestion);
   const [copied, setCopied] = useState(false);
   if (!text.trim()) return null;
   const speaking = speakingKey === messageKey;
@@ -182,6 +191,21 @@ function MessageActions({ messageKey, messageIndex, text, meta = "", canRequest 
   };
   return (
     <div className="mt-1.5 flex flex-wrap items-center gap-1 text-muted-foreground">
+      {(suggestions || []).map((suggestion) => {
+        const Icon = SUGGESTION_ICON[suggestion.kind];
+        return (
+          <button
+            key={`${suggestion.kind}-${suggestion.label}`}
+            type="button"
+            onClick={() => runActionSuggestion(suggestion)}
+            disabled={!canRequest}
+            title={suggestion.prompt}
+            className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-primary/35 bg-primary/10 px-2.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Icon size={12} aria-hidden="true" /> {suggestion.label}
+          </button>
+        );
+      })}
       <button
         type="button"
         onClick={() => saveMessageToNotebook(messageIndex, text, meta)}
@@ -400,7 +424,8 @@ function MessageBubble({
   route,
   source,
   grounded,
-  citationCount
+  citationCount,
+  actionSuggestions
 }: {
   messageKey: string;
   messageIndex: number;
@@ -415,6 +440,7 @@ function MessageBubble({
   source?: "dashboard" | "telegram" | "system";
   grounded?: boolean;
   citationCount?: number;
+  actionSuggestions?: AskActionSuggestion[];
 }) {
   const safeMeta = meta || "";
   if (role === "user") {
@@ -434,7 +460,7 @@ function MessageBubble({
           <MessageMetaStrip role={role} meta={safeMeta || "system"} provider={provider} model={model} route={route} source={source || "system"} grounded={grounded} citationCount={citationCount} />
           <MarkdownMessage text={text} />
           <TokenUsageBadge usage={tokenUsage} />
-          <MessageActions messageKey={messageKey} messageIndex={messageIndex} text={text} meta={safeMeta} canRequest={canRequest} />
+          <MessageActions messageKey={messageKey} messageIndex={messageIndex} text={text} meta={safeMeta} canRequest={canRequest} suggestions={actionSuggestions} />
         </div>
       </div>
     );
@@ -445,7 +471,7 @@ function MessageBubble({
         <MessageMetaStrip role={role} meta={safeMeta} provider={provider} model={model} route={route} source={source} grounded={grounded} citationCount={citationCount} />
         <MarkdownMessage text={text} />
         <TokenUsageBadge usage={tokenUsage} />
-        <MessageActions messageKey={messageKey} messageIndex={messageIndex} text={text} meta={safeMeta} canRequest={canRequest} />
+        <MessageActions messageKey={messageKey} messageIndex={messageIndex} text={text} meta={safeMeta} canRequest={canRequest} suggestions={actionSuggestions} />
       </div>
     </div>
   );
@@ -632,13 +658,13 @@ const SUGGESTED_PROMPTS: Array<{ label: string; text: string; mode: AskChatMode;
     mode: "single"
   },
   {
-    label: "코드 리뷰",
+    label: "리뷰",
     text: "아래 변경 내용을 기준으로 버그, 회귀 위험, 빠진 검증을 먼저 찾아줘.",
     mode: "orchestration"
   },
   {
-    label: "모델 비교",
-    text: "이 문제에 대해 여러 모델 답변을 비교하고 가장 실용적인 결론을 골라줘.",
+    label: "관점 비교",
+    text: "이 문제를 여러 관점으로 나누어 보고 가장 실용적인 결론을 골라줘.",
     mode: "multi"
   },
   {
@@ -676,9 +702,9 @@ function modelChoiceOptions(provider: AskModelProvider, catalogs: Record<AskMode
 function ChatModeSegmentedControl() {
   const store = useAskStore();
   const modes: Array<{ value: typeof store.chatMode; label: string; title: string }> = [
-    { value: "single", label: "Single", title: "단일 모델" },
-    { value: "orchestration", label: "Orch", title: "오케스트레이션" },
-    { value: "multi", label: "Multi", title: "다중 비교" }
+    { value: "single", label: "단일", title: "단일 모델" },
+    { value: "orchestration", label: "흐름", title: "오케스트레이션" },
+    { value: "multi", label: "비교", title: "다중 비교" }
   ];
   return (
     <div className="flex shrink-0 rounded-md border border-border bg-card/60 p-0.5 shadow-sm" role="radiogroup" aria-label="대화 모드">
@@ -772,7 +798,7 @@ function WorkerModelStrip() {
   return (
     <div className="rounded-lg border border-border bg-muted/25 p-2">
       <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-        <Sparkles size={13} className="shrink-0" aria-hidden="true" />
+        <SlidersHorizontal size={13} className="shrink-0" aria-hidden="true" />
         <span className="truncate">워커/비교 모델</span>
       </div>
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
@@ -907,7 +933,7 @@ function ModelDock() {
     <div className="rounded-lg border border-border bg-muted/25 p-3">
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <Sparkles size={15} className="shrink-0 text-primary" aria-hidden="true" />
+          <SlidersHorizontal size={15} className="shrink-0 text-primary" aria-hidden="true" />
           <span className="truncate text-sm font-semibold">모델 선택</span>
         </div>
         <div className="flex shrink-0 gap-1">
@@ -921,7 +947,7 @@ function ModelDock() {
       </div>
       <div className="mb-3">
         <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-          <Sparkles size={13} aria-hidden="true" /> 응답 모델
+          <SlidersHorizontal size={13} aria-hidden="true" /> 응답 모델
         </div>
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
           {providers.map((provider) => (
@@ -943,6 +969,76 @@ function ModelDock() {
   );
 }
 
+/* 점진 노출용 보조 도구 메뉴 항목 — 한 줄, 차분한 톤(아이콘 + 라벨 + 활성 체크). */
+function ToolMenuItem({
+  icon: Icon,
+  label,
+  active = false,
+  disabled = false,
+  onClick
+}: {
+  icon: LucideIcon;
+  label: string;
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-50",
+        active ? "bg-primary/12 text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground"
+      )}
+    >
+      <Icon size={14} className="shrink-0" aria-hidden="true" />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {active ? <Check size={13} className="shrink-0" aria-hidden="true" /> : null}
+    </button>
+  );
+}
+
+/* 컴포저 pill 내부의 둥근 아이콘 버튼 — 홈 HeroComposer와 동일한 조작 단위. */
+function ComposerRoundButton({
+  icon: Icon,
+  label,
+  active = false,
+  pulse = false,
+  disabled = false,
+  className,
+  onClick
+}: {
+  icon: LucideIcon;
+  label: string;
+  active?: boolean;
+  pulse?: boolean;
+  disabled?: boolean;
+  className?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+      className={cn(
+        "relative flex h-8 w-8 shrink-0 items-center justify-center self-center rounded-full transition-all duration-200 active:scale-95 disabled:opacity-40",
+        active ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground",
+        className
+      )}
+    >
+      <Icon size={16} aria-hidden="true" />
+      {pulse ? <span className="absolute inset-0 animate-ping rounded-full bg-primary/30" aria-hidden="true" /> : null}
+    </button>
+  );
+}
+
 export function AskPage() {
   useAskPageBridge();
   const visionFileInputRef = useRef<HTMLInputElement>(null);
@@ -951,6 +1047,10 @@ export function AskPage() {
   const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
   const lastAutoSpeakKeyRef = useRef<string | null>(null);
   const [multiIndex, setMultiIndex] = useState(0);
+  const [headerToolsOpen, setHeaderToolsOpen] = useState(false);
+  const [composerToolsOpen, setComposerToolsOpen] = useState(false);
+  const headerToolsRef = useRef<HTMLDivElement>(null);
+  const composerToolsRef = useRef<HTMLDivElement>(null);
   const voiceInput = useVoiceInput();
   const autoSpeak = useSpeechStore((state) => state.autoSpeak);
   const toggleAutoSpeak = useSpeechStore((state) => state.toggleAutoSpeak);
@@ -974,6 +1074,10 @@ export function AskPage() {
   const activeModelProvider = currentProvider as AskModelProvider;
   const canSend = canRequest && !store.pending && (!!store.input.trim() || store.attachments.length > 0);
   const selectedConversationCount = store.selectedConversationIds.length;
+  const activeConversationTitle =
+    store.conversations.find((conversation) => conversation.id === store.activeConversationId)?.title
+    || (store.activeConversationId ? "대화" : "새 대화");
+  const secondaryPanelOpen = store.sidePanel !== null;
 
   const applySuggestedPrompt = (prompt: (typeof SUGGESTED_PROMPTS)[number]) => {
     store.setInput(prompt.text);
@@ -1051,6 +1155,36 @@ export function AskPage() {
 
   useEffect(() => () => useSpeechStore.getState().stop(), []);
 
+  // 도구 오버플로(헤더/컴포저)는 바깥 클릭·Esc 로 닫는다.
+  useEffect(() => {
+    if (!headerToolsOpen && !composerToolsOpen) return undefined;
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (headerToolsRef.current && !headerToolsRef.current.contains(target)) setHeaderToolsOpen(false);
+      if (composerToolsRef.current && !composerToolsRef.current.contains(target)) setComposerToolsOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setHeaderToolsOpen(false);
+        setComposerToolsOpen(false);
+      }
+    };
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [headerToolsOpen, composerToolsOpen]);
+
+  // 입력 길이에 따라 컴포저가 아래로 자동 성장(최대 200px 후 스크롤) — 홈 컴포저와 동일.
+  useLayoutEffect(() => {
+    const el = composerTextareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }, [store.input]);
+
   useEffect(() => {
     const handleShortcut = (event: Event) => {
       const action = (event as CustomEvent<{ action?: string }>).detail?.action;
@@ -1083,14 +1217,16 @@ export function AskPage() {
   const activeMultiProvider = multiProviders[activeMultiIndex];
 
   return (
-    <div className="flex h-[calc(100vh-8.5rem)] min-h-[560px] flex-col gap-4">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">질문</h1>
-        <p className="text-sm text-muted-foreground">대화, 메모리, 모델 라우팅을 한 화면에서 확인합니다.</p>
+    <div className="dashboard-tab worktab-root flex flex-col gap-4">
+      <div className="worktab-header">
+        <div className="min-w-0">
+          <h1 className="worktab-title">질문</h1>
+          <p className="worktab-subtitle">묻고, 저장하고, 다음 작업으로 넘깁니다.</p>
+        </div>
       </div>
 
       {/* 모바일 pane 전환 (좁은 화면에서 보관함/대화 한 번에 하나만 표시) */}
-      <div className="flex gap-1 rounded-md bg-muted/40 p-0.5 text-xs lg:hidden">
+      <div className="worktab-mobile-switch lg:hidden">
         {([["list", "보관함"], ["thread", "대화"]] as const).map(([key, label]) => (
           <button
             key={key}
@@ -1106,7 +1242,7 @@ export function AskPage() {
         ))}
       </div>
 
-      <section className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+      <section className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
         {/* 대화 목록 */}
         <div className={cn("flex min-h-0 flex-col", store.mobilePane === "list" ? "" : "hidden", "lg:flex")}>
         <CardBoundary title="메시지 보관함" card="navigation" onError={recordCardError}>
@@ -1335,86 +1471,82 @@ export function AskPage() {
         {/* 대화 본문 */}
         <div className={cn("flex min-h-0 flex-col", store.mobilePane === "thread" ? "" : "hidden", "lg:flex")}>
         <CardBoundary title="대화 본문" card="operations" onError={recordCardError}>
+          {/* 대화 헤더 — 제목과 핵심 컨트롤(모드·모델)만 상시 노출, 보조 도구는 오버플로로 점진 노출 */}
           <div className="flex flex-wrap items-center gap-2">
-            <Badge tone="outline" className="max-w-[220px] truncate">세션 {store.activeConversationId || "-"}</Badge>
-            {context.tokenUsageTotal ? (
-              <Badge tone="primary" title={`${context.tokenUsageTotal.totalTokens.toLocaleString("ko-KR")} tokens`}>
-                {formatTokenShort(context.tokenUsageTotal.totalTokens)} tokens
-              </Badge>
-            ) : null}
-            {context.linkedMemoryNotes.length > 0 ? <Badge tone="outline">memory {context.linkedMemoryNotes.length}</Badge> : null}
-            {context.compressionEvents.length > 0 ? <Badge tone="warning">compressed {context.compressionEvents.length}</Badge> : null}
-            {store.thinkPlus ? <Badge tone="primary"><Sparkles size={11} aria-hidden="true" /> Think+</Badge> : null}
-            <ChatModeSegmentedControl />
-            {store.chatMode !== "multi" ? (
-              <ProviderSelect
-                label={store.chatMode === "orchestration" ? "워커" : "모델"}
-                value={store.provider}
-                includeAuto={store.chatMode !== "single"}
-                ariaLabel="응답 제공자 선택"
-                onChange={(value) => store.setProvider(value as typeof store.provider)}
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <h2 className="min-w-0 truncate text-sm font-semibold" title={activeConversationTitle}>{activeConversationTitle}</h2>
+              {store.pending ? (
+                <span className="flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
+                  <Spinner size={12} /> 생성 중
+                </span>
+              ) : null}
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+              <ChatModeSegmentedControl />
+              {store.chatMode !== "multi" ? (
+                <ProviderSelect
+                  label={store.chatMode === "orchestration" ? "워커" : "모델"}
+                  value={store.provider}
+                  includeAuto={store.chatMode !== "single"}
+                  ariaLabel="응답 제공자 선택"
+                  onChange={(value) => store.setProvider(value as typeof store.provider)}
+                />
+              ) : null}
+              {store.chatMode !== "multi" && store.provider !== "auto" ? <ModelSelect provider={activeModelProvider} compact /> : null}
+              <input
+                ref={visionFileInputRef}
+                className="sr-only"
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(event) => {
+                  const files = event.currentTarget.files;
+                  void handleVisionFiles(files);
+                  event.currentTarget.value = "";
+                }}
               />
-            ) : null}
-            {store.chatMode !== "multi" && store.provider !== "auto" ? <ModelSelect provider={activeModelProvider} compact /> : null}
-            {store.chatMode !== "single" ? (
-              <ProviderSelect
-                label="요약"
-                value={store.summaryProvider}
-                includeAuto
-                ariaLabel="요약 제공자 선택"
-                onChange={(value) => store.setSummaryProvider(value as typeof store.summaryProvider)}
-              />
-            ) : null}
-            {store.pending ? (
-              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Spinner size={13} /> 생성 중
-              </span>
-            ) : null}
-            {isSpeechSupported() ? (
-              <Button
-                variant={autoSpeak ? "primary" : "outline"}
-                size="sm"
-                onClick={toggleAutoSpeak}
-                aria-pressed={autoSpeak}
-                title={autoSpeak ? "자동 읽기 끄기" : "자동 읽기 켜기"}
-              >
-                {autoSpeak ? <Volume2 size={14} aria-hidden="true" /> : <VolumeX size={14} aria-hidden="true" />}
-                자동 {autoSpeak ? "ON" : "OFF"}
-              </Button>
-            ) : null}
-            <Button variant={store.sidePanel === "info" ? "primary" : "outline"} size="sm" onClick={() => store.setSidePanel(store.sidePanel === "info" ? null : "info")}>
-              <Info size={14} aria-hidden="true" /> 정보
-            </Button>
-            <Button variant={store.sidePanel === "memory" ? "primary" : "outline"} size="sm" onClick={() => store.setSidePanel(store.sidePanel === "memory" ? null : "memory")}>
-              <Database size={14} aria-hidden="true" /> 메모리
-            </Button>
-            <Button variant={store.sidePanel === "models" ? "primary" : "outline"} size="sm" onClick={() => store.setSidePanel(store.sidePanel === "models" ? null : "models")}>
-              <Sparkles size={14} aria-hidden="true" /> 모델
-            </Button>
-            <Button variant={store.sidePanel === "context" ? "primary" : "outline"} size="sm" onClick={() => store.setSidePanel(store.sidePanel === "context" ? null : "context")}>
-              <ClipboardList size={14} aria-hidden="true" /> 문맥
-            </Button>
-            <Button variant="outline" size="sm" onClick={store.runRagPreflight} disabled={!canRequest || store.ragPending || !store.input.trim()}>
-              <BrainCircuit size={14} aria-hidden="true" /> {store.ragPending ? "점검 중" : "검색 점검"}
-            </Button>
-            <input
-              ref={visionFileInputRef}
-              className="sr-only"
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={(event) => {
-                const files = event.currentTarget.files;
-                void handleVisionFiles(files);
-                event.currentTarget.value = "";
-              }}
-            />
-            <Button variant="outline" size="sm" onClick={() => visionFileInputRef.current?.click()}>
-              <Paperclip size={14} aria-hidden="true" /> 이미지
-            </Button>
-            <Button variant="outline" size="sm" onClick={store.runVisionPreflight} disabled={!canRequest || store.visionPending || store.visionFiles.length === 0}>
-              <FileImage size={14} aria-hidden="true" /> {store.visionPending ? "점검 중" : "Vision 점검"}
-            </Button>
+              <div ref={headerToolsRef} className="relative">
+                <Button
+                  variant={secondaryPanelOpen || headerToolsOpen ? "primary" : "outline"}
+                  size="sm"
+                  aria-haspopup="menu"
+                  aria-expanded={headerToolsOpen}
+                  title="도구"
+                  onClick={() => setHeaderToolsOpen((open) => !open)}
+                >
+                  <SlidersHorizontal size={14} aria-hidden="true" /> 도구
+                </Button>
+                {headerToolsOpen ? (
+                  <div role="menu" className="absolute right-0 top-full z-[70] mt-1.5 w-60 rounded-xl border border-border bg-card/95 p-1.5 shadow-xl backdrop-blur-2xl">
+                    {store.chatMode !== "single" ? (
+                      <div className="px-0.5 pb-1.5">
+                        <ProviderSelect
+                          label="요약 모델"
+                          value={store.summaryProvider}
+                          includeAuto
+                          ariaLabel="요약 제공자 선택"
+                          onChange={(value) => store.setSummaryProvider(value as typeof store.summaryProvider)}
+                        />
+                      </div>
+                    ) : null}
+                    <ToolMenuItem icon={Info} label="대화 정보" active={store.sidePanel === "info"} onClick={() => store.setSidePanel(store.sidePanel === "info" ? null : "info")} />
+                    <ToolMenuItem icon={Database} label="공유 메모리" active={store.sidePanel === "memory"} onClick={() => store.setSidePanel(store.sidePanel === "memory" ? null : "memory")} />
+                    <ToolMenuItem icon={SlidersHorizontal} label="모델 선택" active={store.sidePanel === "models"} onClick={() => store.setSidePanel(store.sidePanel === "models" ? null : "models")} />
+                    <ToolMenuItem icon={ClipboardList} label="문맥 가져오기" active={store.sidePanel === "context"} onClick={() => store.setSidePanel(store.sidePanel === "context" ? null : "context")} />
+                    <div className="my-1 border-t border-border" />
+                    <ToolMenuItem icon={BrainCircuit} label={store.ragPending ? "검색 점검 중…" : "검색 점검"} disabled={!canRequest || store.ragPending || !store.input.trim()} onClick={() => { store.runRagPreflight(); setHeaderToolsOpen(false); }} />
+                    <ToolMenuItem icon={Paperclip} label="이미지 첨부" onClick={() => { visionFileInputRef.current?.click(); setHeaderToolsOpen(false); }} />
+                    <ToolMenuItem icon={FileImage} label={store.visionPending ? "이미지 점검 중…" : store.visionFiles.length > 0 ? `이미지 점검 (${store.visionFiles.length})` : "이미지 점검"} disabled={!canRequest || store.visionPending || store.visionFiles.length === 0} onClick={() => { store.runVisionPreflight(); setHeaderToolsOpen(false); }} />
+                    {isSpeechSupported() ? (
+                      <>
+                        <div className="my-1 border-t border-border" />
+                        <ToolMenuItem icon={autoSpeak ? Volume2 : VolumeX} label={autoSpeak ? "자동 읽기 켜짐" : "자동 읽기 꺼짐"} active={autoSpeak} onClick={toggleAutoSpeak} />
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </div>
 
           {store.chatMode !== "single" ? <WorkerModelStrip /> : null}
@@ -1580,13 +1712,14 @@ export function AskPage() {
                 source={message.source}
                 grounded={message.grounded}
                 citationCount={message.citationCount}
+                actionSuggestions={message.actionSuggestions}
               />
             ))}
             {store.messages.length === 0 && !(store.pending && store.activeConversationId) ? (
               <EmptyState
                 icon={Send}
-                title="메시지를 입력해 대화를 시작하세요"
-                description="single·orchestration·multi 모드로 모델 라우팅을 비교할 수 있습니다."
+                title="확인할 내용"
+                description="짧게 묻고, 필요하면 문맥·파일·메모리를 붙입니다."
                 action={(
                   <div className="flex max-w-xl flex-col items-center gap-2">
                     <div className="flex flex-wrap justify-center gap-1.5">
@@ -1718,53 +1851,85 @@ export function AskPage() {
                 event.currentTarget.value = "";
               }}
             />
-            <Textarea
-              ref={composerTextareaRef}
-              className="min-h-[84px]"
-              rows={3}
-              value={store.input}
-              placeholder="메시지를 입력하고 Enter (Shift+Enter 줄바꿈)"
-              onChange={(event) => useAskStore.setState({ input: event.target.value })}
-              onKeyDown={(event) => {
-                if ((event.key === "Enter" && !event.shiftKey) || shortcutMatches(event.nativeEvent, shortcuts.send) || ((event.metaKey || event.ctrlKey) && event.key === "Enter")) {
-                  event.preventDefault();
-                  if (canSend) store.sendMessage();
-                }
-              }}
-            />
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                <Button
-                  variant={voiceInput.active ? "primary" : "outline"}
-                  size="icon"
-                  className="h-8 w-8"
-                  aria-label={voiceInput.active ? "음성 입력 중지" : "음성 입력"}
-                  title={voiceInput.active ? "음성 입력 중지" : "음성 입력"}
-                  onClick={() => voiceInput.toggle(store.input)}
-                  disabled={!voiceInput.supported || (store.pending && !voiceInput.active)}
+            {/* 입력 pill — 홈 HeroComposer와 동일한 조작 단위(라운드 버튼·자동 성장·점진 노출) */}
+            <Card className="!rounded-3xl !bg-card/60 overflow-visible transition-all duration-300 focus-within:!bg-card focus-within:shadow-xl">
+              <div className="flex items-end gap-1 py-2 pl-2 pr-2">
+                <div ref={composerToolsRef} className="relative shrink-0 self-center">
+                  <ComposerRoundButton
+                    icon={Plus}
+                    label="추가 작업"
+                    active={composerToolsOpen}
+                    className={cn("transition-transform duration-300", composerToolsOpen && "rotate-45")}
+                    onClick={() => setComposerToolsOpen((open) => !open)}
+                  />
+                  {composerToolsOpen ? (
+                    <div role="menu" className="absolute bottom-full left-0 z-[70] mb-2 w-52 rounded-xl border border-border bg-card/95 p-1.5 shadow-xl backdrop-blur-2xl">
+                      <ToolMenuItem
+                        icon={Paperclip}
+                        label={store.attachments.length > 0 ? `첨부 (${store.attachments.length})` : "파일 첨부"}
+                        active={store.attachmentPanelOpen}
+                        onClick={() => { store.setAttachmentPanelOpen(!store.attachmentPanelOpen); setComposerToolsOpen(false); }}
+                      />
+                      <ToolMenuItem
+                        icon={CalendarPlus}
+                        label="루틴으로 저장"
+                        disabled={!canRequest || store.input.trim().length < 5}
+                        onClick={() => { store.saveInputAsRoutine(); setComposerToolsOpen(false); }}
+                      />
+                      <ToolMenuItem
+                        icon={ClipboardList}
+                        label="작업계획 만들기"
+                        disabled={!canRequest || store.input.trim().length < 5}
+                        onClick={() => { store.createPlanFromInput(); setComposerToolsOpen(false); }}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+
+                <textarea
+                  ref={composerTextareaRef}
+                  aria-label="메시지 입력"
+                  rows={1}
+                  value={store.input}
+                  placeholder="무엇을 도와드릴까요?  ·  Enter 전송, Shift+Enter 줄바꿈"
+                  className="block max-h-[200px] min-h-[24px] min-w-0 flex-1 resize-none self-center whitespace-pre-wrap break-keep bg-transparent px-1 py-1 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground focus:outline-none [overflow-wrap:anywhere]"
+                  onChange={(event) => useAskStore.setState({ input: event.target.value })}
+                  onKeyDown={(event) => {
+                    if ((event.key === "Enter" && !event.shiftKey) || shortcutMatches(event.nativeEvent, shortcuts.send) || ((event.metaKey || event.ctrlKey) && event.key === "Enter")) {
+                      event.preventDefault();
+                      if (canSend) store.sendMessage();
+                    }
+                  }}
+                />
+
+                {voiceInput.supported ? (
+                  <ComposerRoundButton
+                    icon={voiceInput.active ? MicOff : Mic}
+                    label={voiceInput.active ? "음성 입력 중지" : "음성 입력"}
+                    active={voiceInput.active}
+                    pulse={voiceInput.active}
+                    disabled={store.pending && !voiceInput.active}
+                    onClick={() => voiceInput.toggle(store.input)}
+                  />
+                ) : null}
+                <ComposerRoundButton
+                  icon={SlidersHorizontal}
+                  label="확장 추론 (Think+)"
+                  active={store.thinkPlus}
+                  onClick={() => store.setThinkPlus(!store.thinkPlus)}
+                />
+                <button
+                  type="button"
+                  onClick={store.sendMessage}
+                  disabled={!canSend}
+                  aria-label="전송"
+                  title="전송 (Enter)"
+                  className="relative flex h-8 w-8 shrink-0 items-center justify-center self-center rounded-full bg-transparent text-primary/80 transition-all duration-300 hover:!bg-primary hover:text-primary-foreground active:scale-95 disabled:opacity-40"
                 >
-                  {voiceInput.active ? <MicOff size={16} aria-hidden="true" /> : <Mic size={16} aria-hidden="true" />}
-                </Button>
-                <Button variant={store.attachmentPanelOpen ? "primary" : "outline"} size="icon" className="h-8 w-8" aria-label="첨부" title="첨부" onClick={() => store.setAttachmentPanelOpen(!store.attachmentPanelOpen)}>
-                  <Paperclip size={16} aria-hidden="true" />
-                </Button>
-                <Button variant={store.thinkPlus ? "primary" : "outline"} size="icon" className="h-8 w-8" aria-label="Think+" title="Think+" onClick={() => store.setThinkPlus(!store.thinkPlus)}>
-                  <Sparkles size={16} aria-hidden="true" />
-                </Button>
-                <Button variant="outline" size="icon" className="h-8 w-8" aria-label="입력을 루틴으로 저장" title="입력을 루틴으로 저장" onClick={store.saveInputAsRoutine} disabled={!canRequest || store.input.trim().length < 5}>
-                  <CalendarPlus size={16} aria-hidden="true" />
-                </Button>
-                <Button variant="outline" size="icon" className="h-8 w-8" aria-label="입력으로 작업계획 만들기" title="입력으로 작업계획 만들기" onClick={store.createPlanFromInput} disabled={!canRequest || store.input.trim().length < 5}>
-                  <ClipboardList size={16} aria-hidden="true" />
-                </Button>
+                  <Send size={16} aria-hidden="true" />
+                </button>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <Badge tone="outline" className="max-w-[180px] truncate">{store.attachments.length > 0 ? `첨부 ${store.attachments.length}` : store.thinkPlus ? "Think+ 켜짐" : "대기"}</Badge>
-                <Button variant="primary" size="icon" className="h-8 w-8" aria-label="전송" title="전송" onClick={store.sendMessage} disabled={!canSend}>
-                  <Send size={17} aria-hidden="true" />
-                </Button>
-              </div>
-            </div>
+            </Card>
           </div>
         </CardBoundary>
         </div>

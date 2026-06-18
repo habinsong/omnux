@@ -138,6 +138,24 @@ public sealed partial class CommandService
         );
         var thread = session.Thread;
         var rawInput = (request.Input ?? string.Empty).Trim();
+        // P1-1a: 의도 결정 단일 지점 — 회수/대화/개요/제안카드 게이트를 한 번에 계산.
+        // (P0-6 제안 카드 포함; 자동 실행은 없고 프론트 카드 버튼이 기존 WS 타입을 호출한다.)
+        var intentPlan = AskIntentPlanner.Plan(rawInput);
+        if (intentPlan.HasAnyIntent)
+        {
+            _auditLogger.Log(request.Source, "ask_intent_plan", "ok", intentPlan.Summary);
+        }
+        var actionSuggestions = intentPlan.ActionSuggestions.Count > 0 ? intentPlan.ActionSuggestions : null;
+        if (intentPlan.NotebookAppendRequest is { } notebookAppendRequest)
+        {
+            return HandleNotebookAppendRequest(
+                session,
+                request,
+                rawInput,
+                notebookAppendRequest
+            );
+        }
+
         if (TryHandleBrowserChatIntent(session, rawInput, "single", request.RequestId) is { } browserIntentResult)
         {
             return browserIntentResult;
@@ -198,6 +216,37 @@ public sealed partial class CommandService
         }
 
         var requestedSkillName = ResolvePromptOrUiSkillName(request.SkillName, rawInput);
+        string? autoSelectedSkillName = null;
+        // P0-5: 명시 멘션·UI 선택·스레드 바인딩 스킬이 전혀 없을 때만, "이름이 입력에 등장하는
+        // 스킬이 정확히 하나"인 경우 자동 적용한다. Route 배지에 skill:<name>(auto) 표기.
+        if (string.IsNullOrWhiteSpace(requestedSkillName)
+            && string.IsNullOrWhiteSpace(ResolveEffectiveSkillNameForThread(null, session.SessionId))
+            && !AskSkillAutoSelectPolicy.IsDisabledByEnv())
+        {
+            try
+            {
+                autoSelectedSkillName = AskSkillAutoSelectPolicy.SelectSingleConfident(
+                    rawInput,
+                    _projectContextLoader.LoadSnapshot().Skills
+                );
+            }
+            catch
+            {
+                autoSelectedSkillName = null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(autoSelectedSkillName))
+            {
+                requestedSkillName = autoSelectedSkillName;
+                _auditLogger.Log(
+                    request.Source,
+                    "ask_skill_auto_select",
+                    "ok",
+                    $"skill={autoSelectedSkillName}"
+                );
+            }
+        }
+
         var effectiveSkillForFastPath = ResolveEffectiveSkillNameForThread(requestedSkillName, session.SessionId);
         var shouldBypassFastWebForSkill = !string.IsNullOrWhiteSpace(effectiveSkillForFastPath);
         var requestedProvider = NormalizeProvider(request.Provider, allowAuto: true);
@@ -216,13 +265,27 @@ public sealed partial class CommandService
             }
         }
         var resolvedModel = ResolveModelForCategory(TaskCategory.GeneralChat, requestedProvider, request.Model);
+        // P1-1c: 자동 회수를 URL/웹 분기보다 먼저 실행해 웹 경로에서도 개인 맥락(메모리/
+        // 과거대화/프로젝트 개요)을 힌트로 합류시킨다. 일반 경로는 같은 결과를 재사용한다.
+        var autoRetrieval = await TryBuildAutoRetrievalBlockAsync(
+            rawInput,
+            session.LinkedMemoryNotes,
+            request.Source,
+            thread.Id,
+            request.Project,
+            intentPlan,
+            cancellationToken
+        ).ConfigureAwait(false);
         var resolvedWebUrls = ResolveWebUrls(rawInput, request.WebUrls, request.WebSearchEnabled);
         if (!shouldBypassFastWebForSkill && resolvedWebUrls.Count > 0 && _llmRouter.HasGeminiApiKey())
         {
-            var memoryHint = BuildSafeWebMemoryPreferenceHint(
-                session.SessionId,
-                rawInput,
-                session.LinkedMemoryNotes
+            var memoryHint = AskAutoRetrievalPolicy.CombineWebContextHint(
+                BuildSafeWebMemoryPreferenceHint(
+                    session.SessionId,
+                    rawInput,
+                    session.LinkedMemoryNotes
+                ),
+                autoRetrieval.Block
             );
             var urlResult = await GenerateGeminiUrlContextAnswerDetailedAsync(
                 rawInput,
@@ -239,7 +302,9 @@ public sealed partial class CommandService
                 cancellationToken
             );
             var urlText = urlResult.Response.Text;
-            var assistantMeta = "gemini-url-single";
+            var assistantMeta = string.IsNullOrWhiteSpace(autoRetrieval.RouteLabel)
+                ? "gemini-url-single"
+                : $"gemini-url-single · {autoRetrieval.RouteLabel}";
             var urlCitationBundle = BuildAndLogCitationMappings(
                 request.Source,
                 "chat-single-url-context",
@@ -273,34 +338,29 @@ public sealed partial class CommandService
                 0,
                 "-",
                 urlResult.Latency,
-                request.RequestId
+                request.RequestId,
+                actionSuggestions
             );
         }
 
+        // "최신 정보 가져온거야?", "이거 맞아?" 같이 직전 답변을 되묻는 확인성 후속 질문은
+        // 새 웹검색을 다시 돌리면 같은 결과만 재나열된다. 직전 대화 맥락을 기준으로 답하도록
+        // fast-web 라우팅을 우회하고 일반 LLM 경로(BuildContextualInput에서 history 포함)로 넘긴다.
+        var isAnswerVerificationFollowUp =
+            ConversationContextPolicy.LooksLikeAnswerVerificationFollowUp(rawInput)
+            && HasAnyRecentAssistantMessage(thread.Id);
+
         // Think+ 모드면 fast-web 단독 라우팅 우회. 기본 LLM이 web context를 prepend 받아 직접 답변하도록.
-        if (request.WebSearchEnabled && !request.ThinkPlusEnabled && !shouldBypassFastWebForSkill)
+        if (request.WebSearchEnabled && !request.ThinkPlusEnabled && !shouldBypassFastWebForSkill && !isAnswerVerificationFollowUp)
         {
             var webLookupInput = ResolveContextualWebLookupInput(thread.Id, rawInput);
             var decisionStopwatch = Stopwatch.StartNew();
-            var decisionPath = "llm";
-            var shouldUseGeminiWeb = false;
+            // P1-1b: fast-web 휴리스틱 결정은 AskIntentPlanner 가 소유한다. Undecided 일 때만
+            // 선택 provider 의 LLM 자가판단으로 이어간다(기존과 동일한 폴백 의미 유지).
+            var (webIntent, decisionPath) = AskIntentPlanner.ResolveWebIntentHeuristic(webLookupInput);
+            var shouldUseGeminiWeb = webIntent == AskWebIntent.Web;
             var selfDecideNeedWeb = false;
-
-            if (SearchQueryPolicy.LooksLikeExplicitWebLookupQuestion(webLookupInput))
-            {
-                decisionPath = "heuristic_explicit_web";
-                shouldUseGeminiWeb = true;
-            }
-            else if (SearchQueryPolicy.LooksLikeRealtimeQuestion(webLookupInput))
-            {
-                decisionPath = "heuristic_web";
-                shouldUseGeminiWeb = true;
-            }
-            else if (SearchQueryPolicy.LooksLikeClearlyNonWebQuestion(webLookupInput))
-            {
-                decisionPath = "heuristic_no_web";
-            }
-            else
+            if (webIntent == AskWebIntent.Undecided)
             {
                 var webDecision = await DecideNeedWebBySelectedProviderAsync(
                     webLookupInput,
@@ -316,10 +376,13 @@ public sealed partial class CommandService
             var decisionMs = Math.Max(0L, decisionStopwatch.ElapsedMilliseconds);
             if (shouldUseGeminiWeb)
             {
-                var memoryHint = BuildSafeWebMemoryPreferenceHint(
-                    session.SessionId,
-                    webLookupInput,
-                    session.LinkedMemoryNotes
+                var memoryHint = AskAutoRetrievalPolicy.CombineWebContextHint(
+                    BuildSafeWebMemoryPreferenceHint(
+                        session.SessionId,
+                        webLookupInput,
+                        session.LinkedMemoryNotes
+                    ),
+                    autoRetrieval.Block
                 );
                 var webResult = await ComposeGroundedWebAnswerWithFallbackAsync(
                     webLookupInput,
@@ -337,7 +400,9 @@ public sealed partial class CommandService
                     cancellationToken
                 );
                 var webText = webResult.Response.Text;
-                var assistantMeta = webResult.Route;
+                var assistantMeta = string.IsNullOrWhiteSpace(autoRetrieval.RouteLabel)
+                    ? webResult.Route
+                    : $"{webResult.Route} · {autoRetrieval.RouteLabel}";
                 var webCitationBundle = BuildAndLogCitationMappings(
                     request.Source,
                     assistantMeta,
@@ -371,7 +436,8 @@ public sealed partial class CommandService
                     0,
                     "-",
                     webResult.Latency,
-                    request.RequestId
+                    request.RequestId,
+                    actionSuggestions
                 );
             }
         }
@@ -518,7 +584,8 @@ public sealed partial class CommandService
             skillPreparedText,
             session.LinkedMemoryNotes,
             includeLocalTimeHint: true,
-            contextDecisionInput: rawInput
+            contextDecisionInput: rawInput,
+            autoReferenceBlock: autoRetrieval.Block
         );
         LlmSingleChatResult generated;
         try
@@ -643,7 +710,7 @@ public sealed partial class CommandService
             generated.Provider,
             generated.Model,
             responseText,
-            string.Empty,
+            BuildSingleChatRouteLabel(autoSelectedSkillName, autoRetrieval.RouteLabel),
             updated,
             null,
             effectiveGuardFailure,
@@ -653,7 +720,8 @@ public sealed partial class CommandService
             preparedInput.RetryAttempt,
             preparedInput.RetryMaxAttempts,
             preparedInput.RetryStopReason,
-            RequestId: request.RequestId
+            RequestId: request.RequestId,
+            ActionSuggestions: actionSuggestions
         );
     }
 
@@ -1392,12 +1460,23 @@ public sealed partial class CommandService
                 thinkPlusPreText = thinkPlusContext + thinkPlusPreText;
             }
         }
+        var intentPlan = AskIntentPlanner.Plan(rawInput);
+        var autoRetrieval = await TryBuildAutoRetrievalBlockAsync(
+            rawInput,
+            session.LinkedMemoryNotes,
+            request.Source,
+            session.Thread.Id,
+            request.Project,
+            intentPlan,
+            cancellationToken
+        ).ConfigureAwait(false);
         var contextualInput = BuildContextualInput(
             session.SessionId,
             thinkPlusPreText,
             session.LinkedMemoryNotes,
             includeLocalTimeHint: true,
-            contextDecisionInput: rawInput
+            contextDecisionInput: rawInput,
+            autoReferenceBlock: autoRetrieval.Block
         );
 
         var generated = await ChatOrchestrationAsync(
@@ -1658,12 +1737,23 @@ public sealed partial class CommandService
                 thinkPlusPreText = thinkPlusContext + thinkPlusPreText;
             }
         }
+        var intentPlan = AskIntentPlanner.Plan(rawInput);
+        var autoRetrieval = await TryBuildAutoRetrievalBlockAsync(
+            rawInput,
+            session.LinkedMemoryNotes,
+            request.Source,
+            session.Thread.Id,
+            request.Project,
+            intentPlan,
+            cancellationToken
+        ).ConfigureAwait(false);
         var contextualInput = BuildContextualInput(
             session.SessionId,
             thinkPlusPreText,
             session.LinkedMemoryNotes,
             includeLocalTimeHint: true,
-            contextDecisionInput: rawInput
+            contextDecisionInput: rawInput,
+            autoReferenceBlock: autoRetrieval.Block
         );
 
         var generated = await ChatMultiAsync(

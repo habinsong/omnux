@@ -35,6 +35,10 @@ public interface ISettingsApplicationService
     string DeleteTelegramCredentials(bool deletePersisted);
     string DeleteLlmCredentials(bool deletePersisted);
     string SetExternalDashboardEnabled(bool enabled);
+    TotpAuthenticatorStore TotpAuthenticator { get; }
+    TotpEnrollment BeginTotpEnrollment();
+    bool ConfirmTotpEnrollment(string? code);
+    bool DisableTotp();
     GeminiUsage GetGeminiUsageSnapshot();
     Task<CopilotPremiumUsageSnapshot> GetCopilotPremiumUsageSnapshotAsync(
         CancellationToken cancellationToken,
@@ -50,6 +54,11 @@ public interface ISettingsApplicationService
     Task<IReadOnlyList<CopilotModelInfo>> GetCopilotModelsAsync(CancellationToken cancellationToken);
     string GetSelectedCopilotModel();
     IReadOnlyDictionary<string, CopilotUsage> GetCopilotLocalUsageSnapshot();
+
+    // P1-2: 사용자 전역 규칙/페르소나 (상시 주입)
+    UserRulesSnapshot GetUserRules();
+    UserRulesSnapshot SaveUserRules(string? text);
+    UserRulesSnapshot DeleteUserRules();
     bool TrySetSelectedCopilotModel(string modelId);
 }
 

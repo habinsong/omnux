@@ -1,11 +1,12 @@
 import { useEffect, useMemo } from "react";
-import { AlertTriangle, CheckCircle2, ClipboardList, FileText, HelpCircle, ListChecks, ListTree, Pencil, Play, Plus, RefreshCcw, Save, Search, Sparkles, Trash2, X, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardList, FileText, HelpCircle, ListChecks, ListTree, Pencil, Play, Plus, RefreshCcw, Save, Search, Trash2, X, XCircle } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { CardBoundary } from "../../CardBoundary";
 import { useDesktopShellStore } from "../../shell-store";
 import { useDesktopAuthStore } from "../auth/auth-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
 import { usePlanningPageBridge, usePlanningStore, type EditableTaskNode, type PlanDetail } from "./planning-store";
-import { Badge, Button, EmptyState, Input, Textarea, cn } from "../../components/ui/primitives";
+import { Badge, Button, Input, Textarea, cn } from "../../components/ui/primitives";
 
 const DETAIL_LABEL = "text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground";
 const CATEGORY_SUGGESTIONS = ["coding", "research", "review", "verification", "writing", "ops"];
@@ -122,7 +123,7 @@ function TaskGraphEditor({ nodes }: { nodes: EditableTaskNode[] }) {
               className="h-8 text-xs"
             />
           </div>
-          <Textarea rows={2} value={node.prompt} placeholder="작업 지시(prompt)" onChange={(event) => store.setTaskField(node.taskId, "prompt", event.target.value)} className="text-xs" />
+          <Textarea rows={2} value={node.prompt} placeholder="작업 지시" onChange={(event) => store.setTaskField(node.taskId, "prompt", event.target.value)} className="text-xs" />
           {nodes.length > 1 ? (
             <div className="space-y-1">
               <p className={DETAIL_LABEL}>선행 작업</p>
@@ -159,6 +160,18 @@ function TaskGraphEditor({ nodes }: { nodes: EditableTaskNode[] }) {
       <Button variant="outline" size="sm" className="w-full" onClick={store.addTask}>
         <Plus size={13} aria-hidden="true" /> 작업 추가
       </Button>
+    </div>
+  );
+}
+
+function CompactEmptyState({ icon: Icon, title, description }: { icon: LucideIcon; title: string; description: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-md border border-border bg-muted/25 px-2.5 py-2">
+      <Icon size={14} className="shrink-0 text-muted-foreground" aria-hidden="true" />
+      <span className="min-w-0">
+        <span className="block text-xs font-medium">{title}</span>
+        <span className="block text-[11px] text-muted-foreground">{description}</span>
+      </span>
     </div>
   );
 }
@@ -207,8 +220,8 @@ export function PlanningPage() {
     const status = (plan.status || "").toLowerCase();
     if (!plan.reviewerSummary) items.push({ key: "review", title: "시작 전 리뷰가 필요합니다.", description: "빠진 일, 위험, 검증 포인트를 먼저 확인하세요.", action: "review" });
     if (plan.reviewerSummary && status !== "approved" && status !== "running" && status !== "completed") items.push({ key: "approve", title: "진행 여부를 확정하세요.", description: "실행해도 되는 계획인지 승인 상태로 전환합니다.", action: "approve" });
-    if (status === "approved") items.push({ key: "run", title: "계획을 실행할 수 있습니다.", description: "실행 후 태스크 그래프로 분해해 병렬 작업할 수 있습니다.", action: "run" });
-    if (status === "approved" || status === "completed") items.push({ key: "graph", title: "태스크 그래프로 나눠보세요.", description: "단계별 작업 상태와 재시도 흐름을 관리합니다.", action: "graph" });
+    if (status === "approved") items.push({ key: "run", title: "계획을 실행할 수 있습니다.", description: "실행 후 작업 그래프로 나눠 병렬 진행할 수 있습니다.", action: "run" });
+    if (status === "approved" || status === "completed") items.push({ key: "graph", title: "작업 그래프로 나눠보세요.", description: "단계별 상태와 재시도 흐름을 관리합니다.", action: "graph" });
     if (items.length === 0) items.push({ key: "fresh", title: "현재 계획 흐름은 정리되어 있습니다.", description: "새 제약이 생기면 승인 전 계획을 수정하세요.", action: "browse" });
     return items;
   }, [plan, store.plans.length]);
@@ -219,13 +232,13 @@ export function PlanningPage() {
   }, [canRequest]);
 
   return (
-    <div className="space-y-4">
+    <div className="dashboard-tab space-y-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">계획 / 태스크 그래프</h1>
-          <p className="text-sm text-muted-foreground">목표를 계획으로 만들고, 리뷰·승인·실행한 뒤 태스크 그래프로 병렬 실행합니다.</p>
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold tracking-tight">작업</h1>
+          <p className="text-sm text-muted-foreground">목표를 계획으로 만들고, 검토한 뒤 작업 단위로 실행합니다.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={store.load} disabled={!canRequest || store.loading}>
+        <Button variant="outline" size="sm" className="shrink-0" onClick={store.load} disabled={!canRequest || store.loading}>
           <RefreshCcw size={15} aria-hidden="true" /> {store.loading ? "조회 중" : "새로고침"}
         </Button>
       </div>
@@ -236,7 +249,7 @@ export function PlanningPage() {
         {/* Plans */}
         <CardBoundary title="계획" card="operations" onError={recordCardError}>
           <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
-            <Textarea rows={3} value={store.objectiveDraft} placeholder="목표(objective)를 적으면 계획을 생성합니다." onChange={(event) => store.setObjective(event.target.value)} />
+            <Textarea rows={3} value={store.objectiveDraft} placeholder="목표를 적으면 계획을 생성합니다." onChange={(event) => store.setObjective(event.target.value)} />
             <div className="grid grid-cols-2 gap-2">
               {PLAN_MODES.map((mode) => {
                 const on = store.createMode === mode.key;
@@ -267,11 +280,11 @@ export function PlanningPage() {
             <Textarea rows={3} value={store.createConstraintsText} placeholder="지켜야 할 기준을 줄 단위로 입력합니다." onChange={(event) => store.setCreateConstraintsText(event.target.value)} />
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex min-w-0 flex-wrap gap-1">
-                <Badge tone="outline">mode {store.createMode === "interview" ? "질문 먼저" : "빠른 초안"}</Badge>
-                <Badge tone="outline">constraints {createConstraints.length}</Badge>
+                <Badge tone="outline">방식 {store.createMode === "interview" ? "질문 먼저" : "빠른 초안"}</Badge>
+                <Badge tone="outline">기준 {createConstraints.length}</Badge>
               </div>
               <Button variant="primary" size="sm" onClick={store.createPlan} disabled={!canRequest || store.pending || store.objectiveDraft.trim().length < 5}>
-                <Sparkles size={14} aria-hidden="true" /> 계획 생성
+                <ClipboardList size={14} aria-hidden="true" /> 계획 생성
               </Button>
             </div>
           </div>
@@ -305,7 +318,7 @@ export function PlanningPage() {
                 <Badge tone={statusTone(item.status)}>{item.status || "draft"}</Badge>
               </button>
             ))}
-            {store.plans.length === 0 ? <EmptyState icon={ClipboardList} title="계획 없음" description="목표를 입력해 첫 계획을 만드세요." /> : null}
+            {store.plans.length === 0 ? <CompactEmptyState icon={ClipboardList} title="계획 없음" description="목표를 입력해 첫 계획을 만드세요." /> : null}
           </div>
           {plan ? (
             <div className="space-y-2 rounded-md border border-border bg-card/60 p-3">
@@ -332,7 +345,7 @@ export function PlanningPage() {
                 <Textarea
                   rows={2}
                   value={store.planDraft.constraintsText}
-                  placeholder="constraints를 줄 단위로 입력"
+                  placeholder="기준을 줄 단위로 입력"
                   onChange={(event) => store.setPlanDraft("constraintsText", event.target.value)}
                   disabled={!canEditPlan}
                 />
@@ -347,7 +360,7 @@ export function PlanningPage() {
                 <Button variant="outline" size="sm" onClick={store.reviewPlan} disabled={!canRequest || store.pending}><Search size={13} aria-hidden="true" /> 리뷰</Button>
                 <Button variant="outline" size="sm" onClick={store.approvePlan} disabled={!canRequest || store.pending}><CheckCircle2 size={13} aria-hidden="true" /> 승인</Button>
                 <Button variant="primary" size="sm" onClick={store.runPlan} disabled={!canRequest || store.pending}><Play size={13} aria-hidden="true" /> 실행</Button>
-                <Button variant="ghost" size="sm" onClick={store.createGraph} disabled={!canRequest || store.pending}><ListTree size={13} aria-hidden="true" /> 태스크 그래프</Button>
+                <Button variant="ghost" size="sm" onClick={store.createGraph} disabled={!canRequest || store.pending}><ListTree size={13} aria-hidden="true" /> 작업 그래프</Button>
               </div>
               <PlanDetailView detail={store.planDetail} />
             </div>
@@ -355,18 +368,18 @@ export function PlanningPage() {
         </CardBoundary>
 
         {/* Task graphs */}
-        <CardBoundary title="태스크 그래프" card="logs" onError={recordCardError}>
+        <CardBoundary title="작업 그래프" card="logs" onError={recordCardError}>
           <div className="space-y-1">
             {store.graphs.map((g) => (
               <button key={g.graphId} type="button" onClick={() => store.openGraph(g.graphId)} disabled={!canRequest} className={cn("flex w-full items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left transition-colors", g.graphId === graph?.graphId ? "border-primary/50 bg-accent" : "border-transparent hover:bg-accent/60")}>
                 <span className="min-w-0">
                   <span className="block truncate font-mono text-xs">{g.graphId}</span>
-                  <span className="block truncate text-[11px] text-muted-foreground">{g.nodeCount} tasks</span>
+                  <span className="block truncate text-[11px] text-muted-foreground">작업 {g.nodeCount}</span>
                 </span>
                 <Badge tone={statusTone(g.status)}>{g.status || "-"}</Badge>
               </button>
             ))}
-            {store.graphs.length === 0 ? <EmptyState icon={ListTree} title="태스크 그래프 없음" description="계획을 승인한 뒤 [태스크 그래프]로 생성하세요." /> : null}
+            {store.graphs.length === 0 ? <CompactEmptyState icon={ListTree} title="작업 그래프 없음" description="계획을 승인한 뒤 작업 그래프로 나눠보세요." /> : null}
           </div>
           {graph ? (
             <div className="space-y-2 rounded-md border border-border bg-card/60 p-3">
@@ -423,11 +436,11 @@ export function PlanningPage() {
                         </button>
                       </div>
                       {task.dependsOn.length > 0 ? (
-                        <p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">deps: {task.dependsOn.join(", ")}</p>
+                        <p className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">선행: {task.dependsOn.join(", ")}</p>
                       ) : null}
                     </div>
                   ))}
-                  {graph.nodes.length === 0 ? <p className="py-3 text-center text-xs text-muted-foreground">태스크 노드 없음</p> : null}
+                  {graph.nodes.length === 0 ? <p className="py-3 text-center text-xs text-muted-foreground">작업 노드 없음</p> : null}
                 </div>
               )}
             </div>

@@ -1,5 +1,6 @@
 /* omnux — live middleware adapter */
 (function () {
+  const AUTH_RECHECK_INTERVAL_MS = 2000;
   const state = {
     status: 'static',
     connected: false,
@@ -28,6 +29,7 @@
   let socket = null;
   let started = false;
   let hasOpenedSocket = false;
+  let authRecheckTimer = 0;
 
   function snapshot() {
     return {
@@ -45,6 +47,38 @@
       }
     });
     window.dispatchEvent(new CustomEvent('omnux:runtime', { detail: next }));
+  }
+
+  function clearAuthRecheckTimer() {
+    if (!authRecheckTimer) return;
+    window.clearInterval(authRecheckTimer);
+    authRecheckTimer = 0;
+  }
+
+  function recheckServerTrustedAuth() {
+    if (!state.authRequired || state.authenticated) {
+      clearAuthRecheckTimer();
+      return;
+    }
+
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      send({ type: 'ping' }, { silent: true });
+      return;
+    }
+
+    if (socket && socket.readyState === WebSocket.CONNECTING) {
+      return;
+    }
+
+    connect();
+  }
+
+  function ensureAuthRecheckTimer() {
+    if (authRecheckTimer || state.authenticated) {
+      return;
+    }
+
+    authRecheckTimer = window.setInterval(recheckServerTrustedAuth, AUTH_RECHECK_INTERVAL_MS);
   }
 
   function pushEvent(entry) {
@@ -98,17 +132,16 @@
       state.authRequired = true;
       state.authenticated = false;
       state.sessionId = msg.sessionId || state.sessionId;
-      const remoteDashboardClient = helpers.ws?.isRemoteDashboardHost?.(window.location) || false;
-      const token = helpers.ws?.getSavedAuthToken?.() || '';
-      if (!remoteDashboardClient && token && state.sessionId) {
-        send({ type: 'resume_auth', sessionId: state.sessionId, authToken: token });
-      }
+      ensureAuthRecheckTimer();
     } else if (msg.type === 'auth_result') {
       state.authRequired = !msg.ok;
       state.authenticated = !!msg.ok;
-      if (msg.ok && msg.authToken) {
-        helpers.ws?.persistAuthSession?.(msg.authToken, msg.expiresAtUtc || '');
-      } else if (!msg.ok) {
+      if (msg.ok) {
+        clearAuthRecheckTimer();
+      } else {
+        ensureAuthRecheckTimer();
+      }
+      if (!msg.ok) {
         helpers.ws?.clearPersistedAuthSession?.();
       }
       if (msg.ok) {
@@ -201,9 +234,11 @@
 
     const url = helpers.ws.buildDashboardWsUrl(window.location);
     state.url = url;
-    socket = new WebSocket(url);
+    const nextSocket = new WebSocket(url);
+    socket = nextSocket;
 
-    socket.addEventListener('open', () => {
+    nextSocket.addEventListener('open', () => {
+      if (socket !== nextSocket) return;
       state.status = 'connected';
       state.connected = true;
       hasOpenedSocket = true;
@@ -211,7 +246,8 @@
       emit();
     });
 
-    socket.addEventListener('message', (event) => {
+    nextSocket.addEventListener('message', (event) => {
+      if (socket !== nextSocket) return;
       try {
         handleMessage(JSON.parse(event.data));
       } catch (_err) {
@@ -220,15 +256,23 @@
       }
     });
 
-    socket.addEventListener('close', () => {
+    nextSocket.addEventListener('close', () => {
+      if (socket !== nextSocket) return;
       state.status = 'offline';
       state.connected = false;
+      if (state.authRequired && !state.authenticated) {
+        ensureAuthRecheckTimer();
+      }
       emit();
     });
 
-    socket.addEventListener('error', () => {
+    nextSocket.addEventListener('error', () => {
+      if (socket !== nextSocket) return;
       state.status = 'offline';
       state.connected = false;
+      if (state.authRequired && !state.authenticated) {
+        ensureAuthRecheckTimer();
+      }
       emit();
     });
   }

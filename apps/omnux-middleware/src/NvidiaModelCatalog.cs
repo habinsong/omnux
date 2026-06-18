@@ -7,13 +7,7 @@ namespace Omnux.Middleware;
 // API 키가 없거나 실패하면 정적 폴백(검증된 2026-06 목록)을 반환한다.
 public sealed class NvidiaModelCatalog : IDisposable
 {
-    private static readonly string[] StaticFallback =
-    {
-        "meta/llama-3.1-70b-instruct",
-        "meta/llama-3.3-70b-instruct",
-        "nvidia/llama-3.3-nemotron-super-49b-v1.5",
-        "openai/gpt-oss-120b"
-    };
+    private static readonly string[] StaticFallback = ModelRegistry.GetFallbackModels("nvidia").ToArray();
 
     private readonly ProviderOptions _providers;
     private readonly RuntimeSettings _runtimeSettings;

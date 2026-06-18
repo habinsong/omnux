@@ -20,29 +20,29 @@ public sealed class AppConfig
     public string? TelegramAllowedUserId { get; init; }
     public string CopilotCliBinary { get; init; } = "gh";
     public string CopilotDirectBinary { get; init; } = "copilot";
-    public string CopilotModel { get; init; } = "gpt-5-mini";
+    public string CopilotModel { get; init; } = ModelRegistry.GetDefaultModel("copilot");
     public string CodexBinary { get; init; } = "codex";
-    public string CodexModel { get; init; } = "gpt-5.4";
+    public string CodexModel { get; init; } = ModelRegistry.GetDefaultModel("codex");
     public string PythonBinary { get; init; } = ResolveDefaultPythonBinary();
     public string SandboxExecutorPath { get; init; } = ResolveDefaultSandboxExecutorPath();
     public string DashboardIndexPath { get; init; } = ResolveDefaultDashboardIndexPath();
     public bool EnableDynamicCode { get; init; }
     public string? GroqApiKey { get; init; }
     public string GroqBaseUrl { get; init; } = "https://api.groq.com/openai/v1";
-    public string GroqModel { get; init; } = "meta-llama/llama-4-scout-17b-16e-instruct";
+    public string GroqModel { get; init; } = ModelRegistry.GetDefaultModel("groq");
     public string? GeminiApiKey { get; init; }
     public string GeminiBaseUrl { get; init; } = "https://generativelanguage.googleapis.com/v1beta";
-    public string GeminiModel { get; init; } = "gemini-3-pro-preview";
+    public string GeminiModel { get; init; } = ModelRegistry.GetDefaultModel("gemini");
     public string GeminiFlashModel { get; init; } = "gemini-3-flash-preview";
     public string GeminiSearchModel { get; init; } = "gemini-3.1-flash-lite";
     public string CerebrasBaseUrl { get; init; } = "https://api.cerebras.ai/v1";
-    public string CerebrasModel { get; init; } = "gpt-oss-120b";
+    public string CerebrasModel { get; init; } = ModelRegistry.GetDefaultModel("cerebras");
     public int CerebrasTimeoutSec { get; init; } = 40;
     public string CerebrasKeychainService { get; init; } = CerebrasApiKeyService;
     public string CerebrasKeychainAccount { get; init; } = DefaultKeychainAccount;
     public string? CerebrasApiKey { get; init; }
     public string NvidiaBaseUrl { get; init; } = "https://integrate.api.nvidia.com/v1";
-    public string NvidiaModel { get; init; } = "meta/llama-3.1-70b-instruct";
+    public string NvidiaModel { get; init; } = ModelRegistry.GetDefaultModel("nvidia");
     public int NvidiaTimeoutSec { get; init; } = 180;
     public string NvidiaKeychainService { get; init; } = NvidiaApiKeyService;
     public string NvidiaKeychainAccount { get; init; } = DefaultKeychainAccount;
@@ -276,9 +276,9 @@ public sealed class AppConfig
             TelegramAllowedUserId = GetStringEnv("OMNUX_TELEGRAM_ALLOWED_USER_ID", string.Empty),
             CopilotCliBinary = GetStringEnv("OMNUX_COPILOT_BIN", "gh"),
             CopilotDirectBinary = GetStringEnv("OMNUX_COPILOT_DIRECT_BIN", "copilot"),
-            CopilotModel = GetStringEnv("OMNUX_COPILOT_MODEL", "gpt-5-mini"),
+            CopilotModel = GetStringEnv("OMNUX_COPILOT_MODEL", ModelRegistry.GetDefaultModel("copilot")),
             CodexBinary = GetStringEnv("OMNUX_CODEX_BIN", "codex"),
-            CodexModel = GetStringEnv("OMNUX_CODEX_MODEL", "gpt-5.4"),
+            CodexModel = GetStringEnv("OMNUX_CODEX_MODEL", ModelRegistry.GetDefaultModel("codex")),
             PythonBinary = GetStringEnv("OMNUX_PYTHON_BIN", ResolveDefaultPythonBinary()),
             SandboxExecutorPath = GetStringEnv("OMNUX_SANDBOX_EXECUTOR", ResolveDefaultSandboxExecutorPath()),
             DashboardIndexPath = GetStringEnv("OMNUX_DASHBOARD_INDEX", pathResolver.DashboardIndexPath),
@@ -293,7 +293,7 @@ public sealed class AppConfig
                 defaultKeychainAccount: DefaultKeychainAccount
             ),
             GroqBaseUrl = GetStringEnv("OMNUX_GROQ_BASE_URL", "https://api.groq.com/openai/v1"),
-            GroqModel = GetStringEnv("OMNUX_GROQ_MODEL", "meta-llama/llama-4-scout-17b-16e-instruct"),
+            GroqModel = GetStringEnv("OMNUX_GROQ_MODEL", ModelRegistry.GetDefaultModel("groq")),
             GeminiApiKey = SecretLoader.ResolveApiKey(
                 providerName: "gemini",
                 directEnvKey: "OMNUX_GEMINI_API_KEY",
@@ -304,14 +304,14 @@ public sealed class AppConfig
                 defaultKeychainAccount: DefaultKeychainAccount
             ),
             GeminiBaseUrl = GetStringEnv("OMNUX_GEMINI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta"),
-            GeminiModel = GetStringEnv("OMNUX_GEMINI_MODEL", "gemini-3-pro-preview"),
+            GeminiModel = GetStringEnv("OMNUX_GEMINI_MODEL", ModelRegistry.GetDefaultModel("gemini")),
             GeminiFlashModel = GetStringEnv("OMNUX_GEMINI_FLASH_MODEL", "gemini-3-flash-preview"),
             GeminiSearchModel = GetStringEnv(
                 "OMNUX_GEMINI_FLASH_LITE_MODEL",
                 "gemini-3.1-flash-lite"
             ),
             CerebrasBaseUrl = GetStringEnv("OMNUX_CEREBRAS_BASE_URL", "https://api.cerebras.ai/v1"),
-            CerebrasModel = GetStringEnv("OMNUX_CEREBRAS_MODEL", "gpt-oss-120b"),
+            CerebrasModel = GetStringEnv("OMNUX_CEREBRAS_MODEL", ModelRegistry.GetDefaultModel("cerebras")),
             CerebrasTimeoutSec = GetIntEnv("OMNUX_CEREBRAS_TIMEOUT_SEC", 40),
             CerebrasKeychainService = GetStringEnv("OMNUX_CEREBRAS_KEYCHAIN_SERVICE", CerebrasApiKeyService),
             CerebrasKeychainAccount = GetStringEnv("OMNUX_CEREBRAS_KEYCHAIN_ACCOUNT", DefaultKeychainAccount),
@@ -325,7 +325,7 @@ public sealed class AppConfig
                 defaultKeychainAccount: DefaultKeychainAccount
             ),
             NvidiaBaseUrl = GetStringEnv("OMNUX_NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1"),
-            NvidiaModel = GetStringEnv("OMNUX_NVIDIA_MODEL", "meta/llama-3.1-70b-instruct"),
+            NvidiaModel = GetStringEnv("OMNUX_NVIDIA_MODEL", ModelRegistry.GetDefaultModel("nvidia")),
             NvidiaTimeoutSec = GetIntEnv("OMNUX_NVIDIA_TIMEOUT_SEC", 180),
             NvidiaKeychainService = GetStringEnv("OMNUX_NVIDIA_KEYCHAIN_SERVICE", NvidiaApiKeyService),
             NvidiaKeychainAccount = GetStringEnv("OMNUX_NVIDIA_KEYCHAIN_ACCOUNT", DefaultKeychainAccount),
@@ -412,7 +412,10 @@ public sealed class AppConfig
             EnableHealthEndpoint = GetBoolEnv("OMNUX_ENABLE_HEALTH_ENDPOINT", true),
             EnableGatewayStartupProbe = GetBoolEnv("OMNUX_GATEWAY_STARTUP_PROBE", true),
             GatewayStartupProbeDelayMs = Math.Max(0, GetIntEnv("OMNUX_GATEWAY_STARTUP_PROBE_DELAY_MS", 250)),
-            GatewayStartupProbeTimeoutSec = Math.Max(3, GetIntEnv("OMNUX_GATEWAY_STARTUP_PROBE_TIMEOUT_SEC", 8)),
+            // dotnet run 콜드스타트(JIT)에서는 endpoint readiness 단계만으로 8초를 거의 소진해
+            // websocket 단계가 시작하자마자 취소되며 timeout 경고가 떴다. probe 는 advisory 라
+            // 길게 잡아도 부팅을 막지 않는다 — 콜드스타트를 넉넉히 덮는 30초로 상향.
+            GatewayStartupProbeTimeoutSec = Math.Max(3, GetIntEnv("OMNUX_GATEWAY_STARTUP_PROBE_TIMEOUT_SEC", 30)),
             GatewayStartupProbePollIntervalMs = Math.Max(50, GetIntEnv("OMNUX_GATEWAY_STARTUP_PROBE_POLL_INTERVAL_MS", 150)),
             GatewayStartupProbeMode = GetStringEnv("OMNUX_GATEWAY_STARTUP_PROBE_MODE", "live"),
             EnableLocalOtpFallback = GetBoolEnv("OMNUX_ENABLE_LOCAL_OTP_FALLBACK", true),

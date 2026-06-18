@@ -265,7 +265,7 @@ function LogicCanvas({
         width={width}
         height={height}
         role="img"
-        aria-label="Logic graph 편집 캔버스"
+        aria-label="규칙 흐름 편집 캔버스"
         onPointerDown={() => onClearSelection()}
       >
         <defs>
@@ -451,7 +451,7 @@ function LogicPathBrowserPanel({
       </div>
       <div className="flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
         <Badge tone="outline" className="max-w-full truncate">{snapshot?.displayPath || pathState.browsePath || "/"}</Badge>
-        {targetField ? <Badge tone="primary">{selectedNode?.nodeId}.{targetField}</Badge> : <Badge tone="outline">run input</Badge>}
+        {targetField ? <Badge tone="primary">{selectedNode?.nodeId}.{targetField}</Badge> : <Badge tone="outline">실행 입력</Badge>}
       </div>
       {pathState.lastError ? <p className="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-xs text-destructive">{pathState.lastError}</p> : null}
       <div className="flex gap-1">
@@ -514,7 +514,7 @@ function RunIoDetailPanel({ snapshot, selectedNodeId }: { snapshot: LogicRunSnap
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-1">
-        <Badge tone={statusTone(snapshot.status)}>{snapshot.status || "run"}</Badge>
+        <Badge tone={statusTone(snapshot.status)}>{snapshot.status || "실행"}</Badge>
         <Badge tone="outline" className="max-w-full truncate font-mono">{snapshot.runId}</Badge>
       </div>
       <div className="space-y-1">
@@ -562,8 +562,8 @@ function RunIoDetailPanel({ snapshot, selectedNodeId }: { snapshot: LogicRunSnap
       ) : null}
       {result?.artifacts.length || result?.links.length || result?.conversationId || result?.sessionKey ? (
         <div className="flex flex-wrap gap-1">
-          {result.conversationId ? <Badge tone="outline" className="max-w-full truncate">conversation {result.conversationId}</Badge> : null}
-          {result.sessionKey ? <Badge tone="outline" className="max-w-full truncate">session {result.sessionKey}</Badge> : null}
+          {result.conversationId ? <Badge tone="outline" className="max-w-full truncate">대화 {result.conversationId}</Badge> : null}
+          {result.sessionKey ? <Badge tone="outline" className="max-w-full truncate">세션 {result.sessionKey}</Badge> : null}
           {result.artifacts.slice(0, 6).map((item) => <Badge key={`artifact-${item}`} tone="primary" className="max-w-full truncate">{item}</Badge>)}
           {result.links.slice(0, 6).map((item) => <Badge key={`link-${item}`} tone="outline" className="max-w-full truncate">{item}</Badge>)}
         </div>
@@ -833,8 +833,6 @@ function EdgeInspector({ edge, graph }: { edge: EditableEdge; graph: EditableGra
   );
 }
 
-/* ============================ 그래프 설정 ============================ */
-
 function GraphSettings({ graph }: { graph: EditableGraph }) {
   const store = useLogicStore();
   return (
@@ -848,7 +846,7 @@ function GraphSettings({ graph }: { graph: EditableGraph }) {
         <Textarea rows={2} value={graph.description} onChange={(event) => store.setGraphField("description", event.target.value)} className="text-xs" />
       </label>
       <label className="flex items-center gap-2 text-xs text-muted-foreground">
-        <input type="checkbox" checked={graph.enabled} onChange={(event) => store.setGraphEnabled(event.target.checked)} /> 그래프 활성화
+        <input type="checkbox" checked={graph.enabled} onChange={(event) => store.setGraphEnabled(event.target.checked)} /> 규칙 활성화
       </label>
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
@@ -878,8 +876,6 @@ function GraphSettings({ graph }: { graph: EditableGraph }) {
     </div>
   );
 }
-
-/* ============================ 페이지 ============================ */
 
 export function LogicPage() {
   useLogicPageBridge();
@@ -911,20 +907,19 @@ export function LogicPage() {
   }, [store.selectedNodeId, store.selectedEdgeId]);
 
   return (
-    <div className="flex h-[calc(100vh-8.5rem)] min-h-[600px] flex-col gap-3">
+    <div className="dashboard-tab flex h-[calc(100vh-8.5rem)] min-h-[600px] flex-col gap-3">
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">로직</h1>
-          <p className="text-sm text-muted-foreground">노드를 끌어다 배치하고 포트를 연결해 워크플로를 시각적으로 설계합니다.</p>
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold tracking-tight">규칙</h1>
+          <p className="text-sm text-muted-foreground">노드를 배치하고 연결해 반복 작업 흐름을 정리합니다.</p>
         </div>
       </div>
 
       <section className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[240px_minmax(0,1fr)_320px]">
-        {/* 좌: 그래프 목록 */}
-        <CardBoundary title="그래프" card="navigation" onError={recordCardError}>
+        <CardBoundary title="규칙 목록" card="navigation" onError={recordCardError}>
           <div className="flex gap-1.5">
             <Button variant="primary" size="sm" className="flex-1" onClick={store.newGraph}>
-              <FilePlus2 size={14} aria-hidden="true" /> 새 그래프
+              <FilePlus2 size={14} aria-hidden="true" /> 새 규칙
             </Button>
             <Button variant="outline" size="sm" onClick={store.loadGraphs} disabled={!canRequest || store.loadingList} title="목록 새로고침">
               <RefreshCcw size={14} aria-hidden="true" />
@@ -947,7 +942,7 @@ export function LogicPage() {
                     className="flex w-full items-center justify-between gap-2 rounded px-1.5 py-1 text-left transition-colors hover:bg-accent/60"
                   >
                     <span className="min-w-0 truncate text-[11px] font-medium">{item.title || item.graphId}</span>
-                    <Badge tone={statusTone(item.status)}>{item.status || "run"}</Badge>
+                    <Badge tone={statusTone(item.status)}>{item.status || "실행"}</Badge>
                   </button>
                 ))}
               </div>
@@ -967,16 +962,15 @@ export function LogicPage() {
               >
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium">{item.title}</div>
-                  <div className="truncate text-[11px] text-muted-foreground">{`${item.nodeCount} nodes · ${item.edgeCount} edges`}</div>
+                  <div className="truncate text-[11px] text-muted-foreground">{`노드 ${item.nodeCount} · 연결 ${item.edgeCount}`}</div>
                 </div>
-                <Badge tone="outline" className="shrink-0">{item.enabled ? "on" : "off"}</Badge>
+                <Badge tone="outline" className="shrink-0">{item.enabled ? "활성" : "꺼짐"}</Badge>
               </button>
             ))}
-            {store.graphs.length === 0 ? <p className="py-6 text-center text-xs text-muted-foreground">logic graph 없음</p> : null}
+            {store.graphs.length === 0 ? <p className="py-6 text-center text-xs text-muted-foreground">규칙 없음</p> : null}
           </div>
         </CardBoundary>
 
-        {/* 중: 캔버스 */}
         <CardBoundary title="캔버스" card="operations" onError={recordCardError}>
           <div className="flex min-h-0 flex-1 flex-col gap-2">
             <div className="flex flex-wrap items-center gap-1.5">
@@ -1003,10 +997,10 @@ export function LogicPage() {
                 onClick={store.deleteGraph}
                 disabled={!canRequest || !store.selectedGraphId || store.loadingGraph}
               >
-                <Trash2 size={14} aria-hidden="true" /> 그래프 삭제
+                <Trash2 size={14} aria-hidden="true" /> 규칙 삭제
               </Button>
               <span className="ml-auto text-[11px] text-muted-foreground">
-                {editor ? `${editor.nodes.length} nodes · ${editor.edges.length} edges` : ""}
+                {editor ? `노드 ${editor.nodes.length} · 연결 ${editor.edges.length}` : ""}
               </span>
             </div>
 
@@ -1018,18 +1012,18 @@ export function LogicPage() {
             ) : null}
 
             {store.loadingGraph ? (
-              <p className="py-10 text-center text-xs text-muted-foreground">그래프 불러오는 중…</p>
+              <p className="py-10 text-center text-xs text-muted-foreground">규칙 불러오는 중...</p>
             ) : !editor ? (
               <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border text-center">
                 <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
                   <Workflow size={22} aria-hidden="true" />
                 </span>
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold">편집할 그래프가 없습니다</p>
-                  <p className="text-xs text-muted-foreground">왼쪽에서 그래프를 선택하거나 새로 만드세요.</p>
+                  <p className="text-sm font-semibold">편집할 규칙이 없습니다</p>
+                  <p className="text-xs text-muted-foreground">왼쪽에서 규칙을 선택하거나 새로 만드세요.</p>
                 </div>
                 <Button variant="primary" size="sm" onClick={store.newGraph}>
-                  <FilePlus2 size={14} aria-hidden="true" /> 새 그래프 만들기
+                  <FilePlus2 size={14} aria-hidden="true" /> 새 규칙 만들기
                 </Button>
               </div>
             ) : (
@@ -1047,12 +1041,12 @@ export function LogicPage() {
               />
             )}
 
-            <Textarea rows={2} value={store.runInput} placeholder="실행 입력(logicRunInput) — 선택" onChange={(event) => store.setRunInput(event.target.value)} className="shrink-0 text-xs" />
+            <Textarea rows={2} value={store.runInput} placeholder="실행 입력 - 선택" onChange={(event) => store.setRunInput(event.target.value)} className="shrink-0 text-xs" />
 
             {snapshot ? (
               <div className="shrink-0 space-y-1.5 rounded-md border border-border bg-muted/30 p-2.5">
                 <div className="flex items-center gap-2 text-xs">
-                  <Badge tone={statusTone(snapshot.status)}>{snapshot.status || "run"}</Badge>
+                  <Badge tone={statusTone(snapshot.status)}>{snapshot.status || "실행"}</Badge>
                   <span className="truncate font-mono text-muted-foreground">{snapshot.runId}</span>
                 </div>
                 {snapshot.error ? <p className="text-xs text-destructive">{snapshot.error}</p> : null}
@@ -1071,17 +1065,16 @@ export function LogicPage() {
           </div>
         </CardBoundary>
 
-        {/* 우: 인스펙터 / 설정 / JSON */}
         <CardBoundary title="속성" card="operations" onError={recordCardError}>
           <div className="flex min-h-0 flex-1 flex-col gap-2">
             <div className="flex gap-1 rounded-md bg-muted/40 p-0.5 text-xs">
               {([
                 ["inspector", "선택"],
-                ["settings", "그래프"],
+                ["settings", "규칙"],
                 ["path", "경로"],
-                ["io", "I/O"],
+                ["io", "입출력"],
                 ["context", "문맥"],
-                ["json", "JSON"]
+                ["json", "원본"]
               ] as const).map(([key, label]) => (
                 <button
                   key={key}
@@ -1114,7 +1107,7 @@ export function LogicPage() {
                   onApply={applyContextToLogicSelection}
                 />
               ) : !editor ? (
-                <p className="py-8 text-center text-xs text-muted-foreground">그래프를 선택하세요.</p>
+                <p className="py-8 text-center text-xs text-muted-foreground">규칙을 선택하세요.</p>
               ) : rightTab === "json" ? (
                 <Textarea
                   rows={20}

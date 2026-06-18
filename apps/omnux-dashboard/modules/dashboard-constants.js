@@ -41,18 +41,15 @@ export const ROUTINE_WEEKDAY_OPTIONS = [
   { value: 0, label: "일" }
 ];
 
-export const DEFAULT_ROUTINE_AGENT_PROVIDER = "codex";
-export const DEFAULT_ROUTINE_AGENT_MODEL = "gpt-5.4";
-export const DEFAULT_CODEX_MODEL = "gpt-5.4";
+import registry from "../../shared/model-registry.json" with { type: "json" };
 
-export const CODEX_MODEL_CHOICES = [
-  { id: DEFAULT_CODEX_MODEL, label: DEFAULT_CODEX_MODEL },
-  { id: "gpt-5.5", label: "gpt-5.5" },
-  { id: "gpt-5.4-mini", label: "gpt-5.4-mini" },
-  { id: "gpt-5.3-codex", label: "gpt-5.3-codex" },
-  { id: "gpt-5.2-codex", label: "gpt-5.2-codex" },
-  { id: "gpt-5.2", label: "gpt-5.2" }
-];
+const codexProvider = registry.providers.codex;
+
+export const DEFAULT_ROUTINE_AGENT_PROVIDER = "codex";
+export const DEFAULT_ROUTINE_AGENT_MODEL = codexProvider.default;
+export const DEFAULT_CODEX_MODEL = codexProvider.default;
+
+export const CODEX_MODEL_CHOICES = codexProvider.fallback.map((id) => ({ id, label: id }));
 
 export const DEFAULT_MOBILE_PANES = {
   chat: "thread",

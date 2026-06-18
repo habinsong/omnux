@@ -14,7 +14,38 @@ use tauri_plugin_shell::{process::CommandEvent, ShellExt};
 pub mod media;
 mod media_bridge;
 
+// macOS 기동 프리징 완화: AppKit 이 -[NSApplication finishLaunching] 중 메인스레드에서
+// Edit 메뉴의 Writing Tools 항목을 초기화하며 WritingToolsUI(사설 프레임워크)를 soft-link
+// dlopen 한다. 이 이미지 체인 로드가 수 초 걸려 — 창(웹뷰는 별도 프로세스)은 떠 있는데
+// 입력 이벤트 펌프가 멈춰 클릭이 죽는다(sample 채증: _addTextInputMenuItems →
+// _supportsWritingTools → dlopen → dyld blockOnSynchronousEvent). 백그라운드 스레드에서
+// 먼저 로드해 두면 메인스레드 쪽 dlopen 은 캐시 히트라 즉시 끝난다.
+#[cfg(target_os = "macos")]
+fn prewarm_writing_tools_ui() {
+    let _ = std::thread::Builder::new()
+        .name("omnux-writingtools-prewarm".to_string())
+        .spawn(|| {
+            use std::os::raw::{c_char, c_int, c_void};
+            extern "C" {
+                fn dlopen(filename: *const c_char, flag: c_int) -> *mut c_void;
+            }
+            const RTLD_LAZY: c_int = 0x1;
+            for path in [
+                "/System/Library/PrivateFrameworks/WritingToolsUI.framework/WritingToolsUI",
+                "/System/Library/PrivateFrameworks/WritingTools.framework/WritingTools",
+            ] {
+                if let Ok(cpath) = std::ffi::CString::new(path) {
+                    // 미존재(구버전 macOS)면 null 반환 — 무해.
+                    unsafe {
+                        dlopen(cpath.as_ptr(), RTLD_LAZY);
+                    }
+                }
+            }
+        });
+}
+
 const DESKTOP_MIDDLEWARE_PORT: &str = "41880";
+#[cfg(debug_assertions)]
 const DESKTOP_MIDDLEWARE_PROJECT: &str = "apps/omnux-middleware/Omnux.Middleware.csproj";
 const MIDDLEWARE_BOOTSTRAP_EVENT: &str = "omnux://middleware-bootstrap";
 
@@ -67,6 +98,7 @@ impl MiddlewareBootstrapState {
     }
 }
 
+#[cfg(debug_assertions)]
 fn desktop_repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
@@ -186,17 +218,17 @@ fn bootstrap_desktop_middleware(app: AppHandle) {
 
 #[cfg(debug_assertions)]
 async fn run_dev_middleware_bootstrap(app: AppHandle) -> Result<(), String> {
-    // dev: 기존(묵은) 미들웨어를 재사용하면 소스 변경이 반영되지 않아 stale 코드에 붙는다
-    // ("unsupported message type" 의 원인). 포트를 점유한 이전 인스턴스를 정리하고 항상 새로 띄운다.
-    #[cfg(unix)]
-    {
-        let _ = std::process::Command::new("sh")
-            .arg("-c")
-            .arg(format!(
-                "lsof -ti tcp:{DESKTOP_MIDDLEWARE_PORT} -sTCP:LISTEN | xargs kill -9 2>/dev/null"
-            ))
-            .status();
-        std::thread::sleep(std::time::Duration::from_millis(400));
+    if existing_middleware_is_healthy() {
+        emit_middleware_bootstrap_event(
+            &app,
+            "started",
+            None,
+            format!("기존 .NET 미들웨어를 재사용한다 (ws={DESKTOP_MIDDLEWARE_PORT})"),
+        );
+        println!(
+            "[desktop-bootstrap] 기존 .NET 미들웨어를 재사용한다 (ws={DESKTOP_MIDDLEWARE_PORT})"
+        );
+        return Ok(());
     }
 
     let repo_root = desktop_repo_root();
@@ -219,7 +251,6 @@ async fn run_dev_middleware_bootstrap(app: AppHandle) -> Result<(), String> {
         ])
         .current_dir(repo_root)
         .env("OMNUX_WS_PORT", DESKTOP_MIDDLEWARE_PORT)
-        .env("OMNUX_TELEGRAM_POLLING_DISABLED", "1")
         .spawn()
     {
         Ok(result) => result,
@@ -313,7 +344,6 @@ async fn run_sidecar_middleware_bootstrap(app: AppHandle) -> Result<(), String> 
         .sidecar(DESKTOP_MIDDLEWARE_SIDECAR)
         .map_err(|error| format!("sidecar command 생성 실패: {error}"))?
         .env("OMNUX_WS_PORT", DESKTOP_MIDDLEWARE_PORT)
-        .env("OMNUX_TELEGRAM_POLLING_DISABLED", "1")
         .spawn()
     {
         Ok(result) => result,
@@ -387,6 +417,9 @@ async fn watch_middleware_bootstrap(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "macos")]
+    prewarm_writing_tools_ui();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_autostart::init(

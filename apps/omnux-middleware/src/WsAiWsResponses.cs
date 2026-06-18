@@ -38,7 +38,9 @@ internal record ChatResultWsResponse(
     int RetryAttempt,
     int RetryMaxAttempts,
     string RetryStopReason,
-    ChatLatencyMetrics? Latency
+    ChatLatencyMetrics? Latency,
+    IReadOnlyList<AskActionSuggestion>? ActionSuggestions,
+    AskNotebookAction? NotebookAction
 );
 
 internal record ChatStreamChunkWsResponse(

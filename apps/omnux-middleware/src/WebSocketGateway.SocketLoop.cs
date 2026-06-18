@@ -50,6 +50,10 @@ public sealed partial class WebSocketGateway
             {
                 await SendGroqModelsAsync(socket, sendLock, cancellationToken);
                 await SendCopilotModelsAsync(socket, sendLock, cancellationToken);
+                await SendCerebrasModelsAsync(socket, sendLock, cancellationToken);
+                await SendGeminiModelsAsync(socket, sendLock, cancellationToken);
+                await SendNvidiaModelsAsync(socket, sendLock, cancellationToken);
+                await SendCodexModelsAsync(socket, sendLock, cancellationToken);
                 await SendUsageStatsAsync(socket, sendLock, cancellationToken);
                 streamTask = StreamMetricsAsync(socket, sendLock, streamCts.Token);
             }
@@ -107,6 +111,34 @@ public sealed partial class WebSocketGateway
                         + "}",
                         cancellationToken
                     );
+                    if (!remoteDashboardClient
+                        && sessionId is { Length: > 0 } currentSessionId
+                        && !_sessionManager.IsAuthenticated(currentSessionId)
+                        && await _authSessionGateway.TryPromoteFromActiveTrustedAsync(
+                            currentSessionId,
+                            socket,
+                            sendLock,
+                            cancellationToken
+                        ))
+                    {
+                        await SendGroqModelsAsync(socket, sendLock, cancellationToken);
+                        await SendCopilotModelsAsync(socket, sendLock, cancellationToken);
+                        await SendCerebrasModelsAsync(socket, sendLock, cancellationToken);
+                        await SendGeminiModelsAsync(socket, sendLock, cancellationToken);
+                        await SendNvidiaModelsAsync(socket, sendLock, cancellationToken);
+                        await SendCodexModelsAsync(socket, sendLock, cancellationToken);
+                        await SendUsageStatsAsync(socket, sendLock, cancellationToken);
+                        if (streamTask == null)
+                        {
+                            streamTask = StreamMetricsAsync(socket, sendLock, streamCts.Token);
+                        }
+                    }
+                    continue;
+                }
+
+                if (remoteDashboardClient && !IsAllowedRemoteLimitedMessage(message.Type))
+                {
+                    await SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"forbidden_remote_limited_action\"}", cancellationToken);
                     continue;
                 }
 
@@ -127,6 +159,10 @@ public sealed partial class WebSocketGateway
                     {
                         await SendGroqModelsAsync(socket, sendLock, cancellationToken);
                         await SendCopilotModelsAsync(socket, sendLock, cancellationToken);
+                        await SendCerebrasModelsAsync(socket, sendLock, cancellationToken);
+                        await SendGeminiModelsAsync(socket, sendLock, cancellationToken);
+                        await SendNvidiaModelsAsync(socket, sendLock, cancellationToken);
+                        await SendCodexModelsAsync(socket, sendLock, cancellationToken);
                         await SendUsageStatsAsync(socket, sendLock, cancellationToken);
                         if (streamTask == null)
                         {
@@ -138,14 +174,9 @@ public sealed partial class WebSocketGateway
                 }
 
                 var authenticated = _sessionManager.IsAuthenticated(sessionId);
+
                 if (await _setupCommandDispatcher.TryHandleAsync(message, remoteDashboardClient, authenticated, socket, sendLock, cancellationToken))
                 {
-                    continue;
-                }
-
-                if (remoteDashboardClient && !IsAllowedRemoteLimitedMessage(message.Type))
-                {
-                    await SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"forbidden_remote_limited_action\"}", cancellationToken);
                     continue;
                 }
 

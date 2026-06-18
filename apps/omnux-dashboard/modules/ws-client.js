@@ -14,38 +14,17 @@ function resolveStorage(storage) {
 }
 
 export function getSavedAuthToken(storage) {
-  try {
-    const target = resolveStorage(storage);
-    return target ? (target.getItem(AUTH_TOKEN_KEY) || "") : "";
-  } catch (_err) {
-    return "";
-  }
+  clearPersistedAuthSession(storage);
+  return "";
 }
 
 export function getSavedAuthExpiry(storage) {
-  try {
-    const target = resolveStorage(storage);
-    return target ? (target.getItem(AUTH_EXPIRES_KEY) || "") : "";
-  } catch (_err) {
-    return "";
-  }
+  clearPersistedAuthSession(storage);
+  return "";
 }
 
 export function persistAuthSession(token, expiresAtUtc, storage) {
-  try {
-    const target = resolveStorage(storage);
-    if (!target) {
-      return;
-    }
-
-    if (token) {
-      target.setItem(AUTH_TOKEN_KEY, token);
-    }
-    if (expiresAtUtc) {
-      target.setItem(AUTH_EXPIRES_KEY, expiresAtUtc);
-    }
-  } catch (_err) {
-  }
+  clearPersistedAuthSession(storage);
 }
 
 export function clearPersistedAuthSession(storage) {

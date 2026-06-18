@@ -64,7 +64,8 @@ public enum QueryAnswerType
 public enum SearchRetrieverPath
 {
     GeminiGrounding,
-    LocalCacheFallback
+    LocalCacheFallback,
+    GroqCompound
 }
 
 public enum SearchLoopTerminationReason

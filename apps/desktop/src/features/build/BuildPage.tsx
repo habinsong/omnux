@@ -30,13 +30,14 @@ import {
   Send,
   ShieldAlert,
   ShieldCheck,
-  Sparkles,
+  SlidersHorizontal,
   Tag,
   Terminal,
   Trash2,
   Type,
   Volume2,
   VolumeX,
+  Wrench,
   X
 } from "lucide-react";
 import { CardBoundary } from "../../CardBoundary";
@@ -483,7 +484,7 @@ function SkillSelectCompact({ canRequest }: { canRequest: boolean }) {
       value: `${skill.scope}:${skill.name}`,
       label: skill.name,
       description: `${skillScopeLabel(skill.scope)} · ${skill.description || "설명 없음"}`,
-      prefix: <Sparkles size={13} aria-hidden="true" />,
+      prefix: <Wrench size={13} aria-hidden="true" />,
       disabled: !canRequest
     }))
   ], [canRequest, skillStore.skills]);
@@ -514,9 +515,9 @@ function SkillSelectCompact({ canRequest }: { canRequest: boolean }) {
 function CodingModeSegmentedControl() {
   const store = useBuildStore();
   const modes: Array<{ value: CodingMode; label: string; title: string }> = [
-    { value: "single", label: "Single", title: "단일 코딩" },
-    { value: "orchestration", label: "Orch", title: "오케스트레이션 코딩" },
-    { value: "multi", label: "Multi", title: "다중 코딩" }
+    { value: "single", label: "단일", title: "단일 코딩" },
+    { value: "orchestration", label: "흐름", title: "오케스트레이션 코딩" },
+    { value: "multi", label: "비교", title: "다중 코딩" }
   ];
   return (
     <div className="flex shrink-0 rounded-md border border-border bg-card/60 p-0.5 shadow-sm" role="radiogroup" aria-label="코딩 모드">
@@ -547,12 +548,12 @@ function CodingModeHint({ mode }: { mode: CodingMode }) {
   if (mode === "single") return null;
   const config = mode === "orchestration"
     ? {
-        badge: "Orchestration",
+        badge: "흐름",
         title: "기획 · 구현 · 검증 · 수정 역할 분담",
         detail: "주 구현 모델과 워커 모델을 함께 사용합니다."
       }
     : {
-        badge: "Multi",
+        badge: "비교",
         title: "모델별 독립 구현 후 결과 비교",
         detail: "비교 요약 모델과 워커 모델을 분리해 선택합니다."
       };
@@ -572,7 +573,7 @@ function WorkerModelStrip() {
   return (
     <div className="rounded-lg border border-border bg-muted/25 p-2">
       <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-        <Sparkles size={13} className="shrink-0" aria-hidden="true" />
+        <SlidersHorizontal size={13} className="shrink-0" aria-hidden="true" />
         <span className="truncate">워커/비교 모델</span>
       </div>
       <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
@@ -1117,7 +1118,7 @@ function ModelDock() {
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <Sparkles size={15} className="shrink-0 text-primary" aria-hidden="true" />
+          <SlidersHorizontal size={15} className="shrink-0 text-primary" aria-hidden="true" />
           <span className="truncate text-sm font-semibold">모델 선택</span>
         </div>
         <div className="flex shrink-0 gap-1">
@@ -1131,7 +1132,7 @@ function ModelDock() {
       </div>
       <div>
         <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-          <Sparkles size={13} aria-hidden="true" /> 응답 모델
+          <SlidersHorizontal size={13} aria-hidden="true" /> 응답 모델
         </div>
         <div className="grid gap-2 md:grid-cols-2">
           {providers.map((provider) => (
@@ -1169,7 +1170,7 @@ function SkillDock({ canRequest }: { canRequest: boolean }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
-          <Sparkles size={15} className="shrink-0 text-primary" aria-hidden="true" />
+          <Wrench size={15} className="shrink-0 text-primary" aria-hidden="true" />
           <span className="truncate text-sm font-semibold">스킬 선택</span>
           <Badge tone="outline">{skillStore.skills.length}</Badge>
         </div>
@@ -1224,7 +1225,7 @@ function SkillDock({ canRequest }: { canRequest: boolean }) {
               onClick={() => store.selectSkill({ name: skill.name, scope: skill.scope, description: skill.description })}
             >
               <span className={cn("mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border", active ? "border-primary/40 bg-primary text-primary-foreground" : "border-border bg-muted text-muted-foreground")}>
-                {active ? <Check size={13} aria-hidden="true" /> : <Sparkles size={12} aria-hidden="true" />}
+                {active ? <Check size={13} aria-hidden="true" /> : <Wrench size={12} aria-hidden="true" />}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 items-center gap-1.5">
@@ -1238,7 +1239,7 @@ function SkillDock({ canRequest }: { canRequest: boolean }) {
         })}
         {filteredSkills.length === 0 ? (
           <EmptyState
-            icon={Sparkles}
+            icon={Wrench}
             title={skillStore.loading ? "스킬 조회 중" : "스킬 없음"}
             description={query ? "다른 검색어로 다시 찾아보세요." : "스킬 탭에서 등록된 항목이 여기에 표시됩니다."}
             className="py-8"
@@ -1794,7 +1795,7 @@ function WorkerComparisonPanel({ result }: { result: CodingResult }) {
     <div className="rounded-lg border border-border bg-muted/25 p-3">
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 text-xs font-semibold text-muted-foreground">
-          <Sparkles size={13} aria-hidden="true" /> <span className="truncate">워커 결과</span>
+          <SlidersHorizontal size={13} aria-hidden="true" /> <span className="truncate">워커 결과</span>
         </div>
         <Badge tone="outline">{result.workers.length}</Badge>
       </div>
@@ -2172,7 +2173,7 @@ function SelectedSkillStrip() {
   return (
     <div className="mb-2 flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/25 bg-primary/10 px-2.5 py-2">
       <div className="flex min-w-0 items-center gap-2">
-        <Sparkles size={14} className="shrink-0 text-primary" aria-hidden="true" />
+        <Wrench size={14} className="shrink-0 text-primary" aria-hidden="true" />
         <Badge tone="primary" className="shrink-0">{skillScopeLabel(selectedSkill.scope)}</Badge>
         <span className="min-w-0 truncate text-xs font-semibold text-primary">{selectedSkill.name}</span>
         {selectedSkill.description ? <span className="hidden min-w-0 truncate text-[11px] text-muted-foreground md:inline">{selectedSkill.description}</span> : null}
@@ -2341,8 +2342,8 @@ function BuildComposer({ canRequest }: { canRequest: boolean }) {
         >
           <Paperclip size={14} aria-hidden="true" />
         </Button>
-        <Button variant={store.thinkPlus ? "primary" : "outline"} size="icon" className="h-8 w-8" aria-label="Think+" title="Think+" onClick={() => store.setThinkPlus(!store.thinkPlus)} aria-pressed={store.thinkPlus}>
-          <Sparkles size={14} aria-hidden="true" />
+        <Button variant={store.thinkPlus ? "primary" : "outline"} size="icon" className="h-8 w-8" aria-label="확장 추론" title="확장 추론" onClick={() => store.setThinkPlus(!store.thinkPlus)} aria-pressed={store.thinkPlus}>
+          <SlidersHorizontal size={14} aria-hidden="true" />
         </Button>
         <Button variant="outline" size="icon" className="h-8 w-8" aria-label="입력을 루틴으로 저장" title="입력을 루틴으로 저장" onClick={store.saveInputAsRoutine} disabled={!canRequest || currentInput.trim().length < 5}>
           <CalendarPlus size={14} aria-hidden="true" />
@@ -2355,7 +2356,7 @@ function BuildComposer({ canRequest }: { canRequest: boolean }) {
         </Button>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Badge tone="outline" className="max-w-[180px] truncate">{store.attachments.length > 0 ? `첨부 ${store.attachments.length}` : store.thinkPlus ? "Think+ 켜짐" : "대기"}</Badge>
+          <Badge tone="outline" className="max-w-[180px] truncate">{store.attachments.length > 0 ? `첨부 ${store.attachments.length}` : store.thinkPlus ? "확장 켜짐" : "대기"}</Badge>
           <Button variant="primary" size="icon" className="h-8 w-8" aria-label="전송" title="전송" onClick={store.runCoding} disabled={!canSend}>
             {store.pending ? <Spinner size={14} /> : <Send size={16} aria-hidden="true" />}
           </Button>
@@ -2480,13 +2481,15 @@ export function BuildPage() {
   }, [autoSpeak, store.autoSpeakCandidate]);
 
   return (
-    <div className="flex h-[calc(100vh-8.5rem)] min-h-[620px] flex-col gap-4">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">빌드</h1>
-        <p className="text-sm text-muted-foreground">코딩 작업, 모델 라우팅, 변경 파일과 실행 결과를 한 화면에서 제어합니다.</p>
+    <div className="dashboard-tab worktab-root flex flex-col gap-4">
+      <div className="worktab-header">
+        <div className="min-w-0">
+          <h1 className="worktab-title">빌드</h1>
+          <p className="worktab-subtitle">요청하고, 실행하고, 검증을 확인합니다.</p>
+        </div>
       </div>
 
-      <section className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)_380px]">
+      <section className="grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-[280px_minmax(0,1fr)_300px] 2xl:grid-cols-[300px_minmax(0,1fr)_340px]">
         <CardBoundary title="코딩 작업함" card="navigation" onError={recordCardError}>
           <ConversationList canRequest={canRequest} />
         </CardBoundary>
@@ -2495,13 +2498,13 @@ export function BuildPage() {
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="outline" className="max-w-[220px] truncate">세션 {store.activeConversationId || "-"}</Badge>
             {context.tokenUsageTotal ? (
-              <Badge tone="primary" title={`${context.tokenUsageTotal.totalTokens.toLocaleString("ko-KR")} tokens`}>
-                {formatTokenShort(context.tokenUsageTotal.totalTokens)} tokens
+              <Badge tone="outline" title={`${context.tokenUsageTotal.totalTokens.toLocaleString("ko-KR")} tokens`}>
+                문맥 {formatTokenShort(context.tokenUsageTotal.totalTokens)}
               </Badge>
             ) : null}
             {context.linkedMemoryNotes.length > 0 ? <Badge tone="outline">memory {context.linkedMemoryNotes.length}</Badge> : null}
-            {store.thinkPlus ? <Badge tone="primary"><Sparkles size={11} aria-hidden="true" /> Think+</Badge> : null}
-            {store.selectedSkill ? <Badge tone="primary" className="max-w-[180px] truncate"><Sparkles size={11} aria-hidden="true" /> {store.selectedSkill.name}</Badge> : null}
+            {store.thinkPlus ? <Badge tone="primary"><SlidersHorizontal size={11} aria-hidden="true" /> 확장</Badge> : null}
+            {store.selectedSkill ? <Badge tone="primary" className="max-w-[180px] truncate"><Wrench size={11} aria-hidden="true" /> {store.selectedSkill.name}</Badge> : null}
             <CodingModeSegmentedControl />
             <ProviderSelect
               label={store.codingMode === "orchestration" ? "주 구현" : store.codingMode === "multi" ? "비교 요약" : "모델"}
@@ -2537,10 +2540,10 @@ export function BuildPage() {
               <Database size={14} aria-hidden="true" /> 메모리
             </Button>
             <Button variant={store.sidePanel === "models" ? "primary" : "outline"} size="sm" onClick={() => store.setSidePanel(store.sidePanel === "models" ? null : "models")}>
-              <Sparkles size={14} aria-hidden="true" /> 모델
+              <SlidersHorizontal size={14} aria-hidden="true" /> 모델
             </Button>
             <Button variant={store.sidePanel === "skills" ? "primary" : "outline"} size="sm" onClick={() => store.setSidePanel(store.sidePanel === "skills" ? null : "skills")}>
-              <Sparkles size={14} aria-hidden="true" /> 스킬
+              <Wrench size={14} aria-hidden="true" /> 스킬
             </Button>
             <Button variant={store.sidePanel === "context" ? "primary" : "outline"} size="sm" onClick={() => store.setSidePanel(store.sidePanel === "context" ? null : "context")}>
               <ClipboardList size={14} aria-hidden="true" /> 문맥
@@ -2583,11 +2586,11 @@ export function BuildPage() {
             {store.messages.length === 0 && !store.pending ? (
               <EmptyState
                 icon={Code2}
-                title="코딩 요청 대기"
-                description={canRequest ? "변경 요청을 입력하면 코딩 실행 결과가 연결됩니다." : "미들웨어 인증 후 사용할 수 있습니다."}
+                title="변경 요청"
+                description={canRequest ? "작업 내용을 남기면 결과와 검증을 한곳에서 봅니다." : "미들웨어 인증 후 사용할 수 있습니다."}
                 action={canRequest ? (
                   <Button variant="outline" size="sm" onClick={() => useBuildStore.getState().setCodingInput("현재 프로젝트의 빌드 오류를 찾아 수정해줘")}>
-                    <Sparkles size={14} aria-hidden="true" /> 예시 입력
+                    <Code2 size={14} aria-hidden="true" /> 예시 입력
                   </Button>
                 ) : null}
               />

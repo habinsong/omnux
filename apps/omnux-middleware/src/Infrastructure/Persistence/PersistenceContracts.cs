@@ -81,7 +81,13 @@ public interface IAuthSessionStore
         TimeSpan trustedTtl,
         out TrustedAuthTicket ticket
     );
+    bool AuthenticateTrusted(
+        string sessionId,
+        TimeSpan trustedTtl,
+        out TrustedAuthTicket ticket
+    );
     bool TryResumeTrusted(string authToken, out DateTimeOffset expiresAtUtc);
+    bool TryGetActiveTrusted(out DateTimeOffset expiresAtUtc);
     bool MarkAuthenticatedFromTrusted(string sessionId, DateTimeOffset expiresAtUtc);
     bool TryGetOtp(string sessionId, out string otp);
     string RefreshPendingOtp(string sessionId, TimeSpan ttl);

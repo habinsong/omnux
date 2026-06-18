@@ -87,23 +87,63 @@ internal static class SecretLoader
     }
 
     public static bool TryWritePlatformSecret(string service, string account, string secret)
+        => TryWritePlatformSecretCore(
+            OperatingSystem.IsMacOS(),
+            () => TryWriteMacOsKeychainSecret(service, account, secret),
+            () => TryWriteLocalSecureStore(service, account, secret)
+        );
+
+    internal static bool TryWritePlatformSecretCore(
+        bool useMacOsKeychain,
+        Func<bool> writeMacOsKeychain,
+        Func<bool> writeLocalSecureStore
+    )
     {
-        if (OperatingSystem.IsMacOS())
+        if (useMacOsKeychain)
         {
-            return TryWriteMacOsKeychainSecret(service, account, secret);
+            if (writeMacOsKeychain())
+            {
+                return true;
+            }
         }
 
-        return TryWriteLocalSecureStore(service, account, secret);
+        return writeLocalSecureStore();
     }
 
     public static bool TryDeletePlatformSecret(string service, string account)
+        => TryDeletePlatformSecretCore(
+            OperatingSystem.IsMacOS(),
+            () => TryDeleteMacOsKeychainSecret(service, account),
+            () => TryDeleteLocalSecureStore(service, account)
+        );
+
+    internal static bool TryDeletePlatformSecretCore(
+        bool useMacOsKeychain,
+        Func<bool> deleteMacOsKeychain,
+        Func<bool> deleteLocalSecureStore
+    )
+    {
+        var localDeleted = deleteLocalSecureStore();
+        if (useMacOsKeychain)
+        {
+            return deleteMacOsKeychain() || localDeleted;
+        }
+
+        return localDeleted;
+    }
+
+    public static string? TryReadPlatformSecret(string service, string account)
     {
         if (OperatingSystem.IsMacOS())
         {
-            return TryDeleteMacOsKeychainSecret(service, account);
+            var keychainValue = ReadFromMacOsKeychain(service, account);
+            if (!string.IsNullOrWhiteSpace(keychainValue))
+            {
+                return keychainValue;
+            }
         }
 
-        return TryDeleteLocalSecureStore(service, account);
+        return ReadFromLocalSecureStore(service, account);
     }
 
     private static string? ReadFromMacOsKeychain(string service, string account)

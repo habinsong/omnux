@@ -3,6 +3,9 @@ import { Music, Play, Pause, SkipBack, SkipForward, ChevronRight, ChevronLeft } 
 import { Card, IconButton, cn } from "../../components/ui/primitives";
 import { useDraggableWidget } from "./useDraggableWidget";
 import {
+  MEDIA_REFRESH_RECHECK_DELAY_MS,
+  MEDIA_REFRESH_RECHECK_EVENT,
+  consumeMediaRefreshRecheck,
   controlMedia,
   getMediaInfo,
   seekMedia,
@@ -47,6 +50,17 @@ function formatTime(seconds: number) {
 
 /** long press 감지를 위한 상수 */
 const LONG_PRESS_THRESHOLD_MS = 500;
+const MEDIA_STARTUP_DELAY_MS = 32;
+const MEDIA_POLL_INTERVAL_MS = 2000;
+// 1000ms 틱은 표시값이 최대 1초까지 뒤처져 보인다(초 단위 floor 와 결합 시 체감 1초 지연).
+// 250ms 면 초 경계 직후 ~250ms 안에 갱신되어 실제 재생 시간과 맞아 보인다.
+const MEDIA_POSITION_TICK_MS = 250;
+
+function clampMediaPosition(position: number, duration: number) {
+  if (!Number.isFinite(position)) return 0;
+  const lowerBound = Math.max(0, position);
+  return Number.isFinite(duration) && duration > 0 ? Math.min(duration, lowerBound) : lowerBound;
+}
 
 export function MediaWidget() {
   const [open, setOpen] = useState(false);
@@ -64,6 +78,7 @@ export function MediaWidget() {
 
   const mediaRequestIdRef = useRef(0);
   const mediaOperationRef = useRef(false);
+  const refreshRecheckOnMountRef = useRef(consumeMediaRefreshRecheck());
 
   // 보간용 refs: 마지막으로 확인된 position + 시각
   const pollAnchorRef = useRef({ position: 0, time: 0, playing: false, duration: 0 });
@@ -71,45 +86,47 @@ export function MediaWidget() {
   const lastSeekRef = useRef({ time: 0, target: -1 });
   const [localElapsed, setLocalElapsed] = useState(0);
 
-  // rAF로 로컬 초 증가 — 폴링 응답 사이 빈틈 메움
   useEffect(() => {
-    let raf = 0;
     const tick = () => {
       const anchor = pollAnchorRef.current;
       if (anchor.playing && anchor.time > 0) {
         const dt = (performance.now() - anchor.time) / 1000;
-        setLocalElapsed(Math.min(anchor.duration, anchor.position + dt));
+        setLocalElapsed(clampMediaPosition(anchor.position + dt, anchor.duration));
       }
-      raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    const timer = window.setInterval(tick, MEDIA_POSITION_TICK_MS);
+    return () => window.clearInterval(timer);
   }, []);
 
   const applyMediaData = useCallback((data: MediaData | null) => {
     if (!data) {
       setMediaData(null);
+      setLocalElapsed(0);
       lastOsPositionRef.current = -1;
+      pollAnchorRef.current = { position: 0, time: 0, playing: false, duration: 0 };
       return;
     }
 
     const now = performance.now();
+    const nextDuration = Number.isFinite(data.duration) && data.duration > 0 ? data.duration : 0;
+    const nextPosition = clampMediaPosition(data.position, nextDuration);
     let isStaleSeek = false;
     if (now - lastSeekRef.current.time < 2000) {
-      if (Math.abs(data.position - lastSeekRef.current.target) > 2.0) {
+      if (Math.abs(nextPosition - lastSeekRef.current.target) > 2.0) {
         isStaleSeek = true;
       } else {
         lastSeekRef.current.time = 0;
       }
     }
 
-    const effectiveData = isStaleSeek ? { ...data, position: lastSeekRef.current.target } : data;
+    const effectivePosition = isStaleSeek ? clampMediaPosition(lastSeekRef.current.target, nextDuration) : nextPosition;
+    const effectiveData = { ...data, position: effectivePosition, duration: nextDuration };
     setMediaData(effectiveData);
 
     const prev = pollAnchorRef.current;
     const osPositionChanged = !isStaleSeek && (lastOsPositionRef.current < 0 || Math.abs(effectiveData.position - lastOsPositionRef.current) > 0.1);
     const resumedPlaying = effectiveData.playing && !prev.playing;
-    
+
     if (!isStaleSeek) {
       lastOsPositionRef.current = effectiveData.position;
     }
@@ -142,30 +159,46 @@ export function MediaWidget() {
 
   useEffect(() => {
     let disposed = false;
-    let timer: number | null = null;
+    let pollTimer: number | null = null;
+    let recheckTimer: number | null = null;
     const poll = async () => {
       await fetchMedia();
-      if (!disposed) timer = window.setTimeout(poll, 250);
+      if (!disposed) pollTimer = window.setTimeout(poll, MEDIA_POLL_INTERVAL_MS);
     };
-    void poll();
+    pollTimer = window.setTimeout(() => void poll(), MEDIA_STARTUP_DELAY_MS);
+    if (refreshRecheckOnMountRef.current) {
+      recheckTimer = window.setTimeout(() => {
+        if (!disposed) void fetchMedia();
+      }, MEDIA_REFRESH_RECHECK_DELAY_MS);
+    }
     return () => {
       disposed = true;
-      if (timer !== null) window.clearTimeout(timer);
+      if (pollTimer !== null) window.clearTimeout(pollTimer);
+      if (recheckTimer !== null) window.clearTimeout(recheckTimer);
     };
+  }, [fetchMedia]);
+
+  useEffect(() => {
+    const handleRefreshRecheck = () => {
+      consumeMediaRefreshRecheck();
+      void fetchMedia();
+    };
+    window.addEventListener(MEDIA_REFRESH_RECHECK_EVENT, handleRefreshRecheck);
+    return () => window.removeEventListener(MEDIA_REFRESH_RECHECK_EVENT, handleRefreshRecheck);
   }, [fetchMedia]);
 
   const playing = mediaData?.playing ?? false;
   const duration = mediaData?.duration ?? 0;
-  const rawPosition = mediaData?.position ?? 0;
+  const rawPosition = clampMediaPosition(mediaData?.position ?? 0, duration);
   const livePosition = playing && !seeking && !controlPending ? localElapsed : rawPosition;
-  const displayedProgress = scrubPosition ?? livePosition;
+  const displayedProgress = clampMediaPosition(scrubPosition ?? livePosition, duration);
   const progressPercent = duration > 0 ? Math.min(100, Math.max(0, (displayedProgress / duration) * 100)) : 0;
   const canSeek = Boolean(mediaData && duration > 0 && !controlPending);
   const title = mediaData?.title || "미디어 없음";
   const detailText = mediaData
     ? [mediaData.artist, mediaData.album]
-        .filter((value) => value.trim().length > 0)
-        .join(" · ") || mediaData.source || "재생 중"
+      .filter((value) => value.trim().length > 0)
+      .join(" · ") || mediaData.source || "재생 중"
     : "시스템 미디어 세션 없음";
   const artUrl = mediaData?.art_url;
 
@@ -338,7 +371,7 @@ export function MediaWidget() {
         </span>
         {open ? <ChevronRight size={14} className="text-muted-foreground mt-1" aria-hidden="true" /> : <ChevronLeft size={14} className="text-muted-foreground mt-1" aria-hidden="true" />}
       </button>
-      
+
       <Card className={cn(
         "flex w-[17rem] flex-col overflow-hidden p-0 rounded-tl-none border-l-0 transition-[height] duration-300 ease-out",
         open ? "h-[218px]" : "h-[96px]"
@@ -405,8 +438,8 @@ export function MediaWidget() {
 
           {/* 컨트롤 바 — long press로 이전/다음 트랙 */}
           <div className="flex items-center justify-center gap-4">
-            <IconButton 
-              icon={SkipBack} 
+            <IconButton
+              icon={SkipBack}
               label="15초 뒤로 (꾹: 이전 트랙)"
               disabled={!mediaData || controlPending}
               onPointerDown={() => handleSkipPointerDown("backward")}
@@ -423,8 +456,8 @@ export function MediaWidget() {
             >
               {playing ? <Pause size={18} className="fill-current" /> : <Play size={18} className="fill-current ml-0.5" />}
             </button>
-            <IconButton 
-              icon={SkipForward} 
+            <IconButton
+              icon={SkipForward}
               label="15초 앞으로 (꾹: 다음 트랙)"
               disabled={!mediaData || controlPending}
               onPointerDown={() => handleSkipPointerDown("forward")}

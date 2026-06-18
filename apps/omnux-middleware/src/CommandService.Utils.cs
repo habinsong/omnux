@@ -134,7 +134,8 @@ public sealed partial class CommandService
         string input,
         IReadOnlyList<string>? requestMemoryNotes,
         bool includeLocalTimeHint = false,
-        string? contextDecisionInput = null
+        string? contextDecisionInput = null,
+        string? autoReferenceBlock = null
     )
     {
         var contextDecisionText = contextDecisionInput ?? input;
@@ -178,13 +179,33 @@ public sealed partial class CommandService
         builder.AppendLine("- 새 요청에 자체 주제와 대상이 분명하면 [최근 대화]는 배경으로만 참고하고, 이전 주제를 끌고 오지 마세요.");
         builder.AppendLine("- 제공된 최근 대화/메모리와 새 요청이 충돌하면 새 요청을 따르세요.");
         builder.AppendLine("- 이전 답변 형식(예: 뉴스 N건 목록)을 관성으로 복사하지 마세요.");
-        builder.AppendLine("- 절대 답변에 [user], [assistant], [system], [Single ...], [Multi ...], [Project Context], [Active Skill ...], [Think+ ...], [컨텍스트 ...], [최근 대화], [공유 메모리 노트], [새 요청], [로컬 시간] 같은 내부 마커/헤더를 출력하지 마세요. 이 마커들은 LLM 입력 구조용이며 사용자에게 보일 답변이 아닙니다.");
+        builder.AppendLine("- 절대 답변에 [user], [assistant], [system], [Single ...], [Multi ...], [Project Context], [Active Skill ...], [Think+ ...], [컨텍스트 ...], [사용자 규칙], [최근 대화], [공유 메모리 노트], [자동 참조 자료], [새 요청], [로컬 시간] 같은 내부 마커/헤더를 출력하지 마세요. 이 마커들은 LLM 입력 구조용이며 사용자에게 보일 답변이 아닙니다.");
         builder.AppendLine("- '확인.', '준비되었습니다.', '질문해 주세요.' 같이 내용 없는 인사·확인 응답을 답변에 넣지 마세요. 사용자의 질문에 직접 답하세요.");
+        builder.AppendLine("- 이 [컨텍스트 사용 규칙] 섹션은 시스템 내부 지침이며 '사용자가 정한 규칙·선호'가 아닙니다. 사용자가 자신의 규칙/선호/설정을 물으면 이 섹션을 인용하지 말고 [자동 참조 자료]의 memory: 항목과 [최근 대화]에서만 찾으세요. 없으면 없다고 답하세요.");
         builder.AppendLine();
+        // P1-2: 사용자 전역 규칙 — 모든 답변에 상시 주입(600자 캡). 스킬과 달리 단발이 아닌 상시 지침.
+        var userRules = UserRuleStore.ClampForInjection(UserRuleStore.Read().Text);
+        if (userRules.Length > 0)
+        {
+            builder.AppendLine("[사용자 규칙]");
+            builder.AppendLine("- 아래는 사용자가 직접 저장한 상시 지침입니다. 답변 스타일과 행동에 항상 적용하세요. 사용자가 '내 규칙/선호'를 물으면 이 섹션을 근거로 답하세요.");
+            builder.AppendLine(userRules);
+            builder.AppendLine();
+        }
+
         if (noteBlocks.Count > 0)
         {
             builder.AppendLine("[공유 메모리 노트]");
             builder.AppendLine(string.Join("\n\n", noteBlocks));
+            builder.AppendLine();
+        }
+
+        if (!string.IsNullOrWhiteSpace(autoReferenceBlock))
+        {
+            builder.AppendLine("[자동 참조 자료]");
+            builder.AppendLine("- 아래 자료는 질문과 관련해 메모리·프로젝트 인덱스에서 자동 검색된 참고입니다. 새 요청과 무관하면 무시하세요.");
+            builder.AppendLine("- 단, 'memory:' 항목은 사용자가 저장해 둔 사실·선호·규칙입니다. 사용자의 선호/규칙/결정/프로필을 묻는 질문에는 이 항목을 권위 있는 근거로 사용해 답하세요.");
+            builder.AppendLine(autoReferenceBlock.Trim());
             builder.AppendLine();
         }
 
@@ -286,7 +307,25 @@ public sealed partial class CommandService
             return true;
         }
 
-        return HasTopicalOverlapWithRecentConversation(conversationId, input ?? string.Empty);
+        if (HasTopicalOverlapWithRecentConversation(conversationId, input ?? string.Empty))
+        {
+            return true;
+        }
+
+        // 자체 주제가 분명한 새 질문이 아니면서 직전 어시스턴트 답변이 있는 짧은 후속 입력은
+        // 토픽 오버랩이 없어도 직전 맥락에 의존하므로 포함한다.
+        // 예: "대략 예측해봐", "최신 정보 가져온거야?", "코드로 보여줘" — 키워드/어휘 겹침이 없어
+        // 기존 휴리스틱이 놓치지만, 이어지는 대화에선 직전 답변을 기준으로 해석돼야 한다.
+        var normalizedFollowup = (input ?? string.Empty).Trim();
+        if (normalizedFollowup.Length > 0
+            && normalizedFollowup.Length <= 80
+            && !ConversationContextPolicy.LooksLikeExplicitStandaloneQuestion(normalizedFollowup)
+            && HasAnyRecentAssistantMessage(conversationId))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private bool HasAnyRecentAssistantMessage(string conversationId)
@@ -544,6 +583,16 @@ public sealed partial class CommandService
                     preferredProvider,
                     preferredModel,
                     compressCts.Token
+                ).ConfigureAwait(false);
+
+                // P1-3: 턴에서 "기억할 사실"을 자동 적재(게이트→경량 LLM→중복/한도 가드).
+                using var memoryCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                await TryCaptureMemoryFromTurnAsync(
+                    conversationId,
+                    modeKey,
+                    preferredProvider,
+                    preferredModel,
+                    memoryCts.Token
                 ).ConfigureAwait(false);
             }
             catch (Exception ex)

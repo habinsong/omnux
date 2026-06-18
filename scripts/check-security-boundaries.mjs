@@ -49,6 +49,9 @@ assertIncludes(authGateway, "if (remoteDashboardClient)", "remote dashboard limi
 assertIncludes(authGateway, "remoteLimited", "remote dashboard limited-mode marker");
 assertIncludes(authGateway, "MarkAuthenticatedFromTrusted(sessionId, expiresAtUtc)", "remote dashboard session is marked authenticated without OTP");
 assertIncludes(authGateway, "forbidden_remote_auth", "remote dashboard OTP request stays blocked with auth-specific message");
+assertIncludes(authGateway, "TryGetActiveTrusted", "local clients resume from server-side trusted auth state");
+assertIncludes(authGateway, "\\\"authToken\\\":\\\"\\\",", "auth gateway never serializes a bearer auth token to clients");
+assertNotIncludes(authGateway, "ticket.Token", "auth gateway must not return trusted token values to clients");
 
 const setupDispatcher = read("apps/omnux-middleware/src/WsSetupCommandDispatcher.cs");
 assertIncludes(setupDispatcher, "bool isAuthenticated", "setup dispatcher auth parameter");
@@ -99,10 +102,25 @@ assertIncludes(markdown, "html: false", "markdown raw html disabled");
 assertIncludes(markdown, "html = renderTableAwareFallbackHtml(text)", "markdown sanitizer fallback");
 
 const dashboardAdapter = read("apps/omnux-dashboard/runtime-adapter.js");
-assertIncludes(dashboardAdapter, "helpers.ws?.isRemoteDashboardHost", "runtime adapter detects remote dashboard hosts");
-assertIncludes(dashboardAdapter, "if (!remoteDashboardClient && token && state.sessionId)", "remote dashboard must not send resume_auth");
+assertNotIncludes(dashboardAdapter, "getSavedAuthToken", "runtime adapter must not read JS-persisted auth tokens");
+assertNotIncludes(dashboardAdapter, "resume_auth", "runtime adapter relies on server-side trusted auth resume");
+assertIncludes(dashboardAdapter, "AUTH_RECHECK_INTERVAL_MS", "runtime adapter polls server-side trusted auth while auth is required");
+assertIncludes(dashboardAdapter, "recheckServerTrustedAuth", "runtime adapter rechecks server-side trusted auth without tokens");
 assertIncludes(dashboardAdapter, "fetch('/healthz'", "runtime adapter probes health before WebSocket connection");
 assertIncludes(dashboardAdapter, "send({ type: 'ping' });", "runtime adapter opens with a safe unprotected ping");
+
+const dashboardWsClient = read("apps/omnux-dashboard/modules/ws-client.js");
+assertNotIncludes(dashboardWsClient, "getItem(AUTH_TOKEN_KEY", "dashboard must not read persisted auth tokens");
+assertNotIncludes(dashboardWsClient, "setItem(AUTH_TOKEN_KEY", "dashboard must not persist auth tokens");
+assertIncludes(dashboardWsClient, "removeItem(AUTH_TOKEN_KEY", "dashboard clears legacy auth token storage");
+
+const desktopAuthStore = read("apps/desktop/src/features/auth/auth-store.ts");
+assertNotIncludes(desktopAuthStore, "localStorage.getItem", "desktop auth store must not read persisted auth tokens");
+assertNotIncludes(desktopAuthStore, "localStorage.setItem", "desktop auth store must not persist auth tokens");
+assertIncludes(desktopAuthStore, "clearLegacyAuthSession()", "desktop auth store clears legacy auth token storage");
+
+const desktopMessageGateway = read("apps/desktop/src/features/middleware/desktop-message-gateway.ts");
+assertNotIncludes(desktopMessageGateway, "resume_auth", "desktop gateway must not expose token resume requests");
 
 const settingsRenderer = read("apps/omnux-dashboard/modules/dashboard-settings-renderers.js");
 assertIncludes(settingsRenderer, "basic-remote-limited", "remote dashboard settings use limited-mode panel");

@@ -215,7 +215,7 @@ public sealed partial class WebSocketGateway
         _auditLogger = auditLogger;
         _staticFileEndpoint = new HttpStaticFileEndpoint(paths.DashboardIndexPath);
         _apiEndpoint = new GatewayApiEndpoint(guardRetryTimelineStore, conversationService, paths);
-        _authSessionGateway = new AuthSessionGateway(sessionManager, telegramClient, securityOptions.EnableLocalOtpFallback);
+        _authSessionGateway = new AuthSessionGateway(sessionManager, telegramClient, settingsService.TotpAuthenticator, securityOptions.EnableLocalOtpFallback);
         _setupCommandDispatcher = new WsSetupCommandDispatcher(
             settingsService,
             groqModelCatalog,
@@ -446,6 +446,7 @@ public sealed partial class WebSocketGateway
             + "\"type\":\"settings_state\","
             + $"\"telegramBotTokenSet\":{(snapshot.TelegramBotTokenSet ? "true" : "false")},"
             + $"\"telegramChatIdSet\":{(snapshot.TelegramChatIdSet ? "true" : "false")},"
+            + $"\"totpEnrolled\":{(_settingsService.TotpAuthenticator.IsEnrolled ? "true" : "false")},"
             + $"\"groqApiKeySet\":{(snapshot.GroqApiKeySet ? "true" : "false")},"
             + $"\"geminiApiKeySet\":{(snapshot.GeminiApiKeySet ? "true" : "false")},"
             + $"\"cerebrasApiKeySet\":{(snapshot.CerebrasApiKeySet ? "true" : "false")},"
@@ -3082,6 +3083,7 @@ public sealed partial class WebSocketGateway
             string? timezoneId = null;
             string? telegramBotToken = null;
             string? telegramChatId = null;
+            string? totpCode = null;
             string? groqApiKey = null;
             string? geminiApiKey = null;
             string? cerebrasApiKey = null;
@@ -3131,6 +3133,11 @@ public sealed partial class WebSocketGateway
             if (doc.RootElement.TryGetProperty("otp", out var otpElement))
             {
                 otp = otpElement.GetString();
+            }
+
+            if (doc.RootElement.TryGetProperty("totpCode", out var totpCodeElement))
+            {
+                totpCode = totpCodeElement.GetString();
             }
 
             if (doc.RootElement.TryGetProperty("authToken", out var authTokenElement))
@@ -4195,6 +4202,7 @@ public sealed partial class WebSocketGateway
                 RawJson = json,
                 Type = type,
                 Otp = otp,
+                TotpCode = totpCode,
                 AuthToken = authToken,
                 Text = text,
                 Message = message,

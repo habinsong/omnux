@@ -32,13 +32,13 @@ function defaultSkillBody(name: string) {
     .split("-")
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ") || "New Skill";
+    .join(" ") || "New Tool";
 
   return [
     `# ${title}`,
     "",
     "## 목표",
-    "- 이 스킬이 해결할 일을 한두 문장으로 명확히 적는다.",
+    "- 이 도구가 해결할 일을 한두 문장으로 명확히 적는다.",
     "- 사용자가 반복해서 요청하는 방식이나 기준을 일관되게 적용한다.",
     "",
     "## 사용 흐름",
@@ -77,12 +77,12 @@ export const useSkillStore = create<SkillState>((set, get) => ({
   status: null,
   load: () => {
     set({ loading: true });
-    if (!requestDesktopSkill.list()) set({ loading: false, status: { kind: "error", message: "스킬 목록 요청을 전송하지 못했다." } });
+    if (!requestDesktopSkill.list()) set({ loading: false, status: { kind: "error", message: "도구 목록 요청을 전송하지 못했다." } });
   },
   newSkill: () => set({ editor: { name: "", scope: "project", description: "", body: "", isNew: true }, selectedKey: "", status: null }),
   openSkill: (item) => {
     set({ selectedKey: `${item.scope}:${item.name}` });
-    if (!requestDesktopSkill.get(item.name, item.scope)) set({ status: { kind: "error", message: "스킬 조회 요청을 전송하지 못했다." } });
+    if (!requestDesktopSkill.get(item.name, item.scope)) set({ status: { kind: "error", message: "도구 조회 요청을 전송하지 못했다." } });
   },
   patchEditor: (patch) => set((state) => (state.editor ? { editor: { ...state.editor, ...patch } } : {})),
   setSearchQuery: (query) => set({ searchQuery: query }),
@@ -105,26 +105,26 @@ export const useSkillStore = create<SkillState>((set, get) => ({
     const editor = get().editor;
     const name = String(editor?.name || "").trim();
     if (!editor || !name) {
-      set({ status: { kind: "error", message: "스킬 이름을 입력하세요." } });
+      set({ status: { kind: "error", message: "도구 이름을 입력하세요." } });
       return;
     }
     if (editor.isNew && !SKILL_NAME_PATTERN.test(name)) {
-      set({ status: { kind: "error", message: "스킬 이름은 소문자, 숫자, 하이픈만 사용할 수 있습니다." } });
+      set({ status: { kind: "error", message: "도구 이름은 소문자, 숫자, 하이픈만 사용할 수 있습니다." } });
       return;
     }
     if (!requestDesktopSkill.save({ name, scope: editor.scope, description: editor.description, body: editor.body, allowOverwrite: !editor.isNew })) {
-      set({ status: { kind: "error", message: "스킬 저장 요청을 전송하지 못했다." } });
+      set({ status: { kind: "error", message: "도구 저장 요청을 전송하지 못했다." } });
     }
   },
   deleteSkill: async (item) => {
     const confirmed = await requestConfirmDialog({
-      title: "스킬 삭제",
-      message: `'${item.name}' (${item.scope}) 스킬을 삭제할까요?`,
+      title: "도구 삭제",
+      message: `'${item.name}' (${item.scope === "global" ? "전역" : "프로젝트"}) 도구를 삭제할까요?`,
       confirmLabel: "삭제",
       tone: "danger"
     });
     if (!confirmed) return;
-    if (!requestDesktopSkill.remove(item.name, item.scope)) set({ status: { kind: "error", message: "스킬 삭제 요청을 전송하지 못했다." } });
+    if (!requestDesktopSkill.remove(item.name, item.scope)) set({ status: { kind: "error", message: "도구 삭제 요청을 전송하지 못했다." } });
   }
 }));
 
@@ -153,10 +153,10 @@ export function useSkillPageBridge() {
         if (ok) {
           useSkillStore.setState({
             editor: { name: String(payload.Name || payload.name || ""), scope: (String(payload.Scope || payload.scope || "project") as SkillScope), description: String(payload.Description || payload.description || ""), body: String(payload.Body || payload.body || ""), isNew: false },
-            status: { kind: "ok", message: `'${String(payload.Name || payload.name)}' 스킬을 불러왔습니다.` }
+            status: { kind: "ok", message: `'${String(payload.Name || payload.name)}' 도구를 불러왔습니다.` }
           });
         } else {
-          useSkillStore.setState({ status: { kind: "error", message: String(payload.Error || payload.error || "스킬을 불러오지 못했습니다.") } });
+          useSkillStore.setState({ status: { kind: "error", message: String(payload.Error || payload.error || "도구를 불러오지 못했습니다.") } });
         }
         return;
       }
@@ -165,7 +165,7 @@ export function useSkillPageBridge() {
         const ok = bool(payload.Ok) && bool(payload.ok);
         const name = String(payload.Name || payload.name || "");
         const verb = message.type === "skill_save_result" ? "저장" : "삭제";
-        useSkillStore.setState({ status: { kind: ok ? "ok" : "error", message: ok ? `'${name}' 스킬을 ${verb}했습니다.` : String(payload.Error || payload.error || `${verb} 실패`) } });
+        useSkillStore.setState({ status: { kind: ok ? "ok" : "error", message: ok ? `'${name}' 도구를 ${verb}했습니다.` : String(payload.Error || payload.error || `${verb} 실패`) } });
         if (ok) {
           requestDesktopSkill.list();
           if (message.type === "skill_delete_result") useSkillStore.setState({ editor: null, selectedKey: "" });

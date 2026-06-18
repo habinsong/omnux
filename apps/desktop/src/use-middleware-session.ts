@@ -65,10 +65,6 @@ function handleAuthRequired(message: ServerMessage) {
     booleanValue(message.telegramConfigured),
     booleanValue(message.remoteDashboardClient)
   );
-  const token = useDesktopAuthStore.getState().auth.authToken;
-  if (token) {
-    requestDesktopAuth.resume(stringValue(message.sessionId), token);
-  }
 }
 
 function handleServerMessage(message: ServerMessage) {
@@ -87,7 +83,6 @@ function handleServerMessage(message: ServerMessage) {
     authStore.markAuthResult({
       ok: booleanValue(message.ok),
       resumed: booleanValue(message.resumed),
-      authToken: stringValue(message.authToken),
       expiresAtUtc: stringValue(message.expiresAtUtc),
       expiresAtLocal: stringValue(message.expiresAtLocal),
       ttlHours: numberValue(message.ttlHours),

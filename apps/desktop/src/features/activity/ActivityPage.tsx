@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Bot, ClipboardList, Code2, Download, Info, MessageSquare, Route, Scale, Shield, Trash2, Wrench, X } from "lucide-react";
+import { AlertTriangle, ClipboardList, Code2, Download, Info, MessageSquare, Route, Scale, Shield, Trash2, Workflow, Wrench, X } from "lucide-react";
 import { useDesktopAuthStore } from "../auth/auth-store";
 import { useDesktopShellStore } from "../../shell-store";
 import { serializeUiLogs, useUiLogStore, type ShellLogEntry, type ShellLogLevel } from "../ui-log/ui-log-store";
@@ -13,19 +13,19 @@ type ProductTypeFilter = "all" | "ask" | "build" | "automate" | "compare" | "pla
 
 const LEVEL_FILTERS: { id: LevelFilter; label: string }[] = [
   { id: "all", label: "전체" },
-  { id: "info", label: "info" },
-  { id: "warn", label: "warn" },
-  { id: "error", label: "error" }
+  { id: "info", label: "정보" },
+  { id: "warn", label: "주의" },
+  { id: "error", label: "오류" }
 ];
 
 const TYPE_FILTERS: { id: ProductTypeFilter; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "ask", label: "Ask" },
-  { id: "build", label: "Build" },
-  { id: "automate", label: "Automate" },
-  { id: "compare", label: "Compare" },
-  { id: "planning", label: "Planning" },
-  { id: "ops", label: "Ops" }
+  { id: "all", label: "전체" },
+  { id: "ask", label: "질문" },
+  { id: "build", label: "빌드" },
+  { id: "automate", label: "자동화" },
+  { id: "compare", label: "비교" },
+  { id: "planning", label: "작업" },
+  { id: "ops", label: "운영" }
 ];
 
 function formatLogTime(value: string) {
@@ -60,12 +60,53 @@ function inferActivityType(log: ShellLogEntry): Exclude<ProductTypeFilter, "all"
 }
 
 function productTypeLabel(type: Exclude<ProductTypeFilter, "all">) {
-  if (type === "ask") return "Ask";
-  if (type === "build") return "Build";
-  if (type === "automate") return "Automate";
-  if (type === "compare") return "Compare";
-  if (type === "planning") return "Planning";
-  return "Ops";
+  if (type === "ask") return "질문";
+  if (type === "build") return "빌드";
+  if (type === "automate") return "자동화";
+  if (type === "compare") return "비교";
+  if (type === "planning") return "작업";
+  return "운영";
+}
+
+function levelLabel(level: ShellLogLevel) {
+  if (level === "error") return "오류";
+  if (level === "warn") return "주의";
+  return "정보";
+}
+
+function sourceLabel(source: ShellLogEntry["source"]) {
+  if (source === "middleware") return "미들웨어";
+  if (source === "runtime") return "런타임";
+  if (source === "logs") return "로그";
+  if (source === "navigation") return "이동";
+  if (source === "operations") return "작업";
+  if (source === "auth") return "인증";
+  if (source === "doctor") return "진단";
+  if (source === "ops") return "운영";
+  return "셸";
+}
+
+function displayLogMessage(log: ShellLogEntry) {
+  const message = log.message || "";
+  const pathMatch = message.match(/^logic_path_list:\s*(\d+)건/);
+  if (pathMatch) return `경로 목록 ${pathMatch[1]}건`;
+  const taskGraphMatch = message.match(/^task_graph_list:\s*(\d+)건/);
+  if (taskGraphMatch) return `작업 그래프 ${taskGraphMatch[1]}건`;
+  const planMatch = message.match(/^plan_list:\s*(\d+)건/);
+  if (planMatch) return `계획 목록 ${planMatch[1]}건`;
+  if (message.startsWith("get_metrics:")) return "리소스 사용량 확인";
+  if (message.startsWith("get_setup_state:")) return "설정 상태 수신";
+  if (message.startsWith("readyz probe=ok")) return "준비 상태 확인 완료";
+  if (message.startsWith("readyz probe=error")) return "준비 상태 확인 실패";
+  if (message.startsWith("healthz probe=ok")) return "상태 확인 완료";
+  if (message.startsWith("healthz probe=error")) return "상태 확인 실패";
+  if (message.includes("runtime probe에 실패")) return "런타임 확인 실패";
+  if (message.includes("재연결 한도를 초과")) return "실시간 연결 재시도 한도 초과";
+  if (message.includes("아직 준비되지 않았다")) return "미들웨어 준비 대기";
+  if (message.includes("다음 재연결")) return "다음 재연결 예약";
+  if (message.includes("WebSocket ping/pong probe")) return "실시간 연결 확인 완료";
+  if (message.includes(".NET 미들웨어 연결 대기")) return "미들웨어 연결 대기";
+  return message || "활동 메시지 없음";
 }
 
 function productTypeTone(type: Exclude<ProductTypeFilter, "all">): "primary" | "success" | "warning" | "outline" {
@@ -78,7 +119,7 @@ function productTypeTone(type: Exclude<ProductTypeFilter, "all">): "primary" | "
 function ProductTypeIcon({ type }: { type: Exclude<ProductTypeFilter, "all"> }) {
   if (type === "ask") return <MessageSquare size={15} aria-hidden="true" />;
   if (type === "build") return <Code2 size={15} aria-hidden="true" />;
-  if (type === "automate") return <Bot size={15} aria-hidden="true" />;
+  if (type === "automate") return <Workflow size={15} aria-hidden="true" />;
   if (type === "compare") return <Scale size={15} aria-hidden="true" />;
   if (type === "planning") return <ClipboardList size={15} aria-hidden="true" />;
   return <Shield size={15} aria-hidden="true" />;
@@ -97,20 +138,21 @@ function ActivityIcon({ level }: { level: ShellLogLevel }) {
 }
 
 function buildActivityHandoff(log: ShellLogEntry) {
-  const stack = log.componentStack ? `\n\nComponent stack:\n${log.componentStack}` : "";
+  const stack = log.componentStack ? `\n\n컴포넌트 기록:\n${log.componentStack}` : "";
   return [
-    "OMNUX 데스크톱 앱 활동 로그를 기준으로 원인을 분석하고 필요한 프론트엔드 수정을 제안하거나 적용해줘.",
+    "OMNUX 데스크톱 활동 기록을 기준으로 원인을 분석하고 필요한 프론트엔드 수정을 제안하거나 적용해줘.",
     "",
     `레벨: ${log.level}`,
     `출처: ${log.source}`,
     `시간: ${formatLogTime(log.createdAt)}`,
-    `메시지: ${log.message || "(메시지 없음)"}`,
+    `메시지: ${displayLogMessage(log)}`,
     stack
   ].join("\n");
 }
 
 function ActivityRow({ log, detailed, onSelect }: { log: ShellLogEntry; detailed?: boolean; onSelect: (log: ShellLogEntry) => void }) {
   const activityType = inferActivityType(log);
+  const message = displayLogMessage(log);
   return (
     <button
       type="button"
@@ -122,11 +164,11 @@ function ActivityRow({ log, detailed, onSelect }: { log: ShellLogEntry; detailed
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
-          <span className="truncate text-sm font-medium">{log.message || log.source}</span>
+          <span className="truncate text-sm font-medium">{message}</span>
           <Badge tone={productTypeTone(activityType)} className="shrink-0">{productTypeLabel(activityType)}</Badge>
-          <Badge tone={levelTone(log.level)} className="shrink-0">{log.level}</Badge>
+          <Badge tone={levelTone(log.level)} className="shrink-0">{levelLabel(log.level)}</Badge>
         </span>
-        <span className="block truncate text-[11px] text-muted-foreground">{log.source}</span>
+        <span className="block truncate text-[11px] text-muted-foreground">{sourceLabel(log.source)}</span>
         {detailed && log.componentStack ? (
           <span className="mt-1.5 block max-h-16 overflow-hidden whitespace-pre-wrap rounded-md border border-border bg-muted/40 p-2 font-mono text-[10px] text-muted-foreground">{log.componentStack}</span>
         ) : null}
@@ -138,6 +180,7 @@ function ActivityRow({ log, detailed, onSelect }: { log: ShellLogEntry; detailed
 
 function ProductHistoryRow({ log, onSelect }: { log: ShellLogEntry; onSelect: (log: ShellLogEntry) => void }) {
   const activityType = inferActivityType(log);
+  const message = displayLogMessage(log);
   return (
     <button
       type="button"
@@ -150,15 +193,15 @@ function ProductHistoryRow({ log, onSelect }: { log: ShellLogEntry; onSelect: (l
         </span>
         <span className="min-w-0">
           <span className="block truncate text-xs font-semibold">{productTypeLabel(activityType)}</span>
-          <span className="block truncate text-[11px] text-muted-foreground">{log.source}</span>
+          <span className="block truncate text-[11px] text-muted-foreground">{sourceLabel(log.source)}</span>
         </span>
       </span>
       <span className="min-w-0">
-        <span className="block truncate text-sm font-medium">{log.message || "활동 메시지 없음"}</span>
+        <span className="block truncate text-sm font-medium">{message}</span>
         <span className="block truncate text-[11px] text-muted-foreground">{formatLogTime(log.createdAt)}</span>
       </span>
       <span className="flex shrink-0 items-center gap-1">
-        <Badge tone={levelTone(log.level)}>{log.level}</Badge>
+        <Badge tone={levelTone(log.level)}>{levelLabel(log.level)}</Badge>
         <Badge tone={productTypeTone(activityType)}>{productTypeLabel(activityType)}</Badge>
       </span>
     </button>
@@ -187,9 +230,9 @@ function ActivityDetailDialog({ log, onClose, onOpenBuild }: { log: ShellLogEntr
                 <ActivityIcon level={log.level} />
               </span>
               <h2 id="activity-detail-title" className="truncate text-base font-semibold">활동 상세</h2>
-              <Badge tone={levelTone(log.level)} className="shrink-0">{log.level}</Badge>
+              <Badge tone={levelTone(log.level)} className="shrink-0">{levelLabel(log.level)}</Badge>
             </div>
-            <p className="mt-1 truncate text-xs text-muted-foreground">{log.source} · {formatLogTime(log.createdAt)}</p>
+            <p className="mt-1 truncate text-xs text-muted-foreground">{sourceLabel(log.source)} · {formatLogTime(log.createdAt)}</p>
           </div>
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label="닫기" title="닫기" onClick={onClose}>
             <X size={15} aria-hidden="true" />
@@ -199,17 +242,17 @@ function ActivityDetailDialog({ log, onClose, onOpenBuild }: { log: ShellLogEntr
         <div className="min-h-0 flex-1 space-y-3 overflow-auto p-4">
           <div className="space-y-1">
             <SectionLabel>메시지</SectionLabel>
-            <p className="rounded-md border border-border bg-muted/30 p-3 text-sm leading-6 text-foreground">{log.message || "메시지가 없습니다."}</p>
+            <p className="rounded-md border border-border bg-muted/30 p-3 text-sm leading-6 text-foreground">{displayLogMessage(log)}</p>
           </div>
 
           <dl className="grid gap-2 sm:grid-cols-3">
             <div className="rounded-md border border-border bg-muted/30 p-3">
               <dt className="text-[11px] font-medium text-muted-foreground">레벨</dt>
-              <dd className="mt-1 text-sm font-medium">{log.level}</dd>
+              <dd className="mt-1 text-sm font-medium">{levelLabel(log.level)}</dd>
             </div>
             <div className="rounded-md border border-border bg-muted/30 p-3">
               <dt className="text-[11px] font-medium text-muted-foreground">출처</dt>
-              <dd className="mt-1 truncate text-sm font-medium">{log.source}</dd>
+              <dd className="mt-1 truncate text-sm font-medium">{sourceLabel(log.source)}</dd>
             </div>
             <div className="rounded-md border border-border bg-muted/30 p-3">
               <dt className="text-[11px] font-medium text-muted-foreground">시간</dt>
@@ -219,18 +262,18 @@ function ActivityDetailDialog({ log, onClose, onOpenBuild }: { log: ShellLogEntr
 
           {log.componentStack ? (
             <div className="space-y-1">
-              <SectionLabel>Component stack</SectionLabel>
+              <SectionLabel>컴포넌트 기록</SectionLabel>
               <pre className="max-h-60 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/40 p-3 font-mono text-[11px] leading-5 text-muted-foreground">{log.componentStack}</pre>
             </div>
           ) : null}
         </div>
 
         <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
-          <p className="min-w-0 truncate text-xs text-muted-foreground">{canFix ? "Build로 넘기면 로그 맥락이 입력창에 들어갑니다." : "필요하면 Build에서 이 활동을 이어서 확인할 수 있습니다."}</p>
+          <p className="min-w-0 truncate text-xs text-muted-foreground">{canFix ? "빌드로 넘기면 기록 맥락이 입력창에 들어갑니다." : "필요하면 빌드에서 이 활동을 이어서 확인할 수 있습니다."}</p>
           <div className="flex shrink-0 items-center gap-2">
             <Button variant="outline" size="sm" onClick={onClose}>닫기</Button>
             <Button variant={canFix ? "primary" : "outline"} size="sm" onClick={() => onOpenBuild(log)}>
-              <Wrench size={14} aria-hidden="true" /> {canFix ? "Build에서 수정" : "Build로 열기"}
+              <Wrench size={14} aria-hidden="true" /> {canFix ? "빌드에서 수정" : "빌드로 열기"}
             </Button>
           </div>
         </footer>
@@ -298,13 +341,13 @@ export function ActivityPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="dashboard-tab space-y-4">
       <div className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight">활동</h1>
-          <p className="text-sm text-muted-foreground">현재 데스크톱 세션의 런타임, 인증, 오류 이벤트를 시간순으로 확인합니다.</p>
+          <p className="text-sm text-muted-foreground">현재 데스크톱 세션의 실행, 인증, 오류 기록을 시간순으로 확인합니다.</p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           <Button variant="outline" size="sm" onClick={exportLogs}>
             <Download size={15} aria-hidden="true" /> 내보내기
           </Button>
@@ -325,9 +368,9 @@ export function ActivityPage() {
             {definition.label}
           </button>
         ))}
-        <Badge tone="default" className="ml-auto">info {counts.info}</Badge>
-        <Badge tone="warning">warn {counts.warn}</Badge>
-        <Badge tone="destructive">error {counts.error}</Badge>
+        <Badge tone="default" className="ml-auto">정보 {counts.info}</Badge>
+        <Badge tone="warning">주의 {counts.warn}</Badge>
+        <Badge tone="destructive">오류 {counts.error}</Badge>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -353,7 +396,7 @@ export function ActivityPage() {
 
       {liveEvents.length > 0 ? (
         <section className="space-y-2">
-          <SectionLabel>Live middleware events</SectionLabel>
+          <SectionLabel>최근 실행 기록</SectionLabel>
           <div className="rounded-lg border border-border bg-card shadow-[var(--shadow-card)] backdrop-blur-xl">
             {liveEvents.map((event) => (
               <ActivityRow key={event.id} log={event} onSelect={setSelectedLog} />
@@ -364,7 +407,7 @@ export function ActivityPage() {
 
       <section className="space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <SectionLabel>Product history</SectionLabel>
+          <SectionLabel>작업 이력</SectionLabel>
           <Badge tone="outline">{productHistory.length}/{filtered.length}</Badge>
         </div>
         {productHistory.length > 0 ? (
@@ -374,12 +417,12 @@ export function ActivityPage() {
             ))}
           </div>
         ) : (
-          <EmptyState icon={Route} title="선택한 타입의 작업 이력이 없습니다" description="필터를 바꾸거나 Ask/Build/Automate 작업을 실행하면 실제 이벤트가 여기에 표시됩니다." />
+          <EmptyState icon={Route} title="선택한 작업 이력이 없습니다" description="필터를 바꾸거나 질문, 빌드, 자동화 작업을 실행하면 실제 기록이 여기에 표시됩니다." />
         )}
       </section>
 
       {days.length === 0 ? (
-        <EmptyState icon={Route} title="아직 표시할 미들웨어 이벤트가 없습니다" description="질문·빌드·세션 실행 등 활동이 발생하면 여기에 시간순으로 쌓입니다." />
+        <EmptyState icon={Route} title="아직 표시할 실행 기록이 없습니다" description="질문, 빌드, 세션 실행 등 활동이 발생하면 여기에 시간순으로 쌓입니다." />
       ) : null}
 
       {days.map(([day, entries]) => (
