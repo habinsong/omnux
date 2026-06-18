@@ -75,3 +75,7 @@ apps/omninode-middleware/Main.java
 apps/omninode-middleware/Ledger.java
 apps/omninode-middleware/index.html
 apps/omninode-middleware/styles.css
+
+# IDE and tooling
+.omo/
+.codex/
