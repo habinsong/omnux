@@ -1,27 +1,8 @@
-import { readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const dashboardDir = path.join(repoRoot, "apps", "omnux-dashboard");
-const dashboardModulesDir = path.join(dashboardDir, "modules");
-
-function listScriptFiles(dirPath) {
-  const entries = readdirSync(dirPath, { withFileTypes: true });
-  const files = [];
-  for (const entry of entries) {
-    const fullPath = path.join(dirPath, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...listScriptFiles(fullPath));
-      continue;
-    }
-    if (entry.isFile() && (entry.name.endsWith(".js") || entry.name.endsWith(".mjs"))) {
-      files.push(fullPath);
-    }
-  }
-  return files.sort();
-}
 
 function toRelative(filePath) {
   return path.relative(repoRoot, filePath) || ".";
@@ -55,47 +36,12 @@ function resolvePythonCommand() {
 }
 
 function main() {
-  if (!statSync(dashboardDir).isDirectory()) {
-    throw new Error(`대시보드 디렉터리를 찾을 수 없습니다: ${dashboardDir}`);
-  }
-
-  const dashboardFiles = listScriptFiles(dashboardDir);
-
   runStep(
     "repo hygiene gate",
     "node",
     [toRelative(path.join(repoRoot, "scripts", "check-repo-hygiene.mjs"))]
   );
 
-  for (const filePath of dashboardFiles) {
-    runStep(`node --check ${toRelative(filePath)}`, "node", ["--check", toRelative(filePath)]);
-  }
-
-  runStep(
-    "chat multi 계약 smoke",
-    "node",
-    [toRelative(path.join(dashboardDir, "check-chat-multi-utils.js"))]
-  );
-  runStep(
-    "ops flow 성능 smoke",
-    "node",
-    [toRelative(path.join(dashboardDir, "check-ops-flow-performance.js")), "--events", "256", "--iterations", "20"]
-  );
-  runStep(
-    "dashboard server message router contract",
-    "node",
-    [toRelative(path.join(dashboardDir, "check-dashboard-server-message-router.mjs"))]
-  );
-  runStep(
-    "phase4 dashboard contract",
-    "node",
-    [toRelative(path.join(repoRoot, "scripts", "check-phase4-dashboard-contract.mjs"))]
-  );
-  runStep(
-    "security boundary contract",
-    "node",
-    [toRelative(path.join(repoRoot, "scripts", "check-security-boundaries.mjs"))]
-  );
   runStep(
     "core daemon boundary contract",
     "node",
@@ -105,6 +51,11 @@ function main() {
     "desktop shell boundary contract",
     "node",
     [toRelative(path.join(repoRoot, "scripts", "check-desktop-shell-boundary-contract.mjs"))]
+  );
+  runStep(
+    "security boundary contract",
+    "node",
+    [toRelative(path.join(repoRoot, "scripts", "check-security-boundaries.mjs"))]
   );
   runStep(
     "tech stack contract",
@@ -125,31 +76,6 @@ function main() {
     "chat telegram contract",
     "node",
     [toRelative(path.join(repoRoot, "scripts", "check-chat-telegram-contract.mjs"))]
-  );
-  runStep(
-    "settings live contract",
-    "node",
-    [toRelative(path.join(repoRoot, "scripts", "check-settings-live-contract.mjs"))]
-  );
-  runStep(
-    "logic tab contract",
-    "node",
-    [toRelative(path.join(repoRoot, "scripts", "check-logic-tab-contract.mjs"))]
-  );
-  runStep(
-    "routine tab contract",
-    "node",
-    [toRelative(path.join(repoRoot, "scripts", "check-routine-tab-contract.mjs"))]
-  );
-  runStep(
-    "notebook tab contract",
-    "node",
-    [toRelative(path.join(repoRoot, "scripts", "check-notebook-tab-contract.mjs"))]
-  );
-  runStep(
-    "plan tab contract",
-    "node",
-    [toRelative(path.join(repoRoot, "scripts", "check-plan-tab-contract.mjs"))]
   );
   runStep(
     "middleware build",

@@ -131,7 +131,7 @@ public sealed partial class WebSocketGateway
             return;
         }
 
-        if (!TryResolveAllowedHealthOrigin(origin, out var allowedOrigin))
+        if (!TryResolveAllowedHealthOrigin(request, origin, out var allowedOrigin))
         {
             return;
         }
@@ -140,7 +140,11 @@ public sealed partial class WebSocketGateway
         response.Headers["Vary"] = "Origin";
     }
 
-    private static bool TryResolveAllowedHealthOrigin(string origin, out string allowedOrigin)
+    private static bool TryResolveAllowedHealthOrigin(
+        HttpListenerRequest request,
+        string origin,
+        out string allowedOrigin
+    )
     {
         allowedOrigin = string.Empty;
         if (!Uri.TryCreate(origin, UriKind.Absolute, out var originUri))
@@ -148,7 +152,20 @@ public sealed partial class WebSocketGateway
             return false;
         }
 
-        if (!IsLoopbackHost(originUri.Host.Trim('[', ']')))
+        var originHost = originUri.Host.Trim('[', ']');
+        if (IsLoopbackHost(originHost))
+        {
+            allowedOrigin = origin;
+            return true;
+        }
+
+        var originPort = originUri.IsDefaultPort
+            ? (originUri.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase) ? 443 : 80)
+            : originUri.Port;
+        var requestHost = (request.Url?.Host ?? request.Headers["Host"]?.Split(':', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? string.Empty)
+            .Trim('[', ']');
+        if (originPort != DesktopUiPort
+            || !originHost.Equals(requestHost, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }

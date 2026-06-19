@@ -67,7 +67,7 @@
 - `apps/omnux-middleware/src/AgentSpawnBudgetPolicy.cs`: `sessions_spawn` 고비용 조합 판정과 runtime/mode별 timeout/task 상한을 담당한다. (9번 1차 착수)
 - `apps/omnux-middleware/src/AgentSpawnAdmissionLimiter.cs`: `sessions_spawn` 전역 토큰 버킷과 동시성 예약 상한을 담당한다. (9번 1차 착수)
 - `apps/omnux-middleware/src/AgentSpawnRunBreaker.cs`: `agent_spawn_breaker.json` 상태 파일로 신규 `sessions_spawn`과 영속 큐 flush를 운영자 개입 전까지 차단하는 1차 브레이커를 담당한다. (9번 1차 보강)
-- `apps/omnux-dashboard`: 정적 HTML/JS 레거시 대시보드. Tauri React 데스크톱이 Phase 5 기본 전환 대상이며, 레거시는 호환/비교용으로 유지한다.
+- `apps/desktop`: Tauri v2/Vite/React 데스크톱 UI. 이전 정적 HTML/JS 웹 UI는 제거되었고, 외부접속 UI는 Tauri dev 포트 `1420`을 사용한다.
 - `apps/omnux-sandbox`: Python 기반 실행 제한기. (※ 향후 완전한 OS 레벨 격리 샌드박스로 고도화 필요)
 - `workspace/`: 에이전트 작업 산출물 및 코딩 결과물 저장소.
 - `~/.omnux/`: 대화 이력, 세션 로그, 플랫폼 영속 상태(State) 위치.
@@ -250,7 +250,7 @@ git diff --check
 - `ws-doctor.js`는 doctor fix preview/apply 헬퍼를 제공하고, 새 `ws-cleanup.js`는 cleanup preview/apply 헬퍼를 제공한다. `ws-tasks.js`에는 task retry/resume 헬퍼를 추가했다.
 - `dashboard-server-message-router.mjs`는 `doctor_fix_result`를 도구 타임라인뿐 아니라 `doctorState.fixPreview/fixApply`에도 보존한다. `doctor-renderers.js`는 자동수정 미리보기/적용 결과를 표시한다.
 - `scripts/check-phase4-dashboard-contract.mjs`를 추가하고 `npm test` 파이프라인에 연결해 Phase 4 WS 헬퍼, 실제 Settings 운영 탭, 미들웨어 dispatcher 계약을 고정했다.
-- 현재 검증: `node --check` 대상 파일, `node scripts/check-phase4-dashboard-contract.mjs`, `node apps/omnux-dashboard/check-dashboard-server-message-router.mjs` 통과. 남은 것은 실제 미들웨어 연결 상태에서 Doctor fix apply, cleanup apply, task retry를 누르는 수동 QA다.
+- 현재 검증: 기존 정적 HTML/JS 대시보드 계약은 제거되었고, 데스크톱 UI 계약은 `node scripts/check-desktop-shell-boundary-contract.mjs`로 확인한다. 남은 것은 실제 미들웨어 연결 상태에서 Doctor fix apply, cleanup apply, task retry를 누르는 수동 QA다.
 
 **Phase 5 — Tauri 데스크톱 앱 마이그레이션**
 0. 사전 조건: `node scripts/check-desktop-shell-boundary-contract.mjs`가 통과하는 상태에서 진행한다.

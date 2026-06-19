@@ -2,8 +2,8 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-// @ts-expect-error process is a nodejs global
-const host = process.env.TAURI_DEV_HOST;
+const host = process.env.OMNUX_DESKTOP_UI_HOST || process.env.TAURI_DEV_HOST;
+const hmrHost = process.env.OMNUX_DESKTOP_HMR_HOST || (host === "0.0.0.0" ? undefined : host);
 
 // https://vite.dev/config/
 export default defineConfig(async () => ({
@@ -18,10 +18,10 @@ export default defineConfig(async () => ({
     port: 1420,
     strictPort: true,
     host: host || false,
-    hmr: host
+    hmr: hmrHost
       ? {
           protocol: "ws",
-          host,
+          host: hmrHost,
           port: 1421,
         }
       : undefined,

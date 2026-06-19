@@ -17,6 +17,7 @@ public sealed partial class WebSocketGateway
     private const int MaxAttachmentCount = 6;
     private const int MaxAttachmentBytes = 15 * 1024 * 1024;
     private const int MaxAttachmentBase64Chars = ((MaxAttachmentBytes + 2) / 3) * 4;
+    internal const int DesktopUiPort = 1420;
     private const string WebSocketPath = "/ws/";
     private const string GuardRetryTimelineApiPath = "/api/guard/retry-timeline";
     private const string LocalImageApiPath = "/api/local-image";
@@ -471,7 +472,7 @@ public sealed partial class WebSocketGateway
     {
         var urls = externalDashboardEnabled
             ? GetPrivateNetworkAddresses()
-                .Select(address => $"http://{address}:{_port}/")
+                .Select(BuildDesktopUiExternalUrl)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(url => url, StringComparer.OrdinalIgnoreCase)
                 .ToArray()
@@ -490,6 +491,11 @@ public sealed partial class WebSocketGateway
 
         builder.Append("]");
         return builder.ToString();
+    }
+
+    internal static string BuildDesktopUiExternalUrl(string address)
+    {
+        return $"http://{address}:{DesktopUiPort}/";
     }
 
     private static IEnumerable<string> GetPrivateNetworkAddresses()

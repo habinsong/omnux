@@ -37,13 +37,14 @@ MIDDLEWARE_PROJECT="${REPO_ROOT}/apps/omnux-middleware/Omnux.Middleware.csproj"
 PACKAGE_LOCK="${REPO_ROOT}/package-lock.json"
 DEFAULT_PORT="${OMNUX_WS_PORT:-41880}"
 DEFAULT_BASE_URL="http://127.0.0.1:${DEFAULT_PORT}"
+DESKTOP_UI_PORT=1420
 
 usage() {
   cat <<'EOF'
 사용법:
   omnux           Tauri 데스크톱 앱 + 미들웨어 dev 실행 (포그라운드, Ctrl+C 종료)
   omnux desktop   위와 동일
-  omnux start     미들웨어만 백그라운드 실행 (레거시 대시보드 http://127.0.0.1:41880/)
+  omnux start     미들웨어만 백그라운드 실행 (UI 없이 API/WS만 실행)
   omnux stop      omnux 전체 종료 (= shutdown)
   omnux shutdown  데스크톱 앱 + 미들웨어 등 모든 omnux 프로세스 종료
   omnux status    미들웨어 실행 상태 확인
@@ -340,7 +341,8 @@ PY
   wait_for_ready "$pid"
 
   info "서버가 준비됐습니다."
-  info "레거시 대시보드: $(current_base_url)/"
+  info "미들웨어 API/WS: $(current_base_url)/"
+  info "Tauri 외부접속 UI는 'omnux desktop' 실행 후 http://<LAN-IP>:${DESKTOP_UI_PORT}/ 로 접속하세요."
   info "로그: $LOG_FILE"
 }
 
@@ -460,7 +462,7 @@ shutdown_server() {
 
   # 4) 전용 포트에 남은 프로세스 정리 (미들웨어 41880 + 데스크톱 dev 1420)
   stop_listeners_on_port "$(current_port)" "미들웨어"
-  stop_listeners_on_port "1420" "데스크톱 dev"
+  stop_listeners_on_port "$DESKTOP_UI_PORT" "데스크톱 dev"
 
   info "omnux 종료 완료"
 }
@@ -896,8 +898,10 @@ run_desktop() {
   if server_health_ok; then
     info "이미 실행 중인 미들웨어가 있으면 데스크톱 bootstrap이 재사용합니다. url=$(current_base_url)/"
   fi
+  export OMNUX_DESKTOP_UI_HOST="${OMNUX_DESKTOP_UI_HOST:-0.0.0.0}"
   info "Tauri 데스크톱 dev 실행 — 자체 .NET 미들웨어(ws=41880)를 함께 띄웁니다."
-  info "대시보드: http://localhost:1420/"
+  info "Tauri UI: http://localhost:${DESKTOP_UI_PORT}/"
+  info "외부접속 UI: http://<LAN-IP>:${DESKTOP_UI_PORT}/ (미들웨어 외부접속 토글 필요)"
   info "인증이 필요하면 데스크톱 앱에서 OTP 요청 버튼을 누르세요. OTP가 이 터미널에 출력됩니다. (Ctrl+C 종료)"
   cd "$desktop_dir" || fail "apps/desktop 으로 이동하지 못했습니다."
   exec npm run tauri dev

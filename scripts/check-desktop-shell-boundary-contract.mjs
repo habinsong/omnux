@@ -1015,6 +1015,11 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   );
 
   const tauriConfig = JSON.parse(read("apps/desktop/src-tauri/tauri.conf.json"));
+  assert.equal(
+    tauriConfig.build?.devUrl,
+    "http://localhost:1420",
+    "desktop tauri devUrl must stay on the Tauri/Vite UI port"
+  );
   assertionCount += 1;
   assert.ok(Array.isArray(tauriConfig.bundle?.externalBin), "desktop tauri config must declare externalBin");
   assertionCount += 1;
@@ -1048,6 +1053,30 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     runtimeProbeSource,
     "\"pong\"",
     "desktop runtime probe waits for pong"
+  );
+
+  const viteConfig = read("apps/desktop/vite.config.ts");
+  assertIncludes(
+    viteConfig,
+    "port: 1420",
+    "desktop Vite dev server must stay on the external UI port"
+  );
+  assertIncludes(
+    viteConfig,
+    "OMNUX_DESKTOP_UI_HOST",
+    "desktop Vite dev server must support LAN binding for external access"
+  );
+
+  const pathResolverSource = read("apps/omnux-middleware/src/Infrastructure/Paths/StatePathResolver.cs");
+  assertIncludes(
+    pathResolverSource,
+    "desktop/dist/index.html",
+    "middleware static fallback may only point at the built Tauri desktop UI"
+  );
+  assertNotIncludes(
+    pathResolverSource,
+    "omnux-dashboard/index.html",
+    "middleware must not fall back to the removed legacy web dashboard"
   );
   assertIncludes(
     runtimeProbeSource,

@@ -515,7 +515,19 @@ async function main() {
       const remoteNoOrigin = await rawWebSocketHandshake({ host: externalHost, port });
       assert.equal(remoteNoOrigin.status, 403, "remote websocket without Origin should be rejected");
 
-      const remoteOrigin = `http://${externalHost}:${port}`;
+      const remoteOrigin = `http://${externalHost}:1420`;
+      const remoteHealth = await fetch(`http://${externalHost}:${port}/healthz`, {
+        headers: {
+          Origin: remoteOrigin
+        }
+      });
+      assert.equal(remoteHealth.status, 200, "remote healthz should pass");
+      assert.equal(
+        remoteHealth.headers.get("access-control-allow-origin"),
+        remoteOrigin,
+        "remote Tauri UI should be CORS-readable from port 1420"
+      );
+
       const remoteSession = await openRawWebSocketSession({ host: externalHost, port, origin: remoteOrigin });
       const remoteAuth = await remoteSession.waitForJson(
         (message) => message.type === "auth_result",
@@ -555,6 +567,15 @@ async function main() {
         "remote settings_state"
       );
       assert.equal(remoteSettings.remoteDashboardClient, true, "remote settings should be marked remote");
+      assert.ok(
+        Array.isArray(remoteSettings.dashboardExternalUrls)
+          && remoteSettings.dashboardExternalUrls.includes(`http://${externalHost}:1420/`),
+        "external access URLs should point at the Tauri/Vite UI port"
+      );
+      assert.ok(
+        !remoteSettings.dashboardExternalUrls.includes(`http://${externalHost}:${port}/`),
+        "external access URLs must not point at the middleware API/WS port"
+      );
 
       remoteSession.sendJson({ type: "list_conversations", scope: "chat", mode: "single" });
       const conversations = await remoteSession.waitForJson(
@@ -618,6 +639,9 @@ async function main() {
       remoteSession.close();
 
       remoteChecks.push(
+        "remote_tauri_ui_healthz_cors",
+        "remote_tauri_ui_origin_accept",
+        "external_urls_use_tauri_ui_port",
         "websocket_no_origin_remote_reject",
         "remote_limited_auto_auth",
         "remote_limited_auth_messages_block",
@@ -640,19 +664,6 @@ async function main() {
       "desktop readyz fetch should be CORS-readable from local Tauri dev origin"
     );
 
-    const firstIndex = await fetch(`${baseUrl}/`);
-    assert.equal(firstIndex.status, 200, "dashboard index should load");
-    const etag = firstIndex.headers.get("etag");
-    assert.ok(etag, "dashboard index should expose ETag");
-    assert.ok(firstIndex.headers.get("last-modified"), "dashboard index should expose Last-Modified");
-
-    const cachedIndex = await fetch(`${baseUrl}/`, {
-      headers: {
-        "If-None-Match": etag
-      }
-    });
-    assert.equal(cachedIndex.status, 304, "dashboard index should support conditional 304");
-
     console.log(JSON.stringify({
       ok: true,
       port,
@@ -665,8 +676,7 @@ async function main() {
         "websocket_local_open_session_trusted_auth_promote",
         ...remoteChecks,
         "readyz_after_ping",
-        "desktop_readyz_cors",
-        "static_index_etag_304"
+        "desktop_readyz_cors"
       ]
     }, null, 2));
   } finally {
