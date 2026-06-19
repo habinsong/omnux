@@ -238,6 +238,22 @@ public sealed record AskNotebookAction(
     string Message,
     string? ProjectKey
 );
+// 자동 메모리/웹 검색이 이번 턴에 실제로 무엇을 실행·주입했는지 사용자에게 노출하기 위한 트레이스.
+// BuildForcedRetrievalContextBlockAsync 의 기존 ForcedToolTrace 딕셔너리에서 조립되며, 검색 로직 자체는 건드리지 않는다.
+public sealed record RetrievalTraceStep(
+    string Tool,        // memory_search | memory_get | web_search
+    string Status,      // ok | skip | disabled | error
+    string SkipReason,  // - | casual_query | llm_not_required | web_disabled_by_user ...
+    string Result,      // "2/4" | 건수 | "1"/"0"
+    string Detail,      // path/range | align_timeout_fallback | -
+    bool Injected       // 이 단계 결과가 프롬프트에 주입됐는지
+);
+public sealed record RetrievalTrace(
+    string WebDecision,     // 웹검색 필요성 판단 라벨(na, realtime 등)
+    bool MemoryInjected,
+    bool WebInjected,
+    IReadOnlyList<RetrievalTraceStep> Steps
+);
 public sealed record ConversationChatResult(
     string Mode,
     string ConversationId,
@@ -257,7 +273,8 @@ public sealed record ConversationChatResult(
     ChatLatencyMetrics? Latency = null,
     string? RequestId = null,
     IReadOnlyList<AskActionSuggestion>? ActionSuggestions = null,
-    AskNotebookAction? NotebookAction = null
+    AskNotebookAction? NotebookAction = null,
+    RetrievalTrace? RetrievalTrace = null
 );
 public sealed record ConversationSearchHit(
     string ConversationId,
@@ -537,7 +554,8 @@ internal sealed record InputPreparationResult(
     IReadOnlyList<SearchCitationReference>? Citations = null,
     int RetryAttempt = 0,
     int RetryMaxAttempts = 0,
-    string RetryStopReason = "-"
+    string RetryStopReason = "-",
+    RetrievalTrace? RetrievalTrace = null
 );
 public sealed record TelegramExecutionMetadata(
     SearchAnswerGuardFailure? GuardFailure = null,

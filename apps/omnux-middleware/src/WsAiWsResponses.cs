@@ -40,7 +40,8 @@ internal record ChatResultWsResponse(
     string RetryStopReason,
     ChatLatencyMetrics? Latency,
     IReadOnlyList<AskActionSuggestion>? ActionSuggestions,
-    AskNotebookAction? NotebookAction
+    AskNotebookAction? NotebookAction,
+    RetrievalTrace? RetrievalTrace
 );
 
 internal record ChatStreamChunkWsResponse(
