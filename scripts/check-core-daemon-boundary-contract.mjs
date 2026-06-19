@@ -22,11 +22,6 @@ function assertNotIncludes(text, needle, label) {
   assert.ok(!text.includes(needle), `${label}: expected not to include ${needle}`);
 }
 
-function assertEmpty(text, label) {
-  assertionCount += 1;
-  assert.equal(text, "", `${label}: expected empty text`);
-}
-
 function assertPathMissing(relativePath, label) {
   assertionCount += 1;
   assert.equal(existsSync(path.join(repoRoot, relativePath)), false, `${label}: ${relativePath}`);
@@ -110,7 +105,10 @@ for (const text of [shellScript, powershellScript, repoHygiene]) {
   assertNotIncludes(text, LEGACY_CORE_ALIAS, "scripts must not require removed legacy core alias");
 }
 
-assertEmpty(readme, "README stays empty until public copy is rewritten");
+assertIncludes(readme, "http://127.0.0.1:1420/", "README documents Tauri UI port");
+assertIncludes(readme, "http://127.0.0.1:41880/", "README documents middleware API/WS port");
+assertNotIncludes(readme, "http://127.0.0.1:8080/", "README must not document removed static web UI port");
+assertNotIncludes(readme, "legacy C core", "README must not document removed legacy core");
 assertNotIncludes(readmeEn, "legacy C core", "README.en must not document removed legacy core");
 assertNotIncludes(quickstart, "C 컴파일러", "quickstart must not require C compiler");
 assertNotIncludes(quickstart, "legacy C core", "quickstart must not document removed legacy core");

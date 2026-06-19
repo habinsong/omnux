@@ -67,7 +67,6 @@ internal static class GitAutomationSuggestionPolicy
         return scope switch
         {
             "middleware" => "update backend changes",
-            "dashboard" => "update dashboard changes",
             "desktop" => "update desktop shell changes",
             "docs" => "update documentation",
             "tests" => "update tests",
@@ -81,11 +80,6 @@ internal static class GitAutomationSuggestionPolicy
         if (normalized.StartsWith("apps/omnux-middleware", StringComparison.Ordinal))
         {
             return "middleware";
-        }
-
-        if (normalized.StartsWith("apps/omnux-dashboard", StringComparison.Ordinal))
-        {
-            return "dashboard";
         }
 
         if (normalized.StartsWith("apps/desktop", StringComparison.Ordinal))

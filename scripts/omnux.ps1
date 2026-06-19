@@ -18,6 +18,7 @@ $SetupMarkerFile = Join-Path $StateDir "setup-complete"
 $MiddlewareProject = Join-Path $RepoRoot "apps\omnux-middleware\Omnux.Middleware.csproj"
 $DefaultPort = if ($env:OMNUX_WS_PORT) { $env:OMNUX_WS_PORT } else { "41880" }
 $DefaultBaseUrl = "http://127.0.0.1:$DefaultPort"
+$DesktopUiPort = 1420
 
 Set-Location $RepoRoot
 
@@ -270,7 +271,8 @@ function Start-Server {
     Write-Info "서버 시작 중입니다. pid=$($process.Id)"
     Wait-ForReady $process.Id
     Write-Info "서버가 준비됐습니다."
-    Write-Info "레거시 대시보드: $DefaultBaseUrl/"
+    Write-Info "미들웨어 API/WS: $DefaultBaseUrl/"
+    Write-Info "Tauri 외부접속 UI는 scripts\omnux.ps1 desktop 실행 후 http://<LAN-IP>:$DesktopUiPort/ 로 접속하세요."
     Write-Info "로그: $LogFile"
 }
 
@@ -293,14 +295,17 @@ function Shutdown-Server {
     Write-Info "omnux 종료 완료"
 }
 
-function Stop-MiddlewareOnPort {
-    $port = $DefaultPort
+function Stop-ListenerOnPort {
+    param(
+        [int]$Port,
+        [string]$Label
+    )
     $connections = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue
     if (-not $connections) {
         return
     }
 
-    Write-Info "포트 $port에 기존 프로세스가 있습니다. 정리합니다."
+    Write-Info "$Label 포트 $Port에 기존 프로세스가 있습니다. 정리합니다."
     foreach ($conn in $connections) {
         Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue
     }
@@ -328,9 +333,14 @@ function Run-Desktop {
     }
 
     Cleanup-StaleState
-    Stop-MiddlewareOnPort
+    Stop-ListenerOnPort -Port ([int]$DefaultPort) -Label "미들웨어"
+    Stop-ListenerOnPort -Port $DesktopUiPort -Label "Tauri UI"
+    if (-not $env:OMNUX_DESKTOP_UI_HOST) {
+        $env:OMNUX_DESKTOP_UI_HOST = "0.0.0.0"
+    }
     Write-Info "Tauri 데스크톱 dev 실행 — 자체 .NET 미들웨어(ws=41880)를 함께 띄웁니다."
-    Write-Info "대시보드: http://localhost:1420/"
+    Write-Info "Tauri UI: http://localhost:$DesktopUiPort/"
+    Write-Info "외부접속 UI: http://<LAN-IP>:$DesktopUiPort/ (미들웨어 외부접속 토글 필요)"
     Write-Info "인증이 필요하면 데스크톱 앱에서 OTP 요청 버튼을 누르세요. OTP가 이 터미널에 출력됩니다. (Ctrl+C 종료)"
 
     Set-Location $desktopDir
@@ -347,7 +357,7 @@ switch ($Command) {
 사용법:
   scripts\omnux.ps1           Tauri 데스크톱 앱 + 미들웨어 dev 실행 (포그라운드, Ctrl+C 종료)
   scripts\omnux.ps1 desktop   위와 동일
-  scripts\omnux.ps1 start     미들웨어만 백그라운드 실행 (레거시 대시보드 http://127.0.0.1:41880/)
+  scripts\omnux.ps1 start     미들웨어만 백그라운드 실행 (UI 없이 API/WS만 실행)
   scripts\omnux.ps1 shutdown  미들웨어 서버 종료
   scripts\omnux.ps1 setup     의존성 확인, 빌드, 검증
 "@ | Write-Host

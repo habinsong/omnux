@@ -75,7 +75,6 @@ const techStack = read("docs/기술스택_정리.md");
 const englishTechStack = read("docs/en/tech-stack.md");
 const packageJson = read("package.json");
 const englishReadme = read("README.en.md");
-const dashboardShell = read("apps/omnux-dashboard/shell.js");
 const testRunner = read("scripts/run-omnux-tests.mjs");
 const omnuxCli = read("scripts/omnux");
 assertIncludes(techStack, "데스크톱 셸", "기술 스택 문서");
@@ -103,7 +102,6 @@ assertIncludes(techStack, "책임자, canonical source home, 상태 파일 위�
 assertIncludes(techStack, "비즈니스 로직, provider 라우팅, 상태 오케스트레이션을 `.NET 9` 미들웨어 밖으로 옮기는 명분이 될 수 없다.", "새 런타임 미들웨어 책임 유지");
 assertIncludes(techStack, "실험/스파이크 산출물은 `workspace/`에만 두고", "새 런타임 실험 산출물 위치");
 assertIncludes(techStack, "Phase 5 스택 유입 차단 게이트", "Phase 5 스택 유입 차단 게이트 섹션");
-assertIncludes(techStack, "Phase 5 화면 이식은 기존 `apps/desktop/` Tauri/Vite/React/TypeScript 셸과 `apps/omnux-dashboard/` 정적 대시보드 원본만 사용한다.", "Phase 5 기존 source home만 사용");
 assertIncludes(techStack, "Phase 5 변경 전후에는 `npm test`를 통과시킨다.", "Phase 5 npm test 게이트");
 assertIncludes(techStack, "최소 `node scripts/check-tech-stack-contract.mjs`와 `node scripts/check-repo-hygiene.mjs`를 함께 실행한다.", "Phase 5 범위 축소 게이트");
 assertIncludes(techStack, "새 루트 앱 디렉터리, 새 source home, 새 번들러, 새 package manager, 새 runtime shortcut은 새 언어/런타임 승인 기준을 통과하기 전까지 만들지 않는다.", "Phase 5 새 스택 유입 거부");
@@ -134,7 +132,6 @@ assertIncludes(englishTechStack, "owner, canonical source home, state-file locat
 assertIncludes(englishTechStack, "move business logic, provider routing, or state orchestration out of the `.NET 9` middleware", "영문 새 런타임 미들웨어 책임 유지");
 assertIncludes(englishTechStack, "Experimental spike artifacts belong only in `workspace/`", "영문 새 런타임 실험 산출물 위치");
 assertIncludes(englishTechStack, "Phase 5 Stack Ingress Gate", "영문 Phase 5 스택 유입 차단 게이트 섹션");
-assertIncludes(englishTechStack, "Phase 5 screen migration uses only the existing `apps/desktop/` Tauri/Vite/React/TypeScript shell and the `apps/omnux-dashboard/` static dashboard source.", "영문 Phase 5 기존 source home만 사용");
 assertIncludes(englishTechStack, "Run `npm test` before and after Phase 5 changes.", "영문 Phase 5 npm test 게이트");
 assertIncludes(englishTechStack, "run at least `node scripts/check-tech-stack-contract.mjs` and `node scripts/check-repo-hygiene.mjs` together", "영문 Phase 5 범위 축소 게이트");
 assertIncludes(englishTechStack, "Do not create new root app directories, new source homes, new bundlers, new package managers, or new runtime shortcuts", "영문 Phase 5 새 스택 유입 거부");
@@ -146,7 +143,7 @@ assertIncludes(englishTechStack, "Old-prefix root aliases, Electron/Codex legacy
 assertIncludes(packageJson, "\"name\": \"omnux\"", "package name canonical omnux");
 assertNotIncludes(packageJson, LEGACY_PACKAGE_NAME, "package name must not use legacy package name");
 assertIncludes(englishReadme, "# omnux", "영문 README canonical title");
-assertIncludes(dashboardShell, "brand-name' }, 'omnux'", "대시보드 셸 canonical brand");
+assertPathMissing("apps/omnux-dashboard", "legacy static dashboard must stay removed");
 assertIncludes(testRunner, "scripts\", \"check-repo-hygiene.mjs", "npm test runs repo hygiene gate");
 assertIncludes(testRunner, "scripts\", \"check-tech-stack-contract.mjs", "npm test runs tech stack contract");
 assertIncludes(omnuxCli, "normalize_tool_path", "CLI wrapper normalizes non-interactive tool PATH");

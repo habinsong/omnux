@@ -5,6 +5,15 @@ namespace Omnux.Middleware.Tests;
 public sealed class HttpStaticFileEndpointTests
 {
     [Fact]
+    public void DesktopUiExternalUrlUsesTauriVitePort()
+    {
+        var url = WebSocketGateway.BuildDesktopUiExternalUrl("192.168.0.22");
+
+        Assert.Equal("http://192.168.0.22:1420/", url);
+        Assert.Equal(1420, WebSocketGateway.DesktopUiPort);
+    }
+
+    [Fact]
     public void IsClientCacheFreshAcceptsMatchingETag()
     {
         var lastModifiedUtc = new DateTimeOffset(2026, 5, 18, 1, 2, 3, TimeSpan.Zero);

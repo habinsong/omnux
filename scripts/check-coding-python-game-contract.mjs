@@ -35,7 +35,6 @@ function main() {
   const codingFallbackDecisionPolicy = read("apps/omnux-middleware/src/CodingFallbackDecisionPolicy.cs");
   const coding = read("apps/omnux-middleware/src/Application/CodingApplicationService.Coding.cs");
   const rerun = read("apps/omnux-middleware/src/Application/CodingApplicationService.CodingResultActions.cs");
-  const dashboardConstants = read("apps/omnux-dashboard/modules/dashboard-constants.js");
 
   assertIncludes(execution, "EnsureWorkspacePythonEnvironmentAsync", "venv helper");
   assertIncludes(execution, "EnumeratePythonDependencySourceFiles", "python multi-file dependency scan");
@@ -159,12 +158,7 @@ function main() {
   assertIncludes(projectProfiles, "cpp-cmake", "cpp cmake profile");
   assertIncludes(projectProfiles, "IsExplicitSingleFileSimpleTask", "single file gate");
 
-  assertIncludes(dashboardConstants, "[\"typescript\", \"TypeScript\"]", "typescript UI option");
-  assertIncludes(dashboardConstants, "[\"react-vite\", \"React/Vite\"]", "react vite UI option");
-  assertIncludes(dashboardConstants, "[\"go\", \"Go\"]", "go UI option");
-  assertIncludes(dashboardConstants, "[\"rust\", \"Rust\"]", "rust UI option");
-
-  process.stdout.write(JSON.stringify({ ok: true, assertions: 106 }, null, 2) + "\n");
+  process.stdout.write(JSON.stringify({ ok: true, assertions: 102 }, null, 2) + "\n");
 }
 
 main();

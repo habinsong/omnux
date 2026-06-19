@@ -176,12 +176,7 @@ public sealed class DefaultStatePathResolver : IStatePathResolver
         {
             Path.GetFullPath(Path.Combine(baseDir, "../../../../desktop/dist/index.html")),
             Path.GetFullPath(Path.Combine(cwd, "apps/desktop/dist/index.html")),
-            Path.GetFullPath(Path.Combine(cwd, "desktop/dist/index.html")),
-            Path.GetFullPath(Path.Combine(baseDir, "../../../../omnux-dashboard/index.html")),
-            Path.GetFullPath(Path.Combine(cwd, "apps/omnux-dashboard/index.html")),
-            Path.GetFullPath(Path.Combine(cwd, "omnux-dashboard/index.html")),
-            Path.GetFullPath(Path.Combine(cwd, "../omnux-dashboard/index.html")),
-            Path.GetFullPath(Path.Combine(cwd, "../apps/omnux-dashboard/index.html"))
+            Path.GetFullPath(Path.Combine(cwd, "desktop/dist/index.html"))
         };
 
         foreach (var candidate in candidates)

@@ -740,7 +740,9 @@ public sealed partial class WebSocketGateway
             : originUri.Port;
         if (requestPort > 0
             && originPort != requestPort
-            && !(IsLoopbackHost(originHost) && IsLoopbackHost(normalizedRequestHost)))
+            && !(IsLoopbackHost(originHost) && IsLoopbackHost(normalizedRequestHost))
+            && !(originPort == DesktopUiPort
+                 && originHost.Equals(normalizedRequestHost, StringComparison.OrdinalIgnoreCase)))
         {
             return false;
         }

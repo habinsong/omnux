@@ -8,7 +8,7 @@
 
 [![local first](https://img.shields.io/badge/local--first-workflow-111111?style=for-the-badge)](./docs/en/architecture.md)
 [![.NET 9](https://img.shields.io/badge/.NET-9-512BD4?style=for-the-badge)](./apps/omnux-middleware)
-[![dashboard](https://img.shields.io/badge/dashboard-websocket-0A7EA4?style=for-the-badge)](./apps/omnux-dashboard)
+[![desktop](https://img.shields.io/badge/desktop-tauri-0A7EA4?style=for-the-badge)](./apps/desktop)
 [![telegram](https://img.shields.io/badge/telegram-natural%20control-26A5E4?style=for-the-badge)](./docs/en/usage.md)
 [![safe refactor](https://img.shields.io/badge/Safe%20Refactor-preview%20→%20apply-2E8B57?style=for-the-badge)](./docs/en/safe-refactoring.md)
 
@@ -18,7 +18,7 @@ Updated: 2026-05-21
 
 omnux is not just another chat UI. It is a local-first AI workbench that keeps conversations, coding runs, generated files, validation logs, routines, logic graphs, notebooks, Safe Refactor previews, and Telegram control in the same operational flow.
 
-It does not assume that one expensive model or one expensive machine is the answer. You can use Groq, Gemini, Cerebras, NVIDIA NIM, Copilot, and Codex from the same dashboard, then keep the result as files, logs, previews, and recoverable run snapshots.
+It does not assume that one expensive model or one expensive machine is the answer. You can use Groq, Gemini, Cerebras, NVIDIA NIM, Copilot, and Codex from the same Tauri desktop UI, then keep the result as files, logs, previews, and recoverable run snapshots.
 
 > Start here: [Quickstart](./docs/en/quickstart.md).
 
@@ -27,7 +27,7 @@ It does not assume that one expensive model or one expensive machine is the answ
 A lot of AI tools look good until the first answer is over. Then the trail disappears.
 
 - Generated files and commands are hard to find later.
-- The web dashboard and the Telegram bot do not share the same capabilities.
+- The Tauri desktop UI and the Telegram bot do not share the same capabilities.
 - Coding output is hard to rerun, compare, or inspect.
 - Refactoring often means overwriting a file without a real preview.
 - Scheduled jobs, chat context, search, and handoff notes live in separate places.
@@ -38,7 +38,7 @@ omnux turns those loose pieces into a working loop.
 |---|---|
 | Chat and execution are separate | Conversations, coding results, and logs stay connected |
 | Provider comparison is messy | Single, orchestration, and multi-LLM modes work in chat and coding |
-| Web and Telegram drift apart | Both use the same CommandService layer |
+| Desktop UI and Telegram drift apart | Both use the same CommandService layer |
 | Refactoring feels risky | Preview, stale validation, and guarded apply |
 | Ops state is unclear | `/healthz`, `/readyz`, and `doctor --json` |
 
@@ -84,11 +84,11 @@ omnux turns those loose pieces into a working loop.
 - **Notebooks**: learnings, decisions, verification notes, and handoff documents
 - **Safe Refactor**: anchor edits, LSP rename, ast-grep replacement with preview and guarded apply
 - **Skills**: project/global `SKILL.md` files, sticky activation, shared chat and Telegram behavior, single-skill guard, and quick aliases
-- **Remote dashboard**: LAN access toggle with no OTP prompt for remote clients; read-oriented views, routing policy, and model selection remain available while chat, coding, routines, logic graph execution, auth, secrets, and external-access settings stay blocked
+- **Remote Tauri UI**: LAN access toggle with no OTP prompt for remote clients; read-oriented views, routing policy, and model selection remain available while chat, coding, routines, logic graph execution, auth, secrets, and external-access settings stay blocked
 
 ## Recent updates
 
-- **Security boundaries**: remote dashboard OTP requests stay blocked, while remote sessions enter limited mode automatically. The permission table, categorized remote-block messages, WebSocket Origin checks, pre-auth message allowlists, local image path limits, attachment count/size rejection, and Markdown raw HTML blocking are documented and covered by the test contract.
+- **Security boundaries**: remote Tauri UI OTP requests stay blocked, while remote sessions enter limited mode automatically. The permission table, categorized remote-block messages, WebSocket Origin checks, pre-auth message allowlists, local image path limits, attachment count/size rejection, and Markdown raw HTML blocking are documented and covered by the test contract.
 
 ## Quick start
 
@@ -117,9 +117,11 @@ dotnet run --project apps\omnux-middleware\Omnux.Middleware.csproj
 
 Open:
 
-- Dashboard: [http://127.0.0.1:8080/](http://127.0.0.1:8080/)
-- Health: [http://127.0.0.1:8080/healthz](http://127.0.0.1:8080/healthz)
-- Ready: [http://127.0.0.1:8080/readyz](http://127.0.0.1:8080/readyz)
+- Tauri UI: [http://127.0.0.1:1420/](http://127.0.0.1:1420/)
+- Remote UI: `http://<LAN-IP>:1420/`
+- Middleware API/WS: [http://127.0.0.1:41880/](http://127.0.0.1:41880/)
+- Health: [http://127.0.0.1:41880/healthz](http://127.0.0.1:41880/healthz)
+- Ready: [http://127.0.0.1:41880/readyz](http://127.0.0.1:41880/readyz)
 
 ## Providers
 

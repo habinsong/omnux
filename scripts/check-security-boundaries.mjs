@@ -97,22 +97,10 @@ assertIncludes(coreRuntimeClient, "KillAsync", "dotnet core runtime exposes guar
 assertIncludes(coreRuntimeProgram, "new DotNetCoreRuntimeClient()", "middleware uses dotnet core runtime");
 assertNotIncludes(coreRuntimeProgram, "OMNUX_ENABLE_LEGACY_CORE_BOOTSTRAP", "middleware must not support legacy C core bootstrap");
 
-const markdown = read("apps/omnux-dashboard/modules/dashboard-markdown.js");
-assertIncludes(markdown, "html: false", "markdown raw html disabled");
-assertIncludes(markdown, "html = renderTableAwareFallbackHtml(text)", "markdown sanitizer fallback");
-
-const dashboardAdapter = read("apps/omnux-dashboard/runtime-adapter.js");
-assertNotIncludes(dashboardAdapter, "getSavedAuthToken", "runtime adapter must not read JS-persisted auth tokens");
-assertNotIncludes(dashboardAdapter, "resume_auth", "runtime adapter relies on server-side trusted auth resume");
-assertIncludes(dashboardAdapter, "AUTH_RECHECK_INTERVAL_MS", "runtime adapter polls server-side trusted auth while auth is required");
-assertIncludes(dashboardAdapter, "recheckServerTrustedAuth", "runtime adapter rechecks server-side trusted auth without tokens");
-assertIncludes(dashboardAdapter, "fetch('/healthz'", "runtime adapter probes health before WebSocket connection");
-assertIncludes(dashboardAdapter, "send({ type: 'ping' });", "runtime adapter opens with a safe unprotected ping");
-
-const dashboardWsClient = read("apps/omnux-dashboard/modules/ws-client.js");
-assertNotIncludes(dashboardWsClient, "getItem(AUTH_TOKEN_KEY", "dashboard must not read persisted auth tokens");
-assertNotIncludes(dashboardWsClient, "setItem(AUTH_TOKEN_KEY", "dashboard must not persist auth tokens");
-assertIncludes(dashboardWsClient, "removeItem(AUTH_TOKEN_KEY", "dashboard clears legacy auth token storage");
+const markdownMessage = read("apps/desktop/src/features/ask/MarkdownMessage.tsx");
+assertNotIncludes(markdownMessage, "rehypeRaw", "desktop markdown renderer must not enable raw html");
+assertIncludes(markdownMessage, "safeHref", "desktop markdown renderer sanitizes links");
+assertIncludes(markdownMessage, "/^(https?:|mailto:)/i", "desktop markdown links are limited to safe schemes");
 
 const desktopAuthStore = read("apps/desktop/src/features/auth/auth-store.ts");
 assertNotIncludes(desktopAuthStore, "localStorage.getItem", "desktop auth store must not read persisted auth tokens");
@@ -121,18 +109,18 @@ assertIncludes(desktopAuthStore, "clearLegacyAuthSession()", "desktop auth store
 
 const desktopMessageGateway = read("apps/desktop/src/features/middleware/desktop-message-gateway.ts");
 assertNotIncludes(desktopMessageGateway, "resume_auth", "desktop gateway must not expose token resume requests");
+const desktopRuntimeProbe = read("apps/desktop/src/use-middleware-runtime-probe.ts");
+assertIncludes(desktopRuntimeProbe, "socket?.send(JSON.stringify({ type: \"ping\" }))", "desktop runtime probe opens with a safe unprotected ping");
 
-const settingsRenderer = read("apps/omnux-dashboard/modules/dashboard-settings-renderers.js");
-assertIncludes(settingsRenderer, "basic-remote-limited", "remote dashboard settings use limited-mode panel");
-assertIncludes(settingsRenderer, "OTP 요청과 인증 재개", "remote dashboard panel explains blocked auth actions");
-assertIncludes(settingsRenderer, "읽기 중심 조회, 모델 선택, 라우팅 정책", "remote dashboard panel explains allowed limited actions");
-assertIncludes(settingsRenderer, "대화, 코딩, 루틴, 로직 그래프, task graph 실행", "remote dashboard panel explains blocked execution actions");
-
-const errorMessages = read("apps/omnux-dashboard/modules/error-messages.js");
-assertIncludes(errorMessages, "forbidden_remote_auth", "dashboard has auth-specific remote restriction copy");
-assertIncludes(errorMessages, "forbidden_remote_secret_settings", "dashboard has secret-specific remote restriction copy");
-assertIncludes(errorMessages, "forbidden_remote_external_access", "dashboard has external-access-specific remote restriction copy");
-assertIncludes(errorMessages, "forbidden_remote_limited_action", "dashboard has generic remote limited action copy");
+const settingsExternalPanel = read("apps/desktop/src/features/settings/SettingsExternalAccessPanel.tsx");
+const settingsOtpPanel = read("apps/desktop/src/features/settings/SettingsOtpPanel.tsx");
+const llmModelsPanel = read("apps/desktop/src/features/settings/LlmModelsPanel.tsx");
+assertIncludes(settingsExternalPanel, "remoteDashboardClient", "desktop external access panel checks remote limited mode");
+assertIncludes(settingsExternalPanel, "외부접속 설정을 변경할 수 없습니다", "desktop external access panel blocks remote external setting changes");
+assertIncludes(settingsOtpPanel, "remoteDashboardClient", "desktop OTP panel checks remote limited mode");
+assertIncludes(settingsOtpPanel, "외부 접속에서는 OTP 없이 읽기 중심 조회", "desktop OTP panel blocks remote OTP requests");
+assertIncludes(llmModelsPanel, "remoteDashboardClient", "desktop LLM settings panel checks remote limited mode");
+assertIncludes(llmModelsPanel, "secret 설정 변경이 차단됩니다", "desktop LLM settings panel blocks remote secret changes");
 
 const architectureDoc = read("docs/아키텍처_흐름.md");
 assertIncludes(architectureDoc, "외부접속 제한 모드 권한표", "architecture doc documents remote limited permissions");
@@ -305,8 +293,8 @@ const wsConversationMemoryDispatcher = read("apps/omnux-middleware/src/WsConvers
 const wsConversationMemoryWsResponses = read("apps/omnux-middleware/src/WsConversationMemoryWsResponses.cs");
 const conversationApplicationService = read("apps/omnux-middleware/src/Application/ConversationApplicationService.cs");
 const conversationApplicationServiceBackupTests = read("apps/omnux-middleware-tests/ConversationApplicationServiceBackupTests.cs");
-const settingsPageState = read("apps/omnux-dashboard/modules/settings-page-state.js");
-const settingsJs = read("apps/omnux-dashboard/settings.js");
+const desktopSettingsStore = read("apps/desktop/src/features/settings/settings-store.ts");
+const desktopSettingsPage = read("apps/desktop/src/features/settings/SettingsPage.tsx");
 const memoryApplicationService = read("apps/omnux-middleware/src/Application/MemoryApplicationService.cs");
 const sandboxExecutor = read("apps/omnux-sandbox/executor.py");
 const stateDoc = read("docs/환경변수_및_상태파일.md");
@@ -1107,9 +1095,9 @@ assertIncludes(conversationApplicationService, "BuildBackupManifestIncludes", "b
 assertIncludes(conversationApplicationService, "preview_conflicts_then_skip_without_overwrite_or_replace_with_overwrite", "backup conflict policy is explicit");
 assertIncludes(webSocketGatewayProtocol, "IncludeScopes", "backup export websocket message accepts selected scopes");
 assertIncludes(wsConversationMemoryDispatcher, "new BackupExportOptions(message.IncludeScopes)", "backup export websocket passes selected scopes to service");
-assertIncludes(settingsPageState, "includeScopes: backupSelectedScopes", "settings backup export sends selected scopes");
-assertIncludes(settingsPageState, "BACKUP_SCOPE_OPTIONS", "settings exposes portable backup scope options");
-assertIncludes(settingsJs, "포함 범위", "settings renders portable backup scope selector");
+assertIncludes(desktopSettingsStore, "backupIncludeScopes", "desktop settings backup export sends selected scopes");
+assertIncludes(desktopSettingsPage, "BACKUP_SCOPE_LABELS", "desktop settings exposes portable backup scope options");
+assertIncludes(desktopSettingsPage, "Object.entries(BACKUP_SCOPE_LABELS)", "desktop settings renders portable backup scope selector");
 assertIncludes(conversationApplicationServiceBackupTests, "PreviewBackupImportRejectsTamperedPortableManifestPayload", "backup tests lock tampered preview rejection");
 assertIncludes(conversationApplicationServiceBackupTests, "ApplyBackupImportRevalidatesPortableManifestPayload", "backup tests lock tampered apply rejection");
 assertIncludes(conversationApplicationServiceBackupTests, "PreviewBackupImportReportsPortableFileConflictsAndSyncPolicy", "backup tests lock file conflicts and sync policy preview");
