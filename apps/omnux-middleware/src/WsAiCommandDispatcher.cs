@@ -721,7 +721,8 @@ internal sealed class WsAiCommandDispatcher
             normalizedRetryStopReason,
             result.Latency,
             result.ActionSuggestions,
-            result.NotebookAction
+            result.NotebookAction,
+            result.RetrievalTrace
         );
         var json = JsonSerializer.Serialize(response, WsAiJsonContext.Default.ChatResultWsResponse);
         await WebSocketGateway.SendTextAsync(socket, sendLock, json, cancellationToken);

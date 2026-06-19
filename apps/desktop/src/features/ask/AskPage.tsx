@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
+  BookOpen,
   BrainCircuit,
   CalendarPlus,
   Check,
@@ -11,9 +12,11 @@ import {
   Code2,
   Copy,
   Database,
+  ExternalLink,
   FileImage,
   FileText,
   Folder,
+  Gauge,
   Inbox,
   Info,
   Mic,
@@ -25,6 +28,7 @@ import {
   Scale,
   Search,
   Send,
+  ShieldAlert,
   SlidersHorizontal,
   Tag,
   Trash2,
@@ -40,7 +44,7 @@ import { useUiLogStore } from "../ui-log/ui-log-store";
 import { useDesktopNavigationStore } from "../shell/navigation-store";
 import { shortcutMatches, useDesktopPreferenceStore, type ModelProviderId } from "../shell/preference-store";
 import { ASK_PROVIDER_OPTIONS, useAskPageBridge, useAskStore, type AskChatMode, type AskConversationItem, type AskInputAttachment, type AskModelProvider } from "./ask-store";
-import type { AskActionSuggestion, AskTokenUsage } from "./ask-context";
+import type { AskActionSuggestion, AskCitation, AskCitationValidation, AskGuardInfo, AskLatency, AskResponseNote, AskRetrievalTrace, AskTokenUsage } from "./ask-context";
 import { filesToVisionAttachments } from "./ask-vision";
 import {
   extractSpeechTranscript,
@@ -411,6 +415,154 @@ function MessageMetaStrip({
   );
 }
 
+function formatLatencyMs(ms: number) {
+  return ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${Math.round(ms)}ms`;
+}
+
+/** Self-RAG 자동검색이 이번 턴에 무엇을 실행·주입했는지 압축해서 보여준다(읽기 전용). */
+function RetrievalTraceStrip({ trace }: { trace: AskRetrievalTrace }) {
+  const memSearchStep = trace.steps.find((step) => step.tool === "memory_search");
+  const memGetStep = trace.steps.find((step) => step.tool === "memory_get");
+  const webStep = trace.steps.find((step) => step.tool === "web_search");
+  const chips: Array<{ key: string; tone: "success" | "outline"; label: string; title?: string }> = [];
+
+  if (memSearchStep?.injected) {
+    const count = memSearchStep.result !== "-" ? `${memSearchStep.result} ` : "";
+    chips.push({ key: "mem", tone: "success", label: `메모리 ${count}주입` });
+  } else if (memGetStep?.injected) {
+    chips.push({ key: "mem", tone: "success", label: "메모리 주입" });
+  } else if (memSearchStep?.status === "ok") {
+    chips.push({ key: "mem", tone: "outline", label: `메모리 ${memSearchStep.result} · 미주입`, title: "검색은 됐지만 관련성이 낮아 주입하지 않음" });
+  }
+
+  if (webStep?.injected) {
+    const count = webStep.result !== "-" ? `${webStep.result}건 ` : "";
+    chips.push({ key: "web", tone: "success", label: `웹 ${count}주입`, title: trace.webDecision && trace.webDecision !== "na" ? `판단: ${trace.webDecision}` : undefined });
+  } else if (webStep) {
+    if (webStep.skipReason === "web_disabled_by_user") chips.push({ key: "web", tone: "outline", label: "웹검색 꺼짐" });
+    else if (webStep.skipReason === "llm_not_required") chips.push({ key: "web", tone: "outline", label: "웹 불필요 판단" });
+    else if (webStep.status === "disabled") chips.push({ key: "web", tone: "outline", label: "웹검색 비활성", title: webStep.detail !== "-" ? webStep.detail : undefined });
+  }
+
+  if (chips.length === 0) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+      <span className="flex items-center gap-1 font-semibold text-muted-foreground">
+        <Database size={12} aria-hidden="true" /> 자동검색
+      </span>
+      {chips.map((chip) => (
+        <Badge key={chip.key} tone={chip.tone} title={chip.title}>{chip.label}</Badge>
+      ))}
+    </div>
+  );
+}
+
+/** AI 답변 아래에 출처·인용검증·가드/재시도·자동저장·지연을 표시한다. 데이터가 없으면 렌더하지 않는다. */
+function ResponseExtras({
+  citations,
+  citationValidation,
+  latency,
+  guard,
+  responseNotes,
+  retrievalTrace
+}: {
+  citations?: AskCitation[];
+  citationValidation?: AskCitationValidation | null;
+  latency?: AskLatency | null;
+  guard?: AskGuardInfo | null;
+  responseNotes?: AskResponseNote[];
+  retrievalTrace?: AskRetrievalTrace | null;
+}) {
+  const hasCitations = !!citations && citations.length > 0;
+  const hasNotes = !!responseNotes && responseNotes.length > 0;
+  if (!hasCitations && !citationValidation && !latency && !guard && !hasNotes && !retrievalTrace) return null;
+  return (
+    <div className="mt-2 space-y-2 border-t border-border/60 pt-2">
+      {retrievalTrace ? <RetrievalTraceStrip trace={retrievalTrace} /> : null}
+      {hasCitations ? (
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+            <ExternalLink size={12} aria-hidden="true" /> 출처 {citations!.length}
+            {citationValidation ? (
+              <Badge tone={citationValidation.passed ? "success" : "warning"} className="ml-1">
+                {citationValidation.passed ? "인용 검증 통과" : `미인용 ${citationValidation.missingSentences}문장`}
+              </Badge>
+            ) : null}
+          </div>
+          <ol className="space-y-1">
+            {citations!.slice(0, 8).map((citation, index) => (
+              <li key={citation.id || citation.url || index} className="rounded-md border border-border bg-muted/20 px-2 py-1.5 text-xs">
+                <div className="flex items-start gap-1.5">
+                  <span className="mt-0.5 shrink-0 font-mono text-[10px] text-muted-foreground">[{index + 1}]</span>
+                  <div className="min-w-0 flex-1">
+                    {citation.url ? (
+                      <a
+                        href={citation.url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="flex items-center gap-1 font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                      >
+                        <span className="truncate">{citation.title || citation.url}</span>
+                        <ExternalLink size={11} className="shrink-0" aria-hidden="true" />
+                      </a>
+                    ) : (
+                      <span className="font-medium">{citation.title || "출처"}</span>
+                    )}
+                    {citation.snippet ? <p className="mt-0.5 line-clamp-2 text-muted-foreground">{citation.snippet}</p> : null}
+                    {citation.sourceType || citation.published ? (
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                        {citation.sourceType ? <Badge tone="outline">{citation.sourceType}</Badge> : null}
+                        {citation.published ? <span className="text-[10px] text-muted-foreground">{citation.published}</span> : null}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
+
+      {guard ? (
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+          <span className="flex items-center gap-1 rounded-md border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-warning">
+            <ShieldAlert size={12} aria-hidden="true" /> {guard.reason || guard.category || "가드"}
+          </span>
+          {guard.retryRequired || guard.retryAttempt > 0 ? (
+            <Badge tone="warning">재시도 {guard.retryAttempt}{guard.retryMaxAttempts ? `/${guard.retryMaxAttempts}` : ""}</Badge>
+          ) : null}
+          {guard.retryStopReason ? <Badge tone="outline">{guard.retryStopReason}</Badge> : null}
+        </div>
+      ) : null}
+
+      {hasNotes ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {responseNotes!.map((note, index) => (
+            <span key={`${note.kind}-${index}`} className="flex items-center gap-1 rounded-md border border-border bg-muted/25 px-1.5 py-0.5 text-[11px] text-muted-foreground">
+              {note.kind === "notebook" ? <BookOpen size={11} aria-hidden="true" /> : <Save size={11} aria-hidden="true" />}
+              {note.kind === "notebook" ? "노트북" : "메모리"}:
+              <span className="max-w-[160px] truncate">{note.label}</span>
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      {latency ? (() => {
+        const parts: string[] = [];
+        if (latency.firstChunkMs > 0) parts.push(`첫 응답 ${formatLatencyMs(latency.firstChunkMs)}`);
+        if (latency.fullResponseMs > 0) parts.push(`전체 ${formatLatencyMs(latency.fullResponseMs)}`);
+        if (parts.length === 0 && latency.decisionPath) parts.push(latency.decisionPath);
+        if (parts.length === 0) return null;
+        return (
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground/80" title={latency.decisionPath || undefined}>
+            <Gauge size={11} aria-hidden="true" /> {parts.join(" · ")}
+          </div>
+        );
+      })() : null}
+    </div>
+  );
+}
+
 function MessageBubble({
   messageKey,
   messageIndex,
@@ -425,7 +577,13 @@ function MessageBubble({
   source,
   grounded,
   citationCount,
-  actionSuggestions
+  actionSuggestions,
+  citations,
+  citationValidation,
+  latency,
+  guard,
+  responseNotes,
+  retrievalTrace
 }: {
   messageKey: string;
   messageIndex: number;
@@ -441,6 +599,12 @@ function MessageBubble({
   grounded?: boolean;
   citationCount?: number;
   actionSuggestions?: AskActionSuggestion[];
+  citations?: AskCitation[];
+  citationValidation?: AskCitationValidation | null;
+  latency?: AskLatency | null;
+  guard?: AskGuardInfo | null;
+  responseNotes?: AskResponseNote[];
+  retrievalTrace?: AskRetrievalTrace | null;
 }) {
   const safeMeta = meta || "";
   if (role === "user") {
@@ -460,6 +624,7 @@ function MessageBubble({
           <MessageMetaStrip role={role} meta={safeMeta || "system"} provider={provider} model={model} route={route} source={source || "system"} grounded={grounded} citationCount={citationCount} />
           <MarkdownMessage text={text} />
           <TokenUsageBadge usage={tokenUsage} />
+          <ResponseExtras citations={citations} citationValidation={citationValidation} latency={latency} guard={guard} responseNotes={responseNotes} retrievalTrace={retrievalTrace} />
           <MessageActions messageKey={messageKey} messageIndex={messageIndex} text={text} meta={safeMeta} canRequest={canRequest} suggestions={actionSuggestions} />
         </div>
       </div>
@@ -471,7 +636,36 @@ function MessageBubble({
         <MessageMetaStrip role={role} meta={safeMeta} provider={provider} model={model} route={route} source={source} grounded={grounded} citationCount={citationCount} />
         <MarkdownMessage text={text} />
         <TokenUsageBadge usage={tokenUsage} />
+        <ResponseExtras citations={citations} citationValidation={citationValidation} latency={latency} guard={guard} responseNotes={responseNotes} retrievalTrace={retrievalTrace} />
         <MessageActions messageKey={messageKey} messageIndex={messageIndex} text={text} meta={safeMeta} canRequest={canRequest} suggestions={actionSuggestions} />
+      </div>
+    </div>
+  );
+}
+
+function ChatTypingIndicator() {
+  return (
+    <span className="flex items-center gap-1 py-1" role="status" aria-label="응답 생성 중">
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.3s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:-0.15s]" />
+      <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60" />
+    </span>
+  );
+}
+
+/** 전송 직후 표시되는 진행 중 답변 버블. 델타가 도착하기 전에는 타이핑 점, 이후에는 실시간 본문을 렌더한다. */
+function StreamingMessageBubble({ text }: { text: string }) {
+  return (
+    <div className="flex justify-start">
+      <div className="prose-omnux max-w-[85%] rounded-2xl rounded-bl-sm border border-border bg-card px-3.5 py-2">
+        {text ? (
+          <>
+            <MarkdownMessage text={text} />
+            <span className="mt-0.5 inline-block h-3.5 w-[3px] animate-pulse rounded-sm bg-primary/70 align-text-bottom" aria-hidden="true" />
+          </>
+        ) : (
+          <ChatTypingIndicator />
+        )}
       </div>
     </div>
   );
@@ -1051,6 +1245,9 @@ export function AskPage() {
   const [composerToolsOpen, setComposerToolsOpen] = useState(false);
   const headerToolsRef = useRef<HTMLDivElement>(null);
   const composerToolsRef = useRef<HTMLDivElement>(null);
+  const threadScrollRef = useRef<HTMLDivElement>(null);
+  // 사용자가 위로 스크롤해 과거 메시지를 읽는 중이면 새 토큰이 와도 강제로 끌어내리지 않는다.
+  const stickToBottomRef = useRef(true);
   const voiceInput = useVoiceInput();
   const autoSpeak = useSpeechStore((state) => state.autoSpeak);
   const toggleAutoSpeak = useSpeechStore((state) => state.toggleAutoSpeak);
@@ -1184,6 +1381,14 @@ export function AskPage() {
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
   }, [store.input]);
+
+  // 새 메시지·스트리밍 토큰이 늘어나면 하단으로 자동 추적한다(사용자가 위로 올려둔 경우 제외).
+  useLayoutEffect(() => {
+    if (!stickToBottomRef.current) return;
+    const el = threadScrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [store.messages, store.streamingText, store.streamingActive, store.multiResult]);
 
   useEffect(() => {
     const handleShortcut = (event: Event) => {
@@ -1562,7 +1767,14 @@ export function AskPage() {
             />
           ) : null}
 
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+          <div
+            ref={threadScrollRef}
+            onScroll={(event) => {
+              const el = event.currentTarget;
+              stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 96;
+            }}
+            className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"
+          >
             {context.linkedMemoryNotes.length > 0 || context.compressionEvents.length > 0 ? (
               <div className="rounded-lg border border-border bg-muted/30 p-3">
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -1713,9 +1925,16 @@ export function AskPage() {
                 grounded={message.grounded}
                 citationCount={message.citationCount}
                 actionSuggestions={message.actionSuggestions}
+                citations={message.citations}
+                citationValidation={message.citationValidation}
+                latency={message.latency}
+                guard={message.guard}
+                responseNotes={message.responseNotes}
+                retrievalTrace={message.retrievalTrace}
               />
             ))}
-            {store.messages.length === 0 && !(store.pending && store.activeConversationId) ? (
+            {store.streamingActive ? <StreamingMessageBubble text={store.streamingText} /> : null}
+            {store.messages.length === 0 && !store.streamingActive && !(store.pending && store.activeConversationId) ? (
               <EmptyState
                 icon={Send}
                 title="확인할 내용"
@@ -1912,6 +2131,12 @@ export function AskPage() {
                     onClick={() => voiceInput.toggle(store.input)}
                   />
                 ) : null}
+                <ComposerRoundButton
+                  icon={Search}
+                  label={store.webSearchEnabled ? "웹 자동검색 켜짐" : "웹 자동검색 꺼짐"}
+                  active={store.webSearchEnabled}
+                  onClick={() => store.setWebSearchEnabled(!store.webSearchEnabled)}
+                />
                 <ComposerRoundButton
                   icon={SlidersHorizontal}
                   label="확장 추론 (Think+)"

@@ -17,7 +17,20 @@ import { requestDesktopRag } from "../middleware/rag-gateway";
 import { requestDesktopVision } from "../middleware/vision-gateway";
 import { requestConfirmDialog, requestPromptDialog } from "../dialog/dialog-store";
 import { useUiLogStore } from "../ui-log/ui-log-store";
-import { emptyAskContext, normalizeAskMessage, normalizeConversationContext, type AskActionSuggestion, type AskConversationContext, type AskMessage } from "./ask-context";
+import {
+  emptyAskContext,
+  normalizeAskMessage,
+  normalizeCitations,
+  normalizeCitationValidation,
+  normalizeConversationContext,
+  normalizeGuardInfo,
+  normalizeLatency,
+  normalizeResponseNotes,
+  normalizeRetrievalTrace,
+  type AskActionSuggestion,
+  type AskConversationContext,
+  type AskMessage
+} from "./ask-context";
 import { normalizeVisionPreflight, type AskVisionAttachment, type AskVisionPreflight } from "./ask-vision";
 import {
   buildRagExecution,
@@ -166,6 +179,8 @@ type AskState = {
   selectedModels: Partial<Record<AskModelProvider, string>>;
   workerModels: Partial<Record<AskModelProvider, string>>;
   thinkPlus: boolean;
+  /** 웹 자동검색 on/off. 끄면 강제컨텍스트 웹검색까지 차단(메모리 검색은 유지). */
+  webSearchEnabled: boolean;
   multiResult: AskMultiResult | null;
   autoSpeakCandidate: AskAutoSpeakCandidate | null;
   ragPreflight: AskRagPreflight | null;
@@ -187,6 +202,12 @@ type AskState = {
   searchResults: Array<{ conversationId: string; title: string; snippet: string }>;
   input: string;
   pending: boolean;
+  /** llm_chat_stream 델타를 실시간으로 누적한 진행 중 답변 본문. */
+  streamingText: string;
+  /** 전송 직후~최종 결과 수신 전까지 true. 스트리밍/타이핑 버블 노출 기준. */
+  streamingActive: boolean;
+  /** 현재 진행 중인 전송의 requestId. 스트림 청크 매칭에 사용. */
+  streamingRequestId: string;
   ragPending: boolean;
   visionPending: boolean;
   loadingConversations: boolean;
@@ -200,6 +221,7 @@ type AskState = {
   setSelectedModel: (provider: AskModelProvider, model: string) => void;
   setWorkerModel: (provider: AskModelProvider, model: string) => void;
   setThinkPlus: (enabled: boolean) => void;
+  setWebSearchEnabled: (enabled: boolean) => void;
   setSidePanel: (panel: "info" | "memory" | "models" | "context" | null) => void;
   setMobilePane: (pane: "list" | "thread") => void;
   toggleFolder: (folder: string) => void;
@@ -339,6 +361,17 @@ function parseWebUrls(value: string): string[] {
     .slice(0, 3);
 }
 
+/** 진행 중 스트리밍 상태를 초기화하는 공통 패치. messages를 비우는 모든 전환에서 함께 적용한다. */
+const STREAM_RESET = { streamingText: "", streamingActive: false, streamingRequestId: "" } as const;
+
+function createRequestId(): string {
+  const globalCrypto = typeof crypto !== "undefined" ? crypto : undefined;
+  if (globalCrypto && typeof globalCrypto.randomUUID === "function") {
+    return `ask-${globalCrypto.randomUUID()}`;
+  }
+  return `ask-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function normalizeConversationMessages(conversation: Record<string, unknown>): AskMessage[] {
   const rawMessages = readField(conversation, "messages", "Messages");
   return Array.isArray(rawMessages) ? rawMessages.map(normalizeAskMessage) : [];
@@ -383,10 +416,6 @@ function buildAutoSpeakCandidate(conversationId: string | null, messages: AskMes
   return null;
 }
 
-function countArray(value: unknown): number {
-  return Array.isArray(value) ? value.length : 0;
-}
-
 function normalizeActionSuggestions(raw: unknown): AskActionSuggestion[] {
   if (!Array.isArray(raw)) return [];
   const result: AskActionSuggestion[] = [];
@@ -423,10 +452,25 @@ function enrichLatestAssistantMessage(messages: AskMessage[], message: DesktopSe
   const provider = String(readField(message, "provider", "Provider") || "");
   const model = String(readField(message, "model", "Model") || "");
   const route = String(readField(message, "route", "Route") || "");
-  const citationCount = countArray(readField(message, "citations", "Citations"));
+  const citations = normalizeCitations(readField(message, "citations", "Citations"));
+  const citationCount = citations.length;
   const grounded = citationCount > 0 || /web|url|ground|citation|검색|근거/i.test(route);
   const actionSuggestions = normalizeActionSuggestions(readField(message, "actionSuggestions", "ActionSuggestions"));
-  if (!provider && !model && !route && !grounded && actionSuggestions.length === 0) return messages;
+  const citationValidation = normalizeCitationValidation(readField(message, "citationValidation", "CitationValidation"));
+  const latency = normalizeLatency(readField(message, "latency", "Latency"));
+  const guard = normalizeGuardInfo(message as Record<string, unknown>);
+  const responseNotes = normalizeResponseNotes(
+    readField(message, "notebookAction", "NotebookAction"),
+    readField(message, "autoMemoryNote", "AutoMemoryNote")
+  );
+  const retrievalTrace = normalizeRetrievalTrace(readField(message, "retrievalTrace", "RetrievalTrace"));
+  if (
+    !provider && !model && !route && !grounded &&
+    actionSuggestions.length === 0 && citations.length === 0 &&
+    !citationValidation && !latency && !guard && responseNotes.length === 0 && !retrievalTrace
+  ) {
+    return messages;
+  }
   const next = [...messages];
   for (let index = next.length - 1; index >= 0; index -= 1) {
     const current = next[index];
@@ -438,7 +482,13 @@ function enrichLatestAssistantMessage(messages: AskMessage[], message: DesktopSe
       route: route || current.route,
       grounded: grounded || current.grounded,
       citationCount: citationCount || current.citationCount,
-      actionSuggestions: actionSuggestions.length > 0 ? actionSuggestions : current.actionSuggestions
+      actionSuggestions: actionSuggestions.length > 0 ? actionSuggestions : current.actionSuggestions,
+      citations: citations.length > 0 ? citations : current.citations,
+      citationValidation: citationValidation ?? current.citationValidation,
+      latency: latency ?? current.latency,
+      guard: guard ?? current.guard,
+      responseNotes: responseNotes.length > 0 ? responseNotes : current.responseNotes,
+      retrievalTrace: retrievalTrace ?? current.retrievalTrace
     };
     break;
   }
@@ -483,6 +533,7 @@ export const useAskStore = create<AskState>((set, get) => ({
   selectedModels: { ...DEFAULT_SELECTED_MODELS },
   workerModels: { ...DEFAULT_WORKER_MODELS },
   thinkPlus: false,
+  webSearchEnabled: true,
   multiResult: null,
   autoSpeakCandidate: null,
   ragPreflight: null,
@@ -504,6 +555,9 @@ export const useAskStore = create<AskState>((set, get) => ({
   searchResults: [],
   input: "",
   pending: false,
+  streamingText: "",
+  streamingActive: false,
+  streamingRequestId: "",
   ragPending: false,
   visionPending: false,
   loadingConversations: false,
@@ -524,7 +578,8 @@ export const useAskStore = create<AskState>((set, get) => ({
       conversationContext: emptyAskContext(),
       metaDraft: { ...EMPTY_META_DRAFT },
       multiResult: null,
-      autoSpeakCandidate: null
+      autoSpeakCandidate: null,
+      ...STREAM_RESET
     });
     get().loadConversations();
   },
@@ -533,6 +588,7 @@ export const useAskStore = create<AskState>((set, get) => ({
   setSelectedModel: (provider, model) => set({ selectedModels: { ...get().selectedModels, [provider]: model } }),
   setWorkerModel: (provider, model) => set({ workerModels: { ...get().workerModels, [provider]: model } }),
   setThinkPlus: (enabled) => set({ thinkPlus: enabled }),
+  setWebSearchEnabled: (enabled) => set({ webSearchEnabled: enabled }),
   setSidePanel: (panel) => set({ sidePanel: panel }),
   setMobilePane: (pane) => set({ mobilePane: pane }),
   toggleFolder: (folder) => {
@@ -623,7 +679,8 @@ export const useAskStore = create<AskState>((set, get) => ({
       pending: true,
       autoSpeakCandidate: null,
       mobilePane: "thread",
-      lastError: null
+      lastError: null,
+      ...STREAM_RESET
     });
     if (!requestDesktopAsk.getConversation(item.id)) {
       set({ pending: false, lastError: "대화 조회 요청을 전송하지 못했다." });
@@ -639,7 +696,8 @@ export const useAskStore = create<AskState>((set, get) => ({
       pending: true,
       multiResult: null,
       autoSpeakCandidate: null,
-      mobilePane: "thread"
+      mobilePane: "thread",
+      ...STREAM_RESET
     });
     if (!requestDesktopAsk.createConversation("chat", mode, {
       title: draft.title,
@@ -1048,6 +1106,7 @@ export const useAskStore = create<AskState>((set, get) => ({
     ];
     const mode = get().chatMode;
     const meta = get().metaDraft;
+    const requestId = createRequestId();
     const ok = requestDesktopAsk.chat(mode, effectiveText, get().activeConversationId, {
       provider: get().provider,
       summaryProvider: get().summaryProvider,
@@ -1060,7 +1119,8 @@ export const useAskStore = create<AskState>((set, get) => ({
       memoryNotes: get().selectedMemoryNotes,
       attachments,
       webUrls: parseWebUrls(effectiveText),
-      webSearchEnabled: true
+      webSearchEnabled: get().webSearchEnabled,
+      requestId
     });
     set({
       messages: nextMessages,
@@ -1068,11 +1128,16 @@ export const useAskStore = create<AskState>((set, get) => ({
       attachments: ok ? [] : attachments,
       attachmentPanelOpen: ok ? false : get().attachmentPanelOpen,
       pending: ok,
+      // 전송 성공 시 스트리밍 대기 상태로 전환한다. single 모드는 llm_chat_stream 델타가
+      // 채워지고, orchestration/multi 는 델타 없이 최종 결과까지 타이핑 표시만 유지된다.
+      streamingActive: ok,
+      streamingText: "",
+      streamingRequestId: ok ? requestId : "",
       multiResult: mode === "multi" ? null : get().multiResult,
       autoSpeakCandidate: null
     });
     if (!ok) {
-      set({ pending: false, lastError: "대화 전송 요청을 전송하지 못했다." });
+      set({ pending: false, ...STREAM_RESET, lastError: "대화 전송 요청을 전송하지 못했다." });
     }
   }
 }));
@@ -1081,6 +1146,20 @@ export function useAskPageBridge() {
   useEffect(() => {
     return subscribeDesktopMessages((message: DesktopServerMessage) => {
     const store = useAskStore.getState();
+    if (message.type === "llm_chat_stream") {
+      // 전송을 기다리는 동안 도착한 델타만 누적한다. requestId 가 있으면 현재 턴과 일치할 때만 반영해
+      // 이전 턴의 잔여 청크가 섞이지 않게 한다.
+      if (!store.streamingActive) return;
+      const streamRequestId = String(readField(message, "requestId", "RequestId") || "");
+      if (store.streamingRequestId && streamRequestId && streamRequestId !== store.streamingRequestId) {
+        return;
+      }
+      const delta = String(readField(message, "delta", "Delta") || "");
+      if (!delta) return;
+      useAskStore.setState((prev) => (prev.streamingActive ? { streamingText: prev.streamingText + delta } : {}));
+      return;
+    }
+
     if (message.type === "conversations") {
       const responseMode = normalizeChatMode(readField(message, "mode", "Mode"));
       if (responseMode !== store.chatMode) {
@@ -1110,6 +1189,7 @@ export function useAskPageBridge() {
         conversationContext: normalizeConversationContext(conversation),
         autoSpeakCandidate: null,
         pending: false,
+        ...STREAM_RESET,
         lastError: null
       });
       return;
@@ -1210,6 +1290,7 @@ export function useAskPageBridge() {
         conversationContext: normalizeConversationContext(conversation),
         autoSpeakCandidate: null,
         pending: false,
+        ...STREAM_RESET,
         lastError: null
       });
       useAskStore.getState().loadConversations();
@@ -1230,7 +1311,8 @@ export function useAskPageBridge() {
                 conversationContext: emptyAskContext(),
                 metaDraft: { ...EMPTY_META_DRAFT },
                 multiResult: null,
-                autoSpeakCandidate: null
+                autoSpeakCandidate: null,
+                ...STREAM_RESET
               }
             : {})
         });
@@ -1287,6 +1369,7 @@ export function useAskPageBridge() {
         autoSpeakCandidate: null,
         loadingConversations: false,
         loadingMemoryNotes: false,
+        ...STREAM_RESET,
         lastError: null
       });
       useAskStore.getState().loadConversations();
@@ -1362,13 +1445,14 @@ export function useAskPageBridge() {
         multiResult: message.type === "llm_chat_multi_result" ? normalizeMultiResult(message) : store.multiResult,
         autoSpeakCandidate: buildAutoSpeakCandidate(activeConversationId, messages),
         pending: false,
+        ...STREAM_RESET,
         lastError: null
       });
       return;
     }
 
     if (message.type === "error") {
-      useAskStore.setState({ pending: false, ragPending: false, visionPending: false, searching: false, loadingConversations: false, loadingMemoryNotes: false, lastError: String(message.message || "오류") });
+      useAskStore.setState({ pending: false, ...STREAM_RESET, ragPending: false, visionPending: false, searching: false, loadingConversations: false, loadingMemoryNotes: false, lastError: String(message.message || "오류") });
     }
     });
   }, []);

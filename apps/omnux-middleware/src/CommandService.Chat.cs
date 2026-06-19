@@ -477,7 +477,9 @@ public sealed partial class CommandService
             session.SessionKey,
             session.SessionId,
             requestedSkillName,
-            request.SkillScope
+            request.SkillScope,
+            // 웹 자동검색 토글: 꺼져 있으면 강제컨텍스트 웹검색까지 차단한다(메모리 검색은 유지).
+            request.WebSearchEnabled
         );
         if (!string.IsNullOrWhiteSpace(preparedInput.UnsupportedMessage))
         {
@@ -506,7 +508,8 @@ public sealed partial class CommandService
                 preparedInput.RetryAttempt,
                 preparedInput.RetryMaxAttempts,
                 preparedInput.RetryStopReason,
-                RequestId: request.RequestId
+                RequestId: request.RequestId,
+                RetrievalTrace: preparedInput.RetrievalTrace
             );
         }
 
@@ -721,7 +724,8 @@ public sealed partial class CommandService
             preparedInput.RetryMaxAttempts,
             preparedInput.RetryStopReason,
             RequestId: request.RequestId,
-            ActionSuggestions: actionSuggestions
+            ActionSuggestions: actionSuggestions,
+            RetrievalTrace: preparedInput.RetrievalTrace
         );
     }
 
@@ -1410,7 +1414,9 @@ public sealed partial class CommandService
             session.SessionKey,
             session.SessionId,
             requestedSkillName,
-            request.SkillScope
+            request.SkillScope,
+            // 웹 자동검색 토글을 강제컨텍스트 웹검색에도 동일하게 적용한다.
+            request.WebSearchEnabled
         );
         if (!string.IsNullOrWhiteSpace(basePrepared.UnsupportedMessage))
         {
@@ -1678,7 +1684,9 @@ public sealed partial class CommandService
             session.SessionKey,
             session.SessionId,
             requestedSkillName,
-            request.SkillScope
+            request.SkillScope,
+            // 웹 자동검색 토글을 강제컨텍스트 웹검색에도 동일하게 적용한다.
+            request.WebSearchEnabled
         );
         if (!string.IsNullOrWhiteSpace(basePrepared.UnsupportedMessage))
         {

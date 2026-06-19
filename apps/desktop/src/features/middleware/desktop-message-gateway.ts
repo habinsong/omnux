@@ -469,6 +469,7 @@ export const requestDesktopAsk = {
       attachments?: unknown[];
       webUrls?: string[];
       webSearchEnabled?: boolean;
+      requestId?: string;
     } = {}
   ) {
     const type =
@@ -489,6 +490,8 @@ export const requestDesktopAsk = {
       scope: "chat",
       mode,
       conversationId: conversationId || undefined,
+      // 스트리밍 청크(llm_chat_stream)와 요청을 매칭해 이전 턴의 잔여 청크가 섞이지 않게 한다.
+      requestId: options.requestId?.trim() || undefined,
       // single/orchestration: 워커 provider, orchestration/multi: 요약 provider
       provider: mode === "multi" ? undefined : provider,
       model: mode === "multi" ? undefined : selectedModel,

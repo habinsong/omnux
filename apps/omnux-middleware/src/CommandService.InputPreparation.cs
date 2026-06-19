@@ -55,7 +55,8 @@ public sealed partial class CommandService
         string? sessionKey = null,
         string? threadBindingKey = null,
         string? requestedSkillName = null,
-        string? requestedSkillScope = null
+        string? requestedSkillScope = null,
+        bool allowForcedWebSearch = true
     )
     {
         var normalizedInput = (input ?? string.Empty).Trim();
@@ -327,14 +328,16 @@ public sealed partial class CommandService
         var forcedRetryAttempt = 0;
         var forcedRetryMaxAttempts = 0;
         var forcedRetryStopReason = "-";
+        RetrievalTrace? forcedRetrievalTrace = null;
         try
         {
-            var (forcedBlock, forcedTrace, guardFailure, citations, retryAttempt, retryMaxAttempts, retryStopReason) = await BuildForcedRetrievalContextBlockAsync(
+            var (forcedBlock, forcedTrace, guardFailure, citations, retryAttempt, retryMaxAttempts, retryStopReason, retrievalTrace) = await BuildForcedRetrievalContextBlockAsync(
                 normalizedInput,
                 normalizedSource,
                 sessionKey,
                 threadBindingKey,
                 forcedContextRequestId,
+                allowForcedWebSearch,
                 cancellationToken
             );
             forcedGuardFailure = guardFailure;
@@ -342,6 +345,7 @@ public sealed partial class CommandService
             forcedRetryAttempt = retryAttempt;
             forcedRetryMaxAttempts = retryMaxAttempts;
             forcedRetryStopReason = retryStopReason;
+            forcedRetrievalTrace = retrievalTrace;
             _auditLogger.Log(normalizedSource, "forced_context", "ok", forcedTrace);
             if (!string.IsNullOrWhiteSpace(forcedBlock))
             {
@@ -390,7 +394,8 @@ public sealed partial class CommandService
             forcedCitations,
             forcedRetryAttempt,
             forcedRetryMaxAttempts,
-            forcedRetryStopReason
+            forcedRetryStopReason,
+            forcedRetrievalTrace
         );
     }
 
@@ -407,7 +412,8 @@ public sealed partial class CommandService
         string? sessionKey = null,
         string? threadBindingKey = null,
         string? requestedSkillName = null,
-        string? requestedSkillScope = null
+        string? requestedSkillScope = null,
+        bool allowForcedWebSearch = true
     )
     {
         var shared = includeSharedContext
@@ -421,7 +427,8 @@ public sealed partial class CommandService
                 sessionKey,
                 threadBindingKey,
                 requestedSkillName,
-                requestedSkillScope
+                requestedSkillScope,
+                allowForcedWebSearch
             )
             : new InputPreparationResult((input ?? string.Empty).Trim(), string.Empty);
         var normalizedAttachments = InputAttachmentPolicy.Normalize(attachments);
@@ -461,7 +468,8 @@ public sealed partial class CommandService
                     shared.Citations,
                     shared.RetryAttempt,
                     shared.RetryMaxAttempts,
-                    shared.RetryStopReason
+                    shared.RetryStopReason,
+                    shared.RetrievalTrace
                 );
             }
         }
@@ -495,7 +503,8 @@ public sealed partial class CommandService
                 shared.Citations,
                 shared.RetryAttempt,
                 shared.RetryMaxAttempts,
-                shared.RetryStopReason
+                shared.RetryStopReason,
+                shared.RetrievalTrace
             );
         }
 
@@ -521,7 +530,8 @@ public sealed partial class CommandService
             shared.Citations,
             shared.RetryAttempt,
             shared.RetryMaxAttempts,
-            shared.RetryStopReason
+            shared.RetryStopReason,
+            shared.RetrievalTrace
         );
     }
 
@@ -532,13 +542,15 @@ public sealed partial class CommandService
         IReadOnlyList<SearchCitationReference> Citations,
         int RetryAttempt,
         int RetryMaxAttempts,
-        string RetryStopReason
+        string RetryStopReason,
+        RetrievalTrace RetrievalTrace
     )> BuildForcedRetrievalContextBlockAsync(
         string input,
         string source,
         string? sessionKey,
         string? threadBindingKey,
         string requestId,
+        bool allowWebSearch,
         CancellationToken cancellationToken
     )
     {
@@ -555,6 +567,10 @@ public sealed partial class CommandService
         var webSearchTrace = CreateForcedToolTrace("skip", skipReason: "not_executed");
         var webFetchTrace = CreateForcedToolTrace("skip", skipReason: "not_executed");
         var freshnessTrace = "na";
+        // 어떤 단계가 실제로 프롬프트에 섹션을 주입했는지 추적해 트레이스로 노출한다.
+        var memorySearchInjected = false;
+        var memoryGetInjected = false;
+        var webInjected = false;
         SearchAnswerGuardFailure? webSearchGuardFailure = null;
         IReadOnlyList<SearchCitationReference> webSearchCitations = Array.Empty<SearchCitationReference>();
         var retryAttempt = 0;
@@ -589,7 +605,16 @@ public sealed partial class CommandService
                 Array.Empty<SearchCitationReference>(),
                 retryAttempt,
                 retryMaxAttempts,
-                "empty_query"
+                "empty_query",
+                BuildForcedRetrievalTrace(
+                    freshnessTrace,
+                    memorySearchInjected,
+                    memoryGetInjected,
+                    webInjected,
+                    memorySearchTrace,
+                    memoryGetTrace,
+                    webSearchTrace
+                )
             );
         }
 
@@ -623,6 +648,7 @@ public sealed partial class CommandService
                 if (useSearchHits && scopedMemoryResults.Count > 0)
                 {
                     sections.Add(BuildMemorySearchContextBlock(scopedMemoryResults));
+                    memorySearchInjected = true;
                 }
 
                 var topMemoryHit = useSearchHits
@@ -661,6 +687,7 @@ public sealed partial class CommandService
                             )
                         );
                         sections.Add(BuildMemoryGetContextBlock(topMemoryHit, memoryGet));
+                        memoryGetInjected = true;
                     }
                 }
                 else if (memoryGetTrace["skipReason"] == "-")
@@ -714,15 +741,22 @@ public sealed partial class CommandService
                     + $"path: {fallbackPath}\n"
                     + TrimForForcedContext(memoryGet.Text, 900)
                 );
+                memoryGetInjected = true;
             }
         }
 
-        var webSearchDecision = await DecideWebSearchRequirementAsync(
-            query,
-            cancellationToken
-        );
+        var webSearchDecision = allowWebSearch
+            ? await DecideWebSearchRequirementAsync(query, cancellationToken)
+            : new SearchRequirementDecision(false, "disabled", "-", "-");
         freshnessTrace = webSearchDecision.DecisionLabel;
-        if (!webSearchDecision.Required)
+        if (!allowWebSearch)
+        {
+            // 사용자가 웹 자동검색 토글을 끈 경우: 비용이 드는 필요성 판단 LLM 호출과 웹검색을 모두 건너뛴다.
+            webSearchTrace = CreateForcedToolTrace("skip", skipReason: "web_disabled_by_user");
+            webFetchTrace = CreateForcedToolTrace("skip", skipReason: "web_disabled_by_user");
+            retryStopReason = "web_disabled_by_user";
+        }
+        else if (!webSearchDecision.Required)
         {
             webSearchTrace = CreateForcedToolTrace("skip", skipReason: "llm_not_required");
             webFetchTrace = CreateForcedToolTrace("skip", skipReason: "llm_not_required");
@@ -844,6 +878,7 @@ public sealed partial class CommandService
                     webSearchCitations = BuildSearchCitationReferences(contextAlignedResults);
                     sections.Add(BuildWebSearchContextBlock(freshness, contextAlignedResults));
                     sections.Add(BuildWebAnswerFormattingContextBlock(query, requestedSearchCount));
+                    webInjected = true;
                 }
 
                 webFetchTrace = CreateForcedToolTrace("skip", skipReason: "disabled_for_latency");
@@ -873,7 +908,16 @@ public sealed partial class CommandService
             webSearchCitations,
             retryAttempt,
             retryMaxAttempts,
-            retryStopReason
+            retryStopReason,
+            BuildForcedRetrievalTrace(
+                freshnessTrace,
+                memorySearchInjected,
+                memoryGetInjected,
+                webInjected,
+                memorySearchTrace,
+                memoryGetTrace,
+                webSearchTrace
+            )
         );
     }
 
@@ -1308,6 +1352,47 @@ public sealed partial class CommandService
             ["guardReason"] = NormalizeForcedGuardReason(guardReason),
             ["guardDetail"] = NormalizeForcedToolValue(guardDetail, "-")
         };
+    }
+
+    // 기존 ForcedToolTrace 딕셔너리(검색 로직이 이미 채워둔 상태/건수)를 타입드 트레이스로 변환만 한다.
+    private static RetrievalTrace BuildForcedRetrievalTrace(
+        string webDecision,
+        bool memorySearchInjected,
+        bool memoryGetInjected,
+        bool webInjected,
+        IReadOnlyDictionary<string, string> memorySearch,
+        IReadOnlyDictionary<string, string> memoryGet,
+        IReadOnlyDictionary<string, string> webSearch
+    )
+    {
+        var steps = new List<RetrievalTraceStep>(3)
+        {
+            ToRetrievalTraceStep("memory_search", memorySearch, memorySearchInjected),
+            ToRetrievalTraceStep("memory_get", memoryGet, memoryGetInjected),
+            ToRetrievalTraceStep("web_search", webSearch, webInjected)
+        };
+        return new RetrievalTrace(
+            NormalizeAuditToken(webDecision, "na"),
+            memorySearchInjected || memoryGetInjected,
+            webInjected,
+            steps
+        );
+    }
+
+    private static RetrievalTraceStep ToRetrievalTraceStep(
+        string tool,
+        IReadOnlyDictionary<string, string> trace,
+        bool injected
+    )
+    {
+        return new RetrievalTraceStep(
+            tool,
+            ReadForcedToolTraceField(trace, "status", "error"),
+            ReadForcedToolTraceField(trace, "skipReason", "-"),
+            ReadForcedToolTraceField(trace, "result", "-"),
+            ReadForcedToolTraceField(trace, "detail", "-"),
+            injected
+        );
     }
 
     private static string BuildForcedContextTraceMessage(
