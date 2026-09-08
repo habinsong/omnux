@@ -145,7 +145,7 @@ src/
 
 ### Design System
 
-- Tailwind CSS v4 + shadcn/ui style tokens
+- Tailwind CSS v4 semantic tokens
 - 3-tier theme: Glass (default, translucent+blur), Light (off-white+shadows), Dark (warm dark+glow)
 - Primitives: `src/components/ui/primitives.tsx` (Button, Card, Badge, Input, Textarea, EmptyState, Spinner)
 - `window.alert/confirm/prompt` forbidden — custom Dialog used instead

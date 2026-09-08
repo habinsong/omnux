@@ -9,7 +9,7 @@ import { forwardRef } from "react";
 import type { LucideIcon } from "lucide-react";
 
 /* ============================================================================
-   OMNUX UI Primitives (shadcn/ui 스타일)
+   OMNUX UI Primitives
    UIUX_design.md 강제 규약: Tailwind 토큰만 사용, 인라인 스타일 금지,
    절제된 모션(duration-200 ease-out, active:scale), 우아한 포커스 링.
    하드코딩 HEX 없이 시맨틱 토큰(bg-card, text-foreground, border-border 등)만.

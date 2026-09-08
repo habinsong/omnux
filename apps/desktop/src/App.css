@@ -2,7 +2,7 @@
 
 /* ============================================================================
    OMNUX Design System — Tailwind v4 Foundation
-   UIUX_design.md 빅뱅 재구축: shadcn/ui 시맨틱 토큰 + Vercel/Linear 듀얼 테마.
+   UIUX_design.md 빅뱅 재구축: 시맨틱 토큰 + Vercel/Linear 듀얼 테마.
    하드코딩 HEX 금지 → 모든 색은 아래 토큰을 통해서만 사용한다.
    (아래 "LEGACY" 구역은 아직 Tailwind로 이식되지 않은 화면을 위한 과도기 CSS이며
     각 화면이 Tailwind로 재구축되는 즉시 제거된다.)

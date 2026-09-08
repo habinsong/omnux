@@ -11,7 +11,7 @@ omnux is not one large framework. It keeps small runtimes separated by responsib
 | Core runtime | .NET 9 (`PublishAot=true`) | Metrics, guarded kill, WebSocket/HTTP, Telegram, file state, provider routing, domain orchestration |
 | Desktop shell | Tauri v2 + React 19 + TypeScript + Tailwind CSS v4 | App shell (Rust) + UI (React), Zustand state management, react-markdown rendering |
 | Desktop build | Vite 7 + `@tailwindcss/vite` | Fast HMR, Tailwind v4 integrated build |
-| Desktop UI | Tailwind CSS v4, lucide-react, shadcn/ui tokens | 기존 3-tier 토큰(Glass/Light/Dark), 반응형·접이식 도구 화면 |
+| Desktop UI | Tailwind CSS v4, lucide-react | 기존 3-tier 토큰(Glass/Light/Dark), 반응형·접이식 도구 화면 |
 | Dashboard | HTML/CSS/JavaScript | Static dashboard without a bundler (legacy) |
 | Executor | Python | Simple code execution and verification |
 | Tests/scripts | Node.js, npm scripts | Repository hygiene, contract checks, frontend syntax checks |

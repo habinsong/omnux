@@ -32,8 +32,7 @@ Cmd/Ctrl+Enter로 요청을 보낼 수 있으며 한글 조합 중에는 전송�
 - 모델 이름이 같아도 대표 결과와 보조 모델 결과를 대상 번호로 구분한다. 다른 대상의 미리보기·출력을 섞지 않는다.
 - 화면 안에서 처리하는 오류는 전역 팝업으로 중복 표시하지 않는다. 오류 로그는 유지한다.
 
-아코디언의 구성은 [shadcn/ui 문서](https://ui.shadcn.com/docs/components/base/accordion)를 참고했다.
-[MIT 라이선스](https://github.com/shadcn-ui/ui/blob/main/LICENSE.md)를 확인했으며 외부 컴포넌트 소스는 복사하지 않았다.
+아코디언은 외부 컴포넌트 소스를 복사하지 않고 직접 작성했다.
 화면·스타일은 네이티브 폼·details·dialog와 기존 React 의존성으로 작성했다.
 
 ## 검증과 남은 범위
