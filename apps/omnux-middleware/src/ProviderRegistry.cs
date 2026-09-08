@@ -13,7 +13,7 @@ public sealed record ProviderAvailability(
 
 public sealed class ProviderRegistry
 {
-    private static readonly string[] AutoPriority = { "gemini", "groq", "nvidia", "cerebras", "copilot", "codex" };
+    private static readonly string[] AutoPriority = { "gemini", "groq", "nvidia", "cerebras", "copilot", "codex", "grok" };
     private readonly LlmRouter _llmRouter;
     private readonly CopilotCliWrapper _copilotWrapper;
     private readonly CodexCliWrapper _codexWrapper;
@@ -50,7 +50,7 @@ public sealed class ProviderRegistry
 
     public async Task<IReadOnlyList<ProviderAvailability>> GetAvailabilitySnapshotAsync(CancellationToken cancellationToken)
     {
-        var items = new List<ProviderAvailability>(6)
+        var items = new List<ProviderAvailability>(7)
         {
             _llmRouter.HasGeminiApiKey()
                 ? new ProviderAvailability("gemini", true, "configured", true, true, true, false, true)
@@ -75,6 +75,9 @@ public sealed class ProviderRegistry
             ? new ProviderAvailability("codex", true, "ready", false, true, false, true, false)
             : new ProviderAvailability("codex", false, "not_ready", false, true, false, true, false));
 
+        var grok = await _llmRouter.GrokClient.GetStatusAsync(cancellationToken);
+        items.Add(new ProviderAvailability("grok", grok.Installed && grok.Authenticated,
+            grok.Authenticated ? "ready" : grok.Mode, false, true, false, true, false));
         return items;
     }
 }

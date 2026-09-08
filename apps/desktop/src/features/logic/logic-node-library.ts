@@ -65,7 +65,8 @@ const PROVIDER_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "cerebras", label: "Cerebras" },
   { value: "nvidia", label: "NVIDIA NIM" },
   { value: "copilot", label: "Copilot" },
-  { value: "codex", label: "Codex" }
+  { value: "codex", label: "Codex" },
+  { value: "grok", label: "Grok" }
 ];
 
 const ENABLED_OPTIONS: Array<{ value: string; label: string }> = [

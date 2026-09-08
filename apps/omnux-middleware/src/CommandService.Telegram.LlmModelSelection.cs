@@ -15,7 +15,7 @@ public sealed partial class CommandService
         var tokens = text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (tokens.Length < 2)
         {
-            return Task.FromResult<string?>("사용법: /model <groq|gemini|copilot|cerebras|nvidia|codex>");
+            return Task.FromResult<string?>("사용법: /model <groq|gemini|copilot|cerebras|nvidia|codex|grok>");
         }
 
         var key = tokens[1].Trim().ToLowerInvariant();
@@ -35,7 +35,7 @@ public sealed partial class CommandService
             return Task.FromResult<string?>(message);
         }
 
-        return Task.FromResult<string?>("사용법: /model <groq|gemini|copilot|cerebras|nvidia|codex>");
+        return Task.FromResult<string?>("사용법: /model <groq|gemini|copilot|cerebras|nvidia|codex|grok>");
     }
 
     private async Task<string> SetGroqModelForTelegramAsync(string modelId, CancellationToken cancellationToken)
@@ -65,17 +65,12 @@ public sealed partial class CommandService
             return Task.FromResult("model-id를 입력하세요. 예: /llm set copilot gpt-5-mini");
         }
 
-        if (!TryApplyTelegramCopilotModelSelectionMutation(new TelegramCopilotModelSelectionMutationRequest(DefaultCopilotModel)))
+        if (!TryApplyTelegramCopilotModelSelectionMutation(new TelegramCopilotModelSelectionMutationRequest(requested)))
         {
-            return Task.FromResult($"Copilot 모델 설정 실패: {DefaultCopilotModel}");
+            return Task.FromResult($"Copilot 모델 설정 실패: {requested}");
         }
 
-        if (!requested.Equals(DefaultCopilotModel, StringComparison.OrdinalIgnoreCase))
-        {
-            return Task.FromResult($"Copilot 모델은 {DefaultCopilotModel}로 고정됩니다. 요청한 `{requested}` 대신 {DefaultCopilotModel}를 사용합니다.");
-        }
-
-        return Task.FromResult($"Copilot 모델을 {DefaultCopilotModel}로 설정했습니다.");
+        return Task.FromResult($"Copilot 모델을 {requested}로 설정했습니다.");
     }
 
     private async Task<string> SetTelegramProviderModelForNaturalControlAsync(

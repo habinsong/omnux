@@ -73,7 +73,12 @@ internal static class AtomicFileStore
 
             try
             {
-                WriteAllText(fullPath, backup, ownerOnly: true);
+                using var lease = AcquireWriteLease(fullPath, ownerOnly: true);
+                var current = File.ReadAllText(fullPath, effectiveEncoding);
+                if (isValid(current)) return current;
+                var latestBackup = File.ReadAllText(backupPath, effectiveEncoding);
+                if (isValid(latestBackup)) backup = latestBackup;
+                WriteAllTextUnlocked(fullPath, backup, ownerOnly: true, createBackup: false);
             }
             catch (Exception ex)
             {
@@ -90,7 +95,7 @@ internal static class AtomicFileStore
         }
     }
 
-    private static void WriteAllTextUnlocked(string fullPath, string content, bool ownerOnly)
+    private static void WriteAllTextUnlocked(string fullPath, string content, bool ownerOnly, bool createBackup = true)
     {
         var tmpPath = fullPath + ".tmp";
         var backupPath = fullPath + BackupSuffix;
@@ -107,7 +112,7 @@ internal static class AtomicFileStore
             File.SetUnixFileMode(tmpPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
 
-        if (File.Exists(fullPath))
+        if (createBackup && File.Exists(fullPath))
         {
             File.Copy(fullPath, backupPath, overwrite: true);
             if (!OperatingSystem.IsWindows() && ownerOnly)

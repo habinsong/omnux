@@ -9,8 +9,8 @@ internal sealed class WsConversationMemoryDispatcher
 {
     private readonly IConversationApplicationService _conversationService;
     private readonly IMemoryApplicationService _memoryService;
-    private readonly Func<WebSocket, SemaphoreSlim, string, string, CancellationToken, Task> _sendConversationsAsync;
-    private readonly Func<WebSocket, SemaphoreSlim, string, ConversationThreadView, CancellationToken, Task> _sendConversationDetailAsync;
+    private readonly Func<WebSocket, SemaphoreSlim, string, string, CancellationToken, string?, Task> _sendConversationsAsync;
+    private readonly Func<WebSocket, SemaphoreSlim, string, ConversationThreadView, CancellationToken, string?, Task> _sendConversationDetailAsync;
     private readonly Func<WebSocket, SemaphoreSlim, CancellationToken, Task> _sendMemoryNotesAsync;
     private readonly Func<WebSocket, SemaphoreSlim, string, MemorySearchToolResult, CancellationToken, Task> _sendMemorySearchResultAsync;
     private readonly Func<WebSocket, SemaphoreSlim, string, int?, int?, MemoryGetToolResult, CancellationToken, Task> _sendMemoryGetResultAsync;
@@ -23,8 +23,8 @@ internal sealed class WsConversationMemoryDispatcher
         IMemoryApplicationService memoryService,
         ISyncConfigurationStore syncConfigStore,
         IGistSyncApplicationService gistSyncService,
-        Func<WebSocket, SemaphoreSlim, string, string, CancellationToken, Task> sendConversationsAsync,
-        Func<WebSocket, SemaphoreSlim, string, ConversationThreadView, CancellationToken, Task> sendConversationDetailAsync,
+        Func<WebSocket, SemaphoreSlim, string, string, CancellationToken, string?, Task> sendConversationsAsync,
+        Func<WebSocket, SemaphoreSlim, string, ConversationThreadView, CancellationToken, string?, Task> sendConversationDetailAsync,
         Func<WebSocket, SemaphoreSlim, CancellationToken, Task> sendMemoryNotesAsync,
         Func<WebSocket, SemaphoreSlim, string, MemorySearchToolResult, CancellationToken, Task> sendMemorySearchResultAsync,
         Func<WebSocket, SemaphoreSlim, string, int?, int?, MemoryGetToolResult, CancellationToken, Task> sendMemoryGetResultAsync,
@@ -59,7 +59,7 @@ internal sealed class WsConversationMemoryDispatcher
 
         if (!isAuthenticated)
         {
-            await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"unauthorized\"}", cancellationToken);
+            await SendConversationErrorAsync(socket, sendLock, message, "unauthorized", cancellationToken);
             return true;
         }
 
@@ -70,7 +70,8 @@ internal sealed class WsConversationMemoryDispatcher
                 sendLock,
                 message.Scope ?? "chat",
                 message.Mode ?? "single",
-                cancellationToken
+                cancellationToken,
+                message.RequestId
             );
             return true;
         }
@@ -85,8 +86,8 @@ internal sealed class WsConversationMemoryDispatcher
                 message.Category,
                 message.Tags
             );
-            await _sendConversationDetailAsync(socket, sendLock, "conversation_created", created, cancellationToken);
-            await _sendConversationsAsync(socket, sendLock, created.Scope, created.Mode, cancellationToken);
+            await _sendConversationDetailAsync(socket, sendLock, "conversation_created", created, cancellationToken, message.RequestId);
+            await _sendConversationsAsync(socket, sendLock, created.Scope, created.Mode, cancellationToken, message.RequestId);
             return true;
         }
 
@@ -94,18 +95,18 @@ internal sealed class WsConversationMemoryDispatcher
         {
             if (string.IsNullOrWhiteSpace(message.ConversationId))
             {
-                await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"conversationId is required\"}", cancellationToken);
+                await SendConversationErrorAsync(socket, sendLock, message, "conversationId is required", cancellationToken);
                 return true;
             }
 
             var found = _conversationService.GetConversation(message.ConversationId.Trim());
             if (found == null)
             {
-                await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"conversation not found\"}", cancellationToken);
+                await SendConversationErrorAsync(socket, sendLock, message, "conversation not found", cancellationToken);
                 return true;
             }
 
-            await _sendConversationDetailAsync(socket, sendLock, "conversation_detail", found, cancellationToken);
+            await _sendConversationDetailAsync(socket, sendLock, "conversation_detail", found, cancellationToken, message.RequestId);
             return true;
         }
 
@@ -113,7 +114,7 @@ internal sealed class WsConversationMemoryDispatcher
         {
             if (string.IsNullOrWhiteSpace(message.ConversationId))
             {
-                await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"conversationId is required\"}", cancellationToken);
+                await SendConversationErrorAsync(socket, sendLock, message, "conversationId is required", cancellationToken);
                 return true;
             }
 
@@ -122,10 +123,10 @@ internal sealed class WsConversationMemoryDispatcher
             await WebSocketGateway.SendTextAsync(
                 socket,
                 sendLock,
-                $"{{\"type\":\"conversation_deleted\",\"ok\":{(deleted ? "true" : "false")},\"conversationId\":\"{WebSocketGateway.EscapeJson(conversationId)}\"}}",
+                $"{{\"type\":\"conversation_deleted\",\"ok\":{(deleted ? "true" : "false")},\"conversationId\":\"{WebSocketGateway.EscapeJson(conversationId)}\",\"requestId\":\"{WebSocketGateway.EscapeJson(message.RequestId ?? string.Empty)}\"}}",
                 cancellationToken
             );
-            await _sendConversationsAsync(socket, sendLock, message.Scope ?? "chat", message.Mode ?? "single", cancellationToken);
+            await _sendConversationsAsync(socket, sendLock, message.Scope ?? "chat", message.Mode ?? "single", cancellationToken, message.RequestId);
             await _sendMemoryNotesAsync(socket, sendLock, cancellationToken);
             return true;
         }
@@ -155,7 +156,7 @@ internal sealed class WsConversationMemoryDispatcher
                 {
                     foreach (var targetMode in new[] { "single", "orchestration", "multi" })
                     {
-                        await _sendConversationsAsync(socket, sendLock, targetScope, targetMode, cancellationToken);
+                        await _sendConversationsAsync(socket, sendLock, targetScope, targetMode, cancellationToken, message.RequestId);
                     }
                 }
             }
@@ -163,7 +164,7 @@ internal sealed class WsConversationMemoryDispatcher
             {
                 foreach (var targetMode in new[] { "single", "orchestration", "multi" })
                 {
-                    await _sendConversationsAsync(socket, sendLock, refreshScope, targetMode, cancellationToken);
+                    await _sendConversationsAsync(socket, sendLock, refreshScope, targetMode, cancellationToken, message.RequestId);
                 }
             }
 
@@ -268,7 +269,7 @@ internal sealed class WsConversationMemoryDispatcher
         {
             if (string.IsNullOrWhiteSpace(message.ConversationId))
             {
-                await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"conversationId is required\"}", cancellationToken);
+                await SendConversationErrorAsync(socket, sendLock, message, "conversationId is required", cancellationToken);
                 return true;
             }
 
@@ -296,7 +297,7 @@ internal sealed class WsConversationMemoryDispatcher
 
             if (created.Ok && created.Conversation != null)
             {
-                await _sendConversationDetailAsync(socket, sendLock, "conversation_detail", created.Conversation, cancellationToken);
+                await _sendConversationDetailAsync(socket, sendLock, "conversation_detail", created.Conversation, cancellationToken, message.RequestId);
                 await _sendMemoryNotesAsync(socket, sendLock, cancellationToken);
             }
 
@@ -330,7 +331,7 @@ internal sealed class WsConversationMemoryDispatcher
                 : message.Query;
             if (string.IsNullOrWhiteSpace(query))
             {
-                await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"query is required\"}", cancellationToken);
+                await SendConversationErrorAsync(socket, sendLock, message, "query is required", cancellationToken);
                 return true;
             }
 
@@ -338,7 +339,7 @@ internal sealed class WsConversationMemoryDispatcher
             await WebSocketGateway.SendTextAsync(
                 socket,
                 sendLock,
-                BuildConversationSearchResultJson(result),
+                BuildConversationSearchResultJson(result, message.RequestId),
                 cancellationToken
             );
             return true;
@@ -400,8 +401,8 @@ internal sealed class WsConversationMemoryDispatcher
             );
             if (result.Ok)
             {
-                await _sendConversationsAsync(socket, sendLock, "chat", "single", cancellationToken);
-                await _sendConversationsAsync(socket, sendLock, "coding", "single", cancellationToken);
+                await _sendConversationsAsync(socket, sendLock, "chat", "single", cancellationToken, message.RequestId);
+                await _sendConversationsAsync(socket, sendLock, "coding", "single", cancellationToken, message.RequestId);
                 await _sendMemoryNotesAsync(socket, sendLock, cancellationToken);
             }
 
@@ -451,7 +452,7 @@ internal sealed class WsConversationMemoryDispatcher
         {
             if (string.IsNullOrWhiteSpace(message.ConversationId))
             {
-                await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"conversationId is required\"}", cancellationToken);
+                await SendConversationErrorAsync(socket, sendLock, message, "conversationId is required", cancellationToken);
                 return true;
             }
 
@@ -464,18 +465,13 @@ internal sealed class WsConversationMemoryDispatcher
                     message.Category,
                     message.Tags
                 );
-                await _sendConversationDetailAsync(socket, sendLock, "conversation_detail", updated, cancellationToken);
-                await _sendConversationsAsync(socket, sendLock, updated.Scope, updated.Mode, cancellationToken);
+                await _sendConversationDetailAsync(socket, sendLock, "conversation_detail", updated, cancellationToken, message.RequestId);
+                await _sendConversationsAsync(socket, sendLock, updated.Scope, updated.Mode, cancellationToken, message.RequestId);
                 await _sendMemoryNotesAsync(socket, sendLock, cancellationToken);
             }
             catch (Exception ex)
             {
-                await WebSocketGateway.SendTextAsync(
-                    socket,
-                    sendLock,
-                    $"{{\"type\":\"error\",\"message\":\"{WebSocketGateway.EscapeJson(ex.Message)}\"}}",
-                    cancellationToken
-                );
+                await SendConversationErrorAsync(socket, sendLock, message, ex.Message, cancellationToken);
             }
 
             return true;
@@ -695,14 +691,15 @@ internal sealed class WsConversationMemoryDispatcher
         return JsonSerializer.Serialize(response, WsConversationMemoryJsonContext.Default.MemoryIndexRebuildWsResponse);
     }
 
-    private static string BuildConversationSearchResultJson(ConversationSearchResult result)
+    private static string BuildConversationSearchResultJson(ConversationSearchResult result, string? requestId)
     {
         var response = new ConversationSearchWsResponse(
             "conversation_search_result",
             result.Query,
             result.Disabled,
             result.Results,
-            result.Error
+            result.Error,
+            requestId
         );
         return JsonSerializer.Serialize(response, WsConversationMemoryJsonContext.Default.ConversationSearchWsResponse);
     }
@@ -757,4 +754,10 @@ internal sealed class WsConversationMemoryDispatcher
         );
         return JsonSerializer.Serialize(response, WsConversationMemoryJsonContext.Default.BackupImportApplyWsResponse);
     }
+    private static Task SendConversationErrorAsync(WebSocket socket, SemaphoreSlim sendLock, WebSocketGateway.ClientMessage request, string error, CancellationToken cancellationToken)
+    {
+        return WebSocketGateway.SendTextAsync(socket, sendLock,
+            $"{{\"type\":\"error\",\"message\":\"{WebSocketGateway.EscapeJson(error)}\",\"requestId\":\"{WebSocketGateway.EscapeJson(request.RequestId ?? string.Empty)}\",\"requestType\":\"{WebSocketGateway.EscapeJson(request.Type ?? string.Empty)}\"}}", cancellationToken);
+    }
+
 }

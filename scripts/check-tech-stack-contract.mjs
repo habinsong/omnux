@@ -85,7 +85,7 @@ assertIncludes(techStack, "언어 책임 경계", "언어 책임 섹션");
 assertIncludes(techStack, "Rust는 앱 셸(Window 관리)만 맡고", "Rust 책임 경계");
 assertIncludes(techStack, "새 비즈니스 로직과 상태 오케스트레이션은 기본적으로 .NET 9 미들웨어가 전담한다.", "비즈니스 로직 책임 경계");
 assertIncludes(techStack, "Python은 샌드박스 실행과 코드 검증에만 쓴다.", "Python 책임 경계");
-assertIncludes(techStack, "Node.js는 테스트, 위생 검사, 계약 검사에만 쓴다.", "Node.js 책임 경계");
+assertIncludes(techStack, "프로세스 수명과 도구 권한은 .NET이 소유한다.", "Node.js 브라우저 실행의 .NET 소유권");
 assertIncludes(techStack, "원본 위치 경계", "기술 스택 원본 위치 경계 섹션");
 assertIncludes(techStack, "apps/omnux-middleware/src/", ".NET canonical source home");
 assertIncludes(techStack, "apps/desktop/src/", "desktop React/TS canonical source home");
@@ -112,7 +112,7 @@ assertIncludes(techStack, "이전 브랜드명은 역사 문맥이나 마이그�
 assertIncludes(techStack, "구 접두사 기반 루트 alias, Electron/Codex legacy alias, 새 런타임 shortcut은 다시 만들지 않는다.", "legacy alias 재생성 금지");
 assertIncludes(techStack, "호환 alias가 필요하면 임시 shim으로만 추가하고", "호환 alias 임시 shim 조건");
 assertNotIncludes(techStack, "C#와 Rust를 같은 계층에 섞는다", "언어 책임 경계는 혼합을 권장하지 않는다");
-assertIncludes(englishTechStack, "Updated: 2026-06-02", "영문 기술 스택 업데이트 날짜");
+assertIncludes(englishTechStack, "Updated: 2026-09-07", "영문 기술 스택 업데이트 날짜");
 assertIncludes(englishTechStack, "Desktop shell", "영문 데스크톱 셸 문서");
 assertIncludes(englishTechStack, "Rust owns only the app shell and window lifecycle.", "영문 Rust 책임 경계");
 assertIncludes(englishTechStack, "New business logic and state orchestration belong to the .NET 9 middleware by default.", "영문 비즈니스 로직 책임 경계");
@@ -172,6 +172,16 @@ assertFilesMatch(
   (filePath) => filePath.endsWith(".cs"),
   ".NET canonical source home"
 );
+const browserResources = ["PlaywrightHost.cjs", "A2UiRenderer.cjs"];
+assertFilesMatch(
+  "apps/omnux-middleware/resources/browser",
+  filePath => browserResources.some(file => filePath === `apps/omnux-middleware/resources/browser/${file}`),
+  "embedded browser execution resources"
+);
+const middlewareProject = read("apps/omnux-middleware/Omnux.Middleware.csproj");
+for (const file of browserResources) assertIncludes(middlewareProject, `Include="resources/browser/${file}"`, "browser resource is embedded in the .NET build");
+assertIncludes(techStack, "apps/omnux-middleware/resources/browser/", "browser resource ownership is documented");
+assertIncludes(englishTechStack, "apps/omnux-middleware/resources/browser/", "browser resource ownership is documented in the paired guide");
 assertFilesMatch(
   "apps/desktop/src",
   (filePath) => filePath.endsWith(".ts")

@@ -74,6 +74,9 @@ public sealed partial class CodingApplicationService
 
                 if (pythonEnvironmentReady && !string.IsNullOrWhiteSpace(requirementsPath) && File.Exists(requirementsPath))
                 {
+                    // 최신 파이썬(3.13/3.14)에서 source 빌드가 실패하는 pygame 을 드롭인 대체
+                    // pygame-ce 로 바꿔 빌드 실패/시간낭비/모델 혼선을 막는다.
+                    SanitizeRequirementsForCompatibility(requirementsPath, logs);
                     var pipCommand = BuildPipRequirementsInstallCommand(requirementsPath);
                     var installResult = await RunWorkspaceCommandAsync(pipCommand, workDir, cancellationToken);
                     AppendInstallOutcome("requirements.txt 설치", pipCommand, installResult, logs, errors);
@@ -478,6 +481,35 @@ public sealed partial class CodingApplicationService
         var pipResult = await RunWorkspaceCommandAsync(upgradePip, workDir, cancellationToken);
         AppendInstallOutcome("Python 가상환경 pip 준비(.venv)", upgradePip, pipResult, logs, errors);
         return pipResult.ExitCode == 0;
+    }
+
+    // requirements.txt 의 `pygame` 요구사항을 `pygame-ce`(드롭인 대체, 최신 파이썬 휠 제공)로
+    // 바꾼다. 이미 pygame-ce 면 건드리지 않는다. 변경이 있을 때만 다시 쓴다.
+    private static readonly Regex RequirementsPygameRegex = new(
+        @"(?im)^(\s*)pygame(?!-ce)\b",
+        RegexOptions.Compiled
+    );
+
+    private static void SanitizeRequirementsForCompatibility(string requirementsPath, List<string> logs)
+    {
+        try
+        {
+            var original = File.ReadAllText(requirementsPath);
+            if (!RequirementsPygameRegex.IsMatch(original))
+            {
+                return;
+            }
+
+            var rewritten = RequirementsPygameRegex.Replace(original, "$1pygame-ce");
+            if (!string.Equals(rewritten, original, StringComparison.Ordinal))
+            {
+                File.WriteAllText(requirementsPath, rewritten);
+                logs.Add("requirements.txt: pygame → pygame-ce (최신 파이썬 호환)");
+            }
+        }
+        catch
+        {
+        }
     }
 
     private static string BuildPipRequirementsInstallCommand(string requirementsPath)
@@ -1069,6 +1101,7 @@ public sealed partial class CodingApplicationService
         string? standardInput = null
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var shellPath = ResolveWorkspaceShellPath();
         var startInfo = new ProcessStartInfo
         {
@@ -1080,8 +1113,12 @@ public sealed partial class CodingApplicationService
             WorkingDirectory = workDir
         };
         ApplyWorkspaceExecutablePath(startInfo, command, workDir);
+        // pygame/tkinter 등 SDL/GUI 코드가 헤드리스에서 'No available video device' 로 죽지 않게
+        // 더미 드라이버를 기본 제공한다(비-SDL 실행엔 무해). 검증 단계와 동일한 정책.
+        startInfo.Environment["SDL_VIDEODRIVER"] = startInfo.Environment.TryGetValue("SDL_VIDEODRIVER", out var sdlVideo) && !string.IsNullOrWhiteSpace(sdlVideo) ? sdlVideo : "dummy";
+        startInfo.Environment["SDL_AUDIODRIVER"] = startInfo.Environment.TryGetValue("SDL_AUDIODRIVER", out var sdlAudio) && !string.IsNullOrWhiteSpace(sdlAudio) ? sdlAudio : "dummy";
 
-        var normalizedCommand = NormalizePythonCommandForShell(command);
+        var normalizedCommand = RewritePythonInterpreterToWorkspaceVenv(NormalizePythonCommandForShell(command), workDir);
         if (OperatingSystem.IsWindows())
         {
             startInfo.ArgumentList.Add("/c");
@@ -1097,20 +1134,6 @@ public sealed partial class CodingApplicationService
         try
         {
             process.Start();
-            try
-            {
-                var normalizedInput = NormalizeWorkspaceCommandStandardInput(standardInput);
-                if (!string.IsNullOrEmpty(normalizedInput))
-                {
-                    process.StandardInput.Write(normalizedInput);
-                    process.StandardInput.Flush();
-                }
-
-                process.StandardInput.Close();
-            }
-            catch
-            {
-            }
         }
         catch (Exception ex)
         {
@@ -1124,6 +1147,17 @@ public sealed partial class CodingApplicationService
 
         try
         {
+            try
+            {
+                var normalizedInput = NormalizeWorkspaceCommandStandardInput(standardInput);
+                if (!string.IsNullOrEmpty(normalizedInput))
+                {
+                    await process.StandardInput.WriteAsync(normalizedInput.AsMemory(), timeoutCts.Token);
+                    await process.StandardInput.FlushAsync(timeoutCts.Token);
+                }
+            }
+            catch (IOException) { /* 입력을 읽기 전에 종료한 프로그램도 출력을 확인한다. */ }
+            finally { process.StandardInput.Close(); }
             await process.WaitForExitAsync(timeoutCts.Token);
             return new ShellRunResult(process.ExitCode, await stdoutTask, await stderrTask, false);
         }
@@ -1135,6 +1169,7 @@ public sealed partial class CodingApplicationService
                 {
                     process.Kill(entireProcessTree: true);
                 }
+                await process.WaitForExitAsync(CancellationToken.None);
             }
             catch
             {
@@ -1160,6 +1195,7 @@ public sealed partial class CodingApplicationService
                 stderr = string.Empty;
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(stderr))
             {
                 stderr = "execution timed out";

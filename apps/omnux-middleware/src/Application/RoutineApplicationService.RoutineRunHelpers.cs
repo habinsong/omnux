@@ -5,37 +5,23 @@ namespace Omnux.Middleware;
 
 public sealed partial class RoutineApplicationService
 {
-    private static string BuildRoutineExecutionText(RoutineDefinition routine, CodeExecutionResult exec)
+    private static string BuildRoutineExecutionText(CodeExecutionResult exec)
     {
-        var stdout = (exec.StdOut ?? string.Empty).Trim();
-        var stderr = (exec.StdErr ?? string.Empty).Trim();
-        var summary = new StringBuilder();
-        summary.AppendLine($"[Routine:{routine.Id}] {routine.Title}");
-        summary.AppendLine($"status={exec.Status} exit={exec.ExitCode}");
-        summary.AppendLine($"model={routine.CoderModel}");
-        summary.AppendLine($"script={routine.ScriptPath}");
-        summary.AppendLine($"run_dir={exec.RunDirectory}");
-        if (!string.IsNullOrWhiteSpace(stdout))
+        var stdout = (exec.StdOut ?? string.Empty).TrimEnd();
+        var stderr = (exec.StdErr ?? string.Empty).TrimEnd();
+        if (string.IsNullOrWhiteSpace(stderr))
         {
-            summary.AppendLine();
-            summary.AppendLine("[stdout]");
-            summary.AppendLine(stdout.Length <= 1600 ? stdout : stdout[..1600] + "...");
+            return string.IsNullOrWhiteSpace(stdout) ? "실행을 마쳤습니다. 출력은 없습니다." : stdout;
         }
+        return string.IsNullOrWhiteSpace(stdout) ? stderr : $"{stdout}\n\n[stderr]\n{stderr}";
+    }
 
-        if (!string.IsNullOrWhiteSpace(stderr))
-        {
-            summary.AppendLine();
-            summary.AppendLine("[stderr]");
-            summary.AppendLine(stderr.Length <= 1200 ? stderr : stderr[..1200] + "...");
-        }
-        else if (string.IsNullOrWhiteSpace(stdout))
-        {
-            summary.AppendLine();
-            summary.AppendLine("[stdout]");
-            summary.AppendLine("(출력 없음)");
-        }
-
-        return summary.ToString().Trim();
+    private static string ExtractRoutineRunOutput(string content)
+    {
+        var normalized = content.Replace("\r\n", "\n");
+        const string marker = "\n## Output\n";
+        var index = normalized.IndexOf(marker, StringComparison.Ordinal);
+        return index < 0 ? content : normalized[(index + marker.Length)..].Trim();
     }
 
     private static string ResolveCronRunEntryStatus(CodeExecutionResult exec)

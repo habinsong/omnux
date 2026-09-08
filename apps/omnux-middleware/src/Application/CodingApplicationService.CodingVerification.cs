@@ -252,7 +252,8 @@ public sealed partial class CodingApplicationService
                             ? new Dictionary<string, string> { ["SDL_VIDEODRIVER"] = "dummy", ["OMNI_HEADLESS_TEST"] = "1" }
                             : new Dictionary<string, string> { ["OMNI_HEADLESS_TEST"] = "1" }
                     );
-                    return $"{cdWorkspace} && {pythonRunnerPrefix} && {pythonRunner} -m py_compile {sourceArgs} && {BuildInteractivePythonModuleAvailabilityCommand(interactiveModules)} && {gameQualityCommand} && {envPrefix}{pythonRunner} {EscapeShellArg(relativeFirstFile)}";
+                    var headlessRun = BuildBoundedHeadlessGameRunCommand(envPrefix, pythonRunner, relativeFirstFile);
+                    return $"{cdWorkspace} && {pythonRunnerPrefix} && {pythonRunner} -m py_compile {sourceArgs} && {BuildInteractivePythonModuleAvailabilityCommand(interactiveModules)} && {gameQualityCommand} && {headlessRun}";
                 }
 
                 return $"{cdWorkspace} && {pythonRunnerPrefix} && {pythonRunner} -m py_compile {sourceArgs} && {gameQualityCommand}";
@@ -471,6 +472,27 @@ public sealed partial class CodingApplicationService
         return OperatingSystem.IsWindows() ? $"{cdWorkspace} && dir" : $"{cdWorkspace} && ls -la";
     }
 
+    // 인터랙티브 게임은 보통 무한 메인루프라 직접 실행하면 검증이 타임아웃(120s)까지 멈춘다.
+    // 모델이 OMNI_HEADLESS_TEST 종료를 안 지켜도 안전하도록, 백그라운드로 띄워 ~6초간 크래시
+    // 없이 살아있으면 '실행 성공'으로 보고 종료시킨다. 6초 안에 비정상 종료하면(트레이스백 등)
+    // 그 stderr 와 exit code 로 실패 처리한다. macOS/Linux 의 zsh/bash 에서 동작.
+    private static string BuildBoundedHeadlessGameRunCommand(string envPrefix, string pythonRunner, string relativeFile)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return $"{envPrefix}{pythonRunner} {EscapeShellArg(relativeFile)}";
+        }
+
+        var fileArg = EscapeShellArg(relativeFile);
+        return "( " + envPrefix + pythonRunner + " " + fileArg + " 2>.omni_game.err & __omni_g=$!; "
+            + "sleep 6; "
+            + "if kill -0 $__omni_g 2>/dev/null; then kill $__omni_g 2>/dev/null; wait $__omni_g 2>/dev/null; "
+            + "echo '[headless] 게임이 6초간 크래시 없이 실행되었습니다'; rm -f .omni_game.err; exit 0; fi; "
+            + "wait $__omni_g; __omni_c=$?; "
+            + "if [ $__omni_c -ne 0 ]; then cat .omni_game.err >&2; rm -f .omni_game.err; exit $__omni_c; fi; "
+            + "echo '[headless] 게임이 정상 종료되었습니다'; rm -f .omni_game.err; exit 0 )";
+    }
+
     private static string BuildChangeDirectoryCommand(string directory)
     {
         return OperatingSystem.IsWindows()
@@ -652,9 +674,16 @@ for ($i = 0; $i -lt $expected.Count; $i++) {
             $"__omni_first_html=$(awk 'NF{{print tolower($0); exit}}' {EscapeShellArg(indexPath)}); case \"$__omni_first_html\" in '<!doctype html>'*|'<html'*) : ;; *) echo 'index.html must start with html' >&2; exit 1 ;; esac",
             $"! grep -Fq -- '#!/usr/bin/env bash' {EscapeShellArg(indexPath)} {EscapeShellArg(cssPath)} {EscapeShellArg(scriptPath)}",
             $"! grep -Fq -- 'cat > ' {EscapeShellArg(indexPath)} {EscapeShellArg(cssPath)} {EscapeShellArg(scriptPath)}",
-            $"grep -Fq -- 'dashboard-root' {EscapeShellArg(indexPath)}",
             $"if command -v node >/dev/null 2>&1; then node --check {EscapeShellArg(scriptPath)}; else echo 'node 없음'; exit 1; fi"
         };
+
+        // dashboard-root 는 특정 대시보드 클론 작업 전용 마커다. objective 가 명시적으로 요구할
+        // 때만 검사한다(bucket-card/border-radius 와 동일). 무조건 요구하면 게임/일반 웹 등
+        // 모든 3파일 HTML 프로젝트가 'dashboard-root missing' 으로 오검증된다.
+        if (objectiveText.Contains("dashboard-root", StringComparison.OrdinalIgnoreCase))
+        {
+            commands.Add($"grep -Fq -- 'dashboard-root' {EscapeShellArg(indexPath)}");
+        }
 
         if (objectiveText.Contains("bucket-card", StringComparison.OrdinalIgnoreCase))
         {
@@ -705,9 +734,14 @@ for ($i = 0; $i -lt $expected.Count; $i++) {
             "if (!(Test-Path $index) -or !(Test-Path $css) -or !(Test-Path $script)) { throw 'structured html files missing' }",
             "$first = (Get-Content -Raw $index).TrimStart().ToLowerInvariant(); if (!($first.StartsWith('<!doctype html>') -or $first.StartsWith('<html'))) { throw 'index.html must start with html' }",
             "$merged = (Get-Content -Raw $index) + \"`n\" + (Get-Content -Raw $css) + \"`n\" + (Get-Content -Raw $script); if ($merged.Contains('#!/usr/bin/env bash') -or $merged.Contains('cat > ')) { throw 'shell script leaked into frontend files' }",
-            "if ((Get-Content -Raw $index) -notmatch 'dashboard-root') { throw 'dashboard-root missing' }",
             "node --check $script"
         };
+        // dashboard-root 는 objective 가 명시할 때만(특정 대시보드 작업 전용 마커).
+        if (objectiveText.Contains("dashboard-root", StringComparison.OrdinalIgnoreCase))
+        {
+            checks.Add("if ((Get-Content -Raw $index) -notmatch 'dashboard-root') { throw 'dashboard-root missing' }");
+        }
+
         if (objectiveText.Contains("bucket-card", StringComparison.OrdinalIgnoreCase))
         {
             checks.Add("if ((Get-Content -Raw $script) -notmatch 'bucket-card') { throw 'bucket-card missing' }");

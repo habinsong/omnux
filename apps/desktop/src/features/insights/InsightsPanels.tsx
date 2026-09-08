@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { BrainCircuit, Clock, GitBranch, Map as MapIcon, Play, Route, Send, ShieldCheck, Square, Wrench } from "lucide-react";
 import { Badge, Button } from "../../components/ui/primitives";
-import type { CodingExecution, CodingResult, CodingRuntime } from "../build/build-store";
+import type { Execution as CodingExecution, CodingResult, Runtime as CodingRuntime } from "../build-workspace/build-model";
 import type {
   GitTimeMachineSnapshot,
   InsightsDoctorSnapshot,
@@ -360,7 +360,7 @@ function buildRepairTimeline(
   if (result) {
     items.push(...repairMarkerItems("main", "Main result", result.execution, result.summary || result.commonSummary));
     result.workers.forEach((worker, index) => {
-      items.push(...repairMarkerItems(`worker-${index}`, worker.role || `Worker ${index + 1}`, worker.execution, worker.summary));
+      items.push(...repairMarkerItems(`worker-${index}`, `Worker ${index + 1}`, worker.execution, worker.summary));
     });
     if (result.retryRequired || result.retryAttempt > 0 || result.retryStopReason) {
       items.push({

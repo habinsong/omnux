@@ -263,7 +263,8 @@ internal static class Program
             persistence.RunArtifactStore,
             codeRunner,
             auditLogger,
-            codingCommandGateway
+            codingCommandGateway,
+            appServices.ProjectBindings
         );
         commandService.ConfigureCodingApplicationService(codingApplicationService);
         slashCommandHandlers.Add(new CodingSlashCommandHandler(codingApplicationService));
@@ -323,6 +324,7 @@ internal static class Program
             await workflowServices.TaskGraphCoordinator.StopAsync();
             await logicGraphRuntimeCoordinator.StopAsync();
             toolServices.Browser.Dispose();
+            toolServices.Canvas.Dispose();
         }
     }
 
@@ -826,7 +828,9 @@ internal static class Program
         var cleanupService = new CleanupService(paths);
         var doctorApplicationService = new DoctorApplicationService(doctorService, paths);
         var notebookApplicationService = new NotebookApplicationService(notebookService);
-        var projectApplicationService = new ProjectApplicationService(pathResolver.ResolveStateFilePath("projects.json"));
+        var projectApplicationService = new ProjectApplicationService(pathResolver.ResolveStateFilePath("projects.json"), pathResolver.StateRootDir, paths.WorkspaceRootDir);
+        var projectBindings = new ProjectWorkspaceBindingService(projectApplicationService, pathResolver.StateRootDir);
+        var projectChanges = new CodingProjectChangeService(conversationStore, projectBindings, new FileProjectChangeStore(pathResolver), paths.WorkspaceRootDir);
         var agentCommunicationApplicationService = new AgentCommunicationApplicationService(
             new FileAgentCommunicationStore(pathResolver),
             auditLogger
@@ -857,7 +861,7 @@ internal static class Program
             auditLogger,
             paths
         );
-        var contextApplicationService = new ContextApplicationService(projectContextLoader);
+        var contextApplicationService = new ContextApplicationService(projectContextLoader, projectApplicationService);
         var taskGraphApplicationService = new TaskGraphApplicationService(
             taskGraphService,
             planService,
@@ -904,6 +908,8 @@ internal static class Program
             refactorApplicationService,
             contextApplicationService,
             projectApplicationService,
+            projectBindings,
+            projectChanges,
             agentCommunicationApplicationService,
             telemetryTracer,
             telemetryApplicationService,
@@ -958,6 +964,7 @@ internal static class Program
                 appServices.Memory,
                 appServices.Tool,
                 appServices.Project,
+                appServices.ProjectChanges,
                 routineApplicationService,
                 logicApplicationService,
                 appServices.Doctor,
@@ -1003,6 +1010,8 @@ internal static class Program
         RefactorApplicationService Refactor,
         ContextApplicationService Context,
         ProjectApplicationService Project,
+        ProjectWorkspaceBindingService ProjectBindings,
+        CodingProjectChangeService ProjectChanges,
         AgentCommunicationApplicationService AgentCommunication,
         TelemetryTracer TelemetryTracer,
         TelemetryApplicationService Telemetry,

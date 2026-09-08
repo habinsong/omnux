@@ -28,7 +28,8 @@ internal sealed class WsNotebookCommandDispatcher
                 sendLock,
                 "get",
                 await _notebookService.GetNotebookAsync(message.ProjectKey, cancellationToken),
-                cancellationToken
+                cancellationToken,
+                message.RequestId
             );
             return true;
         }
@@ -53,7 +54,7 @@ internal sealed class WsNotebookCommandDispatcher
                 "verification" => await _notebookService.AppendVerificationAsync(message.ProjectKey, content, cancellationToken),
                 _ => new NotebookActionResult(false, "kind는 learning, decision, verification 중 하나여야 합니다.", null)
             };
-            await SendNotebookResultAsync(socket, sendLock, "append", result, cancellationToken);
+            await SendNotebookResultAsync(socket, sendLock, "append", result, cancellationToken, message.RequestId);
             return true;
         }
 
@@ -64,7 +65,8 @@ internal sealed class WsNotebookCommandDispatcher
                 sendLock,
                 "handoff",
                 await _notebookService.CreateHandoffAsync(message.ProjectKey, cancellationToken),
-                cancellationToken
+                cancellationToken,
+                message.RequestId
             );
             return true;
         }
@@ -109,7 +111,8 @@ private static Task SendNotebookResultAsync(
     SemaphoreSlim sendLock,
     string action,
     NotebookActionResult result,
-    CancellationToken cancellationToken
+    CancellationToken cancellationToken,
+    string? requestId = null
 )
 {
     var payload = NotebookJson.Serialize(result);
@@ -118,6 +121,7 @@ private static Task SendNotebookResultAsync(
         sendLock,
         "{"
         + "\"type\":\"notebook_result\","
+        + $"\"requestId\":\"{WebSocketGateway.EscapeJson(requestId ?? string.Empty)}\","
         + $"\"action\":\"{WebSocketGateway.EscapeJson(action)}\","
         + $"\"payload\":{payload}"
         + "}",

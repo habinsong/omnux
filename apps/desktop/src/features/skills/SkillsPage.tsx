@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { FileText, Globe2, Plus, RefreshCcw, Save, Search, Trash2 } from "lucide-react";
+import { ResponsivePanels } from "../../components/ResponsivePanels";
 import type { LucideIcon } from "lucide-react";
 import { CardBoundary } from "../../CardBoundary";
 import { useDesktopShellStore } from "../../shell-store";
@@ -91,7 +92,14 @@ export function SkillsPage() {
         <MetricTile label="선택" value={editorName || "-"} helper={editor ? scopeLabel(editor.scope) : "편집할 항목"} />
       </section>
 
-      <section className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+      <ResponsivePanels
+        query="(min-width: 1024px)"
+        gridClassName="lg:grid-cols-[320px_minmax(0,1fr)]"
+        tabs={[
+          { key: "list", label: "도구 목록" },
+          { key: "edit", label: "도구 편집" }
+        ]}
+      >
         <CardBoundary title="도구 목록" card="navigation" onError={recordCardError}>
           <div className="flex items-center gap-2">
             <div className="relative min-w-0 flex-1">
@@ -192,7 +200,7 @@ export function SkillsPage() {
             <CompactEmptyState icon={FileText} title="도구를 선택하거나 새로 만드세요" description="왼쪽 목록에서 열거나 새 도구로 작업 방식을 작성합니다." />
           )}
         </CardBoundary>
-      </section>
+      </ResponsivePanels>
     </div>
   );
 }

@@ -622,6 +622,7 @@ public sealed partial class CommandService
             "nvidia" => _providers.NvidiaModel,
             "copilot" => DefaultCopilotModel,
             "codex" => _providers.CodexModel,
+            "grok" => _providers.GrokModel,
             _ => _llmRouter.GetSelectedGroqModel()
         };
     }

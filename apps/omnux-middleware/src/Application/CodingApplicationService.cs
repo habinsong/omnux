@@ -99,6 +99,7 @@ internal interface ICodingCommandGateway
         string model,
         CancellationToken cancellationToken
     );
+    Task<string?> BuildCodingRetrievalBlockAsync(string objective, CancellationToken cancellationToken);
     Task<IReadOnlyList<string>> GetAvailableProvidersAsync(CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<string, ProviderAvailability>> GetProviderAvailabilityMapAsync(CancellationToken cancellationToken);
     bool IsDisabledModelSelection(string? selection);
@@ -186,7 +187,10 @@ public sealed partial class CodingApplicationService : ICodingApplicationService
         ["sklearn"] = "scikit-learn",
         ["bs4"] = "beautifulsoup4",
         ["dotenv"] = "python-dotenv",
-        ["Crypto"] = "pycryptodome"
+        ["Crypto"] = "pycryptodome",
+        // pygame 은 최신 파이썬(3.13/3.14)용 휠이 없어 source 빌드가 실패한다.
+        // pygame-ce 는 동일한 `pygame` 모듈을 제공하는 드롭인 대체이며 cp314 휠을 배포한다.
+        ["pygame"] = "pygame-ce"
     };
     private static readonly HashSet<string> PythonStdlibModules = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -228,6 +232,8 @@ public sealed partial class CodingApplicationService : ICodingApplicationService
     private readonly UniversalCodeRunner _codeRunner;
     private readonly AuditLogger _auditLogger;
     private readonly ICodingCommandGateway _gateway;
+    private readonly ProjectWorkspaceBindingService _projectBindings;
+    private readonly CodingProjectRunCoordinator _projectRuns;
 
     internal CodingApplicationService(
         ProviderOptions providers,
@@ -239,7 +245,8 @@ public sealed partial class CodingApplicationService : ICodingApplicationService
         IRunArtifactStore runArtifactStore,
         UniversalCodeRunner codeRunner,
         AuditLogger auditLogger,
-        ICodingCommandGateway gateway
+        ICodingCommandGateway gateway,
+        ProjectWorkspaceBindingService projectBindings
     )
     {
         _providers = providers;
@@ -252,6 +259,8 @@ public sealed partial class CodingApplicationService : ICodingApplicationService
         _codeRunner = codeRunner;
         _auditLogger = auditLogger;
         _gateway = gateway;
+        _projectBindings = projectBindings;
+        _projectRuns = new CodingProjectRunCoordinator(conversationStore, _projectBindings);
     }
 
     private string? TryBuildMultiSkillRejectionResponse(string rawInput) =>
@@ -419,6 +428,9 @@ public sealed partial class CodingApplicationService : ICodingApplicationService
         CancellationToken cancellationToken
     ) => _gateway.MaybeCompressConversationAsync(conversationId, scope, provider, model, cancellationToken);
 
+    private Task<string?> BuildCodingRetrievalBlockAsync(string objective, CancellationToken cancellationToken) =>
+        _gateway.BuildCodingRetrievalBlockAsync(objective, cancellationToken);
+
     private Task<IReadOnlyList<string>> GetAvailableProvidersAsync(CancellationToken cancellationToken) =>
         _gateway.GetAvailableProvidersAsync(cancellationToken);
 
@@ -480,7 +492,8 @@ public sealed partial class CodingApplicationService : ICodingApplicationService
         string? cerebrasModel,
         string? copilotModel,
         string? codexModel,
-        string? nvidiaModel = null
+        string? nvidiaModel = null,
+        string? grokModel = "none"
     )
     {
         return new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
@@ -490,7 +503,8 @@ public sealed partial class CodingApplicationService : ICodingApplicationService
             ["cerebras"] = cerebrasModel,
             ["nvidia"] = nvidiaModel,
             ["copilot"] = copilotModel,
-            ["codex"] = codexModel
+            ["codex"] = codexModel,
+            ["grok"] = grokModel
         };
     }
 

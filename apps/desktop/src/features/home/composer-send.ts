@@ -1,5 +1,5 @@
 import { useAskStore, type AskChatMode, type AskInputAttachment, type AskProvider } from "../ask/ask-store";
-import { useBuildStore } from "../build/build-store";
+import { useBuildWorkspace, busyBuild } from "../build-workspace/build-state";
 import { useDesktopNavigationStore } from "../shell/navigation-store";
 import type { ComposerIntent } from "./composer-intent";
 
@@ -48,26 +48,29 @@ export type SendFromHomeArgs = {
 // 미연결/미인증이면 sendMessage가 no-op이 되고 입력은 타깃 탭 draft로 남는다.
 export async function sendFromHome(args: SendFromHomeArgs): Promise<void> {
   const { intent, text, chatMode, provider, model, thinkPlus, files } = args;
-  const attachments = files.length > 0 ? await filesToInputAttachments(files) : [];
   const navigate = useDesktopNavigationStore.getState().setActivePage;
 
   if (intent === "build") {
-    const build = useBuildStore.getState();
-    build.setCodingMode(chatMode);
-    build.setCodingInput(text);
-    if (provider !== "auto") build.setProvider(provider);
-    if (provider !== "auto" && model) build.setSelectedModel(provider, model);
-    build.setThinkPlus(thinkPlus);
-    if (attachments.length > 0) build.addAttachments(attachments);
+    const build = useBuildWorkspace.getState();
+    if (busyBuild(build)) {
+      useBuildWorkspace.setState({ input: text, attachments: files.length ? await filesToInputAttachments(files) : build.attachments });
+      navigate("build");
+      return;
+    }
+    if (build.activeId && (build.settings.mode !== chatMode || build.settings.projectKey)) build.fresh();
+    build.patchSettings({ mode: chatMode, provider, models: { ...build.settings.models, ...(provider !== "auto" && model ? { [provider]: model } : {}) }, think: thinkPlus });
+    useBuildWorkspace.setState({ input: text, error: "" });
+    if (files.length) await build.attach(files);
     navigate("build");
-    useBuildStore.getState().runCoding();
+    if (!useBuildWorkspace.getState().error) useBuildWorkspace.getState().run();
     return;
   }
 
+  const attachments = files.length > 0 ? await filesToInputAttachments(files) : [];
   const ask = useAskStore.getState();
   ask.setChatMode(chatMode);
   ask.setInput(text);
-  if (provider !== "auto") ask.setProvider(provider);
+  ask.setProvider(provider);
   if (provider !== "auto" && model) ask.setSelectedModel(provider, model);
   ask.setThinkPlus(thinkPlus);
   if (attachments.length > 0) ask.addAttachments(attachments);

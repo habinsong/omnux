@@ -10,7 +10,8 @@ public sealed partial class CodingApplicationService
     public async Task<CodingResultExecutionResult> ExecuteLatestCodingResultAsync(
         string conversationId,
         string? standardInput,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? preferredTarget = null
     )
     {
         var normalizedConversationId = (conversationId ?? string.Empty).Trim();
@@ -23,8 +24,12 @@ public sealed partial class CodingApplicationService
             ?? throw new InvalidOperationException("대화를 찾을 수 없습니다.");
         var latest = conversation.LatestCodingResult
             ?? throw new InvalidOperationException("최근 코딩 결과가 없습니다.");
-        var target = ResolveLatestCodingExecutionTarget(latest)
+        var target = ResolveLatestCodingExecutionTarget(latest, preferredTarget)
             ?? throw new InvalidOperationException("다시 실행할 대상 파일이나 명령을 찾지 못했습니다.");
+        var project = conversation.CodingProject;
+        var directProject = project != null && IsPathUnderRoot(target.RunDirectory, project.Path)
+            ? _projectBindings.Resolve(null, project) : null;
+        using var projectLease = _projectBindings.Acquire(directProject, normalizedConversationId);
         var normalizedLanguage = CodingLanguagePolicy.NormalizeLanguageForCode(target.Language);
 
         if (string.Equals(normalizedLanguage, "html", StringComparison.OrdinalIgnoreCase))
@@ -121,6 +126,15 @@ public sealed partial class CodingApplicationService
             status
         );
 
+        var evidence = BuildCodingEvidencePack("command", execution, target.ChangedFiles);
+        var updated = target.WorkerIndex < 0
+            ? latest with { Execution = execution, Evidence = evidence }
+            : latest with { Workers = latest.Workers.Select((worker, index) => index == target.WorkerIndex ? worker with { Execution = execution } : worker).ToArray() };
+        if (!_conversationStore.TryReplaceLatestCodingResult(normalizedConversationId, latest, updated))
+        {
+            rerunMessage += " 새 작업으로 기록이 바뀌어 이번 실행 결과는 현재 화면에만 표시합니다.";
+        }
+
         return new CodingResultExecutionResult(
             normalizedConversationId,
             normalizedLanguage,
@@ -130,7 +144,7 @@ public sealed partial class CodingApplicationService
             target.Provider,
             target.Model,
             execution,
-            Evidence: BuildCodingEvidencePack("command", execution, target.ChangedFiles)
+            Evidence: evidence
         );
     }
 
@@ -151,7 +165,7 @@ public sealed partial class CodingApplicationService
         string DisplayCommand
     );
 
-    private LatestCodingExecutionTarget? ResolveLatestCodingExecutionTarget(ConversationCodingResultSnapshot latest)
+    private LatestCodingExecutionTarget? ResolveLatestCodingExecutionTarget(ConversationCodingResultSnapshot latest, string? preferredTarget)
     {
         var candidates = new List<LatestCodingExecutionTarget>();
         candidates.Add(new LatestCodingExecutionTarget(
@@ -180,6 +194,12 @@ public sealed partial class CodingApplicationService
                 worker.Execution,
                 worker.ChangedFiles ?? Array.Empty<string>()
             ));
+        }
+
+        if (!string.IsNullOrWhiteSpace(preferredTarget))
+        {
+            candidates = candidates.Where(candidate => string.Equals(candidate.TargetSegment, preferredTarget, StringComparison.Ordinal)).ToList();
+            if (candidates.Count == 0) throw new InvalidOperationException("선택한 코딩 결과를 찾을 수 없습니다.");
         }
 
         var ordered = candidates
@@ -212,6 +232,11 @@ public sealed partial class CodingApplicationService
 
     private LatestCodingExecutionCommandPlan ResolveLatestCodingExecutionCommandPlan(LatestCodingExecutionTarget target)
     {
+        if (target.WorkerIndex >= 0 && string.Equals(target.Execution.Status, "skipped", StringComparison.OrdinalIgnoreCase)
+            && target.ChangedFiles.Count == 0)
+        {
+            return new LatestCodingExecutionCommandPlan(string.Empty, string.Empty);
+        }
         var preferredLaunchCommand = TryBuildPreferredLatestCodingLaunchCommand(target);
         if (!string.IsNullOrWhiteSpace(preferredLaunchCommand.ActualCommand))
         {
@@ -511,6 +536,9 @@ public sealed partial class CodingApplicationService
         {
             "-" => false,
             "(skipped)" => false,
+            "(planning)" => false,
+            "(none)" => false,
+            "(draft-only)" => false,
             "(worker-independent-runs)" => false,
             _ => true
         };

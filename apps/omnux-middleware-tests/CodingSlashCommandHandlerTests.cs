@@ -135,7 +135,8 @@ public sealed class CodingSlashCommandHandlerTests
         public Task<CodingResultExecutionResult> ExecuteLatestCodingResultAsync(
             string conversationId,
             string? standardInput,
-            CancellationToken cancellationToken
+            CancellationToken cancellationToken,
+            string? preferredTarget = null
         )
         {
             return Task.FromResult(new CodingResultExecutionResult(

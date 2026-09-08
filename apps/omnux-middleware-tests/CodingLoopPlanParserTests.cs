@@ -70,6 +70,51 @@ public sealed class CodingLoopPlanParserTests
     }
 
     [Fact]
+    public void ParseReadsEditFileFindAndReplace()
+    {
+        var plan = CodingLoopPlanParser.Parse(
+            """
+            {"analysis":"fix bug","done":false,"actions":[{"type":"edit_file","path":"app.py","find":"a - b","replace":"a + b"}]}
+            """
+        );
+
+        Assert.NotNull(plan);
+        Assert.Single(plan!.Actions);
+        Assert.Equal("edit_file", plan.Actions[0].Type);
+        Assert.Equal("app.py", plan.Actions[0].Path);
+        Assert.Equal("a - b", plan.Actions[0].Find);
+        Assert.Equal("a + b", plan.Actions[0].Replace);
+    }
+
+    [Fact]
+    public void ParseReadsEditFileFromOldNewStringAliases()
+    {
+        var plan = CodingLoopPlanParser.Parse(
+            """
+            {"analysis":"a","done":false,"actions":[{"type":"replace_in_file","path":"app.py","old_string":"x","new_string":"y"}]}
+            """
+        );
+
+        Assert.NotNull(plan);
+        Assert.Equal("edit_file", plan!.Actions[0].Type);
+        Assert.Equal("x", plan.Actions[0].Find);
+        Assert.Equal("y", plan.Actions[0].Replace);
+    }
+
+    [Fact]
+    public void ParseInfersEditFileWhenFindPresentWithoutType()
+    {
+        var plan = CodingLoopPlanParser.Parse(
+            """
+            {"analysis":"a","done":false,"actions":[{"type":"","path":"app.py","find":"old","replace":"new"}]}
+            """
+        );
+
+        Assert.NotNull(plan);
+        Assert.Equal("edit_file", plan!.Actions[0].Type);
+    }
+
+    [Fact]
     public void NormalizeJsonCandidateEscapesRawNewlinesInsideStringAndRemovesTrailingComma()
     {
         var normalized = CodingLoopPlanParser.NormalizeJsonCandidate(

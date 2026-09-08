@@ -65,7 +65,7 @@ public sealed class PlanReviewService
         }
 
         var reviewerChain = _routingPolicyResolver.ResolveProviderChain(TaskCategory.Reviewer);
-        var reviewerRoute = _llmRouter.ResolvePlanningRoute("reviewer", reviewerChain);
+        var reviewerRoute = await _llmRouter.ResolvePlanningRouteAsync("reviewer", reviewerChain, cancellationToken);
         var projectContext = _projectContextLoader.BuildPromptContext(
             _projectContextLoader.LoadSnapshot(),
             2200

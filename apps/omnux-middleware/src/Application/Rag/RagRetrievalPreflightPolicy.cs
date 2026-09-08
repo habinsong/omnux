@@ -190,6 +190,23 @@ internal sealed partial class RagRetrievalPreflightPolicy
             : candidates;
     }
 
+    /// <summary>입력에서 감지된 검색 신호 목록 — executor(AskIntentPlanner 등)가 preflight
+    /// 정책과 같은 신호를 공유해 어떤 차원을 검색할지 결정하도록 노출한다.</summary>
+    public static IReadOnlyList<string> EvaluateSignals(string? query)
+    {
+        var normalized = NormalizeQuery(query);
+        return string.IsNullOrWhiteSpace(normalized)
+            ? Array.Empty<string>()
+            : DetectSignals(normalized);
+    }
+
+    /// <summary>세션/에이전트/실패 로그 단서가 있어 과거 대화(세션) 회수가 유효한 입력인지.
+    /// 회고 어휘("지난번")가 없어도 이 신호가 있으면 executor가 대화검색을 켤 수 있다.</summary>
+    public static bool SuggestsSessionRetrieval(string? query)
+    {
+        return EvaluateSignals(query).Contains("session_or_agent");
+    }
+
     private static IReadOnlyList<string> DetectSignals(string query)
     {
         var signals = new List<string>();

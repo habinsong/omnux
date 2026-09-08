@@ -64,6 +64,7 @@ export type DesktopRequestType =
   | "coding_run_orchestration"
   | "coding_run_multi"
   | "coding_execute_result"
+  | "coding_cancel"
   | "refactor_restore"
   | "logic_graph_list"
   | "logic_graph_get"
@@ -96,7 +97,7 @@ const DESKTOP_ALLOWED_REQUESTS = new Set<string>([
   "sessions_spawn", "browser", "canvas", "rules_get", "rules_save", "rules_delete", "get_routines", "get_routine_scheduler_status", "run_routine",
   "test_routine_telegram", "test_browser_agent_routine", "get_routine_run_detail", "resend_routine_run_telegram",
   "update_routine", "toggle_routine", "delete_routine", "create_routine", "preview_routine", "coding_run_single", "coding_run_orchestration",
-  "coding_run_multi", "coding_execute_result", "refactor_restore", "logic_graph_list", "logic_graph_get",
+  "coding_run_multi", "coding_execute_result", "coding_cancel", "refactor_restore", "logic_graph_list", "logic_graph_get",
   "logic_graph_save", "logic_graph_delete", "logic_graph_run", "logic_graph_run_get", "logic_graph_cancel",
   "skills_list", "skill_get", "skill_save", "skill_delete", "skill_active_clear"
 ]);
@@ -117,8 +118,10 @@ const READ_ONLY_DEDUPE_REQUESTS = new Set<string>([
   "get_gemini_models",
   "get_nvidia_models",
   "get_codex_models",
+  "get_grok_models",
   "get_copilot_status",
   "get_codex_status",
+  "get_grok_status",
   "get_usage_stats",
   "plan_list",
   "plan_get",
@@ -195,11 +198,15 @@ export function registerDesktopPublicRequestTypes(...types: string[]): void {
 }
 
 const listeners = new Set<DesktopMessageListener>();
+const pendingAiRequestIds = new Set<string>();
+const aiRequestTypes = new Set(["llm_chat_single", "llm_chat_orchestration", "llm_chat_multi", "coding_run_single", "coding_run_orchestration", "coding_run_multi", "coding_execute_result"]);
+const aiTerminalTypes = new Set(["llm_chat_result", "llm_chat_multi_result", "coding_result", "coding_execute_result", "coding_cancelled", "error"]);
 let sessionSocket: WebSocket | null = null;
 
 let isAuthSubscribed = false;
 
 export function bindDesktopSessionSocket(socket: WebSocket | null) {
+  if (socket !== sessionSocket) pendingAiRequestIds.clear();
   sessionSocket = socket;
 
   if (!isAuthSubscribed) {
@@ -229,6 +236,14 @@ export function bindDesktopSessionSocket(socket: WebSocket | null) {
 
 export function publishDesktopMessage(message: DesktopServerMessage) {
   listeners.forEach((listener) => listener(message));
+  if (aiTerminalTypes.has(message.type || "") && typeof message.requestId === "string") pendingAiRequestIds.delete(message.requestId);
+}
+
+export function shouldToastDesktopError(message: DesktopServerMessage): boolean {
+  if (message.type !== "error" || typeof message.requestId !== "string" || !message.requestId) return true;
+  if (/^(build-workspace-|task-workspace-|automation-|ask-|explore-)/.test(message.requestId)) return false;
+  if (!aiRequestTypes.has(String(message.requestType || ""))) return true;
+  return pendingAiRequestIds.has(message.requestId);
 }
 
 export function subscribeDesktopMessages(listener: DesktopMessageListener) {
@@ -376,6 +391,10 @@ export function sendDesktopRequest(payload: { type: string } & Record<string, un
   }
 
   sessionSocket.send(JSON.stringify(payload));
+  if (aiRequestTypes.has(payload.type) && typeof payload.requestId === "string") {
+    pendingAiRequestIds.add(payload.requestId);
+    if (pendingAiRequestIds.size > 128) pendingAiRequestIds.delete(pendingAiRequestIds.values().next().value!);
+  }
   return true;
 }
 
@@ -413,15 +432,16 @@ export const requestDesktopOps = {
 };
 
 export const requestDesktopAsk = {
-  listConversations(scope = "chat", mode = "single") {
-    return sendDesktopRequest({ type: "list_conversations", scope, mode });
+  listConversations(scope = "chat", mode = "single", requestId?: string) {
+    return sendDesktopRequest({ type: "list_conversations", scope, mode, requestId });
   },
-  getConversation(conversationId: string) {
-    return sendDesktopRequest({ type: "get_conversation", conversationId });
+  getConversation(conversationId: string, requestId?: string) {
+    return sendDesktopRequest({ type: "get_conversation", conversationId, requestId });
   },
-  createConversation(scope = "chat", mode = "single", meta: { title?: string; project?: string; category?: string; tags?: string } = {}) {
+  createConversation(scope = "chat", mode = "single", meta: { title?: string; project?: string; category?: string; tags?: string } = {}, requestId?: string) {
     return sendDesktopRequest({
       type: "create_conversation",
+      requestId,
       scope,
       mode,
       conversationTitle: meta.title?.trim() || undefined,
@@ -432,10 +452,12 @@ export const requestDesktopAsk = {
   },
   updateConversationMeta(
     conversationId: string,
-    meta: { title?: string; project?: string; category?: string; tags?: string }
+    meta: { title?: string; project?: string; category?: string; tags?: string },
+    requestId?: string
   ) {
     return sendDesktopRequest({
       type: "update_conversation_meta",
+      requestId,
       conversationId,
       conversationTitle: meta.title ?? undefined,
       project: meta.project ?? undefined,
@@ -443,11 +465,11 @@ export const requestDesktopAsk = {
       tags: parseTagList(meta.tags)
     });
   },
-  deleteConversation(conversationId: string, scope = "chat", mode = "single") {
-    return sendDesktopRequest({ type: "delete_conversation", conversationId, scope, mode });
+  deleteConversation(conversationId: string, scope = "chat", mode = "single", requestId?: string) {
+    return sendDesktopRequest({ type: "delete_conversation", conversationId, scope, mode, requestId });
   },
-  searchConversation(query: string, maxResults = 20) {
-    return sendDesktopRequest({ type: "conversation_search", query, maxResults });
+  searchConversation(query: string, maxResults = 20, requestId?: string) {
+    return sendDesktopRequest({ type: "conversation_search", query, maxResults, requestId });
   },
   createMemoryNote(conversationId: string, compactConversation = false) {
     return sendDesktopRequest({ type: "create_memory_note", conversationId, compactConversation });
@@ -460,8 +482,8 @@ export const requestDesktopAsk = {
       provider?: string;
       summaryProvider?: string;
       thinkPlus?: boolean;
-      models?: Partial<Record<"groq" | "gemini" | "cerebras" | "nvidia" | "copilot" | "codex", string>>;
-      workerModels?: Partial<Record<"groq" | "gemini" | "cerebras" | "nvidia" | "copilot" | "codex", string>>;
+      models?: Partial<Record<"groq" | "gemini" | "cerebras" | "nvidia" | "copilot" | "codex" | "grok", string>>;
+      workerModels?: Partial<Record<"groq" | "gemini" | "cerebras" | "nvidia" | "copilot" | "codex" | "grok", string>>;
       project?: string;
       category?: string;
       tags?: string;
@@ -509,7 +531,8 @@ export const requestDesktopAsk = {
       cerebrasModel: pick(workerModels.cerebras),
       nvidiaModel: pick(workerModels.nvidia),
       copilotModel: pick(workerModels.copilot),
-      codexModel: pick(workerModels.codex)
+      codexModel: pick(workerModels.codex),
+      grokModel: pick(workerModels.grok)
     });
   },
   chatSingle(text: string, conversationId?: string | null) {
@@ -785,6 +808,7 @@ export const requestDesktopCoding = {
     input: string,
     conversationId?: string,
     options: {
+      requestId?: string;
       provider?: string;
       model?: string;
       language?: string;
@@ -799,7 +823,7 @@ export const requestDesktopCoding = {
       thinkPlus?: boolean;
       skillName?: string;
       skillScope?: string;
-      workerModels?: Partial<Record<"groq" | "gemini" | "cerebras" | "nvidia" | "copilot" | "codex", string>>;
+      workerModels?: Partial<Record<"groq" | "gemini" | "cerebras" | "nvidia" | "copilot" | "codex" | "grok", string>>;
     } = {}
   ) {
     const type =
@@ -813,6 +837,7 @@ export const requestDesktopCoding = {
     const workerModels = options.workerModels || {};
     const payload: Record<string, unknown> = {
       type,
+      requestId: options.requestId,
       text: input.trim(),
       scope: "coding",
       mode,
@@ -835,7 +860,8 @@ export const requestDesktopCoding = {
       cerebrasModel: pick(workerModels.cerebras),
       nvidiaModel: pick(workerModels.nvidia),
       copilotModel: pick(workerModels.copilot),
-      codexModel: pick(workerModels.codex)
+      codexModel: pick(workerModels.codex),
+      grokModel: pick(workerModels.grok)
     };
     if (conversationId) {
       payload.conversationId = conversationId;
@@ -845,12 +871,16 @@ export const requestDesktopCoding = {
   runSingle(input: string, conversationId?: string) {
     return requestDesktopCoding.run("single", input, conversationId);
   },
-  executeLatest(conversationId: string, standardInput?: string) {
+  executeLatest(conversationId: string, standardInput?: string, requestId?: string) {
     return sendDesktopRequest({
       type: "coding_execute_result",
+      requestId,
       conversationId: conversationId.trim(),
       standardInput: standardInput || undefined
     });
+  },
+  cancel(requestId: string) {
+    return sendDesktopRequest({type: "coding_cancel", requestId});
   }
 };
 

@@ -1001,7 +1001,8 @@ public sealed partial class CommandService
                 LogicValueParsingPolicy.ParseMultilineValues(config.TryGetValue("webUrls", out var webUrls) ? webUrls : null),
                 LogicValueParsingPolicy.ParseBool(config.TryGetValue("webSearchEnabled", out var webSearchEnabled) ? webSearchEnabled : null, true),
                 config.TryGetValue("codexModel", out var codexModel) ? codexModel : null,
-                NvidiaModel: config.TryGetValue("nvidiaModel", out var nvidiaModel) ? nvidiaModel : null
+                NvidiaModel: config.TryGetValue("nvidiaModel", out var nvidiaModel) ? nvidiaModel : null,
+                GrokModel: config.GetValueOrDefault("grokModel", "none")
             );
             var result = await ChatSingleWithStateAsync(request, cancellationToken).ConfigureAwait(false);
             return new LogicNodeExecutionOutcome(BuildLogicEnvelope(
@@ -1040,7 +1041,8 @@ public sealed partial class CommandService
             LogicValueParsingPolicy.ParseMultilineValues(config.TryGetValue("webUrls", out var orchestrationWebUrls) ? orchestrationWebUrls : null),
             LogicValueParsingPolicy.ParseBool(config.TryGetValue("webSearchEnabled", out var orchestrationSearch) ? orchestrationSearch : null, true),
             config.TryGetValue("codexModel", out var orchestrationCodexModel) ? orchestrationCodexModel : null,
-            NvidiaModel: config.TryGetValue("nvidiaModel", out var orchestrationNvidiaModel) ? orchestrationNvidiaModel : null
+            NvidiaModel: config.TryGetValue("nvidiaModel", out var orchestrationNvidiaModel) ? orchestrationNvidiaModel : null,
+            GrokModel: config.GetValueOrDefault("grokModel", "none")
         );
         var orchestrationResult = await ChatOrchestrationWithStateAsync(
             orchestrationRequest,
@@ -1101,7 +1103,8 @@ public sealed partial class CommandService
             LogicValueParsingPolicy.ParseMultilineValues(config.TryGetValue("webUrls", out var webUrls) ? webUrls : null),
             LogicValueParsingPolicy.ParseBool(config.TryGetValue("webSearchEnabled", out var webSearchEnabled) ? webSearchEnabled : null, true),
             config.TryGetValue("codexModel", out var codexModel) ? codexModel : null,
-            config.TryGetValue("nvidiaModel", out var nvidiaModel) ? nvidiaModel : null
+            config.TryGetValue("nvidiaModel", out var nvidiaModel) ? nvidiaModel : null,
+            GrokModel: config.GetValueOrDefault("grokModel", "none")
         );
         var result = await ChatMultiWithStateAsync(request, cancellationToken).ConfigureAwait(false);
         return new LogicNodeExecutionOutcome(BuildLogicEnvelope(
@@ -1169,7 +1172,8 @@ public sealed partial class CommandService
             LogicValueParsingPolicy.ParseMultilineValues(config.TryGetValue("webUrls", out var webUrls) ? webUrls : null),
             LogicValueParsingPolicy.ParseBool(config.TryGetValue("webSearchEnabled", out var webSearchEnabled) ? webSearchEnabled : null, true),
             config.TryGetValue("codexModel", out var codexModel) ? codexModel : null,
-            NvidiaModel: config.TryGetValue("nvidiaModel", out var nvidiaModel) ? nvidiaModel : null
+            NvidiaModel: config.TryGetValue("nvidiaModel", out var nvidiaModel) ? nvidiaModel : null,
+                GrokModel: config.GetValueOrDefault("grokModel", "none")
         );
 
         CodingRunResult result = mode switch

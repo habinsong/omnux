@@ -102,7 +102,7 @@ internal static class NaturalCommandValidationPolicy
                     return new NaturalCommandValidationResult(false, false, null, "invalid_provider_slot", "invalid provider slot");
                 }
 
-                if (provider is not ("groq" or "gemini" or "copilot" or "cerebras" or "nvidia" or "codex" or "auto"))
+                if (provider is not ("groq" or "gemini" or "copilot" or "cerebras" or "nvidia" or "codex" or "grok" or "auto"))
                 {
                     return new NaturalCommandValidationResult(false, false, null, "invalid_provider", "invalid provider");
                 }
@@ -523,7 +523,7 @@ internal static class NaturalCommandValidationPolicy
                     return new NaturalCommandValidationResult(false, false, null, "invalid_coding_mode", "invalid coding mode");
                 }
 
-                if (provider is not ("auto" or "groq" or "gemini" or "copilot" or "cerebras" or "nvidia" or "codex"))
+                if (provider is not ("auto" or "groq" or "gemini" or "copilot" or "cerebras" or "nvidia" or "codex" or "grok"))
                 {
                     return new NaturalCommandValidationResult(false, false, null, "invalid_provider", "invalid provider");
                 }
@@ -576,7 +576,7 @@ internal static class NaturalCommandValidationPolicy
                     return new NaturalCommandValidationResult(false, false, null, "invalid_coding_worker_mode", "worker는 orchestration 또는 multi 모드만 지원합니다.");
                 }
 
-                if (provider is not ("groq" or "gemini" or "copilot" or "cerebras" or "nvidia" or "codex"))
+                if (provider is not ("groq" or "gemini" or "copilot" or "cerebras" or "nvidia" or "codex" or "grok"))
                 {
                     return new NaturalCommandValidationResult(false, false, null, "invalid_provider", "invalid provider");
                 }
@@ -681,7 +681,7 @@ internal static class NaturalCommandValidationPolicy
                 }
 
                 var target = GetArg("target", "provider", "value").ToLowerInvariant();
-                if (target is "groq" or "gemini" or "copilot" or "cerebras" or "codex")
+                if (target is "groq" or "gemini" or "copilot" or "cerebras" or "codex" or "grok")
                 {
                     return new NaturalCommandValidationResult(true, false, new CanonicalCommand(command, $"/llm models {target}"), "ok", string.Empty);
                 }
@@ -1474,7 +1474,7 @@ internal static class NaturalCommandValidationPolicy
             value = "nvidia";
         }
 
-        if (value == "gemini" || value == "groq" || value == "cerebras" || value == "nvidia" || value == "copilot" || value == "codex")
+        if (value == "gemini" || value == "groq" || value == "cerebras" || value == "nvidia" || value == "copilot" || value == "codex" || value == "grok")
         {
             return value;
         }

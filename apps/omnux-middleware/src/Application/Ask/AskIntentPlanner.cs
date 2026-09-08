@@ -135,9 +135,15 @@ internal static class AskIntentPlanner
         var attemptRetrieval =
             !AskAutoRetrievalPolicy.IsDisabledByEnv()
             && (AskAutoRetrievalPolicy.ShouldAttempt(normalized) || includeNotebookContext);
+        // 대화(세션) 검색은 회고 어휘("지난번")뿐 아니라 preflight 정책의 session_or_agent
+        // 신호(세션/에이전트/트레이스/실패/로그 단서)로도 켠다 — preflight advisory와 실제
+        // executor 가 같은 신호를 공유하게 해 "추천만 하고 실행은 안 함" 단절을 없앤다.
+        var searchConversations =
+            AskAutoRetrievalPolicy.ShouldSearchConversations(normalized)
+            || RagRetrievalPreflightPolicy.SuggestsSessionRetrieval(normalized);
         return new AskIntentPlan(
             attemptRetrieval,
-            attemptRetrieval && AskAutoRetrievalPolicy.ShouldSearchConversations(normalized),
+            attemptRetrieval && searchConversations,
             attemptRetrieval && AskAutoRetrievalPolicy.ShouldIncludeProjectOverview(normalized),
             includeNotebookContext,
             notebookAppendRequest,

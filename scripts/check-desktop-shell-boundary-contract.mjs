@@ -135,14 +135,14 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     "src/use-middleware-runtime-probe.ts",
     "src/use-middleware-session.ts",
     "src/features/auth/auth-store.ts",
-    "src/features/ask/AskPage.tsx",
+    "src/features/chat-workspace/ChatWorkspacePage.tsx",
     "src/features/ask/ask-store.ts",
-    "src/features/automate/AutomatePage.tsx",
-    "src/features/automate/automate-store.ts",
+    "src/features/automation-workspace/AutomationWorkspacePage.tsx",
+    "src/features/automation-workspace/automation-state.ts",
     "src/features/projects/ProjectsPage.tsx",
     "src/features/projects/projects-store.ts",
-    "src/features/explore/ExplorePage.tsx",
-    "src/features/explore/explore-store.ts",
+    "src/features/explore-workspace/ExploreWorkspacePage.tsx",
+    "src/features/explore-workspace/web-explore-state.ts",
     "src/features/ops/OperationsPage.tsx",
     "src/features/ops/ops-store.ts",
     "src/features/shell/DesktopNavigation.tsx",
@@ -164,12 +164,12 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   const appSource = read("apps/desktop/src/App.tsx");
   assertIncludes(
     appSource,
-    "AskPage",
+    "ChatWorkspacePage",
     "desktop App.tsx ask page wiring"
   );
   assertIncludes(
     appSource,
-    "ExplorePage",
+    "ExploreWorkspacePage",
     "desktop App.tsx explore page wiring"
   );
   assertIncludes(
@@ -179,7 +179,7 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   );
   assertIncludes(
     appSource,
-    "AutomatePage",
+    "AutomationWorkspacePage",
     "desktop App.tsx automate page wiring"
   );
   assertIncludes(
@@ -238,7 +238,7 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     "useAskStore",
     "useExploreStore",
     "useSettingsStore",
-    "useAutomateStore"
+    "useAutomationWorkspace("
   ].forEach((needle) =>
     assertNotIncludes(
       appSource,
@@ -553,11 +553,12 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     "desktop auth store auth required action"
   );
 
-  const askPageSource = read("apps/desktop/src/features/ask/AskPage.tsx");
+  const askPageSource = ["ChatWorkspacePage.tsx", "ChatHistory.tsx", "ChatTranscript.tsx", "ChatOptions.tsx"]
+    .map(file => read(`apps/desktop/src/features/chat-workspace/${file}`)).join("\n");
   assertIncludes(
     askPageSource,
-    "CardBoundary",
-    "desktop ask page card boundaries"
+    "chat-workspace",
+    "desktop ask page dedicated surface"
   );
   assertIncludes(
     askPageSource,
@@ -571,7 +572,7 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   );
   assertIncludes(
     askPageSource,
-    "row-actions",
+    "chat-actions",
     "desktop ask page conversation row actions"
   );
   assertIncludes(
@@ -596,7 +597,7 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   );
   assertIncludes(
     askPageSource,
-    "MarkdownMessage",
+    "ReactMarkdown",
     "desktop ask page uses React markdown component"
   );
   assertIncludes(
@@ -605,7 +606,7 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     "desktop ask page conversation delete action"
   );
 
-  const askStoreSource = read("apps/desktop/src/features/ask/ask-store.ts");
+  const askStoreSource = ["ask-store.ts", "ask-session-actions.ts", "ask-bridge.ts"].map(file => read(`apps/desktop/src/features/ask/${file}`)).join("\n");
   assertIncludes(
     askStoreSource,
     "requestDesktopAsk",
@@ -671,94 +672,21 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     "desktop projects store mutation result handling"
   );
 
-  const explorePageSource = read("apps/desktop/src/features/explore/ExplorePage.tsx");
-  assertIncludes(
-    explorePageSource,
-    "useExploreStore",
-    "desktop explore page store ownership"
-  );
-  assertIncludes(
-    explorePageSource,
-    "selectedTab",
-    "desktop explore page selected tab"
-  );
-  assertIncludes(
-    explorePageSource,
-    "canRequest",
-    "desktop explore page gates domain requests behind auth"
-  );
-  assertIncludes(
-    explorePageSource,
-    "fetchResult",
-    "desktop explore page renders url fetch result"
-  );
-  assertIncludes(
-    explorePageSource,
-    "history?.messages",
-    "desktop explore page renders session history messages"
-  );
-  assertIncludes(
-    explorePageSource,
-    "sendSessionMessage",
-    "desktop explore page sessions_send action"
-  );
-  assertIncludes(
-    explorePageSource,
-    "spawnSession",
-    "desktop explore page sessions_spawn action"
-  );
-  assertIncludes(
-    explorePageSource,
-    "loadSpawnStatus",
-    "desktop explore page sessions_spawn status action"
-  );
-  assertIncludes(
-    explorePageSource,
-    "browserResult",
-    "desktop explore page renders browser result"
-  );
-  assertIncludes(
-    explorePageSource,
-    "canvasResult",
-    "desktop explore page renders canvas result"
-  );
-  assertIncludes(
-    explorePageSource,
-    "runBrowser(\"open\"",
-    "desktop explore page browser open action"
-  );
-  assertIncludes(
-    explorePageSource,
-    "runCanvas(\"navigate\"",
-    "desktop explore page canvas navigate action"
-  );
-
-  const exploreStoreSource = read("apps/desktop/src/features/explore/explore-store.ts");
-  assertIncludes(
-    exploreStoreSource,
-    "requestDesktopExplore",
-    "desktop explore store request gateway"
-  );
-  assertIncludes(
-    exploreStoreSource,
-    "web_search_result",
-    "desktop explore store web search result handling"
-  );
-  assertIncludes(
-    exploreStoreSource,
-    "canvas_result",
-    "desktop explore store canvas result handling"
-  );
-  assertIncludes(
-    exploreStoreSource,
-    "sessions_send_result",
-    "desktop explore store sessions_send result handling"
-  );
-  assertIncludes(
-    exploreStoreSource,
-    "sessions_spawn_result",
-    "desktop explore store sessions_spawn result handling"
-  );
+  const explorePageSource = ["ExploreWorkspacePage.tsx", "WebExplorePanel.tsx", "RuntimeExplorePanels.tsx", "SessionExplorePanel.tsx"]
+    .map(file => read(`apps/desktop/src/features/explore-workspace/${file}`)).join("\n");
+  for (const [symbol, purpose] of [
+    ["useWebExplore", "web state ownership"], ["useRuntimeExplore", "browser state ownership"],
+    ["useSessionExplore", "session state ownership"], ["<summary>", "collapsible sections"],
+    ["connected", "connected request gate"], ["state.document", "web document"],
+    ["state.history.messages", "session messages"], ["state.append()", "session note"],
+    ["state.create()", "session creation"], ["sessions_spawn", "session status"],
+    ["browser.result", "browser result"], ["canvas.result", "canvas result"],
+    ['state.run("browser", "open"', "browser open"], ['state.run("canvas", "navigate"', "canvas navigate"]
+  ]) assertIncludes(explorePageSource, symbol, `desktop explore ${purpose}`);
+  const exploreStoreSource = ["web-explore-state.ts", "runtime-explore-state.ts", "session-explore-state.ts"]
+    .map(file => read(`apps/desktop/src/features/explore-workspace/${file}`)).join("\n");
+  for (const symbol of ["sendExploreCommand", "web_search_result", 'kind + "_result"', "sessions_send_result", "sessions_spawn_result"])
+    assertIncludes(exploreStoreSource, symbol, `desktop explore response ${symbol}`);
 
   const settingsPageSource = read("apps/desktop/src/features/settings/SettingsPage.tsx");
   assertIncludes(
@@ -829,37 +757,37 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     "desktop settings store uses in-app confirm dialog"
   );
 
-  const automatePageSource = read("apps/desktop/src/features/automate/AutomatePage.tsx");
+  const automatePageSource = read("apps/desktop/src/features/automation-workspace/AutomationWorkspacePage.tsx");
   assertIncludes(
     automatePageSource,
-    "useAutomateStore",
+    "useAutomationWorkspace",
     "desktop automate page store ownership"
   );
   assertIncludes(
     automatePageSource,
-    "canRequest",
+    "connected",
     "desktop automate page gates domain requests behind auth"
   );
   assertIncludes(
     automatePageSource,
-    "routines",
+    "state.items",
     "desktop automate page routines listing"
   );
   assertIncludes(
     automatePageSource,
-    "selectedRoutine",
+    "selected",
     "desktop automate page selected routine detail"
   );
   assertIncludes(
     automatePageSource,
-    "selectRoutine",
+    "state.select",
     "desktop automate page delegates selection to page store"
   );
 
-  const automateStoreSource = read("apps/desktop/src/features/automate/automate-store.ts");
+  const automateStoreSource = read("apps/desktop/src/features/automation-workspace/automation-state.ts");
   assertIncludes(
     automateStoreSource,
-    "requestDesktopRoutine",
+    "sendAutomationCommand",
     "desktop automate store request gateway"
   );
   assertIncludes(
@@ -1263,9 +1191,6 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   const FRONTEND_MAX_LINES = 1500;
   const FRONTEND_LINE_LIMIT_EXCEPTIONS = new Set([
     // 핵심 엔진(척추) 페이지/스토어 — 추가 분리 시 회귀 위험이 커서 의도적으로 예외 처리한다.
-    "apps/desktop/src/features/ask/AskPage.tsx", // 대화(chat) 엔진 화면
-    "apps/desktop/src/features/build/BuildPage.tsx", // 코딩(build) 엔진 화면
-    "apps/desktop/src/features/build/build-store.ts", // 코딩 엔진 상태/메시지 라우팅
     "apps/desktop/src/features/ops/ops-store.ts" // WS 메시지 라우팅 + 운영 도구 상태 척추 store
   ]);
   const frontendFiles = collectFiles(
@@ -1294,16 +1219,29 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     { pattern: /\bpaletteOpen\b/, reason: "예전 paletteOpen ReferenceError 회귀 차단" },
     // cleanup_apply / task_retry는 이제 Permission/Confirm 모달 등 별도 apply·retry UX와 함께
     // 정식 연결됐다(Operations cleanup, Planning task retry). 따라서 금지 목록에서 제외한다.
-    // doctor_fix_apply는 여전히 미구현·위험 명령이라 가드를 유지한다.
-    { pattern: /\bdoctor_fix_apply\b/, reason: "desktop Phase 5 운영 위험 명령은 별도 apply UX 없이 금지" },
     { pattern: /\bwindow\.(alert|confirm|prompt)\b/, reason: "desktop UX에서 브라우저 네이티브 alert/confirm/prompt 금지" },
     { pattern: /\bdangerouslySetInnerHTML\b/, reason: "desktop markdown은 React component renderer를 사용해야 함" },
     { pattern: /\brenderMarkdownToSafeHtml\b/, reason: "markdown HTML string 렌더 경로 금지" }
   ];
 
+  // Doctor는 미리보기와 사용자 승인 뒤에만 적용한다. 직접 요청을 만드는 경로도 제한한다.
+  const doctorApplyOwners = new Set([
+    "apps/desktop/src/features/middleware/ops-gateway.ts",
+    "apps/desktop/src/features/ops/ops-store.ts"
+  ]);
+  assertIncludes(opsStoreSource, 'fixResult.action !== "preview"', "Doctor apply requires a preview");
+  assertIncludes(opsStoreSource, "approvalToken: previewId", "Doctor approval identifies its preview");
+  assertIncludes(opsStoreSource, "if (!permission) return;", "Doctor apply respects rejected permission");
+  assertIncludes(opsStoreSource, "requestDesktopOps.doctorFixApply(previewId)", "Doctor apply sends the approved preview");
+  const doctorPanelSource = read("apps/desktop/src/features/ops/OperationsDoctorPanel.tsx");
+  assertIncludes(doctorPanelSource, "disabled={!canApplyFix}", "Doctor apply button requires an applicable preview");
+
   const frontendViolations = [];
   for (const filePath of frontendFiles) {
     const source = readFileSync(filePath, "utf8");
+    if (/\bdoctor_fix_apply\b/.test(source) && !doctorApplyOwners.has(toRelative(filePath))) {
+      frontendViolations.push(`${toRelative(filePath)}: Doctor apply must use the approved operations gateway`);
+    }
     for (const { pattern, reason } of frontendForbiddenPatterns) {
       assertionCount += 1;
       if (pattern.test(source)) {

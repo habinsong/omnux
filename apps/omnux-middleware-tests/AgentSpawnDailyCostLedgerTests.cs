@@ -15,7 +15,7 @@ public sealed class AgentSpawnDailyCostLedgerTests
         try
         {
             var conversationStore = new ConversationStore(Path.Combine(stateDir, "conversations.json"));
-            var runtimeSettings = new RuntimeSettings(new AppConfig());
+            var runtimeSettings = new RuntimeSettings(new AppConfig { DashboardAccessStatePath = Path.Combine(stateDir, "dashboard_access.json") });
             var adapter = new AcpSessionBindingAdapter(stateDir, "codex", runtimeSettings);
             var admissionLimiter = new AgentSpawnAdmissionLimiter(
                 () => now,
@@ -29,7 +29,8 @@ public sealed class AgentSpawnDailyCostLedgerTests
                 dailyTokenCap: 4_000,
                 utcNow: () => now
             );
-            var tool = new SessionSpawnTool(conversationStore, adapter, admissionLimiter, dailyCostLedger);
+            var tool = new SessionSpawnTool(conversationStore, adapter, admissionLimiter, dailyCostLedger,
+                runBreaker: new AgentSpawnRunBreaker(Path.Combine(stateDir, "agent_spawn_breaker.json")));
 
             var accepted = Enumerable.Range(0, 2)
                 .Select(index => tool.Spawn(

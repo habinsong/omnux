@@ -102,7 +102,8 @@ public sealed partial class RoutineApplicationService : IRoutineApplicationServi
         RoutineRegistry routineRegistry,
         IRoutineLlmGateway llmGateway,
         IRoutineSearchGateway searchGateway,
-        IRoutineLogicGraphRunner logicGraphRunner
+        IRoutineLogicGraphRunner logicGraphRunner,
+        bool startScheduler = true
     )
     {
         _providers = providers;
@@ -125,6 +126,9 @@ public sealed partial class RoutineApplicationService : IRoutineApplicationServi
 
         EnsureRoutinePromptFiles();
         _routineRegistry.Load();
-        _routineSchedulerTask = Task.Run(() => RoutineSchedulerLoopAsync(_routineSchedulerCts.Token));
+        if (startScheduler)
+        {
+            _routineSchedulerTask = Task.Run(() => RoutineSchedulerLoopAsync(_routineSchedulerCts.Token));
+        }
     }
 }

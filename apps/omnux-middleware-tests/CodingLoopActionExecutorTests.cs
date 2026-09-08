@@ -4,6 +4,26 @@ namespace Omnux.Middleware.Tests;
 
 public sealed class CodingLoopActionExecutorTests
 {
+    [Theory]
+    [InlineData("mkdir")]
+    [InlineData("write_file")]
+    [InlineData("run")]
+    public async Task CancelledActionDoesNotCreateFilesOrStartRunner(string type)
+    {
+        var root = CreateTempRoot();
+        var runnerCalled = false;
+        try
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => ExecuteAsync(
+                new CodingLoopAction(type, "created", "content", "echo ok"), root,
+                runner: (_, _, _) => { runnerCalled = true; return Task.FromResult(new CodingLoopShellResult(0, "", "", false)); },
+                cancellationToken: new CancellationToken(true)));
+            Assert.False(runnerCalled);
+            Assert.Empty(Directory.EnumerateFileSystemEntries(root));
+        }
+        finally { DeleteTempRoot(root); }
+    }
+
     [Fact]
     public async Task ExecuteAsyncWritesFileAndCreatesParentDirectory()
     {
@@ -128,11 +148,107 @@ public sealed class CodingLoopActionExecutorTests
         }
     }
 
+    [Fact]
+    public async Task ExecuteAsyncEditFileReplacesFirstMatch()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var path = Path.Combine(root, "calc.py");
+            await File.WriteAllTextAsync(path, "def add(a, b):\n    return a - b\n");
+
+            var result = await ExecuteAsync(
+                new CodingLoopAction("edit_file", "calc.py", string.Empty, string.Empty, "return a - b", "return a + b"),
+                root
+            );
+
+            Assert.True(result.Changed);
+            Assert.StartsWith("edit:", result.Message, StringComparison.Ordinal);
+            Assert.Equal("def add(a, b):\n    return a + b\n", await File.ReadAllTextAsync(path));
+            Assert.Contains("return a + b", result.CodePreview);
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncEditFileReturnsCurrentContentWhenNoMatch()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var path = Path.Combine(root, "calc.py");
+            await File.WriteAllTextAsync(path, "value = 1\n");
+
+            var result = await ExecuteAsync(
+                new CodingLoopAction("edit_file", "calc.py", string.Empty, string.Empty, "value = 99", "value = 2"),
+                root
+            );
+
+            Assert.False(result.Changed);
+            Assert.StartsWith("edit_no_match:", result.Message, StringComparison.Ordinal);
+            // 모델이 실제 내용을 보고 다시 시도할 수 있도록 현재 내용을 미리보기로 돌려준다.
+            Assert.Equal("value = 1\n", result.CodePreview);
+            Assert.Equal("value = 1\n", await File.ReadAllTextAsync(path));
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncEditFileMissingFileReturnsEditMiss()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var result = await ExecuteAsync(
+                new CodingLoopAction("edit_file", "missing.py", string.Empty, string.Empty, "a", "b"),
+                root
+            );
+
+            Assert.False(result.Changed);
+            Assert.StartsWith("edit_miss:", result.Message, StringComparison.Ordinal);
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsyncEditFileUsesContentWhenReplaceOmitted()
+    {
+        var root = CreateTempRoot();
+        try
+        {
+            var path = Path.Combine(root, "note.txt");
+            await File.WriteAllTextAsync(path, "alpha beta gamma");
+
+            // replace 가 비어 있으면 content 를 교체 텍스트로 사용한다.
+            var result = await ExecuteAsync(
+                new CodingLoopAction("edit_file", "note.txt", "BETA", string.Empty, "beta", string.Empty),
+                root
+            );
+
+            Assert.True(result.Changed);
+            Assert.Equal("alpha BETA gamma", await File.ReadAllTextAsync(path));
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
     private static Task<CodingLoopActionResult> ExecuteAsync(
         CodingLoopAction action,
         string root,
         IReadOnlyList<string>? requestedPaths = null,
-        Func<string, string, CancellationToken, Task<CodingLoopShellResult>>? runner = null
+        Func<string, string, CancellationToken, Task<CodingLoopShellResult>>? runner = null,
+        CancellationToken cancellationToken = default
     )
     {
         return CodingLoopActionExecutor.ExecuteAsync(
@@ -144,7 +260,7 @@ public sealed class CodingLoopActionExecutorTests
             ResolveWorkspacePath,
             (_, _, content) => content,
             runner ?? ((_, _, _) => Task.FromResult(new CodingLoopShellResult(0, string.Empty, string.Empty, false))),
-            CancellationToken.None
+            cancellationToken
         );
     }
 

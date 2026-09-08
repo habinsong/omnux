@@ -14,12 +14,18 @@ internal static class ProviderModelSelectionPolicy
         Func<string?, string?> normalizeModelSelection
     )
     {
+        var selected = normalizeModelSelection(modelOverride);
+        if (!string.IsNullOrWhiteSpace(selected))
+        {
+            return selected;
+        }
+
         if (IsPinnedCopilotProvider(provider))
         {
             return defaultCopilotModel;
         }
 
-        return normalizeModelSelection(modelOverride);
+        return selected;
     }
 
     public static bool IsPinnedCopilotModel(string provider, string model, string defaultCopilotModel)

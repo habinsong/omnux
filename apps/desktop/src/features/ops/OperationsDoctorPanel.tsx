@@ -87,17 +87,25 @@ export function OperationsDoctorPanel({
   canRequest,
   onLoadLast,
   onRun,
-  onPreviewFix
+  onPreviewFix,
+  onApplyFix
 }: {
   doctor: DesktopDoctorSnapshot;
   canRequest: boolean;
   onLoadLast: () => void;
   onRun: () => void;
   onPreviewFix: () => void;
+  onApplyFix: () => void;
 }) {
   const report = doctor.report;
   const busy = doctor.loading || doctor.running || doctor.fixPreviewing || doctor.fixApplying;
   const autoApplyCount = doctor.fixResult?.actions.filter((action) => action.autoApply).length || 0;
+  const canApplyFix =
+    canRequest &&
+    !busy &&
+    doctor.fixResult?.action === "preview" &&
+    Boolean(doctor.fixResult?.previewId) &&
+    autoApplyCount > 0;
 
   return (
     <div className="space-y-3">
@@ -151,8 +159,8 @@ export function OperationsDoctorPanel({
             <Button variant="outline" size="sm" onClick={onPreviewFix} disabled={!canRequest || busy}>
               {doctor.fixPreviewing ? <Spinner size={13} /> : <Wrench size={13} aria-hidden="true" />} 미리보기
             </Button>
-            <Button variant="destructive" size="sm" disabled>
-              <ShieldCheck size={13} aria-hidden="true" /> 적용 보류
+            <Button variant="destructive" size="sm" onClick={onApplyFix} disabled={!canApplyFix}>
+              {doctor.fixApplying ? <Spinner size={13} /> : <ShieldCheck size={13} aria-hidden="true" />} 적용
             </Button>
           </div>
         </div>

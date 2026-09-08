@@ -32,6 +32,8 @@ runtime/
 output/
 .playwright-cli/
 workspace/
+!apps/omnux-middleware/src/Infrastructure/Workspace/
+!apps/omnux-middleware/src/Infrastructure/Workspace/**
 coding/.playwright-cli/
 coding/venv/
 coding/output/

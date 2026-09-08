@@ -238,6 +238,7 @@ public sealed class ConversationStore : IConversationStore
                         .Distinct(StringComparer.OrdinalIgnoreCase)
                         .ToList(),
                     LatestCodingResult = view.LatestCodingResult,
+                    CodingProject = view.CodingProject,
                     Messages = (view.Messages ?? Array.Empty<ConversationMessageView>())
                         .Select(message => new ConversationMessage
                         {
@@ -325,6 +326,55 @@ public sealed class ConversationStore : IConversationStore
             thread.UpdatedUtc = DateTimeOffset.UtcNow;
             SaveLocked();
             return ToView(thread);
+        }
+    }
+
+    public ConversationThreadView BindCodingProject(string conversationId, CodingProjectBinding binding)
+    {
+        lock (_lock)
+        {
+            var thread = RequireThreadLocked(conversationId);
+            if (thread.CodingProject is { } existing)
+            {
+                var pathComparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+                if (!string.Equals(existing.Key, binding.Key, StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(existing.Path, binding.Path, pathComparison))
+                    throw new InvalidOperationException("이 빌드는 다른 프로젝트에 연결되어 있습니다. 새 빌드에서 프로젝트를 선택해 주세요.");
+            }
+            else if (thread.LatestCodingResult != null || thread.Messages.Count > 0)
+            {
+                throw new InvalidOperationException("기존 빌드의 작업 폴더를 바꿀 수 없습니다. 새 빌드에서 프로젝트를 선택해 주세요.");
+            }
+            thread.CodingProject = binding;
+            thread.UpdatedUtc = DateTimeOffset.UtcNow;
+            SaveLocked();
+            return ToView(thread);
+        }
+    }
+
+    public bool TryReplaceLatestCodingResult(string conversationId, ConversationCodingResultSnapshot expected, ConversationCodingResultSnapshot result)
+    {
+        lock (_lock)
+        {
+            var thread = _state.Conversations.FirstOrDefault(item => item.Id == conversationId);
+            if (thread == null || !ReferenceEquals(thread.LatestCodingResult, expected)) return false;
+            thread.LatestCodingResult = result;
+            thread.UpdatedUtc = DateTimeOffset.UtcNow;
+            SaveLocked();
+            return true;
+        }
+    }
+
+    public bool TryUpdateCodingCheckpoint(string conversationId, string checkpointId, ConversationCodingResultSnapshot result)
+    {
+        lock (_lock)
+        {
+            var thread = _state.Conversations.FirstOrDefault(item => item.Id == conversationId);
+            if (thread?.LatestCodingResult?.CheckpointId != checkpointId) return false;
+            thread.LatestCodingResult = result;
+            thread.UpdatedUtc = DateTimeOffset.UtcNow;
+            SaveLocked();
+            return true;
         }
     }
 
@@ -708,7 +758,8 @@ public sealed class ConversationStore : IConversationStore
             thread.LatestCodingResult,
             TokenUsageEstimator.Combine(thread.Messages
                 .Where(x => string.Equals(x.Role, "assistant", StringComparison.OrdinalIgnoreCase))
-                .Select(x => x.TokenUsage ?? TokenUsageEstimator.Estimate(string.Empty, x.Text, TokenUsageEstimator.SourceLegacyEstimated)))
+                .Select(x => x.TokenUsage ?? TokenUsageEstimator.Estimate(string.Empty, x.Text, TokenUsageEstimator.SourceLegacyEstimated))),
+            thread.CodingProject
         );
     }
 
@@ -897,6 +948,7 @@ public sealed class ConversationThread
     public List<ConversationMessage> Messages { get; set; } = new();
     public List<string> LinkedMemoryNotes { get; set; } = new();
     public ConversationCodingResultSnapshot? LatestCodingResult { get; set; }
+    public CodingProjectBinding? CodingProject { get; set; }
     // 사용자가 마지막으로 활성화한 스킬 이름 (재시작 후에도 유지). 비활성/해제 시 null.
     public string? ActiveSkillName { get; set; }
 }
@@ -933,6 +985,8 @@ public sealed record ConversationMessageView(
     TokenUsage? TokenUsage = null
 );
 
+public sealed record CodingProjectBinding(string Key, string Name, string Path);
+
 public sealed record ConversationThreadView(
     string Id,
     string Scope,
@@ -946,5 +1000,6 @@ public sealed record ConversationThreadView(
     IReadOnlyList<ConversationMessageView> Messages,
     IReadOnlyList<string> LinkedMemoryNotes,
     ConversationCodingResultSnapshot? LatestCodingResult,
-    TokenUsage? TokenUsageTotal = null
+    TokenUsage? TokenUsageTotal = null,
+    CodingProjectBinding? CodingProject = null
 );

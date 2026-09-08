@@ -90,7 +90,7 @@ export const requestDesktopTaskGraph = {
   resume(graphId: string) {
     return sendDesktopRequest({ type: "task_resume", graphId });
   },
-  output(graphId: string, taskId: string) {
-    return sendDesktopRequest({ type: "task_output_get", graphId, taskId });
+  output(graphId: string, taskId: string, timestamp?: number, requestId?: string) {
+    return sendDesktopRequest({ type: "task_output_get", graphId, taskId, timestamp, requestId });
   }
 };

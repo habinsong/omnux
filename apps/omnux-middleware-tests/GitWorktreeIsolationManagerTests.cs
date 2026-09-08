@@ -77,7 +77,7 @@ public sealed class GitWorktreeIsolationManagerTests
             InitializeRepository(repo);
             Environment.SetEnvironmentVariable("OMNUX_ACP_ADAPTER_MODE", "staged");
             var conversationStore = new ConversationStore(Path.Combine(stateDir, "conversations.json"));
-            var runtimeSettings = new RuntimeSettings(new AppConfig());
+            var runtimeSettings = new RuntimeSettings(new AppConfig { DashboardAccessStatePath = Path.Combine(stateDir, "dashboard_access.json") });
             var adapter = new AcpSessionBindingAdapter(stateDir, "codex", runtimeSettings);
             var worktreeManager = new GitWorktreeIsolationManager(repo, worktrees, enabled: true);
             var tool = CreateSpawnTool(stateDir, conversationStore, adapter, worktreeManager);
@@ -170,6 +170,7 @@ public sealed class GitWorktreeIsolationManagerTests
             adapter,
             admissionLimiter,
             dailyCostLedger,
+            runBreaker: new AgentSpawnRunBreaker(Path.Combine(stateDir, "agent_spawn_breaker.json")),
             worktreeIsolationManager: worktreeIsolationManager,
             utcNow: () => DateTimeOffset.Parse("2026-06-02T00:00:00Z")
         );

@@ -6,7 +6,7 @@ namespace Omnux.Middleware;
 
 public sealed class CodexCliWrapper
 {
-    private const string DefaultCodexModelFallback = "gpt-5.4"; // ModelRegistry 사용 불가 시 최후 폴백
+    private const string DefaultCodexModelFallback = "gpt-6-astra"; // ModelRegistry 사용 불가 시 최후 폴백
     private static readonly string DefaultCodexModel = ModelRegistry.GetDefaultModel("codex");
     private static readonly Regex AnsiEscapeRegex = new(
         "\u001B\\[[0-9;]*[A-Za-z]",

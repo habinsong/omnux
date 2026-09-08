@@ -36,13 +36,13 @@ internal static class TelegramLlmControlCommandParser
     private const string ModeUsage = "사용법: /llm mode <single|orchestration|multi>";
     private const string SetUsage = "사용법: /llm set <groq|copilot|codex|nvidia> <model-id>";
     private const string SingleUsage =
-        "사용법: /llm single provider <groq|gemini|copilot|cerebras|nvidia|codex> | /llm single model <model-id>";
+        "사용법: /llm single provider <groq|gemini|copilot|cerebras|nvidia|codex|grok> | /llm single model <model-id>";
     private const string SingleModelUsage = "usage: /llm single model <model-id>";
     private const string OrchestrationUsage =
-        "사용법: /llm orchestration provider <auto|groq|gemini|copilot|cerebras|nvidia|codex> | /llm orchestration model <model-id>";
+        "사용법: /llm orchestration provider <auto|groq|gemini|copilot|cerebras|nvidia|codex|grok> | /llm orchestration model <model-id>";
     private const string OrchestrationModelUsage = "usage: /llm orchestration model <model-id>";
     private const string MultiUsage =
-        "사용법: /llm multi <groq|gemini|copilot|cerebras|nvidia|codex> <model-id> | /llm multi summary <auto|groq|gemini|copilot|cerebras|nvidia|codex>";
+        "사용법: /llm multi <groq|gemini|copilot|cerebras|nvidia|codex|grok> <model-id> | /llm multi summary <auto|groq|gemini|copilot|cerebras|nvidia|codex|grok>";
     private const string UnknownMessage = "알 수 없는 /llm 명령입니다. /llm help 또는 자연어 요청을 사용하세요.";
 
     public static bool IsControlCommand(string? text)
@@ -190,7 +190,7 @@ internal static class TelegramLlmControlCommandParser
             return UsageError(MultiUsage);
         }
 
-        if (key is "groq" or "gemini" or "copilot" or "cerebras" or "codex")
+        if (key is "groq" or "gemini" or "copilot" or "cerebras" or "codex" or "grok")
         {
             return new TelegramLlmControlCommand(TelegramLlmControlCommandKind.SetMultiChannelModel, $"multi.{key}", value);
         }

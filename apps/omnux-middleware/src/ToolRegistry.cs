@@ -174,7 +174,7 @@ public sealed class ToolRegistry
         ));
         _ = TryRegister(new ToolDefinition(
             "sessions_send",
-            "Sends a message to a target session",
+            "기존 세션에 메시지를 저장하고 접수를 확인합니다. 새 응답 생성은 원래 대화·빌드 실행 경로에서 이어갑니다.",
             "sessions",
             EnabledByDefault: true,
             Implemented: true,
@@ -198,7 +198,7 @@ public sealed class ToolRegistry
         ));
         _ = TryRegister(new ToolDefinition(
             "browser",
-            "Runs browser actions with auto Playwright adapter fallback to stub (status/start/stop/tabs/navigate/open/focus/close)",
+            "실제 Playwright 브라우저를 제어하고 화면을 캡처합니다. status/start/stop/tabs/navigate/open/focus/close/snapshot",
             "browser",
             EnabledByDefault: true,
             Implemented: true,
@@ -206,7 +206,7 @@ public sealed class ToolRegistry
         ));
         _ = TryRegister(new ToolDefinition(
             "canvas",
-            "Runs canvas actions via stub adapter (status/present/hide/navigate/eval/snapshot/a2ui_push/a2ui_reset)",
+            "실제 브라우저 캔버스의 DOM·이미지·A2UI 핵심 메시지를 처리합니다. status/present/hide/navigate/eval/snapshot/a2ui_push/a2ui_reset",
             "canvas",
             EnabledByDefault: true,
             Implemented: true,

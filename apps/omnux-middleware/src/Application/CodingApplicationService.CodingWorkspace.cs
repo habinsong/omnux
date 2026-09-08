@@ -26,10 +26,7 @@ public sealed partial class CodingApplicationService
                 : configuredMaxEntries;
             var files = Directory.EnumerateFiles(workspaceRoot, "*", SearchOption.AllDirectories)
                 .Select(path => Path.GetRelativePath(workspaceRoot, path))
-                .Where(path => !path.StartsWith(".git", StringComparison.OrdinalIgnoreCase))
-                .Where(path => !path.StartsWith("node_modules", StringComparison.OrdinalIgnoreCase))
-                .Where(path => !path.StartsWith("bin/", StringComparison.OrdinalIgnoreCase))
-                .Where(path => !path.StartsWith("obj/", StringComparison.OrdinalIgnoreCase))
+                .Where(path => !CodingWorkspaceFilePolicy.ShouldSkip(path))
                 .ToArray();
             if (files.Length == 0)
             {
@@ -130,6 +127,62 @@ public sealed partial class CodingApplicationService
         var fallbackRoot = Path.Combine(runsRoot, $"{DateTimeOffset.UtcNow:yyyyMMdd-HHmmssfff}-{safeMode}");
         Directory.CreateDirectory(fallbackRoot);
         return fallbackRoot;
+    }
+
+    // 같은 대화에서 이전 코딩 실행 폴더가 있으면 이어서 작업하도록 재사용한다.
+    // Claude Code/Codex 처럼 한 대화 안에서 같은 프로젝트를 계속 다듬기 위함(싱글/오케스트레이션).
+    private string ResolveOrCreateCodingRunWorkspaceRoot(SessionContext session, string modeLabel)
+    {
+        if (modeLabel != "multi" && session.Thread.CodingProject != null) return session.Thread.CodingProject.Path;
+        var reusable = TryResolveReusableConversationRunDirectory(session, modeLabel);
+        if (string.IsNullOrWhiteSpace(reusable) && session.Thread.LatestCodingResult?.CheckpointId is { Length: > 0 })
+        {
+            throw new InvalidOperationException("중단한 작업 폴더를 찾을 수 없거나 안전하게 열 수 없습니다. 원래 폴더를 복원하거나 새 작업을 만들어 주세요.");
+        }
+        return string.IsNullOrWhiteSpace(reusable)
+            ? CreateCodingRunWorkspaceRoot(modeLabel)
+            : reusable!;
+    }
+
+    private string? TryResolveReusableConversationRunDirectory(SessionContext session, string modeLabel)
+    {
+        var latest = session.Thread.LatestCodingResult;
+        if (latest == null)
+        {
+            return null;
+        }
+
+        // 모드가 일치하는 이전 결과만 재사용한다(예: 다중 비교 결과 폴더를 단일에서 재사용하지 않음).
+        if (!string.Equals(latest.Mode, modeLabel, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var candidate = NormalizeStoredRunDirectory(latest.Execution.RunDirectory);
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            return null;
+        }
+
+        string fullCandidate;
+        try
+        {
+            fullCandidate = Path.GetFullPath(candidate);
+        }
+        catch
+        {
+            return null;
+        }
+
+        if (!Directory.Exists(fullCandidate))
+        {
+            return null;
+        }
+
+        // 보안: workspace/runs 하위 폴더만 재사용한다.
+        var runsRoot = Path.Combine(ResolveWorkspaceRoot(), "runs");
+        return IsPathUnderRoot(fullCandidate, runsRoot) && CodingPreviewPolicy.IsRegularDirectoryWithinRun(fullCandidate, runsRoot)
+            ? fullCandidate : null;
     }
 
     private static bool IsPathUnderRoot(string candidatePath, string rootPath)
@@ -433,22 +486,7 @@ public sealed partial class CodingApplicationService
 
             return Directory.EnumerateFiles(workspaceRoot, "*", SearchOption.AllDirectories)
                 .Where(path => !string.IsNullOrWhiteSpace(path))
-                .Where(path =>
-                {
-                    var relative = Path.GetRelativePath(workspaceRoot, path).Replace('\\', '/');
-                    if (relative.StartsWith(".git", StringComparison.OrdinalIgnoreCase)
-                        || relative.StartsWith("node_modules", StringComparison.OrdinalIgnoreCase)
-                        || relative.StartsWith("bin/", StringComparison.OrdinalIgnoreCase)
-                        || relative.StartsWith("obj/", StringComparison.OrdinalIgnoreCase)
-                        || relative.StartsWith("__pycache__/", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return false;
-                    }
-
-                    return !relative.EndsWith(".pyc", StringComparison.OrdinalIgnoreCase)
-                        && !relative.EndsWith(".pyo", StringComparison.OrdinalIgnoreCase)
-                        && !relative.EndsWith(".DS_Store", StringComparison.OrdinalIgnoreCase);
-                })
+                .Where(path => !CodingWorkspaceFilePolicy.ShouldSkip(Path.GetRelativePath(workspaceRoot, path)))
                 .Select(Path.GetFullPath)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
@@ -477,6 +515,38 @@ public sealed partial class CodingApplicationService
         }
 
         return merged;
+    }
+
+    // 명령 내 모든 python/python3 호출을 .venv/bin/python 으로 바꾼다(경로로 쓰인 .../python 제외).
+    // 모델은 `python3 test.py && python3 main.py` 처럼 체이닝하므로 선두 토큰만 바꾸면 두 번째
+    // 호출이 시스템 파이썬으로 가 설치한 패키지를 못 찾는다(pygame 등 ModuleNotFound).
+    private static readonly Regex WorkspacePythonInvocationRegex = new(
+        @"(?<![\w./\\-])python3?(?=\s)",
+        RegexOptions.Compiled
+    );
+
+    private static string RewritePythonInterpreterToWorkspaceVenv(string command, string workDir)
+    {
+        if (OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(command))
+        {
+            return command;
+        }
+
+        // 이미 .venv / __omni_py 를 참조하거나 venv 생성(`-m venv`) 명령이면 건드리지 않는다.
+        if (command.Contains(".venv", StringComparison.Ordinal)
+            || command.Contains("__omni_py", StringComparison.Ordinal)
+            || command.Contains("-m venv", StringComparison.Ordinal))
+        {
+            return command;
+        }
+
+        var venvPython = Path.Combine(workDir ?? string.Empty, ".venv", "bin", "python");
+        if (string.IsNullOrWhiteSpace(workDir) || !File.Exists(venvPython))
+        {
+            return command;
+        }
+
+        return WorkspacePythonInvocationRegex.Replace(command, ".venv/bin/python");
     }
 
     private static string NormalizePythonCommandForShell(string command)

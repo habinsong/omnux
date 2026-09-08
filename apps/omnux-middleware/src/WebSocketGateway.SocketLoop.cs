@@ -13,6 +13,7 @@ public sealed partial class WebSocketGateway
         string? sessionId = null;
         var sendLock = new SemaphoreSlim(1, 1);
         var streamCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var codingRun = new WsCodingSessionRun(streamCts.Token);
         Task? streamTask = null;
         var connectionSlotAcquired = false;
 
@@ -193,7 +194,10 @@ public sealed partial class WebSocketGateway
 
                 if (!authenticated)
                 {
-                    await SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"unauthorized\"}", cancellationToken);
+                    await SendTextAsync(socket, sendLock,
+                        "{\"type\":\"error\",\"message\":\"unauthorized\","
+                        + $"\"requestId\":\"{EscapeJson(message.RequestId ?? string.Empty)}\","
+                        + $"\"requestType\":\"{EscapeJson(message.Type ?? string.Empty)}\"}}", cancellationToken);
                     continue;
                 }
 
@@ -212,10 +216,36 @@ public sealed partial class WebSocketGateway
                         WebSocketCommandRatePolicy.BuildRateLimitedErrorJson(
                             message.Type,
                             message.Action,
-                            _gatewayOptions.WebSocketCommandsPerMinute
+                            _gatewayOptions.WebSocketCommandsPerMinute,
+                            message.RequestId
                         ),
                         cancellationToken
                     );
+                    continue;
+                }
+
+                if (message.Type == "coding_cancel")
+                {
+                    var accepted = codingRun.Cancel(message.RequestId);
+                    await SendTextAsync(socket, sendLock,
+                        $"{{\"type\":\"coding_cancel_result\",\"requestId\":\"{EscapeJson(message.RequestId ?? string.Empty)}\","
+                        + $"\"ok\":{(accepted ? "true" : "false")}" + "}", cancellationToken);
+                    continue;
+                }
+
+                if (message.Type is "coding_run_single" or "coding_run_orchestration" or "coding_run_multi" or "coding_execute_result")
+                {
+                    if (string.IsNullOrWhiteSpace(message.RequestId)) message.RequestId = Guid.NewGuid().ToString("N");
+                    if (codingRun.IsActive(message.RequestId))
+                    {
+                        await SendCodingTerminalAsync(socket, sendLock, message, "coding_request_active", "같은 요청이 실행 중입니다.", cancellationToken);
+                        continue;
+                    }
+                    if (!codingRun.TryStart(message.RequestId, token => RunCodingSessionCommandAsync(
+                            message, sessionId!, socket, sendLock, token, streamCts.Token)))
+                    {
+                        await SendCodingTerminalAsync(socket, sendLock, message, "error", "coding_busy: 진행 중인 작업을 완료하거나 중단한 뒤 다시 요청해 주세요.", cancellationToken);
+                    }
                     continue;
                 }
 
@@ -558,6 +588,7 @@ public sealed partial class WebSocketGateway
         finally
         {
             streamCts.Cancel();
+            await codingRun.DisposeAsync();
             if (streamTask != null)
             {
                 try
@@ -758,7 +789,7 @@ public sealed partial class WebSocketGateway
     private static bool IsLoopbackHost(string host)
     {
         var normalized = (host ?? string.Empty).Trim().Trim('[', ']').ToLowerInvariant();
-        if (normalized is "localhost" or "::1")
+        if (normalized is "localhost" or "::1" or "tauri.localhost")
         {
             return true;
         }

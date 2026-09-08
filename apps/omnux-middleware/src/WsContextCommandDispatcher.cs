@@ -33,7 +33,7 @@ internal sealed class WsContextCommandDispatcher
             await SendProjectContextAsync(
                 socket,
                 sendLock,
-                await _contextService.ScanProjectContextAsync(cancellationToken),
+                await _contextService.ScanProjectContextAsync(cancellationToken, message.ProjectKey),
                 cancellationToken
             );
             return true;
@@ -44,7 +44,7 @@ internal sealed class WsContextCommandDispatcher
             await SendSkillsListAsync(
                 socket,
                 sendLock,
-                await _contextService.ListSkillsAsync(cancellationToken),
+                await _contextService.ListSkillsAsync(cancellationToken, message.ProjectKey),
                 cancellationToken
             );
             return true;
@@ -55,7 +55,7 @@ internal sealed class WsContextCommandDispatcher
             await SendCommandsListAsync(
                 socket,
                 sendLock,
-                await _contextService.ListCommandsAsync(cancellationToken),
+                await _contextService.ListCommandsAsync(cancellationToken, message.ProjectKey),
                 cancellationToken
             );
             return true;

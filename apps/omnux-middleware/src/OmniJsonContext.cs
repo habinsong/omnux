@@ -5,6 +5,7 @@ namespace Omnux.Middleware;
 [JsonSourceGenerationOptions(WriteIndented = false)]
 [JsonSerializable(typeof(Dictionary<string, string>))]
 [JsonSerializable(typeof(CopilotState))]
+[JsonSerializable(typeof(GrokConnectionStatus))]
 [JsonSerializable(typeof(LlmUsageState))]
 [JsonSerializable(typeof(ConversationState))]
 [JsonSerializable(typeof(AuthSessionState))]

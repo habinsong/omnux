@@ -478,7 +478,6 @@
   .dashboard-tab {
     container-type: inline-size;
     min-width: 0;
-    padding-inline-end: 4.75rem;
     overflow-wrap: anywhere;
   }
 
@@ -513,12 +512,12 @@
     .dashboard-tab :where([class*="xl:grid-cols"], [class*="2xl:grid-cols"], [class*="lg:grid-cols"]) {
       grid-template-columns: minmax(0, 1fr) !important;
     }
+
   }
 
   @media (max-width: 640px) {
     .dashboard-tab {
       gap: 0.75rem;
-      padding-inline-end: 3.75rem;
     }
 
     .dashboard-tab :where([class*="md:grid-cols"], [class*="sm:grid-cols"]) {

@@ -10,7 +10,12 @@ export type DesktopRoutePayload = {
   projectKey?: string;
   projectName?: string;
   projectPath?: string;
+  conversationId?: string;
   openAttachmentPanel?: boolean;
+  scheduleKind?: "daily" | "weekly" | "monthly";
+  scheduleTime?: string;
+  scheduleWeekdays?: number[];
+  scheduleDayOfMonth?: number;
 };
 
 // 데스크톱 활성 페이지와 route payload를 보관하는 작은 네비게이션 store.

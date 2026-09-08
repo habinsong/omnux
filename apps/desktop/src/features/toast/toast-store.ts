@@ -22,7 +22,7 @@ let toastSeq = 0;
 
 export const useDesktopToastStore = create<ToastState>((set) => ({
   toasts: [],
-  push: (toast) => set((state) => ({ toasts: [toast, ...state.toasts].slice(0, MAX_TOASTS) })),
+  push: (toast) => set((state) => ({ toasts: [toast, ...state.toasts.filter(item => item.tone !== toast.tone || item.title !== toast.title || item.message !== toast.message)].slice(0, MAX_TOASTS) })),
   remove: (id) => set((state) => ({ toasts: state.toasts.filter((toast) => toast.id !== id) })),
   clear: () => set({ toasts: [] })
 }));

@@ -1,17 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { HomePage } from "./features/home/HomePage";
 import { ActivityPage } from "./features/activity/ActivityPage";
-import { AskPage } from "./features/ask/AskPage";
-import { BuildPage } from "./features/build/BuildPage";
+import { ChatWorkspacePage } from "./features/chat-workspace/ChatWorkspacePage";
+import { useAskPageBridge } from "./features/ask/ask-store";
+import { BuildWorkspacePage } from "./features/build-workspace/BuildWorkspacePage";
+import { useBuildWorkspaceSession } from "./features/build-workspace/build-state";
 import { LogicPage } from "./features/logic/LogicPage";
-import { AutomatePage } from "./features/automate/AutomatePage";
-import { ExplorePage } from "./features/explore/ExplorePage";
+import { AutomationWorkspacePage } from "./features/automation-workspace/AutomationWorkspacePage";
+import { useAutomationWorkspaceSession } from "./features/automation-workspace/automation-state";
+import { ExploreWorkspacePage, useExploreWorkspaceSession } from "./features/explore-workspace/ExploreWorkspacePage";
 import { OperationsPage } from "./features/ops/OperationsPage";
 import { InsightsPage } from "./features/insights/InsightsPage";
 import { NotebookPage } from "./features/notebooks/NotebookPage";
 import { SkillsPage } from "./features/skills/SkillsPage";
 import { RoutingPolicyPage } from "./features/routing/RoutingPolicyPage";
-import { PlanningPage } from "./features/planning/PlanningPage";
+import { TaskWorkspacePage } from "./features/task-workspace/TaskWorkspacePage";
+import { useTaskWorkspaceSession } from "./features/task-workspace/task-workspace-state";
 import { RefactorPage } from "./features/refactor/RefactorPage";
 import { AgentsPage } from "./features/agents/AgentsPage";
 import { ProjectsPage } from "./features/projects/ProjectsPage";
@@ -63,6 +67,11 @@ function App() {
   useMiddlewareBootstrapEvents();
   useMiddlewareRuntimeProbe();
   useMiddlewareSessionBridge();
+  useBuildWorkspaceSession();
+  useAskPageBridge();
+  useExploreWorkspaceSession();
+  useTaskWorkspaceSession();
+  useAutomationWorkspaceSession();
 
   const activePage = useDesktopNavigationStore((state) => state.activePage);
   const setActivePage = useDesktopNavigationStore((state) => state.setActivePage);
@@ -78,10 +87,10 @@ function App() {
   const pages = useMemo<DesktopPageDefinition[]>(
     () => [
       { id: "home", label: "홈", description: "Home", icon: Home, render: () => <HomePage /> },
-      { id: "ask", label: "질문", description: "Ask", icon: MessageSquare, render: () => <AskPage /> },
-      { id: "build", label: "빌드", description: "Build", icon: Hammer, render: () => <BuildPage /> },
-      { id: "automate", label: "자동화", description: "Automate", icon: Repeat, render: () => <AutomatePage /> },
-      { id: "explore", label: "탐색", description: "Explore", icon: Compass, render: () => <ExplorePage /> },
+      { id: "ask", label: "질문", description: "Ask", icon: MessageSquare, render: () => <ChatWorkspacePage /> },
+      { id: "build", label: "빌드", description: "Build", icon: Hammer, render: () => <BuildWorkspacePage /> },
+      { id: "automate", label: "자동화", description: "Automate", icon: Repeat, render: () => <AutomationWorkspacePage /> },
+      { id: "explore", label: "탐색", description: "Explore", icon: Compass, render: () => <ExploreWorkspacePage /> },
       { id: "projects", label: "프로젝트", description: "Projects", icon: Folder, render: () => <ProjectsPage /> },
       {
         id: "activity",
@@ -96,7 +105,7 @@ function App() {
       { id: "notebooks", label: "노트", description: "Notes", icon: NotebookText, render: () => <NotebookPage /> },
       { id: "skills", label: "도구", description: "Tools", icon: Wrench, render: () => <SkillsPage /> },
       { id: "routing", label: "라우팅", description: "Routing", icon: RouteIcon, render: () => <RoutingPolicyPage /> },
-      { id: "planning", label: "작업", description: "Tasks", icon: ClipboardList, render: () => <PlanningPage /> },
+      { id: "planning", label: "작업", description: "Tasks", icon: ClipboardList, render: () => <TaskWorkspacePage /> },
       { id: "refactor", label: "리뷰", description: "Review", icon: GitCompare, render: () => <RefactorPage /> },
       { id: "agents", label: "에이전트", description: "Agents", icon: Network, render: () => <AgentsPage /> },
       { id: "settings", label: "설정", description: "Settings", icon: Settings, render: () => <SettingsPage /> },
@@ -271,18 +280,18 @@ function App() {
 
         <div
           className={cn(
-            "min-h-0 flex-1 overflow-y-auto transition-[margin] duration-200 ease-out",
+            "min-h-0 flex-1 overflow-y-auto",
             subPanelOpen && !isHome ? "lg:ml-[260px]" : "lg:ml-0"
           )}
         >
-          <div className={isHome ? "h-full" : "mx-auto w-full max-w-[1440px] p-6"}>
+          <div className={isHome ? "h-full" : "flex min-h-full w-full min-w-0 flex-col p-4 sm:p-6"}>
             <PageBoundary page={activePageDefinition.id}>{activePageDefinition.render()}</PageBoundary>
           </div>
         </div>
         <DesktopDialogHost />
         <DesktopToastHost />
-        <ResourceUsageDrawer />
-        <MediaWidget />
+        {isHome ? <ResourceUsageDrawer /> : null}
+        {isHome ? <MediaWidget /> : null}
         <CommandPalette open={commandPaletteOpen} pages={pages} onClose={() => setCommandPaletteOpen(false)} />
       </main>
     </div>

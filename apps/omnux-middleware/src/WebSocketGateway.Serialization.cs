@@ -80,6 +80,10 @@ public sealed partial class WebSocketGateway
         }
 
         builder.Append("],");
+        if (conversation.CodingProject is { } project)
+        {
+            builder.Append($"\"codingProject\":{{\"key\":\"{EscapeJson(project.Key)}\",\"name\":\"{EscapeJson(project.Name)}\",\"path\":\"{EscapeJson(project.Path)}\"}},");
+        }
         builder.Append($"\"latestCodingResult\":{BuildConversationCodingResultJson(conversation.LatestCodingResult)},");
         builder.Append($"\"tokenUsageTotal\":{BuildTokenUsageJson(conversation.TokenUsageTotal)},");
         builder.Append("\"messages\":[");
@@ -185,6 +189,8 @@ public sealed partial class WebSocketGateway
                + $"\"exitCode\":{result.ExitCode},"
                + $"\"stdout\":\"{EscapeJson(result.StdOut)}\","
                + $"\"stderr\":\"{EscapeJson(result.StdErr)}\","
+               + (result.ProgramStdOut == null ? string.Empty : $"\"programStdOut\":\"{EscapeJson(result.ProgramStdOut)}\",")
+               + (result.ProgramStdErr == null ? string.Empty : $"\"programStdErr\":\"{EscapeJson(result.ProgramStdErr)}\",")
                + $"\"status\":\"{EscapeJson(result.Status)}\""
                + "}";
     }
@@ -234,6 +240,9 @@ public sealed partial class WebSocketGateway
                + $"\"language\":\"{EscapeJson(result.Language)}\","
                + "\"code\":\"\","
                + $"\"summary\":\"{EscapeJson(result.Summary)}\","
+               + $"\"resumeInput\":\"{EscapeJson(result.ResumeInput ?? string.Empty)}\","
+               + "\"resumeModels\":{" + string.Join(",", result.ResumeModels?.Select(pair =>
+                   "\"" + EscapeJson(pair.Key) + "\":" + (pair.Value == null ? "null" : "\"" + EscapeJson(pair.Value) + "\"")) ?? Array.Empty<string>()) + "},"
                + $"\"commonSummary\":\"{EscapeJson(result.CommonSummary)}\","
                + $"\"commonPoints\":\"{EscapeJson(result.CommonPoints)}\","
                + $"\"differences\":\"{EscapeJson(result.Differences)}\","

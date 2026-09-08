@@ -34,6 +34,7 @@ internal static class WebSocketCommandRatePolicy
         "plan_get",
         "plan_list",
         "projects_list",
+        "project_folders_list",
         "read_memory_note",
         "read_workspace_file",
         "routing_decision_get_last",
@@ -69,6 +70,8 @@ internal static class WebSocketCommandRatePolicy
     internal static bool ShouldApplyCommandRateLimit(string? messageType, string? action)
     {
         var type = (messageType ?? string.Empty).Trim();
+        // 실행 요청 제한에 도달해도 진행 중인 작업은 중단할 수 있어야 한다.
+        if (type is "coding_cancel" or "task_cancel" or "task_graph_cancel") return false;
         if (ReadOnlyMessageTypes.Contains(type))
         {
             return false;
@@ -92,13 +95,14 @@ internal static class WebSocketCommandRatePolicy
         return true;
     }
 
-    internal static string BuildRateLimitedErrorJson(string? messageType, string? action, int limitPerMinute)
+    internal static string BuildRateLimitedErrorJson(string? messageType, string? action, int limitPerMinute, string? requestId = null)
     {
         var requestType = (messageType ?? string.Empty).Trim();
         var requestAction = (action ?? string.Empty).Trim();
         return "{"
             + "\"type\":\"error\","
             + "\"message\":\"rate_limited\","
+            + (requestId == null ? "" : $"\"requestId\":\"{WebSocketGateway.EscapeJson(requestId)}\",")
             + $"\"requestType\":\"{WebSocketGateway.EscapeJson(requestType)}\","
             + $"\"requestAction\":\"{WebSocketGateway.EscapeJson(requestAction)}\","
             + $"\"limitPerMinute\":{Math.Max(1, limitPerMinute)},"

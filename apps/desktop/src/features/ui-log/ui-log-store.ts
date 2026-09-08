@@ -17,6 +17,7 @@ export type ShellLogEntry = {
 type RecordLogOptions = {
   source?: ShellLogSource;
   componentStack?: string | null;
+  toast?: boolean;
 };
 
 type UiLogState = {
@@ -172,7 +173,7 @@ export const useUiLogStore = create<UiLogState>((set) => ({
       saveLogs(logs);
       return { logs };
     });
-    pushLogToast(entry);
+    if (options.toast !== false) pushLogToast(entry);
   },
   recordCardError: (card, message, componentStack) => {
     const entry = createLog("error", `[${card}] ${message}`, { source: card, componentStack });

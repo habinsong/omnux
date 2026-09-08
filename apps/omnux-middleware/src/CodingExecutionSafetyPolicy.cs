@@ -11,6 +11,27 @@ internal static class CodingExecutionSafetyPolicy
         RegexOptions.Compiled | RegexOptions.IgnoreCase
     );
 
+    // dev 서버/watch 처럼 종료되지 않고 루프를 막을 수 있는 명령. 즉시 실행하지 않고 마지막 검증 단계로 지연시킨다.
+    private static readonly Regex LikelyLongRunningCommandRegex = new(
+        @"(^|[;&|]\s*|\s)(?:npm|pnpm|yarn)\s+(?:run\s+)?(?:dev|start|serve|watch)\b"
+        + @"|(^|\s)(?:webpack-dev-server|nodemon|http-server|live-server|serve)\b"
+        + @"|\bwebpack\s+serve\b"
+        + @"|(^|\s)(?:vite|next|nuxt)(?:\s+(?:dev|serve|preview))?\s*(?=$|[;&|])"
+        + @"|--watch\b"
+        + @"|\b(?:flask\s+run|uvicorn|gunicorn|streamlit\s+run|daphne|hypercorn)\b"
+        + @"|\bpython3?\s+-m\s+http\.server\b"
+        + @"|\bphp\s+-S\b"
+        + @"|\btail\s+-f\b"
+        + @"|(^|\s)watch\s+\S",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase
+    );
+
+    public static bool IsLikelyLongRunningCommand(string? command)
+    {
+        var normalized = CodingFallbackPolicy.NormalizeGeneratedRunCommand(command);
+        return !string.IsNullOrWhiteSpace(normalized) && LikelyLongRunningCommandRegex.IsMatch(normalized);
+    }
+
     public static bool ShouldTrustDeferredVerificationCommand(
         string language,
         string objective,

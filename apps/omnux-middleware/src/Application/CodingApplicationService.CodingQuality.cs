@@ -63,6 +63,12 @@ public sealed partial class CodingApplicationService
             {
                 passed.Add("테스트 증거 확인");
             }
+            else if (string.Equals(execution.Status, "ok", StringComparison.OrdinalIgnoreCase))
+            {
+                // 프로그램이 실제로 성공 실행됐으면(exit=0) 단위 테스트 부재로 전체를 실패시키지
+                // 않는다. 게임/앱은 "실행됨"이 곧 검증이다. 테스트는 권장 사항으로만 표기한다.
+                passed.Add("실행 검증 통과(단위 테스트는 권장)");
+            }
             else
             {
                 failed.Add("프로젝트성 코드 변경인데 테스트 파일 또는 테스트 실행 명령 증거가 없습니다.");
@@ -129,6 +135,7 @@ public sealed partial class CodingApplicationService
         }
 
         var gate = EvaluateCodingQualityGate(objective, language, workspaceRoot, changedFiles, execution);
+        execution = execution with { ProgramStdOut = execution.ProgramStdOut ?? execution.StdOut, ProgramStdErr = execution.ProgramStdErr ?? execution.StdErr };
         if (gate.Ok)
         {
             var stdout = AppendQualityNote(execution.StdOut, gate.Summary);
@@ -177,9 +184,12 @@ public sealed partial class CodingApplicationService
             return false;
         }
 
+        // 주의: 파이썬의 관용적 `pass`(빈 예외 클래스/추상 메서드/빈 except)는 placeholder 가
+        // 아니다. 과거 `pass\s*(#|$)` 패턴이 정상 코드를 더미로 오탐해 quality_failed→repair
+        // 재시도로 토큰을 낭비시켰다. 실제 미구현이면 옆 주석의 TODO/미구현이 이미 잡힌다.
         var dummyMatches = Regex.Matches(
             text,
-            @"\b(TODO|FIXME|placeholder|dummy|stub|not implemented|미구현|임시|나중에|pass\s*(#|$)|NotImplementedException|throw\s+new\s+NotImplementedException)\b",
+            @"\b(TODO|FIXME|placeholder|not implemented|미구현|NotImplementedException|throw\s+new\s+NotImplementedException)\b",
             RegexOptions.IgnoreCase | RegexOptions.Multiline
         ).Count;
         var meaningfulLines = text

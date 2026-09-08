@@ -1,10 +1,12 @@
 import { registerDesktopRequestTypes, sendDesktopRequest } from "./desktop-message-gateway";
 
-// 운영/Doctor WS 요청. Doctor fix apply는 Phase 5 운영 위험 명령이라 UI에서는 preview만 연결한다.
+// 운영/Doctor WS 요청. doctor_fix_apply는 previewId로 캐시된 plan의 auto-apply(create_directory)
+// 항목만 적용한다(삭제 없음). preview → 권한 확인 모달 → apply 게이트를 거친다.
 registerDesktopRequestTypes(
   "doctor_get_last",
   "doctor_run",
   "doctor_fix_preview",
+  "doctor_fix_apply",
   "plan_list",
   "task_graph_list",
   "cleanup_preview",
@@ -31,6 +33,9 @@ export const requestDesktopOps = {
   },
   doctorFixPreview() {
     return sendDesktopRequest({ type: "doctor_fix_preview" });
+  },
+  doctorFixApply(previewId: string) {
+    return sendDesktopRequest({ type: "doctor_fix_apply", previewId });
   },
   planList() {
     return sendDesktopRequest({ type: "plan_list" });

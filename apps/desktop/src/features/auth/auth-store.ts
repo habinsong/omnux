@@ -33,6 +33,7 @@ type DesktopAuthState = {
   markOtpRequestResult: (ok: boolean, message: string) => void;
   markAuthResult: (payload: AuthResultPayload) => void;
   markUnauthorized: (message?: string) => void;
+  setTelegramConfigured: (configured: boolean) => void;
 };
 
 const AUTH_TOKEN_KEY = "omnux_auth_token";
@@ -151,5 +152,11 @@ export const useDesktopAuthStore = create<DesktopAuthState>((set) => ({
           lastMessage: message
         }
       };
-    })
+    }),
+  setTelegramConfigured: (configured) =>
+    set((state) =>
+      state.auth.telegramConfigured === configured
+        ? state
+        : { auth: { ...state.auth, telegramConfigured: configured } }
+    )
 }));

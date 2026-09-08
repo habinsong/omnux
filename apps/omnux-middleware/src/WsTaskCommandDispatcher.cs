@@ -27,7 +27,8 @@ internal sealed class WsTaskCommandDispatcher
                 socket,
                 sendLock,
                 _taskGraphService.ListTaskGraphs(),
-                cancellationToken
+                cancellationToken,
+                message.RequestId
             );
             return true;
         }
@@ -35,14 +36,14 @@ internal sealed class WsTaskCommandDispatcher
         if (message.Type == "task_graph_create")
         {
             var result = _taskGraphService.CreateTaskGraph(message.PlanId ?? string.Empty);
-            await SendTaskGraphActionResultAsync(socket, sendLock, "create", result, cancellationToken);
+            await SendTaskGraphActionResultAsync(socket, sendLock, "create", result, cancellationToken, message.RequestId);
             return true;
         }
 
         if (message.Type == "task_graph_update")
         {
             var result = _taskGraphService.UpdateTaskGraph(message.GraphId ?? string.Empty, message.RawJson);
-            await SendTaskGraphActionResultAsync(socket, sendLock, "update", result, cancellationToken);
+            await SendTaskGraphActionResultAsync(socket, sendLock, "update", result, cancellationToken, message.RequestId);
             return true;
         }
 
@@ -52,7 +53,7 @@ internal sealed class WsTaskCommandDispatcher
             var result = snapshot == null
                 ? new TaskGraphActionResult(false, "Task graph를 찾을 수 없습니다.", null)
                 : new TaskGraphActionResult(true, "Task graph를 불러왔습니다.", snapshot);
-            await SendTaskGraphActionResultAsync(socket, sendLock, "get", result, cancellationToken);
+            await SendTaskGraphActionResultAsync(socket, sendLock, "get", result, cancellationToken, message.RequestId);
             return true;
         }
 
@@ -71,7 +72,14 @@ internal sealed class WsTaskCommandDispatcher
                 sink,
                 cancellationToken
             );
-            await SendTaskGraphActionResultAsync(socket, sendLock, "run", result, cancellationToken);
+            await SendTaskGraphActionResultAsync(socket, sendLock, "run", result, cancellationToken, message.RequestId);
+            return true;
+        }
+
+        if (message.Type == "task_graph_cancel")
+        {
+            var result = _taskGraphService.CancelTaskGraph(message.GraphId ?? string.Empty);
+            await SendTaskGraphActionResultAsync(socket, sendLock, "stop", result, cancellationToken, message.RequestId);
             return true;
         }
 
@@ -81,7 +89,7 @@ internal sealed class WsTaskCommandDispatcher
                 message.GraphId ?? string.Empty,
                 message.TaskId ?? string.Empty
             );
-            await SendTaskGraphActionResultAsync(socket, sendLock, "cancel", result, cancellationToken);
+            await SendTaskGraphActionResultAsync(socket, sendLock, "cancel", result, cancellationToken, message.RequestId);
             return true;
         }
 
@@ -101,7 +109,7 @@ internal sealed class WsTaskCommandDispatcher
                 sink,
                 cancellationToken
             );
-            await SendTaskGraphActionResultAsync(socket, sendLock, "retry", result, cancellationToken);
+            await SendTaskGraphActionResultAsync(socket, sendLock, "retry", result, cancellationToken, message.RequestId);
             return true;
         }
 
@@ -120,7 +128,7 @@ internal sealed class WsTaskCommandDispatcher
                 sink,
                 cancellationToken
             );
-            await SendTaskGraphActionResultAsync(socket, sendLock, "resume", result, cancellationToken);
+            await SendTaskGraphActionResultAsync(socket, sendLock, "resume", result, cancellationToken, message.RequestId);
             return true;
         }
 
@@ -128,16 +136,17 @@ internal sealed class WsTaskCommandDispatcher
         {
             var output = _taskGraphService.GetTaskOutput(
                 message.GraphId ?? string.Empty,
-                message.TaskId ?? string.Empty
+                message.TaskId ?? string.Empty,
+                message.Timestamp
             );
             if (output == null)
             {
                 var fallback = new TaskGraphActionResult(false, "Task output을 찾을 수 없습니다.", null);
-                await SendTaskGraphActionResultAsync(socket, sendLock, "output", fallback, cancellationToken);
+                await SendTaskGraphActionResultAsync(socket, sendLock, "output", fallback, cancellationToken, message.RequestId);
             }
             else
             {
-                await SendTaskOutputResultAsync(socket, sendLock, output, cancellationToken);
+                await SendTaskOutputResultAsync(socket, sendLock, output, cancellationToken, message.RequestId);
             }
 
             return true;
@@ -150,7 +159,8 @@ private static Task SendTaskGraphActionResultAsync(
     SemaphoreSlim sendLock,
     string action,
     TaskGraphActionResult result,
-    CancellationToken cancellationToken
+    CancellationToken cancellationToken,
+    string? requestId = null
 )
 {
     var payload = TaskGraphJson.Serialize(result);
@@ -160,6 +170,7 @@ private static Task SendTaskGraphActionResultAsync(
         "{"
         + "\"type\":\"task_graph_result\","
         + $"\"action\":\"{WebSocketGateway.EscapeJson(action)}\","
+        + $"\"requestId\":\"{WebSocketGateway.EscapeJson(requestId ?? string.Empty)}\","
         + $"\"payload\":{payload}"
         + "}",
         cancellationToken
@@ -170,7 +181,8 @@ private static Task SendTaskGraphListResultAsync(
     WebSocket socket,
     SemaphoreSlim sendLock,
     TaskGraphListResult result,
-    CancellationToken cancellationToken
+    CancellationToken cancellationToken,
+    string? requestId
 )
 {
     var payload = TaskGraphJson.Serialize(result);
@@ -179,6 +191,7 @@ private static Task SendTaskGraphListResultAsync(
         sendLock,
         "{"
         + "\"type\":\"task_graph_list_result\","
+        + $"\"requestId\":\"{WebSocketGateway.EscapeJson(requestId ?? string.Empty)}\","
         + $"\"payload\":{payload}"
         + "}",
         cancellationToken
@@ -189,7 +202,8 @@ private static Task SendTaskOutputResultAsync(
     WebSocket socket,
     SemaphoreSlim sendLock,
     TaskOutputResult result,
-    CancellationToken cancellationToken
+    CancellationToken cancellationToken,
+    string? requestId
 )
 {
     var payload = TaskGraphJson.Serialize(result);
@@ -198,6 +212,7 @@ private static Task SendTaskOutputResultAsync(
         sendLock,
         "{"
         + "\"type\":\"task_output_result\","
+        + $"\"requestId\":\"{WebSocketGateway.EscapeJson(requestId ?? string.Empty)}\","
         + $"\"payload\":{payload}"
         + "}",
         cancellationToken

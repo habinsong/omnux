@@ -16,6 +16,7 @@ internal static class CodingLoopActionExecutor
         CancellationToken cancellationToken
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var type = CodingExecutionSafetyPolicy.NormalizeActionType(action.Type, action.Path, action.Content, action.Command);
         var resolvedPath = resolveActionPathOrFallback(type, action.Path, action.Content, requestedPaths, workspaceRoot);
         if (type != "run" && string.IsNullOrWhiteSpace(resolvedPath))
@@ -79,6 +80,40 @@ internal static class CodingLoopActionExecutor
             }
 
             return new CodingLoopActionResult($"append:{filePath}", null, preview, filePath, filePath, true);
+        }
+
+        if (type == "edit_file")
+        {
+            var filePath = resolveWorkspacePath(workspaceRoot, resolvedNonRunPath);
+            if (!File.Exists(filePath))
+            {
+                return new CodingLoopActionResult($"edit_miss:{filePath}", null, string.Empty, filePath, filePath, false);
+            }
+
+            var find = action.Find ?? string.Empty;
+            var replacement = !string.IsNullOrEmpty(action.Replace) ? action.Replace : (action.Content ?? string.Empty);
+            if (string.IsNullOrEmpty(find))
+            {
+                return new CodingLoopActionResult($"edit_requires_find:{filePath}", null, string.Empty, filePath, filePath, false);
+            }
+
+            var original = await File.ReadAllTextAsync(filePath, cancellationToken);
+            var matchIndex = original.IndexOf(find, StringComparison.Ordinal);
+            if (matchIndex < 0)
+            {
+                // 모델이 실제 파일 내용을 보고 정확히 다시 시도하도록 현재 내용을 미리보기로 돌려준다.
+                var currentPreview = original.Length <= 8000 ? original : original[..8000] + "\n...(truncated)";
+                return new CodingLoopActionResult($"edit_no_match:{filePath}", null, currentPreview, filePath, filePath, false);
+            }
+
+            var updated = string.Concat(
+                original.AsSpan(0, matchIndex),
+                replacement,
+                original.AsSpan(matchIndex + find.Length)
+            );
+            await File.WriteAllTextAsync(filePath, updated, cancellationToken);
+            var editedPreview = updated.Length > 12000 ? updated[..12000] + "\n...(truncated)" : updated;
+            return new CodingLoopActionResult($"edit:{filePath}", null, editedPreview, filePath, filePath, true);
         }
 
         if (type == "read_file")

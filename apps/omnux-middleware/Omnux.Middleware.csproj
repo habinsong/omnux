@@ -8,4 +8,8 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <StripSymbols>true</StripSymbols>
   </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="resources/browser/PlaywrightHost.cjs" LogicalName="Omnux.Browser.PlaywrightHost.cjs" />
+    <EmbeddedResource Include="resources/browser/A2UiRenderer.cjs" LogicalName="Omnux.Browser.A2UiRenderer.cjs" />
+  </ItemGroup>
 </Project>

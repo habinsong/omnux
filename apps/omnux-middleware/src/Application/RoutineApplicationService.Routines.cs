@@ -582,6 +582,12 @@ public sealed partial class RoutineApplicationService
                 return new RoutineActionResult(false, "이미 실행 중인 루틴입니다.", ToRoutineSummary(found));
             }
 
+            if (string.Equals(source, "scheduler", StringComparison.OrdinalIgnoreCase)
+                && (!found.Enabled || found.NextRunUtc > DateTimeOffset.UtcNow))
+            {
+                return new RoutineActionResult(false, "예약이 꺼져 있거나 아직 실행 시간이 아닙니다.", ToRoutineSummary(found));
+            }
+
             found.Running = true;
             runningMarked = true;
             routine = found;
@@ -792,7 +798,7 @@ public sealed partial class RoutineApplicationService
                         exec = await _codeRunner.ExecuteAsync(routine.Language, routine.Code, cancellationToken);
                     }
 
-                    output = BuildRoutineExecutionText(routine, exec);
+                    output = BuildRoutineExecutionText(exec);
                     lastStatus = exec.Status;
                     runStatus = ResolveCronRunEntryStatus(exec);
                     runError = BuildCronRunEntryError(exec, output, runStatus);
@@ -880,6 +886,10 @@ public sealed partial class RoutineApplicationService
                     ? EnsureRoutineBrowserAgentAssetDirectory(routine.Id, startedAtUtc)
                     : null
             ));
+            if (string.IsNullOrWhiteSpace(artifactPath))
+            {
+                throw new IOException("결과 파일을 만들 수 없습니다.");
+            }
         }
         catch (Exception ex)
         {
@@ -1013,7 +1023,8 @@ public sealed partial class RoutineApplicationService
                     .Where(static path => !string.IsNullOrWhiteSpace(path))
                     .ToArray(),
                 string.IsNullOrWhiteSpace(entry.Error) ? null : entry.Error,
-                content
+                content,
+                ExtractRoutineRunOutput(content)
             );
         });
     }

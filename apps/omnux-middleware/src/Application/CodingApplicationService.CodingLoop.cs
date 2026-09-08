@@ -152,6 +152,7 @@ public sealed partial class CodingApplicationService
         int repairAttempt = 0
     )
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var workspaceRoot = ResolveCodingWorkspaceRoot(workspaceRootOverride);
         var requestedPaths = CodingFallbackPolicy.ExtractRequestedCodingPaths(objective, languageHint);
         var profile = ResolveCodingExecutionProfile(provider, model, objective, languageHint, requestedPaths);
@@ -170,6 +171,7 @@ public sealed partial class CodingApplicationService
         var changedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var deferredRunCommand = string.Empty;
         var hasDeferredRunAction = false;
+        var recentFileViews = new List<(string Path, string Content)>();
         var consecutivePlanParseFailures = 0;
         var consecutiveNoActionPlans = 0;
         var attemptedDirectRecovery = ShouldAttemptEarlyDirectRecovery(profile, objective, languageHint, requestedPaths);
@@ -255,73 +257,20 @@ public sealed partial class CodingApplicationService
             return directRecovery;
         }
 
-        if (profile.AllowDeterministicStdoutFastPath
-            && CodingDeterministicOutputRepairPolicy.ShouldTrySingleFileOutputRepair(currentLanguage, requestedPaths, expectedOutput))
-        {
-            progressCallback?.Invoke(BuildCodingProgressUpdate(
-                progressMode,
-                provider,
-                model,
-                "planning",
-                "단순 단일 파일 출력 요청이라 빠른 결정론적 경로를 적용합니다.",
-                1,
-                maxIterations,
-                28,
-                false,
-                "planning",
-                "구현 계획",
-                "요청 파일을 직접 생성하고 stdout까지 바로 검증합니다.",
-                3,
-                VisibleCodingStageTotal
-            ));
-
-            var deterministicOutcome = await TryApplyDeterministicSingleFileOutputRepairAsync(
-                objective,
-                currentLanguage,
-                workspaceRoot,
-                requestedPaths,
-                expectedOutput,
-                cancellationToken
-            );
-            if (deterministicOutcome.Applied)
-            {
-                var changedPaths = new[] { deterministicOutcome.ChangedPath };
-                var fastPathSummary = BuildAutonomousCodingSummary(
-                    new[] { "deterministic_fast_path=single_file_output" },
-                    changedPaths,
-                    deterministicOutcome.Execution,
-                    maxIterations
-                );
-                progressCallback?.Invoke(BuildCodingProgressUpdate(
-                    progressMode,
-                    provider,
-                    model,
-                    "done",
-                    "코딩 작업이 완료되었습니다.",
-                    maxIterations,
-                    maxIterations,
-                    100,
-                    true,
-                    "verification",
-                    "최종 실행 및 검증",
-                    $"최종 상태: {deterministicOutcome.Execution.Status} (exit={deterministicOutcome.Execution.ExitCode})",
-                    6,
-                    VisibleCodingStageTotal
-                ));
-                return new AutonomousCodingOutcome(
-                    currentLanguage,
-                    deterministicOutcome.Code,
-                    "[deterministic-fast-path]",
-                    deterministicOutcome.Execution,
-                    changedPaths,
-                    fastPathSummary
-                );
-            }
-        }
+        // 현재 작업 폴더만 조회한다. 다른 프로젝트의 공유 코드 인덱스를 자동으로 섞지 않는다.
+        var retrievalBlock = await CodingWorkspaceRetrieval.BuildAsync(workspaceRoot, objective, cancellationToken).ConfigureAwait(false)
+            ?? string.Empty;
+        // 회수된 참조 개수를 라벨로 만들어 결과에 실어 보낸다(프론트 preflight 패널의 "직전 빌드
+        // 실제 회수" 표시용). 블록 항목은 "### source:label" 형태로 join 되어 있다.
+        var retrievalLabel = retrievalBlock.Length == 0
+            ? string.Empty
+            : $"refs {Math.Max(1, retrievalBlock.Split("### ", StringSplitOptions.None).Length - 1)}";
 
         for (var i = 1; i <= maxIterations; i++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var snapshot = i == 1 ? initialSnapshot : BuildWorkspaceSnapshot(workspaceRoot, profile);
+            var snapshotForPrompt = AppendRecentFileViewsToSnapshot(snapshot, recentFileViews, workspaceRoot);
             var recent = BuildRecentLoopLogs(iterations, profile);
             var loopPrompt = BuildCodingLoopPrompt(
                 objective,
@@ -333,9 +282,10 @@ public sealed partial class CodingApplicationService
                 i,
                 maxIterations,
                 maxActions,
-                snapshot,
+                snapshotForPrompt,
                 recent,
-                lastExecution
+                lastExecution,
+                retrievalBlock
             );
 
             var generated = await GenerateByProviderSafeAsync(
@@ -440,22 +390,50 @@ public sealed partial class CodingApplicationService
             var iterationChangedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var action in actions)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (string.Equals(action.Type, "run", StringComparison.OrdinalIgnoreCase))
                 {
                     var candidateCommand = CodingFallbackPolicy.NormalizeGeneratedRunCommand(action.Command);
                     if (string.IsNullOrWhiteSpace(candidateCommand))
                     {
-                        actionResults.Add("run_deferred:empty_command");
+                        actionResults.Add("run_skipped:empty_command");
+                        continue;
                     }
-                    else if (CodingExecutionSafetyPolicy.IsDangerousGeneratedRunCommand(candidateCommand))
+
+                    if (CodingExecutionSafetyPolicy.IsDangerousGeneratedRunCommand(candidateCommand))
                     {
                         actionResults.Add($"run_blocked_unsafe:{TrimForOutput(candidateCommand, 120)}");
+                        continue;
+                    }
+
+                    // 마지막 검증 단계가 재사용할 수 있도록 가장 최근 run 명령을 기억한다.
+                    deferredRunCommand = candidateCommand;
+                    hasDeferredRunAction = true;
+
+                    // 실행이 막혀 있거나(allowRunActions=false), dev 서버/watch 처럼 종료되지 않는 명령은
+                    // 루프를 막지 않도록 마지막 검증 단계로 지연시킨다.
+                    if (!allowRunActions || CodingExecutionSafetyPolicy.IsLikelyLongRunningCommand(candidateCommand))
+                    {
+                        actionResults.Add($"run_deferred:{TrimForOutput(candidateCommand, 120)}");
+                        continue;
+                    }
+
+                    // 실제 코딩 에이전트처럼 명령을 즉시 실행하고 결과를 다음 반복 프롬프트에 피드백한다.
+                    progressCallback?.Invoke(new CodingProgressUpdate(progressMode, provider, model, "executing",
+                        "생성한 파일을 저장하고 실행합니다.", i, maxIterations, 50, false, StageTitle: "실행 확인"));
+                    var runExec = await ExecuteCodingLoopActionAsync(action, workspaceRoot, requestedPaths, provider, cancellationToken);
+                    if (runExec.Execution != null)
+                    {
+                        lastExecution = runExec.Execution;
+                        var runStatus = runExec.Execution.Status;
+                        var runDetail = string.Equals(runStatus, "ok", StringComparison.OrdinalIgnoreCase)
+                            ? string.Empty
+                            : " " + TrimForOutput((runExec.Execution.StdErr ?? string.Empty).Trim(), 200);
+                        actionResults.Add($"run:{TrimForOutput(candidateCommand, 100)} => {runStatus} (exit={runExec.Execution.ExitCode}){runDetail}".TrimEnd());
                     }
                     else
                     {
-                        deferredRunCommand = candidateCommand;
-                        hasDeferredRunAction = true;
-                        actionResults.Add($"run_deferred:{TrimForOutput(candidateCommand, 120)}");
+                        actionResults.Add(runExec.Message);
                     }
 
                     continue;
@@ -477,6 +455,8 @@ public sealed partial class CodingApplicationService
                 {
                     lastCode = exec.CodePreview;
                     currentLanguage = CodingLanguagePolicy.GuessLanguageFromPath(exec.LastWrittenFile, currentLanguage);
+                    // 모델이 다음 반복에서 읽은/작성한 파일 내용을 실제로 볼 수 있도록 보관한다.
+                    UpsertRecentFileView(recentFileViews, exec.LastWrittenFile, exec.CodePreview);
                 }
 
                 if (exec.Changed && !string.IsNullOrWhiteSpace(exec.ChangedPath))
@@ -690,47 +670,6 @@ public sealed partial class CodingApplicationService
             }
         }
 
-        if (changedFiles.Count == 0
-            && profile.EnableGameScaffoldFallback
-            && TryGenerateDeterministicWebShooterScaffold(objective, currentLanguage, out var shooterFiles))
-        {
-            foreach (var scaffold in shooterFiles)
-            {
-                var writeAction = new CodingLoopAction("write_file", scaffold.Path, scaffold.Content, string.Empty);
-                var writeResult = await ExecuteCodingLoopActionAsync(writeAction, workspaceRoot, requestedPaths, provider, cancellationToken);
-                if (writeResult.Changed && !string.IsNullOrWhiteSpace(writeResult.ChangedPath))
-                {
-                    changedFiles.Add(writeResult.ChangedPath);
-                    lastWritePath = writeResult.LastWrittenFile;
-                    lastCode = writeResult.CodePreview;
-                }
-            }
-
-            if (changedFiles.Count > 0)
-            {
-                iterations.Add("fallback=scaffold:web_shooter");
-                currentLanguage = "html";
-            }
-        }
-
-        if (changedFiles.Count == 0 && TryGenerateDeterministicUiCloneScaffold(objective, workspaceRoot, out var scaffoldFiles))
-        {
-            foreach (var scaffold in scaffoldFiles)
-            {
-                var writeAction = new CodingLoopAction("write_file", scaffold.Path, scaffold.Content, string.Empty);
-                var writeResult = await ExecuteCodingLoopActionAsync(writeAction, workspaceRoot, requestedPaths, provider, cancellationToken);
-                if (writeResult.Changed && !string.IsNullOrWhiteSpace(writeResult.ChangedPath))
-                {
-                    changedFiles.Add(writeResult.ChangedPath);
-                    lastWritePath = writeResult.LastWrittenFile;
-                    lastCode = writeResult.CodePreview;
-                }
-            }
-
-            iterations.Add($"fallback=scaffold:{string.Join(",", scaffoldFiles.Select(x => x.Path))}");
-            currentLanguage = "html";
-        }
-
         var workspaceRecoveredCount = MergeWorkspaceMaterializedFiles(workspaceRoot, changedFiles);
         if (workspaceRecoveredCount > 0)
         {
@@ -866,47 +805,6 @@ public sealed partial class CodingApplicationService
             }
         }
 
-        if (allowRunActions
-            && !string.Equals(lastExecution.Status, "ok", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(lastExecution.Status, "skipped", StringComparison.OrdinalIgnoreCase))
-        {
-            var deterministicRepair = await TryApplyDeterministicSingleFileOutputRepairAsync(
-                objective,
-                currentLanguage,
-                workspaceRoot,
-                requestedPaths,
-                expectedOutput,
-                cancellationToken
-            );
-            if (deterministicRepair.Applied)
-            {
-                changedFiles.Add(deterministicRepair.ChangedPath);
-                lastWritePath = deterministicRepair.ChangedPath;
-                lastCode = deterministicRepair.Code;
-                currentLanguage = CodingLanguagePolicy.GuessLanguageFromPath(deterministicRepair.ChangedPath, currentLanguage);
-                lastExecution = deterministicRepair.Execution;
-                iterations.Add("deterministic_repair=single_file_output");
-                progressCallback?.Invoke(BuildCodingProgressUpdate(
-                    progressMode,
-                    provider,
-                    model,
-                    "repair",
-                    string.Equals(lastExecution.Status, "ok", StringComparison.OrdinalIgnoreCase)
-                        ? "단순 출력 파일 실패를 결정론적으로 복구했습니다."
-                        : "단순 출력 파일 결정론적 복구를 시도했지만 아직 실패 상태입니다.",
-                    maxIterations,
-                    maxIterations,
-                    99,
-                    false,
-                    "verification",
-                    "최종 실행 및 검증",
-                    TrimForOutput($"실행 명령: {lastExecution.Command}", 220),
-                    6,
-                    VisibleCodingStageTotal
-                ));
-            }
-        }
-
         var orderedChangedFiles = changedFiles
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -976,7 +874,8 @@ public sealed partial class CodingApplicationService
                 repairOutcome.Execution,
                 mergedChangedFiles,
                 mergedSummary,
-                TokenUsageEstimator.Combine(totalTokenUsage, repairOutcome.TokenUsage)
+                TokenUsageEstimator.Combine(totalTokenUsage, repairOutcome.TokenUsage),
+                RetrievalLabel: retrievalLabel
             );
         }
 
@@ -1006,7 +905,7 @@ public sealed partial class CodingApplicationService
             6,
             VisibleCodingStageTotal
         ));
-        return new AutonomousCodingOutcome(currentLanguage, lastCode, lastRawResponse, lastExecution, orderedChangedFiles, summary, totalTokenUsage);
+        return new AutonomousCodingOutcome(currentLanguage, lastCode, lastRawResponse, lastExecution, orderedChangedFiles, summary, totalTokenUsage, RetrievalLabel: retrievalLabel);
     }
 
     private static bool ShouldTrustDeferredVerificationCommand(string language, string objective, string command)
@@ -1042,6 +941,54 @@ public sealed partial class CodingApplicationService
             },
             cancellationToken
         );
+    }
+
+    private static void UpsertRecentFileView(List<(string Path, string Content)> views, string path, string content)
+    {
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrEmpty(content))
+        {
+            return;
+        }
+
+        const int maxTrackedFiles = 4;
+        views.RemoveAll(view => string.Equals(view.Path, path, StringComparison.OrdinalIgnoreCase));
+        views.Add((path, content));
+        while (views.Count > maxTrackedFiles)
+        {
+            views.RemoveAt(0);
+        }
+    }
+
+    private string AppendRecentFileViewsToSnapshot(
+        string snapshot,
+        IReadOnlyList<(string Path, string Content)> views,
+        string workspaceRoot
+    )
+    {
+        if (views.Count == 0)
+        {
+            return snapshot;
+        }
+
+        var lines = new List<string> { snapshot, string.Empty, "[최근 확인/수정한 파일 내용]" };
+        foreach (var view in views)
+        {
+            string relative;
+            try
+            {
+                relative = Path.GetRelativePath(workspaceRoot, view.Path).Replace('\\', '/');
+            }
+            catch
+            {
+                relative = view.Path;
+            }
+
+            lines.Add($"<<<FILE {relative}>>>");
+            lines.Add(TrimForOutput(view.Content, 2400));
+            lines.Add("<<<END>>>");
+        }
+
+        return string.Join("\n", lines);
     }
 
     private static string BuildFallbackCodeOnlyPrompt(string objective, string languageHint)
@@ -1126,77 +1073,6 @@ public sealed partial class CodingApplicationService
         );
     }
 
-    private async Task<(bool Applied, string ChangedPath, string Code, CodeExecutionResult Execution)> TryApplyDeterministicSingleFileOutputRepairAsync(
-        string objective,
-        string languageHint,
-        string workspaceRoot,
-        IReadOnlyList<string> requestedPaths,
-        string expectedOutput,
-        CancellationToken cancellationToken
-    )
-    {
-        if (!CodingDeterministicOutputRepairPolicy.ShouldTrySingleFileOutputRepair(languageHint, requestedPaths, expectedOutput))
-        {
-            return (false, string.Empty, string.Empty, new CodeExecutionResult("bash", workspaceRoot, "-", "(skipped)", 0, string.Empty, string.Empty, "skipped"));
-        }
-
-        var requestedPath = requestedPaths[0];
-        string fullPath;
-        try
-        {
-            fullPath = ResolveWorkspacePath(workspaceRoot, requestedPath);
-        }
-        catch
-        {
-            return (false, string.Empty, string.Empty, new CodeExecutionResult("bash", workspaceRoot, "-", "(blocked unsafe path)", 1, string.Empty, "workspace 밖 경로는 코딩탭 자동 작업에서 사용할 수 없습니다.", "error"));
-        }
-        var directory = Path.GetDirectoryName(fullPath);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        var code = CodingDeterministicOutputRepairPolicy.BuildPythonPrintCode(expectedOutput);
-        await File.WriteAllTextAsync(fullPath, code, cancellationToken);
-
-        var baseCommand = $"python3 {EscapeShellArg(requestedPath)}";
-        var shell = await RunWorkspaceCommandWithAutoInstallAsync(
-            WrapCommandWithVerificationAssertions(baseCommand, expectedOutput, new[] { fullPath }),
-            workspaceRoot,
-            cancellationToken
-        );
-        var execution = new CodeExecutionResult(
-            "bash",
-            workspaceRoot,
-            "-",
-            DescribeVerificationCommand(baseCommand, expectedOutput, new[] { fullPath }),
-            shell.ExitCode,
-            shell.StdOut,
-            shell.StdErr,
-            shell.TimedOut ? "timeout" : (shell.ExitCode == 0 ? "ok" : "error")
-        );
-        return (true, fullPath, code, execution);
-    }
-
-    private static bool TryGenerateDeterministicUiCloneScaffold(
-        string objective,
-        string workspaceRoot,
-        out IReadOnlyList<ScaffoldFileSpec> files
-    )
-    {
-        _ = workspaceRoot;
-        return CodingDeterministicScaffoldPolicy.TryGenerateUiCloneScaffold(objective, out files);
-    }
-
-    private static bool TryGenerateDeterministicWebShooterScaffold(
-        string objective,
-        string languageHint,
-        out IReadOnlyList<ScaffoldFileSpec> files
-    )
-    {
-        return CodingDeterministicScaffoldPolicy.TryGenerateWebShooterScaffold(objective, languageHint, out files);
-    }
-
     private const int VisibleCodingStageTotal = 6;
     private const int MaxCodingRepairPasses = 1;
 
@@ -1260,7 +1136,8 @@ public sealed partial class CodingApplicationService
         int maxActions,
         string workspaceSnapshot,
         string recentLogs,
-        CodeExecutionResult lastExecution
+        CodeExecutionResult lastExecution,
+        string retrievalBlock = ""
     )
     {
         var resolvedLanguage = CodingLanguagePolicy.ResolveInitialCodingLanguage(languageHint, objective);
@@ -1281,7 +1158,8 @@ public sealed partial class CodingApplicationService
             BuildCodingQualityBrief(objective, resolvedLanguage),
             BuildProviderModelPromptRuleLines(provider, model),
             BuildLanguagePromptRuleLines(provider, model, resolvedLanguage, objective),
-            BuildCodingVerificationRuleLines()
+            BuildCodingVerificationRuleLines(),
+            retrievalBlock
         ));
     }
 

@@ -37,6 +37,7 @@ internal static class MultiComparisonPolicy
         AddEntry("nvidia", result.NvidiaModel, result.NvidiaText);
         AddEntry("copilot", result.CopilotModel, result.CopilotText);
         AddEntry("codex", result.CodexModel, result.CodexText);
+        AddEntry("grok", result.GrokModel, result.GrokText);
 
         var builder = new StringBuilder();
         builder.Append("[[OMNI_MULTI_COMPARE_JSON]]{\"entries\":[");

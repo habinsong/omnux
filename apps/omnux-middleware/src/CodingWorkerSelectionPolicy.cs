@@ -162,7 +162,9 @@ internal static class CodingWorkerSelectionPolicy
             hasFailure && !hasSuccess ? 1 : 0,
             selectedExecution?.StdOut ?? string.Empty,
             selectedExecution?.StdErr ?? string.Empty,
-            status
+            status,
+            selectedExecution?.ProgramStdOut,
+            selectedExecution?.ProgramStdErr
         );
     }
 

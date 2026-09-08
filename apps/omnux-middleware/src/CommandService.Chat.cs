@@ -71,7 +71,8 @@ public sealed partial class CommandService
         string? codexModel,
         string? nvidiaModel,
         IReadOnlyList<InputAttachment>? attachments,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? grokModel = "none"
     )
     {
         return ChatOrchestrationCoreAsync(
@@ -86,7 +87,8 @@ public sealed partial class CommandService
             codexModel,
             nvidiaModel,
             attachments,
-            cancellationToken
+            cancellationToken,
+            grokModel
         );
     }
 
@@ -101,7 +103,8 @@ public sealed partial class CommandService
         string? codexModel,
         string? nvidiaModel,
         IReadOnlyList<InputAttachment>? attachments,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? grokModel = "none"
     )
     {
         return ChatMultiCoreAsync(
@@ -115,7 +118,8 @@ public sealed partial class CommandService
             codexModel,
             nvidiaModel,
             attachments,
-            cancellationToken
+            cancellationToken,
+            grokModel
         );
     }
 
@@ -822,43 +826,12 @@ public sealed partial class CommandService
     // 단어 경계 검사로 짧은 스킬 이름이 일반 텍스트에 묻어 들어가는 false-positive를 차단.
     private List<SkillManifest> DetectMentionedSkillsInPrompt(string input)
     {
-        var result = new List<SkillManifest>();
-        var trimmed = (input ?? string.Empty).Trim();
-        if (trimmed.Length == 0)
-        {
-            return result;
-        }
-
-        try
-        {
-            var snapshot = _projectContextLoader.LoadSnapshot();
-            var working = new StringBuilder(trimmed);
-            foreach (var skill in snapshot.Skills.OrderByDescending(s => s.Name.Length))
-            {
-                if (string.IsNullOrWhiteSpace(skill.Name))
-                {
-                    continue;
-                }
-
-                var idx = LocalAssistantQuestionPolicy.IndexOfSkillNameWithBoundary(working.ToString(), skill.Name);
-                if (idx < 0)
-                {
-                    continue;
-                }
-
-                result.Add(skill);
-                for (var i = 0; i < skill.Name.Length; i++)
-                {
-                    working[idx + i] = '\0';
-                }
-            }
-        }
+        try { return ProjectSkillSelection.Mentioned(input, _projectContextLoader.LoadSnapshot().Skills); }
         catch (Exception ex)
         {
             _auditLogger.Log("local", "skill_detect_mentions", "failed", ex.Message);
+            return new List<SkillManifest>();
         }
-
-        return result;
     }
 
     // 한 스킬만 매칭됐을 때 그 스킬을 반환. 0개면 null, 2개 이상이면 거부 케이스이므로 null. 단어 경계 검사 사용.
@@ -870,23 +843,7 @@ public sealed partial class CommandService
 
     private SkillManifest? FindSkillManifestByName(string? skillName, string? skillScope)
     {
-        var normalizedName = (skillName ?? string.Empty).Trim();
-        if (string.IsNullOrWhiteSpace(normalizedName))
-        {
-            return null;
-        }
-
-        try
-        {
-            var normalizedScope = (skillScope ?? string.Empty).Trim();
-            return _projectContextLoader.LoadSnapshot()
-                .Skills
-                .Where(item => item.Name.Equals(normalizedName, StringComparison.OrdinalIgnoreCase))
-                .Where(item => string.IsNullOrWhiteSpace(normalizedScope)
-                               || item.Scope.Equals(normalizedScope, StringComparison.OrdinalIgnoreCase))
-                .OrderBy(item => item.Scope.Equals("project", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
-                .FirstOrDefault();
-        }
+        try { return ProjectSkillSelection.Find(_projectContextLoader.LoadSnapshot().Skills, skillName, skillScope); }
         catch (Exception ex)
         {
             _auditLogger.Log("local", "skill_find_manifest", "failed", ex.Message);
@@ -1497,7 +1454,8 @@ public sealed partial class CommandService
             request.CodexModel,
             request.NvidiaModel,
             request.Attachments,
-            cancellationToken
+            cancellationToken,
+            request.GrokModel
         );
         var citationBundle = BuildAndLogCitationMappings(
             request.Source,
@@ -1775,7 +1733,8 @@ public sealed partial class CommandService
             request.CodexModel,
             request.NvidiaModel,
             request.Attachments,
-            cancellationToken
+            cancellationToken,
+            request.GrokModel
         );
 
         var citationBundle = BuildAndLogCitationMappings(
@@ -1788,6 +1747,7 @@ public sealed partial class CommandService
             ("nvidia", generated.NvidiaText),
             ("copilot", generated.CopilotText),
             ("codex", generated.CodexText),
+            ("grok", generated.GrokText),
             ("summary", generated.Summary),
             ("commonCore", generated.CommonCore),
             ("differences", generated.Differences)
@@ -1799,6 +1759,7 @@ public sealed partial class CommandService
         var responseNvidiaText = generated.NvidiaText;
         var responseCopilotText = generated.CopilotText;
         var responseCodexText = generated.CodexText;
+        var responseGrokText = generated.GrokText;
         var responseSummaryText = generated.Summary;
         var comparisonMessageText = MultiComparisonPolicy.BuildComparisonAssistantText(new LlmMultiChatResult(
             responseGroqText,
@@ -1817,7 +1778,9 @@ public sealed partial class CommandService
             generated.CommonCore,
             generated.Differences,
             responseNvidiaText,
-            generated.NvidiaModel
+            generated.NvidiaModel,
+            GrokText: responseGrokText,
+            GrokModel: generated.GrokModel
         ));
         var summaryMessageText = MultiComparisonPolicy.BuildMultiSummaryAssistantText(
             responseSummaryText,
@@ -1873,7 +1836,9 @@ public sealed partial class CommandService
             generated.CommonCore,
             generated.Differences,
             responseNvidiaText,
-            generated.NvidiaModel
+            generated.NvidiaModel,
+            GrokText: responseGrokText,
+            GrokModel: generated.GrokModel
         );
     }
 
@@ -1919,7 +1884,8 @@ public sealed partial class CommandService
         string? codexModel,
         string? nvidiaModel,
         IReadOnlyList<InputAttachment>? attachments,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? grokModel = "none"
     )
     {
         var text = (input ?? string.Empty).Trim();
@@ -1967,6 +1933,12 @@ public sealed partial class CommandService
             workerSpecs.Add(("codex", selectedCodex));
         }
 
+        if (!IsDisabledModelSelection(grokModel))
+        {
+            var grok = await _llmRouter.GrokClient.GetStatusAsync(cancellationToken);
+            if (grok.Installed && grok.Authenticated) workerSpecs.Add(("grok", NormalizeModelSelection(grokModel) ?? _providers.GrokModel));
+        }
+
         if (workerSpecs.Count == 0)
         {
             var noProviderText = "사용 가능한 LLM이 없습니다. Groq/Gemini/Cerebras/NVIDIA 키 또는 Copilot/Codex 인증을 확인하세요.";
@@ -2001,7 +1973,7 @@ public sealed partial class CommandService
             })
             .ToList();
         var availabilityByProvider = await GetProviderAvailabilityMapAsync(cancellationToken);
-        var selectionByProvider = BuildProviderSelectionMap(groqModel, geminiModel, cerebrasModel, copilotModel, codexModel, nvidiaModel);
+        var selectionByProvider = BuildProviderSelectionMap(groqModel, geminiModel, cerebrasModel, copilotModel, codexModel, nvidiaModel, grokModel);
         var successfulWorkers = workerResults
             .Where(x => IsUsableWorkerResult(x, availabilityByProvider, selectionByProvider))
             .ToArray();
@@ -2025,7 +1997,8 @@ public sealed partial class CommandService
             || (resolvedProvider == "cerebras" && IsDisabledModelSelection(cerebrasModel))
             || (resolvedProvider == "nvidia" && IsDisabledModelSelection(nvidiaModel))
             || (resolvedProvider == "copilot" && IsDisabledModelSelection(copilotModel))
-            || (resolvedProvider == "codex" && IsDisabledModelSelection(codexModel)))
+            || (resolvedProvider == "codex" && IsDisabledModelSelection(codexModel))
+            || (resolvedProvider == "grok" && IsDisabledModelSelection(grokModel)))
         {
             resolvedProvider = workerResults[0].Provider;
         }
@@ -2038,6 +2011,7 @@ public sealed partial class CommandService
                 "groq" => ResolveModelForCategory(TaskCategory.GeneralChat, resolvedProvider, groqModel),
                 "copilot" => ResolveModelForCategory(TaskCategory.GeneralChat, resolvedProvider, copilotModel),
                 "codex" => ResolveModelForCategory(TaskCategory.GeneralChat, resolvedProvider, codexModel),
+                "grok" => ResolveModelForCategory(TaskCategory.GeneralChat, resolvedProvider, grokModel),
                 "nvidia" => ResolveModelForCategory(TaskCategory.GeneralChat, resolvedProvider, nvidiaModel),
                 "cerebras" => ResolveModelForCategory(TaskCategory.GeneralChat, resolvedProvider, cerebrasModel),
                 _ => ResolveModelForCategory(TaskCategory.GeneralChat, resolvedProvider, geminiModel)
@@ -2077,7 +2051,8 @@ public sealed partial class CommandService
         string? codexModel,
         string? nvidiaModel,
         IReadOnlyList<InputAttachment>? attachments,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? grokModel = "none"
     )
     {
         var text = (input ?? string.Empty).Trim();
@@ -2087,6 +2062,8 @@ public sealed partial class CommandService
         var cerebrasSelected = NormalizeModelSelection(cerebrasModel) ?? _providers.CerebrasModel;
         var nvidiaSelected = NormalizeModelSelection(nvidiaModel) ?? _providers.NvidiaModel;
         var copilotSelected = NormalizeModelSelection(copilotModel) ?? _copilotWrapper.GetSelectedModel();
+        var grokSelected = NormalizeModelSelection(grokModel) ?? _providers.GrokModel;
+        var grokResolvedModel = IsDisabledModelSelection(grokModel) ? "none" : grokSelected;
         var codexSelected = NormalizeModelSelection(codexModel) ?? _providers.CodexModel;
         var groqResolvedModel = IsDisabledModelSelection(groqModel) ? "none" : groqSelected;
         var geminiResolvedModel = IsDisabledModelSelection(geminiModel) ? "none" : geminiSelected;
@@ -2155,7 +2132,16 @@ public sealed partial class CommandService
                 ? ExecuteProviderChatWithPreparedInputAsync("codex", codexSelected, text, attachments, cancellationToken)
                 : Task.FromResult(new LlmSingleChatResult("codex", codexSelected, "Codex 인증이 필요합니다.")));
 
-        await Task.WhenAll(groqTask, geminiTask, cerebrasTask, nvidiaTask, copilotTask, codexTask);
+        Task<LlmSingleChatResult> grokTask;
+        if (IsDisabledModelSelection(grokModel)) grokTask = Task.FromResult(new LlmSingleChatResult("grok", "none", "선택 안함"));
+        else
+        {
+            var status = await _llmRouter.GrokClient.GetStatusAsync(cancellationToken);
+            grokTask = status.Installed && status.Authenticated
+                ? ExecuteProviderChatWithPreparedInputAsync("grok", grokSelected, text, attachments, cancellationToken)
+                : Task.FromResult(new LlmSingleChatResult("grok", grokSelected, "Grok OAuth 인증이 필요합니다."));
+        }
+        await Task.WhenAll(groqTask, geminiTask, cerebrasTask, nvidiaTask, copilotTask, codexTask, grokTask);
         var workerResults = new[]
         {
             groqTask.Result with { Text = ChatOutputSanitizerPolicy.Sanitize(groqTask.Result.Text) },
@@ -2163,10 +2149,11 @@ public sealed partial class CommandService
             cerebrasTask.Result with { Text = ChatOutputSanitizerPolicy.Sanitize(cerebrasTask.Result.Text) },
             nvidiaTask.Result with { Text = ChatOutputSanitizerPolicy.Sanitize(nvidiaTask.Result.Text) },
             copilotTask.Result with { Text = ChatOutputSanitizerPolicy.Sanitize(copilotTask.Result.Text) },
-            codexTask.Result with { Text = ChatOutputSanitizerPolicy.Sanitize(codexTask.Result.Text) }
+            codexTask.Result with { Text = ChatOutputSanitizerPolicy.Sanitize(codexTask.Result.Text) },
+            grokTask.Result with { Text = ChatOutputSanitizerPolicy.Sanitize(grokTask.Result.Text) }
         };
         var availabilityByProvider = await GetProviderAvailabilityMapAsync(cancellationToken);
-        var selectionByProvider = BuildProviderSelectionMap(groqModel, geminiModel, cerebrasModel, copilotModel, codexModel, nvidiaModel);
+        var selectionByProvider = BuildProviderSelectionMap(groqModel, geminiModel, cerebrasModel, copilotModel, codexModel, nvidiaModel, grokModel);
         var successfulWorkers = workerResults
             .Where(x => IsUsableWorkerResult(x, availabilityByProvider, selectionByProvider))
             .ToArray();
@@ -2177,6 +2164,7 @@ public sealed partial class CommandService
         var nvidia = workerResults[3].Text;
         var copilot = workerResults[4].Text;
         var codex = workerResults[5].Text;
+        var grok = workerResults[6].Text;
 
         var summaryPrompt = $"""
                             사용자 질문:
@@ -2199,6 +2187,9 @@ public sealed partial class CommandService
 
                             [Codex]
                             {codex}
+
+                            [Grok]
+                            {grok}
 
                             위 답변들을 비교해 아래 형식으로만 정리하세요.
                             [공통 요약]
@@ -2258,7 +2249,9 @@ public sealed partial class CommandService
             nvidia,
             nvidiaResolvedModel,
             TokenUsageEstimator.Combine(workerResults.Select(item => item.TokenUsage)),
-            summaryTokenUsage
+            summaryTokenUsage,
+            grok,
+            grokResolvedModel
         );
     }
 

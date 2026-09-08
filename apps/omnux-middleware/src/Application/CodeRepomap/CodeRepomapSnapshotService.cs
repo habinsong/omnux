@@ -20,15 +20,17 @@ internal sealed partial class CodeRepomapSnapshotService
     };
 
     private readonly string _workspaceRoot;
+    private readonly IReadOnlyList<string>? _selectedFiles;
     private readonly Func<DateTimeOffset> _utcNow;
 
-    public CodeRepomapSnapshotService(string workspaceRoot, Func<DateTimeOffset>? utcNow = null)
+    public CodeRepomapSnapshotService(string workspaceRoot, Func<DateTimeOffset>? utcNow = null, IReadOnlyList<string>? selectedFiles = null)
     {
         _workspaceRoot = Path.GetFullPath(string.IsNullOrWhiteSpace(workspaceRoot) ? "." : workspaceRoot);
         _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
+        _selectedFiles = selectedFiles;
     }
 
-    public CodeRepomapSnapshot GetSnapshot(int? limit = null)
+    public CodeRepomapSnapshot GetSnapshot(int? limit = null, CancellationToken cancellationToken = default)
     {
         if (!Directory.Exists(_workspaceRoot))
         {
@@ -52,6 +54,7 @@ internal sealed partial class CodeRepomapSnapshotService
         var truncated = false;
         foreach (var filePath in EnumerateCodeFiles())
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (files.Count >= fileLimit)
             {
                 truncated = true;
@@ -81,6 +84,14 @@ internal sealed partial class CodeRepomapSnapshotService
 
     private IEnumerable<string> EnumerateCodeFiles()
     {
+        if (_selectedFiles != null)
+        {
+            foreach (var file in _selectedFiles)
+                if (CodeExtensions.Contains(Path.GetExtension(file))
+                    && !CodingWorkspaceFilePolicy.IsPrivate(Path.GetRelativePath(_workspaceRoot, file))
+                    && CodingPreviewPolicy.IsRegularFileWithinRun(file, _workspaceRoot)) yield return file;
+            yield break;
+        }
         foreach (var root in ResolveScanRoots())
         {
             var pending = new Stack<string>();

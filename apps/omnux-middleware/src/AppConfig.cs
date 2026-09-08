@@ -21,6 +21,8 @@ public sealed class AppConfig
     public string CopilotCliBinary { get; init; } = "gh";
     public string CopilotDirectBinary { get; init; } = "copilot";
     public string CopilotModel { get; init; } = ModelRegistry.GetDefaultModel("copilot");
+    public string GrokBinary { get; init; } = "grok";
+    public string GrokModel { get; init; } = ModelRegistry.GetDefaultModel("grok");
     public string CodexBinary { get; init; } = "codex";
     public string CodexModel { get; init; } = ModelRegistry.GetDefaultModel("codex");
     public string PythonBinary { get; init; } = ResolveDefaultPythonBinary();
@@ -157,7 +159,9 @@ public sealed class AppConfig
         SttModel,
         SttApiKey,
         GeminiInputPricePerMillionUsd,
-        GeminiOutputPricePerMillionUsd
+        GeminiOutputPricePerMillionUsd,
+        GrokBinary,
+        GrokModel
     );
 
     public PathOptions Paths => new(
@@ -277,12 +281,14 @@ public sealed class AppConfig
             CopilotCliBinary = GetStringEnv("OMNUX_COPILOT_BIN", "gh"),
             CopilotDirectBinary = GetStringEnv("OMNUX_COPILOT_DIRECT_BIN", "copilot"),
             CopilotModel = GetStringEnv("OMNUX_COPILOT_MODEL", ModelRegistry.GetDefaultModel("copilot")),
+            GrokBinary = GetStringEnv("OMNUX_GROK_BIN", "grok"),
+            GrokModel = GetStringEnv("OMNUX_GROK_MODEL", ModelRegistry.GetDefaultModel("grok")),
             CodexBinary = GetStringEnv("OMNUX_CODEX_BIN", "codex"),
             CodexModel = GetStringEnv("OMNUX_CODEX_MODEL", ModelRegistry.GetDefaultModel("codex")),
             PythonBinary = GetStringEnv("OMNUX_PYTHON_BIN", ResolveDefaultPythonBinary()),
             SandboxExecutorPath = GetStringEnv("OMNUX_SANDBOX_EXECUTOR", ResolveDefaultSandboxExecutorPath()),
             DashboardIndexPath = GetStringEnv("OMNUX_DASHBOARD_INDEX", pathResolver.DashboardIndexPath),
-            EnableDynamicCode = GetBoolEnv("OMNUX_ENABLE_DYNAMIC_CODE", false),
+            EnableDynamicCode = GetBoolEnv("OMNUX_ENABLE_DYNAMIC_CODE", true),
             GroqApiKey = SecretLoader.ResolveApiKey(
                 providerName: "groq",
                 directEnvKey: "OMNUX_GROQ_API_KEY",
@@ -375,7 +381,7 @@ public sealed class AppConfig
             WorkspaceRootDir = GetStringEnv("OMNUX_WORKSPACE_ROOT", pathResolver.WorkspaceRootDir),
             RoutineStatePath = GetStringEnv("OMNUX_ROUTINE_STATE_PATH", pathResolver.ResolveStateFilePath("routines.json")),
             RoutinePromptDir = GetStringEnv("OMNUX_ROUTINE_PROMPT_DIR", pathResolver.RoutinePromptDir),
-            EnableAutoInstall = GetBoolEnv("OMNUX_ENABLE_AUTO_INSTALL", false),
+            EnableAutoInstall = GetBoolEnv("OMNUX_ENABLE_AUTO_INSTALL", true),
             CodingAgentMaxIterations = GetIntEnv("OMNUX_CODING_AGENT_MAX_ITERATIONS", 6),
             CodingAgentMaxActionsPerIteration = GetIntEnv("OMNUX_CODING_AGENT_MAX_ACTIONS", 8),
             CodingCopilotMaxActionsPerIteration = GetIntEnv("OMNUX_CODING_COPILOT_MAX_ACTIONS", 2),
@@ -572,7 +578,9 @@ public sealed record ProviderOptions(
     string SttModel,
     string? SttApiKey,
     decimal GeminiInputPricePerMillionUsd,
-    decimal GeminiOutputPricePerMillionUsd
+    decimal GeminiOutputPricePerMillionUsd,
+    string GrokBinary = "grok",
+    string GrokModel = "grok-4.6"
 );
 
 public sealed record PathOptions(

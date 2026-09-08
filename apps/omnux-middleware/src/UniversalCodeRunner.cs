@@ -348,5 +348,7 @@ public sealed record CodeExecutionResult(
     int ExitCode,
     string StdOut,
     string StdErr,
-    string Status
+    string Status,
+    string? ProgramStdOut = null,
+    string? ProgramStdErr = null
 );

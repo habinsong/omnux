@@ -129,6 +129,12 @@ public sealed partial class CommandService
         );
     }
 
+    // "슈퍼마리오 게임 만들어줘", "index.html 작성해줘" 류 코드/파일 생성 요청. 이런 건
+    // 브라우저 네비게이션이 아니라 정상 코딩 루프로 보내야 한다(html/게임 단어 + 파일명이 있어도).
+    private static readonly Regex CodingBuildIntentRegex = new(
+        @"(?i)(만들|작성|구현|개발|생성|코딩|코드\s*짜|짜\s*줘|build|create|implement|develop|generate|scaffold|write\s+(a|an|the|some)?\s*(code|game|app|page|site|program|script)|게임|앱|페이지|프로그램|스크립트|\.(html?|jsx?|tsx?|css|py|json))"
+    );
+
     private CodingRunResult? TryHandleBrowserCodingIntent(
         SessionContext session,
         string rawInput,
@@ -137,6 +143,13 @@ public sealed partial class CommandService
         string language
     )
     {
+        // 코드/파일 생성 의도가 보이면 브라우저 인텐트를 아예 시도하지 않는다.
+        rawInput ??= string.Empty;
+        if (CodingBuildIntentRegex.IsMatch(rawInput))
+        {
+            return null;
+        }
+
         if (!TryParseBrowserIntent(rawInput, out var command))
         {
             return null;
@@ -236,11 +249,28 @@ public sealed partial class CommandService
         if (domainMatch.Success)
         {
             var domain = CleanBrowserIntentUrl(domainMatch.Value);
+            // index.html / app.py 같은 로컬 파일명은 도메인이 아니다(html 을 TLD 로 오인하면
+            // browser.navigate https://index.html 로 가서 ERR_NAME_NOT_RESOLVED 가 난다).
+            var lastDot = domain.LastIndexOf('.');
+            var tld = lastDot >= 0 ? domain[(lastDot + 1)..] : string.Empty;
+            if (NonNavigableDomainSuffixes.Contains(tld, StringComparer.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
             return ($"https://{domain}", domain);
         }
 
         return null;
     }
+
+    // 코드/마크업/리소스 파일 확장자 — 도메인 TLD 로 오인하면 안 된다.
+    private static readonly string[] NonNavigableDomainSuffixes =
+    {
+        "html", "htm", "js", "mjs", "cjs", "jsx", "ts", "tsx", "css", "scss", "json", "py",
+        "md", "txt", "csproj", "sln", "java", "go", "rs", "rb", "php", "c", "cpp", "h",
+        "sh", "yml", "yaml", "xml", "png", "jpg", "jpeg", "svg", "ico"
+    };
 
     private static string CleanBrowserIntentUrl(string value)
     {

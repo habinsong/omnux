@@ -66,7 +66,9 @@ public sealed partial class RoutineApplicationService
             string.IsNullOrWhiteSpace(routine.QualityStatus) ? "unknown" : routine.QualityStatus,
             routine.QualityWarnings ?? new List<string>(),
             BuildRoutineRunCommand(routine),
-            BuildRoutineRunSummaries(routine)
+            BuildRoutineRunSummaries(routine),
+            routine.Running,
+            routine.NextRunUtc.ToUnixTimeMilliseconds()
         );
     }
 

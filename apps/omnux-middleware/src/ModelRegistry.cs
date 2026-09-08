@@ -24,22 +24,24 @@ public static class ModelRegistry
         => CopilotKnownMeta.TryGetValue(modelId, out var meta) ? meta : null;
     private static readonly FrozenDictionary<string, string> Defaults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
-    ["groq"] = "meta-llama/llama-4-scout-17b-16e-instruct",
-    ["gemini"] = "gemini-3.1-flash-lite",
+    ["groq"] = "qwen/qwen3.8-27b",
+    ["gemini"] = "gemini-3.5-flash-lite",
     ["cerebras"] = "gpt-oss-120b",
-    ["nvidia"] = "meta/llama-3.1-70b-instruct",
+    ["nvidia"] = "moonshotai/kimi-k3",
     ["copilot"] = "gpt-5-mini",
-    ["codex"] = "gpt-5.5"
+    ["codex"] = "gpt-6-astra",
+    ["grok"] = "grok-4.6"
     }.ToFrozenDictionary();
 
     private static readonly FrozenDictionary<string, string> WorkerDefaults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
     {
-    ["groq"] = "meta-llama/llama-4-scout-17b-16e-instruct",
-    ["gemini"] = "gemini-3.1-flash-lite",
+    ["groq"] = "qwen/qwen3.8-27b",
+    ["gemini"] = "gemini-3.5-flash-lite",
     ["cerebras"] = "gpt-oss-120b",
-    ["nvidia"] = "meta/llama-3.1-70b-instruct",
+    ["nvidia"] = "moonshotai/kimi-k3",
     ["copilot"] = "none",
-    ["codex"] = "none"
+    ["codex"] = "none",
+    ["grok"] = "none"
     }.ToFrozenDictionary();
 
     private static readonly FrozenDictionary<string, string> Labels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -49,29 +51,31 @@ public static class ModelRegistry
     ["cerebras"] = "Cerebras",
     ["nvidia"] = "NVIDIA NIM",
     ["copilot"] = "Copilot",
-    ["codex"] = "Codex"
+    ["codex"] = "Codex",
+    ["grok"] = "Grok"
     }.ToFrozenDictionary();
 
     private static readonly FrozenDictionary<string, string[]> Fallbacks = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
     {
-    ["groq"] = new[] { "meta-llama/llama-4-scout-17b-16e-instruct", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "qwen/qwen3-32b", "groq/compound", "groq/compound-mini", "openai/gpt-oss-safeguard-20b" },
-    ["gemini"] = new[] { "gemini-3.5-flash", "gemini-3.1-pro", "gemini-3-flash", "gemini-3.1-flash-lite" },
-    ["cerebras"] = new[] { "gpt-oss-120b", "qwen-3-32b", "zai-glm-4.7" },
-    ["nvidia"] = new[] { "meta/llama-3.1-70b-instruct", "meta/llama-3.3-70b-instruct", "nvidia/llama-3.3-nemotron-super-49b-v1.5", "openai/gpt-oss-120b" },
-    ["copilot"] = new[] { "gpt-5.5", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.3-codex", "gpt-5-mini", "claude-sonnet-4.5", "claude-haiku-4.5", "gemini-3.1-pro", "gemini-3-flash" },
-    ["codex"] = new[] { "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.3-codex" }
+    ["groq"] = new[] { "qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.6-27b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "groq/compound", "groq/compound-mini" },
+    ["gemini"] = new[] { "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.1-pro-preview" },
+    ["cerebras"] = new[] { "gpt-oss-120b", "qwen-3.8-27b" },
+    ["nvidia"] = new[] { "moonshotai/kimi-k3", "deepseek-ai/deepseek-v4-pro-0813", "openai/gpt-oss-120b" },
+    ["copilot"] = new[] { "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.4-mini", "gpt-5-mini", "claude-sonnet-4.6", "claude-haiku-4.5", "gemini-3.8-flash" },
+    ["codex"] = new[] { "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex" },
+    ["grok"] = new[] { "grok-4.6" }
     }.ToFrozenDictionary();
 
     public static readonly FrozenDictionary<string, CopilotModelMeta> CopilotKnownMeta = new Dictionary<string, CopilotModelMeta>(StringComparer.OrdinalIgnoreCase)
     {
-    ["claude-sonnet-4.5"] = new("Anthropic", "1x"),
-    ["claude-haiku-4.5"] = new("Anthropic", "0.33x"),
-    ["gpt-5.5"] = new("OpenAI", "7.5x"),
-    ["gpt-5.4-mini"] = new("OpenAI", "0.33x"),
-    ["gpt-5.4-nano"] = new("OpenAI", "0.1x"),
-    ["gpt-5.3-codex"] = new("OpenAI", "1x"),
-    ["gpt-5-mini"] = new("OpenAI", "0x"),
-    ["gemini-3.1-pro"] = new("Google", "1x"),
-    ["gemini-3-flash"] = new("Google", "1x")
+    ["gpt-6-astra"] = new("OpenAI", "-"),
+    ["gpt-5.6-sol"] = new("OpenAI", "-"),
+    ["gpt-5.6-terra"] = new("OpenAI", "-"),
+    ["gpt-5.6-luna"] = new("OpenAI", "-"),
+    ["gpt-5.4-mini"] = new("OpenAI", "-"),
+    ["gpt-5-mini"] = new("OpenAI", "-"),
+    ["claude-sonnet-4.6"] = new("Anthropic", "-"),
+    ["claude-haiku-4.5"] = new("Anthropic", "-"),
+    ["gemini-3.8-flash"] = new("Google", "-")
     }.ToFrozenDictionary();
 }

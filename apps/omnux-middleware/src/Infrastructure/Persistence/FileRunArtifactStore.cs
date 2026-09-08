@@ -28,7 +28,7 @@ internal sealed class FileRunArtifactStore : IRunArtifactStore
             var safeSource = SanitizeArtifactToken(request.Source);
             var safeStatus = SanitizeArtifactToken(request.Status);
             var attempts = Math.Max(1, request.AttemptCount);
-            var fileName = $"{request.CompletedAtUtc:yyyyMMdd-HHmmss}-{safeSource}-a{attempts.ToString(CultureInfo.InvariantCulture)}-{safeStatus}.md";
+            var fileName = $"{request.CompletedAtUtc:yyyyMMdd-HHmmss}-{safeSource}-a{attempts.ToString(CultureInfo.InvariantCulture)}-{safeStatus}-{Guid.NewGuid():N}.md";
             var fullPath = Path.Combine(runDir, fileName);
 
             AtomicFileStore.WriteAllText(

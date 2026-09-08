@@ -1,9 +1,11 @@
 using System.Net.WebSockets;
+using System.Text.Json;
 namespace Omnux.Middleware;
 
 internal sealed class WsSetupCommandDispatcher
 {
     private readonly ISettingsApplicationService _settingsService;
+    private readonly GrokCliClient _grokClient;
     private readonly GroqModelCatalog _groqModelCatalog;
     private readonly CerebrasModelCatalog _cerebrasModelCatalog;
     private readonly LlmRouter _llmRouter;
@@ -34,10 +36,12 @@ internal sealed class WsSetupCommandDispatcher
         Func<WebSocket, SemaphoreSlim, CancellationToken, bool, Task> sendUsageStatsAsync,
         Func<WebSocket, SemaphoreSlim, string, RoutingPolicyActionResult, CancellationToken, Task> sendRoutingPolicyResultAsync,
         Func<WebSocket, SemaphoreSlim, RoutingDecision?, CancellationToken, Task> sendRoutingDecisionAsync,
-        Action requestListenerRebind
+        Action requestListenerRebind,
+        GrokCliClient? grokClient = null
     )
     {
         _settingsService = settingsService;
+        _grokClient = grokClient ?? llmRouter.GrokClient;
         _groqModelCatalog = groqModelCatalog;
         _cerebrasModelCatalog = cerebrasModelCatalog;
         _llmRouter = llmRouter;
@@ -72,6 +76,14 @@ internal sealed class WsSetupCommandDispatcher
         if (messageType == "get_settings" || messageType == "get_setup_state")
         {
             await _sendSettingsStateAsync(socket, sendLock, cancellationToken, remoteDashboardClient);
+            return true;
+        }
+
+        var remoteRestriction = remoteDashboardClient ? GetRemoteRestrictionMessage(messageType) : string.Empty;
+        if (remoteRestriction.Length > 0)
+        {
+            await WebSocketGateway.SendTextAsync(socket, sendLock,
+                "{\"type\":\"error\",\"message\":\"" + remoteRestriction + "\"}", cancellationToken);
             return true;
         }
 
@@ -320,6 +332,41 @@ internal sealed class WsSetupCommandDispatcher
             return true;
         }
 
+        if (messageType == "get_grok_models")
+        {
+            IReadOnlyList<string> models;
+            try { models = await _grokClient.GetModelsAsync(cancellationToken); }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { models = Array.Empty<string>(); }
+            if (models.Count == 0) models = ModelRegistry.GetFallbackModels("grok");
+            var items = string.Join(",", models.Select(id => "\"" + WebSocketGateway.EscapeJson(id) + "\""));
+            await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"grok_models\",\"items\":[" + items + "]}", cancellationToken);
+            return true;
+        }
+
+        if (messageType is "get_grok_status" or "start_grok_login" or "cancel_grok_login" or "logout_grok")
+        {
+            GrokConnectionStatus status;
+            if (messageType == "start_grok_login")
+            {
+                _grokClient.StartLogin(cancellationToken);
+                status = _grokClient.LoginStatus;
+            }
+            else if (messageType == "cancel_grok_login")
+            {
+                _grokClient.CancelLogin();
+                status = new(true, false, "canceled", "Grok 로그인을 취소했습니다.");
+            }
+            else if (messageType == "logout_grok")
+            {
+                var ok = await _grokClient.LogoutAsync(cancellationToken);
+                status = new(true, false, ok ? "signed_out" : "error", ok ? "Grok에서 로그아웃했습니다." : "Grok 로그아웃에 실패했습니다.");
+            }
+            else status = await _grokClient.GetStatusAsync(cancellationToken);
+            var payload = JsonSerializer.Serialize(status, OmniJsonContext.Default.GrokConnectionStatus);
+            await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"grok_status\",\"payload\":" + payload + "}", cancellationToken);
+            return true;
+        }
+
         if (message.Type == "get_codex_status")
         {
             var status = await _settingsService.GetCodexStatusAsync(cancellationToken);
@@ -507,6 +554,10 @@ internal sealed class WsSetupCommandDispatcher
             "test_telegram" => "forbidden_remote_secret_settings",
             "get_copilot_status" or
             "get_codex_status" or
+            "get_grok_status" or
+            "start_grok_login" or
+            "cancel_grok_login" or
+            "logout_grok" or
             "start_copilot_login" or
             "start_codex_login" or
             "logout_codex" => "forbidden_remote_auth",
@@ -537,6 +588,10 @@ internal sealed class WsSetupCommandDispatcher
             "test_telegram" or
             "get_copilot_status" or
             "get_codex_status" or
+            "get_grok_status" or
+            "start_grok_login" or
+            "cancel_grok_login" or
+            "logout_grok" or
             "get_usage_stats" or
             "start_copilot_login" or
             "start_codex_login" or
@@ -548,6 +603,7 @@ internal sealed class WsSetupCommandDispatcher
             "get_gemini_models" or
             "get_nvidia_models" or
             "get_codex_models" or
+            "get_grok_models" or
             "set_groq_model";
     }
 
@@ -564,6 +620,10 @@ internal sealed class WsSetupCommandDispatcher
             "test_telegram" or
             "get_copilot_status" or
             "get_codex_status" or
+            "get_grok_status" or
+            "start_grok_login" or
+            "cancel_grok_login" or
+            "logout_grok" or
             "start_copilot_login" or
             "start_codex_login" or
             "logout_codex" or
@@ -573,7 +633,8 @@ internal sealed class WsSetupCommandDispatcher
             "get_cerebras_models" or
             "get_gemini_models" or
             "get_nvidia_models" or
-            "get_codex_models";
+            "get_codex_models" or
+            "get_grok_models";
     }
     private static async Task SendUserRulesStateAsync(
         WebSocket socket,

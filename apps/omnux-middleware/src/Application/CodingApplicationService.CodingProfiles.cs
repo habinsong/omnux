@@ -12,10 +12,8 @@ public sealed partial class CodingApplicationService
         bool UseCompactLoopPrompt,
         bool OptimizeCodexCli,
         bool AllowUiOneShot,
-        bool AllowDeterministicStdoutFastPath,
         bool PreferBundleFallback,
         bool PreferDirectRecovery,
-        bool EnableGameScaffoldFallback,
         int RequestTimeoutSeconds,
         int MaxIterations,
         int LoopMaxActions,
@@ -64,10 +62,8 @@ public sealed partial class CodingApplicationService
                 UseCompactLoopPrompt: groqCompoundLike || reasoningLikeModel,
                 OptimizeCodexCli: false,
                 AllowUiOneShot: false,
-                AllowDeterministicStdoutFastPath: true,
                 PreferBundleFallback: multiFileLike,
                 PreferDirectRecovery: false,
-                EnableGameScaffoldFallback: false,
                 RequestTimeoutSeconds: groqCompoundLike ? 35 : 40,
                 MaxIterations: groqCompoundLike ? Math.Min(baseIterations, 2) : Math.Min(baseIterations, 3),
                 LoopMaxActions: groqCompoundLike ? Math.Min(baseActions, 2) : Math.Min(baseActions, 3),
@@ -80,16 +76,14 @@ public sealed partial class CodingApplicationService
                 WorkspaceSnapshotMaxEntries: groqCompoundLike ? 18 : Math.Min(defaultSnapshotEntries, 28),
                 RecentLoopHistory: groqCompoundLike ? 2 : 3
             ),
-            "codex" => new CodingExecutionProfile(
+            "codex" or "grok" => new CodingExecutionProfile(
                 normalizedProvider,
                 normalizedModel,
                 UseCompactLoopPrompt: true,
-                OptimizeCodexCli: true,
+                OptimizeCodexCli: normalizedProvider == "codex",
                 AllowUiOneShot: true,
-                AllowDeterministicStdoutFastPath: true,
                 PreferBundleFallback: multiFileLike,
                 PreferDirectRecovery: gameLike && multiFileLike,
-                EnableGameScaffoldFallback: true,
                 RequestTimeoutSeconds: 120,
                 MaxIterations: Math.Clamp(frontendLike || gameLike ? 2 : 3, 1, baseIterations),
                 LoopMaxActions: Math.Min(baseActions, 4),
@@ -104,10 +98,8 @@ public sealed partial class CodingApplicationService
                 UseCompactLoopPrompt: true,
                 OptimizeCodexCli: false,
                 AllowUiOneShot: !copilotMini && (frontendLike || gameLike),
-                AllowDeterministicStdoutFastPath: true,
                 PreferBundleFallback: multiFileLike,
                 PreferDirectRecovery: !copilotMini && (frontendLike || gameLike),
-                EnableGameScaffoldFallback: false,
                 RequestTimeoutSeconds: copilotMini ? 60 : 75,
                 MaxIterations: Math.Clamp(frontendLike || gameLike ? 2 : 3, 1, baseIterations),
                 LoopMaxActions: copilotMini
@@ -132,10 +124,8 @@ public sealed partial class CodingApplicationService
                 UseCompactLoopPrompt: flashLike,
                 OptimizeCodexCli: false,
                 AllowUiOneShot: flashLike,
-                AllowDeterministicStdoutFastPath: true,
                 PreferBundleFallback: multiFileLike,
                 PreferDirectRecovery: false,
-                EnableGameScaffoldFallback: false,
                 RequestTimeoutSeconds: flashLike ? 45 : 60,
                 MaxIterations: flashLike ? Math.Min(baseIterations, 3) : baseIterations,
                 LoopMaxActions: baseActions,
@@ -152,10 +142,8 @@ public sealed partial class CodingApplicationService
                 UseCompactLoopPrompt: true,
                 OptimizeCodexCli: false,
                 AllowUiOneShot: false,
-                AllowDeterministicStdoutFastPath: true,
                 PreferBundleFallback: multiFileLike,
                 PreferDirectRecovery: false,
-                EnableGameScaffoldFallback: false,
                 RequestTimeoutSeconds: 45,
                 MaxIterations: Math.Min(baseIterations, 3),
                 LoopMaxActions: Math.Min(baseActions, 3),
@@ -170,10 +158,8 @@ public sealed partial class CodingApplicationService
                 UseCompactLoopPrompt: reasoningLikeModel,
                 OptimizeCodexCli: false,
                 AllowUiOneShot: false,
-                AllowDeterministicStdoutFastPath: true,
                 PreferBundleFallback: multiFileLike,
                 PreferDirectRecovery: false,
-                EnableGameScaffoldFallback: false,
                 RequestTimeoutSeconds: Math.Max(360, _providers.NvidiaTimeoutSec * 2),
                 MaxIterations: Math.Min(baseIterations, 3),
                 LoopMaxActions: Math.Min(baseActions, 3),
@@ -188,10 +174,8 @@ public sealed partial class CodingApplicationService
                 UseCompactLoopPrompt: normalizedModel.Contains("gpt-oss", StringComparison.OrdinalIgnoreCase),
                 OptimizeCodexCli: false,
                 AllowUiOneShot: false,
-                AllowDeterministicStdoutFastPath: true,
                 PreferBundleFallback: multiFileLike,
                 PreferDirectRecovery: false,
-                EnableGameScaffoldFallback: false,
                 RequestTimeoutSeconds: 45,
                 MaxIterations: Math.Min(baseIterations, 3),
                 LoopMaxActions: baseActions,
@@ -250,7 +234,6 @@ public sealed partial class CodingApplicationService
                 PreferBundleFallback = false,
                 PreferDirectRecovery = false,
                 AllowUiOneShot = false,
-                AllowDeterministicStdoutFastPath = true,
                 MaxIterations = Math.Max(profile.MaxIterations, 3),
                 PlanMaxOutputTokens = Math.Max(profile.PlanMaxOutputTokens, 1400)
             },
@@ -259,7 +242,6 @@ public sealed partial class CodingApplicationService
                 PreferBundleFallback = profile.PreferBundleFallback || multiFileLike,
                 PreferDirectRecovery = profile.PreferDirectRecovery || (copilotMini && multiFileLike),
                 AllowUiOneShot = false,
-                AllowDeterministicStdoutFastPath = true,
                 MaxIterations = copilotMini && multiFileLike ? Math.Min(Math.Max(profile.MaxIterations, 2), 2) : Math.Max(profile.MaxIterations, 3),
                 PlanMaxOutputTokens = Math.Max(profile.PlanMaxOutputTokens, 1400)
             },
@@ -269,7 +251,6 @@ public sealed partial class CodingApplicationService
                 PreferBundleFallback = false,
                 PreferDirectRecovery = copilotMini && multiFileLike,
                 AllowUiOneShot = false,
-                AllowDeterministicStdoutFastPath = false,
                 RequestTimeoutSeconds = Math.Max(profile.RequestTimeoutSeconds, profile.Provider == "copilot" ? 90 : 60),
                 MaxIterations = copilotMini && multiFileLike ? Math.Min(Math.Max(profile.MaxIterations, 2), 2) : Math.Max(profile.MaxIterations, 3),
                 LoopMaxActions = Math.Min(Math.Max(profile.LoopMaxActions, 2), 3),
@@ -284,7 +265,6 @@ public sealed partial class CodingApplicationService
                 PreferBundleFallback = false,
                 PreferDirectRecovery = copilotMini && multiFileLike,
                 AllowUiOneShot = false,
-                AllowDeterministicStdoutFastPath = false,
                 RequestTimeoutSeconds = Math.Max(profile.RequestTimeoutSeconds, profile.Provider == "copilot" ? 90 : 60),
                 MaxIterations = copilotMini && multiFileLike ? Math.Min(Math.Max(profile.MaxIterations, 2), 2) : Math.Max(profile.MaxIterations, 3),
                 LoopMaxActions = Math.Min(Math.Max(profile.LoopMaxActions, 2), 3),
@@ -519,6 +499,7 @@ public sealed partial class CodingApplicationService
                 lines.Add("- Python은 실행 엔트리를 main.py 또는 요청한 파일명으로 고정하고 stdout 조건이 있으면 print 문자열을 정확히 맞춰라");
                 lines.Add("- import 경로, f-string, 들여쓰기 블록을 중간 줄바꿈으로 끊지 말고 파일 전체를 완성본으로 작성하라");
                 lines.Add("- 필요한 외부 pip 패키지는 실제 import와 requirements.txt로 명확히 사용하라. 런타임은 자동 설치를 시도한다");
+                lines.Add("- run 액션에서 pip/pip3 install, python -m venv, 가상환경 생성/활성화를 직접 실행하지 마라. 의존성은 requirements.txt에만 선언하면 런타임이 격리 venv에 자동 설치한다. 직접 pip를 호출하면 'command not found'로 실패하고 반복만 낭비된다");
                 if (gameLike)
                 {
                     lines.Add("- Python 게임/시각화는 요청한 라이브러리를 그대로 사용하라. Pygame을 요구하거나 적합하면 pygame 기반 구현을 우선하라");
@@ -674,7 +655,8 @@ public sealed partial class CodingApplicationService
         int maxActions,
         string workspaceSnapshot,
         string recentLogs,
-        CodeExecutionResult lastExecution
+        CodeExecutionResult lastExecution,
+        string retrievalBlock = ""
     )
     {
         return profile.UseCompactLoopPrompt
@@ -690,7 +672,8 @@ public sealed partial class CodingApplicationService
                 maxActions,
                 workspaceSnapshot,
                 recentLogs,
-                lastExecution
+                lastExecution,
+                retrievalBlock
             )
             : BuildCodingLoopPrompt(
                 objective,
@@ -705,7 +688,8 @@ public sealed partial class CodingApplicationService
                 maxActions,
                 workspaceSnapshot,
                 recentLogs,
-                lastExecution
+                lastExecution,
+                retrievalBlock
             );
     }
 
@@ -721,7 +705,8 @@ public sealed partial class CodingApplicationService
         int maxActions,
         string workspaceSnapshot,
         string recentLogs,
-        CodeExecutionResult lastExecution
+        CodeExecutionResult lastExecution,
+        string retrievalBlock = ""
     )
     {
         var resolvedLanguage = CodingLanguagePolicy.ResolveInitialCodingLanguage(languageHint, objective);
@@ -738,6 +723,13 @@ public sealed partial class CodingApplicationService
         builder.AppendLine("[goal]");
         builder.AppendLine(objective);
         builder.AppendLine();
+        if (!string.IsNullOrWhiteSpace(retrievalBlock))
+        {
+            builder.AppendLine("[refs] (사용자 메모리/코드 인덱스 자동 검색 — 보조 참고용, goal 우선)");
+            builder.AppendLine(retrievalBlock.Trim());
+            builder.AppendLine();
+        }
+
         builder.AppendLine("[quality_brief]");
         builder.AppendLine(BuildCodingQualityBrief(objective, resolvedLanguage));
         builder.AppendLine();
@@ -755,7 +747,8 @@ public sealed partial class CodingApplicationService
         builder.AppendLine();
         builder.AppendLine("schema:");
         builder.AppendLine("{\"analysis\":\"...\",\"done\":false,\"final_message\":\"...\",\"actions\":[{\"type\":\"write_file\",\"path\":\"index.html\",\"content\":\"...\",\"command\":\"\"}]}");
-        builder.AppendLine("allowed_types: mkdir, write_file, append_file, read_file, delete_file, run");
+        builder.AppendLine("allowed_types: mkdir, write_file, append_file, edit_file, read_file, delete_file, run");
+        builder.AppendLine("edit_file: {\"type\":\"edit_file\",\"path\":\"...\",\"find\":\"기존 코드 그대로\",\"replace\":\"새 코드\"} (find 는 정확히 일치해야 함, 첫 일치만 교체)");
         builder.AppendLine($"max_actions={Math.Max(1, maxActions)}");
         builder.AppendLine("provider_rules:");
         foreach (var rule in BuildProviderModelPromptRuleLines(profile.Provider, profile.Model))
@@ -781,8 +774,9 @@ public sealed partial class CodingApplicationService
         builder.AppendLine("- path 는 상대경로만 사용하라");
         builder.AppendLine("- content 는 실제 파일 전체 내용만 넣어라");
         builder.AppendLine("- JSON 문자열 내부 줄바꿈은 \\n 으로 이스케이프하라");
-        builder.AppendLine("- 가능하면 한 번에 필요한 파일을 모두 작성하고 run 은 마지막 검증 1회만 사용하라");
-        builder.AppendLine("- 완료되면 done=true 와 actions=[] 로 끝내라");
+        builder.AppendLine("- 기존 파일 수정 전 read_file 로 내용을 확인하라(내용은 [workspace] 의 최근 파일 섹션에 표시됨)");
+        builder.AppendLine("- run 으로 빌드/테스트를 실행하고 [last] 의 stdout/stderr 를 보고 오류를 고친 뒤 다시 검증하라");
+        builder.AppendLine("- 검증(run)이 성공하고 요구사항을 충족했을 때만 done=true 와 actions=[] 로 끝내라");
         return builder.ToString().Trim();
     }
 

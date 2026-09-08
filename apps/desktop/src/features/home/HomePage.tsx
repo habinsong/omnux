@@ -210,7 +210,7 @@ export function HomePage() {
   return (
     <div className="relative flex h-full flex-col overflow-hidden">
       {/* 화면 정중앙: 인사 + hero 입력, 그 아래 빠른 시작 (my-auto로 중앙 정렬, 넘치면 스크롤) */}
-      <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-6 py-6">
+      <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-4 py-6 sm:px-6">
         <div className="my-auto w-full max-w-2xl space-y-6 xl:max-w-3xl xl:space-y-8">
         <section className="space-y-4 text-center">
           <h1 className="text-3xl font-semibold tracking-tight xl:text-4xl">
@@ -223,7 +223,7 @@ export function HomePage() {
 
           <div className="flex w-full flex-col items-center gap-2.5">
             {QUICK_ACTION_ROWS.map((row, rowIndex) => (
-              <div key={`quick-action-row-${rowIndex}`} className="flex flex-row justify-center gap-3">
+              <div key={`quick-action-row-${rowIndex}`} className="flex flex-row flex-wrap justify-center gap-2.5">
                 {row.map((item) => (
                     <button
                       key={item.id}

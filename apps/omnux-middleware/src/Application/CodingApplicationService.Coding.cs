@@ -11,7 +11,7 @@ public sealed partial class CodingApplicationService
         Action<CodingProgressUpdate>? progressCallback = null
     )
     {
-        return RunCodingSingleCoreAsync(request, cancellationToken, progressCallback);
+        return _projectRuns.RunAsync(request, RunCodingSingleCoreAsync, PersistLatestCodingResult, cancellationToken, progressCallback);
     }
 
     public Task<CodingRunResult> RunCodingOrchestrationAsync(
@@ -20,7 +20,7 @@ public sealed partial class CodingApplicationService
         Action<CodingProgressUpdate>? progressCallback = null
     )
     {
-        return RunCodingOrchestrationCoreAsync(request, cancellationToken, progressCallback);
+        return _projectRuns.RunAsync(request, RunCodingOrchestrationCoreAsync, PersistLatestCodingResult, cancellationToken, progressCallback);
     }
 
     public Task<CodingRunResult> RunCodingMultiAsync(
@@ -29,7 +29,7 @@ public sealed partial class CodingApplicationService
         Action<CodingProgressUpdate>? progressCallback = null
     )
     {
-        return RunCodingMultiCoreAsync(request, cancellationToken, progressCallback);
+        return _projectRuns.RunAsync(request, RunCodingMultiCoreAsync, PersistLatestCodingResult, cancellationToken, progressCallback);
     }
 
     // 프롬프트에 두 개 이상의 스킬 이름이 있으면 코딩 흐름에서도 거부 결과 반환.
@@ -98,13 +98,17 @@ public sealed partial class CodingApplicationService
             request.LinkedMemoryNotes,
             request.Source
         );
+        if (request.BoundProject != null) session = session with { Thread = _conversationStore.BindCodingProject(session.Thread.Id, request.BoundProject) };
         var thread = session.Thread;
         var rawInput = (request.Input ?? string.Empty).Trim();
-        var codingRunRoot = CreateCodingRunWorkspaceRoot("single");
+        var codingRunRoot = ResolveOrCreateCodingRunWorkspaceRoot(session, "single");
         if (TryHandleBrowserCodingIntent(session, rawInput, "single", codingRunRoot, request.Language) is { } browserIntentResult)
         {
             return browserIntentResult;
         }
+
+        using var checkpoint = new CodingCheckpoint(_conversationStore, request, thread.Id, codingRunRoot, cancellationToken);
+        progressCallback = checkpoint.Bind(progressCallback);
 
         var routingCategory = ResolveCodingTaskCategory(request.Category, rawInput);
 
@@ -135,7 +139,8 @@ public sealed partial class CodingApplicationService
                     request.CerebrasModel,
                     request.CopilotModel,
                     request.CodexModel,
-                    request.NvidiaModel
+                    request.NvidiaModel,
+                    request.GrokModel
                 ),
                 cancellationToken,
                 "coding_single"
@@ -216,7 +221,7 @@ public sealed partial class CodingApplicationService
             ));
         }
 
-        var thinkPlusPreText = ApplySelectedSkillToPrompt(
+        var thinkPlusPreText = request.BoundProject != null ? preparedInput.Text : ApplySelectedSkillToPrompt(
             preparedInput.Text,
             requestedSkillName,
             request.SkillScope
@@ -242,100 +247,24 @@ public sealed partial class CodingApplicationService
             contextDecisionInput: rawInput
         );
         var rawRequestedPaths = CodingFallbackPolicy.ExtractRequestedCodingPaths(rawInput, request.Language);
-        var rawExpectedOutput = CodingFallbackPolicy.ExtractExpectedConsoleOutput(rawInput);
         AutonomousCodingOutcome outcome;
         try
         {
-            if (string.Equals(provider, "copilot", StringComparison.OrdinalIgnoreCase)
-                && CodingDeterministicOutputRepairPolicy.ShouldTrySingleFileOutputRepair(request.Language, rawRequestedPaths, rawExpectedOutput))
-            {
-                progressCallback?.Invoke(BuildCodingProgressUpdate(
-                    "single",
-                    provider,
-                    model,
-                    "planning",
-                    "단순 단일 파일 출력 요청이라 빠른 결정론적 경로를 적용합니다.",
-                    1,
-                    1,
-                    35,
-                    false,
-                    "planning",
-                    "구현 계획",
-                    "원본 요청 그대로 파일을 만들고 stdout까지 즉시 검증합니다.",
-                    3,
-                    6
-                ));
-                var deterministicOutcome = await TryApplyDeterministicSingleFileOutputRepairAsync(
-                    rawInput,
-                    request.Language,
-                    codingRunRoot,
-                    rawRequestedPaths,
-                    rawExpectedOutput,
-                    cancellationToken
-                );
-                if (deterministicOutcome.Applied && string.Equals(deterministicOutcome.Execution.Status, "ok", StringComparison.OrdinalIgnoreCase))
-                {
-                    var changedPaths = new[] { deterministicOutcome.ChangedPath };
-                    var fastPathSummary = BuildAutonomousCodingSummary(
-                        new[] { "deterministic_fast_path=single_file_output" },
-                        changedPaths,
-                        deterministicOutcome.Execution,
-                        1
-                    );
-                    progressCallback?.Invoke(BuildCodingProgressUpdate(
-                        "single",
-                        provider,
-                        model,
-                        "done",
-                        "코딩 작업이 완료되었습니다.",
-                        1,
-                        1,
-                        100,
-                        true,
-                        "verification",
-                        "최종 실행 및 검증",
-                        $"최종 상태: {deterministicOutcome.Execution.Status} (exit={deterministicOutcome.Execution.ExitCode})",
-                        6,
-                        6
-                    ));
-                    outcome = new AutonomousCodingOutcome(
-                        "python",
-                        deterministicOutcome.Code,
-                        "[deterministic-fast-path]",
-                        deterministicOutcome.Execution,
-                        changedPaths,
-                        fastPathSummary
-                    );
-                }
-                else
-                {
-                    var objective = BuildCodingAgentObjectivePrompt(contextualInput, request.Language, "단일 모델 코딩");
-                    outcome = await RunAutonomousCodingLoopAsync(
-                        provider,
-                        model,
-                        objective,
-                        request.Language,
-                        "single",
-                        cancellationToken,
-                        progressCallback,
-                        workspaceRootOverride: codingRunRoot
-                    );
-                }
-            }
-            else
-            {
-                var objective = BuildCodingAgentObjectivePrompt(contextualInput, request.Language, "단일 모델 코딩");
-                outcome = await RunAutonomousCodingLoopAsync(
-                    provider,
-                    model,
-                    objective,
-                    request.Language,
-                    "single",
-                    cancellationToken,
-                    progressCallback,
-                    workspaceRootOverride: codingRunRoot
-                );
-            }
+            var objective = BuildCodingAgentObjectivePrompt(contextualInput, request.Language, "단일 모델 코딩");
+            outcome = await RunAutonomousCodingLoopAsync(
+                provider,
+                model,
+                objective,
+                request.Language,
+                "single",
+                cancellationToken,
+                progressCallback,
+                workspaceRootOverride: codingRunRoot
+            );
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -411,7 +340,8 @@ public sealed partial class CodingApplicationService
             citationBundle.Validation,
             preparedInput.RetryAttempt,
             preparedInput.RetryMaxAttempts,
-            preparedInput.RetryStopReason
+            preparedInput.RetryStopReason,
+            RetrievalLabel: outcome.RetrievalLabel
         ));
     }
 
@@ -432,13 +362,17 @@ public sealed partial class CodingApplicationService
             request.LinkedMemoryNotes,
             request.Source
         );
+        if (request.BoundProject != null) session = session with { Thread = _conversationStore.BindCodingProject(session.Thread.Id, request.BoundProject) };
         var thread = session.Thread;
         var rawInput = (request.Input ?? string.Empty).Trim();
-        var codingRunRoot = CreateCodingRunWorkspaceRoot("orchestration");
+        var codingRunRoot = ResolveOrCreateCodingRunWorkspaceRoot(session, "orchestration");
         if (TryHandleBrowserCodingIntent(session, rawInput, "orchestration", codingRunRoot, request.Language) is { } browserIntentResult)
         {
             return browserIntentResult;
         }
+
+        using var checkpoint = new CodingCheckpoint(_conversationStore, request, thread.Id, codingRunRoot, cancellationToken);
+        progressCallback = checkpoint.Bind(progressCallback);
 
         var multiSkillRejectionOrch = TryBuildCodingMultiSkillRejectionResult(
             "orchestration",
@@ -518,7 +452,7 @@ public sealed partial class CodingApplicationService
                 sharedPrepared.RetryStopReason
             ));
         }
-        var thinkPlusPreText = ApplySelectedSkillToPrompt(
+        var thinkPlusPreText = request.BoundProject != null ? sharedPrepared.Text : ApplySelectedSkillToPrompt(
             sharedPrepared.Text,
             requestedSkillName,
             request.SkillScope
@@ -589,6 +523,7 @@ public sealed partial class CodingApplicationService
                     "nvidia" => request.NvidiaModel,
                     "copilot" => request.CopilotModel,
                     "codex" => request.CodexModel,
+                    "grok" => request.GrokModel,
                     _ => null
                 };
                 return !IsDisabledModelSelection(selection);
@@ -639,6 +574,7 @@ public sealed partial class CodingApplicationService
                     "nvidia" => request.NvidiaModel,
                     "copilot" => request.CopilotModel,
                     "codex" => request.CodexModel,
+                    "grok" => request.GrokModel,
                     _ => null
                 }
             ),
@@ -899,13 +835,20 @@ public sealed partial class CodingApplicationService
             request.LinkedMemoryNotes,
             request.Source
         );
+        if (request.BoundProject != null) session = session with { Thread = _conversationStore.BindCodingProject(session.Thread.Id, request.BoundProject) };
         var thread = session.Thread;
         var rawInput = (request.Input ?? string.Empty).Trim();
-        var codingRunRoot = CreateCodingRunWorkspaceRoot("multi");
+        var codingRunRoot = thread.LatestCodingResult?.CheckpointId is { Length: > 0 }
+            ? ResolveOrCreateCodingRunWorkspaceRoot(session, "multi")
+            : CreateCodingRunWorkspaceRoot("multi");
+        if (request.BoundProject != null) await ProjectWorkspaceFiles.PrepareComparisonAsync(request.BoundProject, codingRunRoot, cancellationToken);
         if (TryHandleBrowserCodingIntent(session, rawInput, "multi", codingRunRoot, request.Language) is { } browserIntentResult)
         {
             return browserIntentResult;
         }
+
+        using var checkpoint = new CodingCheckpoint(_conversationStore, request, thread.Id, codingRunRoot, cancellationToken);
+        progressCallback = checkpoint.Bind(progressCallback);
 
         var multiSkillRejectionMulti = TryBuildCodingMultiSkillRejectionResult(
             "multi",
@@ -978,7 +921,7 @@ public sealed partial class CodingApplicationService
                 sharedPrepared.RetryStopReason
             ));
         }
-        var thinkPlusPreText = ApplySelectedSkillToPrompt(
+        var thinkPlusPreText = request.BoundProject != null ? sharedPrepared.Text : ApplySelectedSkillToPrompt(
             sharedPrepared.Text,
             requestedSkillName,
             request.SkillScope
@@ -1015,6 +958,7 @@ public sealed partial class CodingApplicationService
                     "nvidia" => request.NvidiaModel,
                     "copilot" => request.CopilotModel,
                     "codex" => request.CodexModel,
+                    "grok" => request.GrokModel,
                     _ => null
                 };
                 return !IsDisabledModelSelection(selection);
@@ -1067,6 +1011,7 @@ public sealed partial class CodingApplicationService
                         "nvidia" => request.NvidiaModel,
                         "copilot" => request.CopilotModel,
                         "codex" => request.CodexModel,
+                    "grok" => request.GrokModel,
                         _ => null
                     }
                 )
@@ -1133,7 +1078,7 @@ public sealed partial class CodingApplicationService
                 "multi-worker",
                 allowRunActions: true,
                 role: "독립 완주",
-                workspaceRootOverride: CodingWorkerSelectionPolicy.BuildWorkerWorkspaceRoot(codingRunRoot, provider, model)
+                workspaceRootOverride: await ProjectWorkspaceFiles.WorkerDirectoryAsync(request.BoundProject, codingRunRoot, provider, model, cancellationToken)
             ));
         }
         var workerTasks = workerTaskList.ToArray();
@@ -1158,7 +1103,8 @@ public sealed partial class CodingApplicationService
             request.CerebrasModel,
             request.CopilotModel,
             request.CodexModel,
-            request.NvidiaModel
+            request.NvidiaModel,
+            request.GrokModel
         );
         var workerChatResults = workerResults
             .Select(x => new LlmSingleChatResult(x.Provider, x.Model, x.RawResponse))
@@ -1208,6 +1154,7 @@ public sealed partial class CodingApplicationService
                 "nvidia" => request.NvidiaModel,
                 "copilot" => request.CopilotModel,
                 "codex" => request.CodexModel,
+                    "grok" => request.GrokModel,
                 _ => null
             };
         }

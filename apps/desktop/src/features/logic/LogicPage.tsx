@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { ResponsivePanels } from "../../components/ResponsivePanels";
 import {
   AlertTriangle,
   ChevronDown,
@@ -915,7 +916,15 @@ export function LogicPage() {
         </div>
       </div>
 
-      <section className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[240px_minmax(0,1fr)_320px]">
+      <ResponsivePanels
+        query="(min-width: 1024px)"
+        gridClassName="lg:grid-cols-[240px_minmax(0,1fr)_320px]"
+        tabs={[
+          { key: "list", label: "규칙 목록" },
+          { key: "canvas", label: "캔버스" },
+          { key: "props", label: "속성" }
+        ]}
+      >
         <CardBoundary title="규칙 목록" card="navigation" onError={recordCardError}>
           <div className="flex gap-1.5">
             <Button variant="primary" size="sm" className="flex-1" onClick={store.newGraph}>
@@ -1133,7 +1142,7 @@ export function LogicPage() {
             </div>
           </div>
         </CardBoundary>
-      </section>
+      </ResponsivePanels>
     </div>
   );
 }

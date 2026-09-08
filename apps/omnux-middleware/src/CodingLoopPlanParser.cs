@@ -53,11 +53,22 @@ internal static class CodingLoopPlanParser
                         var path = GetStringProperty(actionElement, "path") ?? string.Empty;
                         var content = GetStringProperty(actionElement, "content") ?? string.Empty;
                         var command = GetStringProperty(actionElement, "command") ?? string.Empty;
+                        var find = GetStringProperty(actionElement, "find")
+                            ?? GetStringProperty(actionElement, "old_string")
+                            ?? GetStringProperty(actionElement, "old")
+                            ?? GetStringProperty(actionElement, "search")
+                            ?? string.Empty;
+                        var replace = GetStringProperty(actionElement, "replace")
+                            ?? GetStringProperty(actionElement, "new_string")
+                            ?? GetStringProperty(actionElement, "new")
+                            ?? string.Empty;
                         actions.Add(new CodingLoopAction(
-                            NormalizeActionType(type, path, content, command),
+                            NormalizeActionType(type, path, content, command, find),
                             path,
                             content,
-                            command
+                            command,
+                            find,
+                            replace
                         ));
                     }
                 }
@@ -109,7 +120,7 @@ internal static class CodingLoopPlanParser
         return normalized.Trim();
     }
 
-    public static string NormalizeActionType(string? rawType, string? path, string? content, string? command)
+    public static string NormalizeActionType(string? rawType, string? path, string? content, string? command, string? find = null)
     {
         var raw = (rawType ?? string.Empty).Trim().ToLowerInvariant();
         if (IsKnownActionType(raw))
@@ -127,6 +138,19 @@ internal static class CodingLoopPlanParser
                     return token;
                 }
             }
+        }
+
+        if (raw.Contains("edit", StringComparison.Ordinal)
+            || raw.Contains("replace", StringComparison.Ordinal)
+            || raw.Contains("patch", StringComparison.Ordinal)
+            || raw.Contains("modify", StringComparison.Ordinal))
+        {
+            return "edit_file";
+        }
+
+        if (!string.IsNullOrWhiteSpace(find) && !string.IsNullOrWhiteSpace(path))
+        {
+            return "edit_file";
         }
 
         if (raw.Contains("mkdir", StringComparison.Ordinal))
@@ -349,6 +373,7 @@ internal static class CodingLoopPlanParser
         return value == "mkdir"
                || value == "write_file"
                || value == "append_file"
+               || value == "edit_file"
                || value == "read_file"
                || value == "delete_file"
                || value == "run";

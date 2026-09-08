@@ -15,7 +15,8 @@ internal sealed class WsToolCommandDispatcher
         string? scope,
         string? mode,
         SessionListToolResult result,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? requestId
     );
 
     internal delegate Task SendSessionsHistoryResultDelegate(
@@ -25,7 +26,8 @@ internal sealed class WsToolCommandDispatcher
         int? limit,
         bool? includeTools,
         SessionHistoryToolResult result,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? requestId
     );
 
     internal delegate Task SendSessionsSendResultDelegate(
@@ -34,7 +36,8 @@ internal sealed class WsToolCommandDispatcher
         string? requestedSessionKey,
         int? timeoutSeconds,
         SessionSendToolResult result,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? requestId
     );
 
     internal delegate Task SendSessionsSpawnResultDelegate(
@@ -48,14 +51,16 @@ internal sealed class WsToolCommandDispatcher
         bool? requestedThread,
         string? requestedMode,
         SessionSpawnToolResult result,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? requestId
     );
 
     internal delegate Task SendSessionsSpawnStatusResultDelegate(
         WebSocket socket,
         SemaphoreSlim sendLock,
         SessionSpawnQueueStatus result,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? requestId
     );
 
     internal delegate Task SendCronStatusResultDelegate(
@@ -135,7 +140,8 @@ internal sealed class WsToolCommandDispatcher
         string? requestedTargetId,
         int? requestedLimit,
         BrowserToolResult result,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? requestId
     );
 
     internal delegate Task SendCanvasResultDelegate(
@@ -148,7 +154,8 @@ internal sealed class WsToolCommandDispatcher
         string? requestedOutputFormat,
         int? requestedMaxWidth,
         CanvasToolResult result,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? requestId
     );
 
     internal delegate Task SendNodesResultDelegate(
@@ -185,7 +192,8 @@ internal sealed class WsToolCommandDispatcher
         int? count,
         string? freshness,
         WebSearchToolResult result,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? requestId
     );
 
     internal delegate Task SendWebFetchResultDelegate(
@@ -195,7 +203,8 @@ internal sealed class WsToolCommandDispatcher
         string? requestedExtractMode,
         int? requestedMaxChars,
         WebFetchToolResult result,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? requestId
     );
 
     private readonly IToolApplicationService _toolService;
@@ -303,7 +312,7 @@ internal sealed class WsToolCommandDispatcher
                 message.Scope,
                 message.Mode,
                 result,
-                cancellationToken
+                cancellationToken, message.RequestId
             );
             return true;
         }
@@ -322,7 +331,7 @@ internal sealed class WsToolCommandDispatcher
                 message.Limit,
                 message.IncludeTools,
                 result,
-                cancellationToken
+                cancellationToken, message.RequestId
             );
             return true;
         }
@@ -334,7 +343,7 @@ internal sealed class WsToolCommandDispatcher
                 : message.Message;
             if (string.IsNullOrWhiteSpace(outboundMessage))
             {
-                await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"message is required\"}", cancellationToken);
+                await SendExploreErrorAsync(socket, sendLock, message, "message is required", cancellationToken);
                 return true;
             }
 
@@ -349,7 +358,7 @@ internal sealed class WsToolCommandDispatcher
                 message.SessionKey,
                 message.TimeoutSeconds,
                 result,
-                cancellationToken
+                cancellationToken, message.RequestId
             );
             return true;
         }
@@ -360,7 +369,7 @@ internal sealed class WsToolCommandDispatcher
             if (action == "status")
             {
                 var statusResult = _toolService.GetSessionSpawnStatus();
-                await _sendSessionsSpawnStatusResultAsync(socket, sendLock, statusResult, cancellationToken);
+                await _sendSessionsSpawnStatusResultAsync(socket, sendLock, statusResult, cancellationToken, message.RequestId);
                 return true;
             }
 
@@ -369,7 +378,7 @@ internal sealed class WsToolCommandDispatcher
                 : message.SpawnTask;
             if (string.IsNullOrWhiteSpace(requestedTask))
             {
-                await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"task is required\"}", cancellationToken);
+                await SendExploreErrorAsync(socket, sendLock, message, "task is required", cancellationToken);
                 return true;
             }
 
@@ -395,7 +404,7 @@ internal sealed class WsToolCommandDispatcher
                 message.Thread,
                 message.Mode,
                 result,
-                cancellationToken
+                cancellationToken, message.RequestId
             );
             return true;
         }
@@ -583,7 +592,7 @@ internal sealed class WsToolCommandDispatcher
             var action = (message.Action ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(action))
             {
-                await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"browser action is required\"}", cancellationToken);
+                await SendExploreErrorAsync(socket, sendLock, message, "browser action is required", cancellationToken);
                 return true;
             }
 
@@ -607,7 +616,7 @@ internal sealed class WsToolCommandDispatcher
                 message.TargetId,
                 message.Limit,
                 result,
-                cancellationToken
+                cancellationToken, message.RequestId
             );
             return true;
         }
@@ -617,7 +626,7 @@ internal sealed class WsToolCommandDispatcher
             var action = (message.Action ?? string.Empty).Trim();
             if (string.IsNullOrWhiteSpace(action))
             {
-                await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"canvas action is required\"}", cancellationToken);
+                await SendExploreErrorAsync(socket, sendLock, message, "canvas action is required", cancellationToken);
                 return true;
             }
 
@@ -651,7 +660,7 @@ internal sealed class WsToolCommandDispatcher
                 message.OutputFormat,
                 message.MaxWidth,
                 result,
-                cancellationToken
+                cancellationToken, message.RequestId
             );
             return true;
         }
@@ -802,7 +811,7 @@ internal sealed class WsToolCommandDispatcher
                 : message.Query;
             if (string.IsNullOrWhiteSpace(query))
             {
-                await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"query is required\"}", cancellationToken);
+                await SendExploreErrorAsync(socket, sendLock, message, "query is required", cancellationToken);
                 return true;
             }
 
@@ -820,7 +829,7 @@ internal sealed class WsToolCommandDispatcher
                 message.Count,
                 message.Freshness,
                 result,
-                cancellationToken
+                cancellationToken, message.RequestId
             );
             return true;
         }
@@ -832,7 +841,7 @@ internal sealed class WsToolCommandDispatcher
                 : message.WebFetchUrl;
             if (string.IsNullOrWhiteSpace(requestedUrl))
             {
-                await WebSocketGateway.SendTextAsync(socket, sendLock, "{\"type\":\"error\",\"message\":\"url is required\"}", cancellationToken);
+                await SendExploreErrorAsync(socket, sendLock, message, "url is required", cancellationToken);
                 return true;
             }
 
@@ -850,13 +859,19 @@ internal sealed class WsToolCommandDispatcher
                 message.ExtractMode,
                 message.MaxChars,
                 result,
-                cancellationToken
+                cancellationToken, message.RequestId
             );
             return true;
         }
 
         return false;
     }
+
+    private static Task SendExploreErrorAsync(WebSocket socket, SemaphoreSlim sendLock, WebSocketGateway.ClientMessage request, string error, CancellationToken token)
+        => WebSocketGateway.SendTextAsync(socket, sendLock,
+            "{\"type\":\"error\",\"requestId\":\"" + WebSocketGateway.EscapeJson(request.RequestId ?? "")
+            + "\",\"requestType\":\"" + WebSocketGateway.EscapeJson(request.Type ?? "")
+            + "\",\"message\":\"" + WebSocketGateway.EscapeJson(error) + "\"}", token);
 
     private static string BuildCleanupPreviewResultJson(CleanupPreviewResult result)
     {

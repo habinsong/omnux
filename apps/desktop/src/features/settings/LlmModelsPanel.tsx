@@ -1,3 +1,4 @@
+import { GrokConnectionPanel } from "./GrokConnectionPanel";
 import { useEffect, useState, type ReactNode } from "react";
 import { KeyRound, LogIn, LogOut, RefreshCcw, ShieldCheck, Trash2 } from "lucide-react";
 import { CardBoundary } from "../../CardBoundary";
@@ -199,6 +200,7 @@ export function CliAuthCard({ store, canRequest, onError }: { store: Store; canR
           </Button>
         </CliStatusRow>
       </div>
+      <GrokConnectionPanel canRequest={canRequest} />
       {store.llmMessage ? <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">{store.llmMessage}</p> : null}
     </CardBoundary>
   );

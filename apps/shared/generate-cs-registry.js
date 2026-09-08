@@ -71,5 +71,13 @@ if (Object.keys(copilotMeta).length > 0) {
 }
 cs += `}\n`;
 
-fs.writeFileSync(outputPath, cs, "utf8");
-console.log(`Generated: ${outputPath}`);
+if (process.argv.includes("--check")) {
+  if (!fs.existsSync(outputPath) || fs.readFileSync(outputPath, "utf8") !== cs) {
+    console.error("모델 레지스트리가 일치하지 않습니다. node apps/shared/generate-cs-registry.js를 실행하세요.");
+    process.exit(1);
+  }
+  console.log("모델 레지스트리 동기화 확인 완료");
+} else {
+  fs.writeFileSync(outputPath, cs, "utf8");
+  console.log(`Generated: ${outputPath}`);
+}

@@ -15,7 +15,8 @@ internal record ConversationSearchWsResponse(
     string Query,
     bool Disabled,
     IReadOnlyList<ConversationSearchHit> Results,
-    string? Error
+    string? Error,
+    string? RequestId = null
 );
 
 internal record BackupExportWsResponse(

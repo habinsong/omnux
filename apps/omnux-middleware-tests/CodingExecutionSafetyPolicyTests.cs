@@ -85,5 +85,30 @@ public sealed class CodingExecutionSafetyPolicyTests
     {
         Assert.Equal("run", CodingExecutionSafetyPolicy.NormalizeActionType("shell", null, null, "python3 app.py"));
         Assert.Equal("write_file", CodingExecutionSafetyPolicy.NormalizeActionType("unknown", "src/app.py", "print('ok')", null));
+        Assert.Equal("edit_file", CodingExecutionSafetyPolicy.NormalizeActionType("patch", "src/app.py", null, null));
+    }
+
+    [Fact]
+    public void IsLikelyLongRunningCommandDetectsDevServersAndWatchers()
+    {
+        Assert.True(CodingExecutionSafetyPolicy.IsLikelyLongRunningCommand("npm run dev"));
+        Assert.True(CodingExecutionSafetyPolicy.IsLikelyLongRunningCommand("pnpm start"));
+        Assert.True(CodingExecutionSafetyPolicy.IsLikelyLongRunningCommand("vite"));
+        Assert.True(CodingExecutionSafetyPolicy.IsLikelyLongRunningCommand("next dev"));
+        Assert.True(CodingExecutionSafetyPolicy.IsLikelyLongRunningCommand("uvicorn main:app --reload"));
+        Assert.True(CodingExecutionSafetyPolicy.IsLikelyLongRunningCommand("python3 -m http.server 8000"));
+        Assert.True(CodingExecutionSafetyPolicy.IsLikelyLongRunningCommand("jest --watch"));
+        Assert.True(CodingExecutionSafetyPolicy.IsLikelyLongRunningCommand("tail -f app.log"));
+    }
+
+    [Fact]
+    public void IsLikelyLongRunningCommandAllowsOneShotBuildAndTestCommands()
+    {
+        Assert.False(CodingExecutionSafetyPolicy.IsLikelyLongRunningCommand("python3 app.py"));
+        Assert.False(CodingExecutionSafetyPolicy.IsLikelyLongRunningCommand("npm run build"));
+        Assert.False(CodingExecutionSafetyPolicy.IsLikelyLongRunningCommand("npm test"));
+        Assert.False(CodingExecutionSafetyPolicy.IsLikelyLongRunningCommand("vite build"));
+        Assert.False(CodingExecutionSafetyPolicy.IsLikelyLongRunningCommand("pytest -q"));
+        Assert.False(CodingExecutionSafetyPolicy.IsLikelyLongRunningCommand("go test ./..."));
     }
 }

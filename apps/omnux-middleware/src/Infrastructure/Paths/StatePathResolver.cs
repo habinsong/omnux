@@ -16,6 +16,8 @@ public interface IStatePathResolver
     string GetTaskGraphsIndexPath();
     string GetTaskRuntimeRoot();
     string GetTaskRuntimePath(string graphId, string taskId);
+    string GetTaskAttemptRuntimePath(string graphId, string taskId, string attemptId)
+        => Path.Combine(GetTaskRuntimePath(graphId, taskId), "attempts", attemptId);
     string GetLogicRuntimeRoot();
     string GetLogicRuntimePath(string routineId, string runId);
     string GetNotebooksRoot();
@@ -31,6 +33,7 @@ public interface IStatePathResolver
 
 public sealed class DefaultStatePathResolver : IStatePathResolver
 {
+    public const string CodingProjectPreviewsDirectoryName = "coding-project-previews";
     public string StateRootDir { get; }
     public string WorkspaceRootDir { get; }
     public string DashboardIndexPath { get; }

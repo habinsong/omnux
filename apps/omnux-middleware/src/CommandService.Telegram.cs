@@ -518,7 +518,8 @@ public sealed partial class CommandService
                 snapshot.MultiCodexModel,
                 snapshot.MultiNvidiaModel,
                 normalizedAttachments,
-                cancellationToken
+                cancellationToken,
+                snapshot.MultiGrokModel
             );
             var citationBundle = BuildAndLogCitationMappings(
                 "telegram",

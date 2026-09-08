@@ -26,7 +26,7 @@ public sealed class AcpSessionBindingAdapterTests
         {
             Environment.SetEnvironmentVariable("OMNUX_ACP_ADAPTER_MODE", "staged");
             var conversationStore = new ConversationStore(Path.Combine(stateDir, "conversations.json"));
-            var runtimeSettings = new RuntimeSettings(new AppConfig());
+            var runtimeSettings = new RuntimeSettings(new AppConfig { DashboardAccessStatePath = Path.Combine(stateDir, "dashboard_access.json") });
             var adapter = new AcpSessionBindingAdapter(stateDir, "codex", runtimeSettings);
             var tool = CreateSpawnTool(stateDir, conversationStore, adapter);
 
@@ -112,7 +112,7 @@ public sealed class AcpSessionBindingAdapterTests
             Environment.SetEnvironmentVariable("OMNUX_ACP_ADAPTER_MODE", "command");
             Environment.SetEnvironmentVariable("OMNUX_ACP_ADAPTER_COMMAND", Path.Combine(stateDir, "missing-adapter"));
             var conversationStore = new ConversationStore(Path.Combine(stateDir, "conversations.json"));
-            var runtimeSettings = new RuntimeSettings(new AppConfig());
+            var runtimeSettings = new RuntimeSettings(new AppConfig { DashboardAccessStatePath = Path.Combine(stateDir, "dashboard_access.json") });
             var adapter = new AcpSessionBindingAdapter(stateDir, "codex", runtimeSettings);
             var tool = CreateSpawnTool(stateDir, conversationStore, adapter);
 
@@ -212,7 +212,7 @@ public sealed class AcpSessionBindingAdapterTests
             );
             var diffPreview = new DiffPreviewService(paths, rollbackStore);
             var conversationStore = new ConversationStore(Path.Combine(stateDir, "conversations.json"));
-            var runtimeSettings = new RuntimeSettings(new AppConfig());
+            var runtimeSettings = new RuntimeSettings(new AppConfig { DashboardAccessStatePath = Path.Combine(stateDir, "dashboard_access.json") });
             var adapter = new AcpSessionBindingAdapter(workspace, "codex", runtimeSettings);
             var activeRunStore = new FileAgentSpawnActiveRunStore(Path.Combine(stateDir, "agent_spawn_active.json"));
             var tool = CreateSpawnTool(
@@ -293,7 +293,7 @@ public sealed class AcpSessionBindingAdapterTests
         {
             Environment.SetEnvironmentVariable("OMNUX_ACP_ADAPTER_MODE", "staged");
             var conversationStore = new ConversationStore(Path.Combine(stateDir, "conversations.json"));
-            var runtimeSettings = new RuntimeSettings(new AppConfig());
+            var runtimeSettings = new RuntimeSettings(new AppConfig { DashboardAccessStatePath = Path.Combine(stateDir, "dashboard_access.json") });
             var adapter = new AcpSessionBindingAdapter(stateDir, "codex", runtimeSettings);
             var spawnTool = CreateSpawnTool(stateDir, conversationStore, adapter);
             var service = new ToolApplicationService(
@@ -368,6 +368,7 @@ public sealed class AcpSessionBindingAdapterTests
             adapter,
             admissionLimiter,
             dailyCostLedger,
+            runBreaker: new AgentSpawnRunBreaker(Path.Combine(stateDir, "agent_spawn_breaker.json")),
             activeRunStore: activeRunStore,
             workspaceRollbackPolicy: workspaceRollbackPolicy,
             utcNow: () => DateTimeOffset.Parse("2026-06-02T00:00:00Z")

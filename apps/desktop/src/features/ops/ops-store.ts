@@ -432,6 +432,7 @@ type OpsPageState = {
   loadDoctorLast: () => void;
   runDoctor: () => void;
   previewDoctorFix: () => void;
+  applyDoctorFix: () => Promise<void>;
   loadOpsSnapshot: () => void;
   previewCleanup: () => void;
   applyCleanupPreview: () => Promise<void>;
@@ -1630,6 +1631,27 @@ export const useOpsPageStore = create<OpsPageState>((set) => ({
     set((state) => ({ doctor: { ...state.doctor, fixPreviewing: true, fixResult: null, lastError: null } }));
     if (!requestDesktopOps.doctorFixPreview()) {
       useOpsPageStore.getState().markDoctorError("Doctor fix preview 요청을 전송하지 못했다.");
+    }
+  },
+  applyDoctorFix: async () => {
+    const fixResult = useOpsPageStore.getState().doctor.fixResult;
+    const previewId = fixResult?.previewId?.trim();
+    if (!fixResult || fixResult.action !== "preview" || !previewId) return;
+    const autoActions = fixResult.actions.filter((action) => action.autoApply);
+    if (autoActions.length === 0) return;
+    const permission = await requestPermissionDialog({
+      title: "Doctor 진단 수정 적용",
+      message: `자동 적용 가능한 ${autoActions.length}개 항목(상태 디렉터리 생성)을 적용합니다. 삭제는 수행하지 않습니다. previewId와 항목을 확인했을 때만 진행하세요.`,
+      permissionAction: "write",
+      actionLabel: "doctor_fix_apply",
+      files: autoActions.map((action) => `${action.target || action.actionId} · ${action.kind}`),
+      approvalToken: previewId,
+      confirmLabel: "한 번 허용"
+    });
+    if (!permission) return;
+    set((state) => ({ doctor: { ...state.doctor, fixApplying: true, lastError: null } }));
+    if (!requestDesktopOps.doctorFixApply(previewId)) {
+      useOpsPageStore.getState().markDoctorError("Doctor fix apply 요청을 전송하지 못했다.");
     }
   },
   loadOpsSnapshot: () => {

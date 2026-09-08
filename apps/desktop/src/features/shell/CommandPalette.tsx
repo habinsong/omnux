@@ -4,7 +4,8 @@ import { Bot, Code2, FileText, FolderGit2, Keyboard, KeyRound, MessageSquare, Mo
 import { Badge, Button, IconButton, Input, cn } from "../../components/ui/primitives";
 import { ASK_PROVIDER_OPTIONS, useAskStore, type AskModelProvider, type AskProvider } from "../ask/ask-store";
 import { modelOptionsForProvider } from "../ask/ask-models";
-import { BUILD_PROVIDER_OPTIONS, modelOptionsForBuildProvider, useBuildStore, type BuildModelProvider, type BuildProvider } from "../build/build-store";
+import { providers as BUILD_PROVIDER_OPTIONS, modelOptions as modelOptionsForBuildProvider, type ModelProvider as BuildModelProvider, type BuildProvider } from "../build-workspace/build-model";
+import { useBuildWorkspace } from "../build-workspace/build-state";
 import type { DesktopPageDefinition, DesktopPageId } from "./DesktopNavigation";
 import { useDesktopNavigationStore, type DesktopRoutePayload } from "./navigation-store";
 import { useDesktopPreferenceStore, type DetailLevel, type ThemeMode } from "./preference-store";
@@ -282,8 +283,8 @@ function buildProviderActions(navigate: (page: DesktopPageId, payload?: DesktopR
     icon: Code2,
     page: "build",
     run: () => {
-      useBuildStore.getState().setProvider(provider.value as BuildProvider);
-      useBuildStore.getState().setSidePanel("models");
+      useBuildWorkspace.getState().patchSettings({ provider: provider.value as BuildProvider });
+      useBuildWorkspace.setState({ settingsOpen: true });
       navigate("build", null);
     },
     keywords: ["build", "code", "provider", "model", "모델", "제공자", provider.value, provider.label]
@@ -294,7 +295,7 @@ function buildProviderActions(navigate: (page: DesktopPageId, payload?: DesktopR
 function buildModelActions(
   navigate: (page: DesktopPageId, payload?: DesktopRoutePayload | null) => void,
   askCatalogs: Record<AskModelProvider, string[]>,
-  buildCatalogs: Record<BuildModelProvider, string[]>
+  buildCatalogs: Partial<Record<BuildModelProvider, string[]>>
 ): PaletteAction[] {
   const askActions: PaletteAction[] = ASK_PROVIDER_OPTIONS.flatMap((providerOption) => {
     if (providerOption.value === "auto") return [];
@@ -328,10 +329,9 @@ function buildModelActions(
       icon: Code2,
       page: "build",
       run: () => {
-        const store = useBuildStore.getState();
-        store.setProvider(provider);
-        store.setSelectedModel(provider, model);
-        store.setSidePanel("models");
+        const store = useBuildWorkspace.getState();
+        store.patchSettings({ provider, models: { ...store.settings.models, [provider]: model } });
+        useBuildWorkspace.setState({ settingsOpen: true });
         navigate("build", null);
       },
       keywords: ["build", "code", "model", "provider", "모델", "제공자", provider, providerOption.label, model]
@@ -346,7 +346,7 @@ export function CommandPalette({ open, pages, onClose }: CommandPaletteProps) {
   const setTheme = useDesktopPreferenceStore((state) => state.setTheme);
   const setDetailLevel = useDesktopPreferenceStore((state) => state.setDetailLevel);
   const askModelCatalogs = useAskStore((state) => state.modelCatalogs);
-  const buildModelCatalogs = useBuildStore((state) => state.modelCatalogs);
+  const buildModelCatalogs = useBuildWorkspace((state) => state.catalogs);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);

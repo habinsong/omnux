@@ -11,6 +11,11 @@ registerDesktopPublicRequestTypes(
   "set_copilot_model",
   "get_copilot_status",
   "get_codex_status",
+  "get_grok_status",
+  "get_grok_models",
+  "start_grok_login",
+  "cancel_grok_login",
+  "logout_grok",
   "get_usage_stats",
   "set_llm_credentials",
   "delete_llm_credentials",
@@ -28,6 +33,12 @@ export interface LlmCredentialInput {
 }
 
 export const requestDesktopLlm = {
+  cerebrasModels() { return sendDesktopRequest({ type: "get_cerebras_models" }); },
+  grokModels() { return sendDesktopRequest({ type: "get_grok_models" }); },
+  grokStatus() { return sendDesktopRequest({ type: "get_grok_status" }); },
+  startGrokLogin() { return sendDesktopRequest({ type: "start_grok_login" }); },
+  cancelGrokLogin() { return sendDesktopRequest({ type: "cancel_grok_login" }); },
+  logoutGrok() { return sendDesktopRequest({ type: "logout_grok" }); },
   groqModels() {
     return sendDesktopRequest({ type: "get_groq_models" });
   },

@@ -24,7 +24,6 @@ internal sealed class TelegramCodingSettingsApplicationService : ITelegramCoding
 {
     private const string DefaultCerebrasModel = "gpt-oss-120b";
     private const string LegacyCerebrasLlamaModel = "llama3.1-8b";
-    private const string DefaultCopilotModel = "gpt-5-mini";
 
     private readonly LlmPreferenceContext _preferenceContext;
 
@@ -119,17 +118,6 @@ internal sealed class TelegramCodingSettingsApplicationService : ITelegramCoding
 
         lock (_preferenceContext.TelegramCodingLock)
         {
-            var targetProvider = normalizedMode switch
-            {
-                "single" => _preferenceContext.TelegramCodingPreferences.SingleProvider,
-                "orchestration" => _preferenceContext.TelegramCodingPreferences.OrchestrationProvider,
-                _ => _preferenceContext.TelegramCodingPreferences.MultiProvider
-            };
-            if (ProviderModelSelectionPolicy.IsPinnedCopilotProvider(targetProvider))
-            {
-                normalizedModel = DefaultCopilotModel;
-            }
-
             if (normalizedMode == "single")
             {
                 _preferenceContext.TelegramCodingPreferences.SingleModel = normalizedModel;
@@ -158,13 +146,7 @@ internal sealed class TelegramCodingSettingsApplicationService : ITelegramCoding
             || normalizedProvider == null
             || string.IsNullOrWhiteSpace(normalizedModel))
         {
-            return "사용법: /coding <orchestration|multi> worker <groq|gemini|copilot|cerebras|codex> <model-id|none>";
-        }
-
-        if (ProviderModelSelectionPolicy.IsPinnedCopilotProvider(normalizedProvider)
-            && !string.Equals(normalizedModel, "none", StringComparison.OrdinalIgnoreCase))
-        {
-            normalizedModel = DefaultCopilotModel;
+            return "사용법: /coding <orchestration|multi> worker <groq|gemini|copilot|cerebras|codex|grok> <model-id|none>";
         }
 
         lock (_preferenceContext.TelegramCodingLock)
@@ -212,6 +194,9 @@ internal sealed class TelegramCodingSettingsApplicationService : ITelegramCoding
             case "codex":
                 _preferenceContext.TelegramCodingPreferences.OrchestrationCodexModel = model;
                 break;
+            case "grok":
+                _preferenceContext.TelegramCodingPreferences.OrchestrationGrokModel = model;
+                break;
         }
     }
 
@@ -236,6 +221,9 @@ internal sealed class TelegramCodingSettingsApplicationService : ITelegramCoding
                 break;
             case "codex":
                 _preferenceContext.TelegramCodingPreferences.MultiCodexModel = model;
+                break;
+            case "grok":
+                _preferenceContext.TelegramCodingPreferences.MultiGrokModel = model;
                 break;
         }
     }
@@ -263,7 +251,7 @@ internal sealed class TelegramCodingSettingsApplicationService : ITelegramCoding
             normalized = "nvidia";
         }
 
-        return normalized is "groq" or "gemini" or "copilot" or "cerebras" or "nvidia" or "codex"
+        return normalized is "groq" or "gemini" or "copilot" or "cerebras" or "nvidia" or "codex" or "grok"
             ? normalized
             : null;
     }
@@ -313,6 +301,7 @@ internal sealed class TelegramCodingSettingsApplicationService : ITelegramCoding
             "cerebras" => "Cerebras",
             "nvidia" => "NVIDIA NIM",
             "codex" => "Codex",
+            "grok" => "Grok",
             "auto" => "자동 선택",
             _ => "Groq"
         };

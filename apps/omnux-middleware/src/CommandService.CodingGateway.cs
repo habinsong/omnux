@@ -78,6 +78,11 @@ public sealed partial class CommandService
         return Owner.TryBuildMultiSkillRejectionResponse(rawInput);
     }
 
+    Task<string?> ICodingCommandGateway.BuildCodingRetrievalBlockAsync(string objective, CancellationToken cancellationToken)
+    {
+        return Owner.BuildCodingRetrievalBlockAsync(objective, cancellationToken);
+    }
+
     SessionContext ICodingCommandGateway.PrepareSessionContext(
         string scope,
         string mode,

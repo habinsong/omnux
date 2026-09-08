@@ -3,10 +3,10 @@ import { cn } from "../../components/ui/primitives";
 import { useDesktopToastStore, type DesktopToastTone } from "./toast-store";
 
 function toastToneClass(tone: DesktopToastTone) {
-  if (tone === "success") return "border-success/30 bg-success/10 text-success";
-  if (tone === "warning") return "border-warning/30 bg-warning/10 text-warning";
-  if (tone === "error") return "border-destructive/30 bg-destructive/10 text-destructive";
-  return "border-primary/25 bg-primary/10 text-primary";
+  if (tone === "success") return "text-success";
+  if (tone === "warning") return "text-warning";
+  if (tone === "error") return "text-destructive";
+  return "text-muted-foreground";
 }
 
 function ToastIcon({ tone }: { tone: DesktopToastTone }) {
@@ -21,17 +21,14 @@ export function DesktopToastHost() {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="pointer-events-none fixed bottom-5 left-1/2 z-[60] flex w-[min(420px,calc(100vw-32px))] -translate-x-1/2 flex-col gap-2" aria-live="polite" aria-atomic="false">
-      {toasts.map((toast) => (
+    <div className="pointer-events-none fixed bottom-4 right-4 z-[60] w-[min(420px,calc(100vw-32px))]" aria-label="최근 알림" aria-live="polite" aria-atomic="false">
+      {toasts.slice(0, 1).map((toast) => (
         <div
           key={toast.id}
-          className={cn(
-            "pointer-events-auto flex min-w-0 items-start gap-2 rounded-lg border bg-popover/95 px-3 py-2.5 text-popover-foreground shadow-xl shadow-black/10 backdrop-blur-xl",
-            toastToneClass(toast.tone)
-          )}
+          className="pointer-events-auto flex min-w-0 items-start gap-3 rounded-xl border border-border bg-popover px-4 py-3 text-popover-foreground"
           role={toast.tone === "error" ? "alert" : "status"}
         >
-          <span className="mt-0.5 shrink-0">
+          <span className={cn("mt-0.5 shrink-0", toastToneClass(toast.tone))}>
             <ToastIcon tone={toast.tone} />
           </span>
           <span className="min-w-0 flex-1">

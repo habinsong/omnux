@@ -74,36 +74,19 @@ public sealed class SessionSendTool
             messageTruncated = true;
         }
 
-        var updated = _conversationStore.AppendMessage(
+        _conversationStore.AppendMessage(
             normalizedSessionKey,
             "user",
             normalizedMessage,
             "sessions_send"
         );
-        if (resolvedTimeoutSeconds == 0)
-        {
-            return new SessionSendToolResult(
-                normalizedSessionKey,
-                "accepted",
-                null,
-                runId,
-                null,
-                resolvedTimeoutSeconds,
-                messageTruncated
-            );
-        }
-
-        var reply = updated.Messages
-            .Where(x => x.Role.Equals("assistant", StringComparison.OrdinalIgnoreCase))
-            .Select(x => (x.Text ?? string.Empty).Trim())
-            .LastOrDefault(x => !string.IsNullOrWhiteSpace(x));
-
+        // 이 도구는 메시지를 저장한다. 새 추론을 실행하지 않았으므로 이전 답변을 재사용하지 않는다.
         return new SessionSendToolResult(
             normalizedSessionKey,
-            "ok",
+            "accepted",
             null,
             runId,
-            reply,
+            null,
             resolvedTimeoutSeconds,
             messageTruncated
         );

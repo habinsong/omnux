@@ -7,6 +7,7 @@ public sealed class GroqModelCatalog : IDisposable
 {
     private static readonly Dictionary<string, GroqModelSpec> StaticSpecs = new(StringComparer.OrdinalIgnoreCase)
     {
+        ["qwen/qwen3.8-27b"] = new("Preview", "450", "250K TPM / 1K RPM", "1K", "-", "250K", "-", "-", "-", "131042", "16384", "20 MB", "$0.80", "$4.00"),
         ["llama-3.1-8b-instant"] = new("Production", "560", "250K TPM / 1K RPM", "1K", "14.4K", "250K", "18M", "-", "-", "131072", "131072", "-", "$0.05", "$0.08"),
         ["llama-3.3-70b-versatile"] = new("Production", "280", "300K TPM / 1K RPM", "1K", "14.4K", "300K", "1M", "-", "-", "131072", "32768", "-", "$0.59", "$0.79"),
         ["openai/gpt-oss-120b"] = new("Production", "500", "250K TPM / 1K RPM", "1K", "14.4K", "250K", "1M", "-", "-", "131072", "65536", "-", "$0.15", "$0.60"),

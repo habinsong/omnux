@@ -120,6 +120,14 @@ public sealed partial class CommandService
             return CompleteTokenUsage("copilot", selected, input, response);
         }
 
+        if (normalized == "grok")
+        {
+            var selected = NormalizeModelSelection(model) ?? _providers.GrokModel;
+            var response = await _llmRouter.GenerateGrokChatAsync(input, selected, cancellationToken);
+            streamCallback?.Invoke(response);
+            return CompleteTokenUsage("grok", selected, input, response);
+        }
+
         if (normalized == "codex")
         {
             var selected = NormalizeModelSelection(model) ?? _providers.CodexModel;
@@ -303,6 +311,10 @@ public sealed partial class CommandService
                 }
 
                 return lastResult;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -490,6 +502,7 @@ public sealed partial class CommandService
             "nvidia" => _providers.NvidiaModel,
             "copilot" => DefaultCopilotModel,
             "codex" => _providers.CodexModel,
+            "grok" => _providers.GrokModel,
             _ => _providers.GeminiModel
         };
     }
@@ -659,7 +672,7 @@ public sealed partial class CommandService
             value = "nvidia";
         }
 
-        if (value == "gemini" || value == "groq" || value == "cerebras" || value == "nvidia" || value == "copilot" || value == "codex")
+        if (value == "gemini" || value == "groq" || value == "cerebras" || value == "nvidia" || value == "copilot" || value == "codex" || value == "grok")
         {
             return value;
         }
@@ -752,7 +765,8 @@ public sealed partial class CommandService
         string? cerebrasModel,
         string? copilotModel,
         string? codexModel,
-        string? nvidiaModel = null
+        string? nvidiaModel = null,
+        string? grokModel = "none"
     )
     {
         return new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
@@ -762,7 +776,8 @@ public sealed partial class CommandService
             ["cerebras"] = cerebrasModel,
             ["nvidia"] = nvidiaModel,
             ["copilot"] = copilotModel,
-            ["codex"] = codexModel
+            ["codex"] = codexModel,
+            ["grok"] = grokModel
         };
     }
 

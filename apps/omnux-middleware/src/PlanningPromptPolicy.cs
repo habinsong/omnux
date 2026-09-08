@@ -7,7 +7,7 @@ internal static class PlanningPromptPolicy
     private static readonly string[] DefaultProviderChain = new[] { "gemini", "groq", "nvidia", "cerebras" };
     private static readonly HashSet<string> AllowedProviders = new(StringComparer.OrdinalIgnoreCase)
     {
-        "gemini", "groq", "nvidia", "cerebras"
+        "gemini", "groq", "nvidia", "cerebras", "grok"
     };
 
     public static IReadOnlyList<string> NormalizeProviderChain(IReadOnlyList<string>? providerChain)

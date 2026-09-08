@@ -815,7 +815,7 @@ public sealed class ConversationApplicationService : IConversationApplicationSer
         try
         {
             var schema = new MemoryIndexSchemaBootstrap(_paths).EnsureInitialized();
-            _ = new MemoryIndexDocumentSync(_paths, schema).SyncOnce();
+            _ = new MemoryIndexDocumentSync(_paths, schema).SyncConversations();
         }
         catch (Exception ex)
         {

@@ -11,7 +11,9 @@ internal record GuardedErrorWsResponse(
     bool RetryRequired,
     string RetryAction,
     string RetryScope,
-    string RetryReason
+    string RetryReason,
+    string? RequestId = null,
+    string? RequestType = null
 );
 
 internal record ChatResultWsResponse(
@@ -88,7 +90,9 @@ internal record CodingResultWsResponse(
     string CommonPoints,
     string Differences,
     string Recommendation,
-    CodingEvidencePack? Evidence
+    CodingEvidencePack? Evidence,
+    string RetrievalLabel = "",
+    string? RequestId = null
 );
 
 internal record CodingExecutionResultWsResponse(
@@ -103,7 +107,8 @@ internal record CodingExecutionResultWsResponse(
     string PreviewUrl,
     string PreviewEntry,
     CodeExecutionResult? Execution,
-    CodingEvidencePack? Evidence
+    CodingEvidencePack? Evidence,
+    string? RequestId = null
 );
 
 internal record CodingProgressWsResponse(
@@ -122,7 +127,9 @@ internal record CodingProgressWsResponse(
     string StageTitle,
     string StageDetail,
     int StageIndex,
-    int StageTotal
+    int StageTotal,
+    string? RequestId = null,
+    string? ConversationId = null
 );
 
 internal record ChatMultiResultWsResponse(
@@ -157,7 +164,10 @@ internal record ChatMultiResultWsResponse(
     bool RetryRequired,
     string RetryAction,
     string RetryScope,
-    string RetryReason
+    string RetryReason,
+    string Grok = "",
+    string GrokModel = "",
+    string? RequestId = null
 );
 
 [JsonSourceGenerationOptions(

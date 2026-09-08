@@ -80,7 +80,7 @@ public sealed class TaskGraphService
             }
 
             var normalized = NormalizeSnapshot(snapshot);
-            _store.SaveSnapshot(normalized);
+            if (!ReferenceEquals(snapshot, normalized)) _store.SaveSnapshot(normalized);
             return normalized;
         }
     }
@@ -109,7 +109,7 @@ public sealed class TaskGraphService
                     Status = TaskGraphStatus.Running,
                     Nodes = resetNodes
                 },
-                Array.Empty<TaskExecutionRecord>()
+                snapshot.Executions
             ));
             _store.SaveSnapshot(prepared);
             return prepared;
@@ -123,11 +123,13 @@ public sealed class TaskGraphService
         {
             var snapshot = RequireSnapshot(normalizedGraphId);
             var nodes = snapshot.Graph.Nodes
-                .Select(node => node.Status == TaskNodeStatus.Running
+                .Select(node => node.Status != TaskNodeStatus.Completed
                     ? node with
                     {
                         Status = TaskNodeStatus.Pending,
                         Error = null,
+                        OutputSummary = null,
+                        ArtifactPath = null,
                         StartedAtUtc = null,
                         CompletedAtUtc = null
                     }
@@ -154,7 +156,7 @@ public sealed class TaskGraphService
         {
             var snapshot = RequireSnapshot(normalizedGraphId);
             var normalized = NormalizeSnapshot(snapshot);
-            _store.SaveSnapshot(normalized);
+            if (!ReferenceEquals(snapshot, normalized)) _store.SaveSnapshot(normalized);
             return normalized;
         }
     }
@@ -302,6 +304,11 @@ public sealed class TaskGraphService
             {
                 return new TaskGraphActionResult(false, "실행 중인 작업은 재시도할 수 없습니다.", snapshot);
             }
+            if (snapshot.Graph.Nodes.Any(node => target.DependsOn.Contains(node.TaskId)
+                && node.Status is TaskNodeStatus.Failed or TaskNodeStatus.Canceled))
+            {
+                return new TaskGraphActionResult(false, "실패하거나 취소된 선행 작업을 먼저 재시도해 주세요.", snapshot);
+            }
 
             nodes[targetIndex] = target with
             {
@@ -340,9 +347,9 @@ public sealed class TaskGraphService
                     continue;
                 }
 
-                if (nodes[i].Status == TaskNodeStatus.Completed || nodes[i].Status == TaskNodeStatus.Running)
+                if (nodes[i].Status == TaskNodeStatus.Running)
                 {
-                    continue;
+                    return new TaskGraphActionResult(false, "후속 작업이 실행 중이라 재시도할 수 없습니다. 먼저 중단해 주세요.", snapshot);
                 }
 
                 nodes[i] = nodes[i] with
@@ -363,14 +370,14 @@ public sealed class TaskGraphService
                     UpdatedAtUtc = DateTimeOffset.UtcNow,
                     Nodes = nodes
                 },
-                snapshot.Executions.Where(item => !affected.Contains(item.TaskId)).ToArray()
+                snapshot.Executions
             ));
             _store.SaveSnapshot(updated);
             return new TaskGraphActionResult(true, "실패한 작업을 재시도 대기 상태로 전환했습니다.", updated);
         }
     }
 
-    public TaskOutputResult? GetTaskOutput(string graphId, string taskId)
+    public TaskOutputResult? GetTaskOutput(string graphId, string taskId, long? attemptTimestamp = null)
     {
         var normalizedGraphId = NormalizeId(graphId);
         var normalizedTaskId = NormalizeId(taskId);
@@ -388,8 +395,11 @@ public sealed class TaskGraphService
             }
 
             var execution = snapshot.Executions
+                .OrderByDescending(item => item.StartedAtUtc)
                 .FirstOrDefault(item =>
-                    item.TaskId.Equals(normalizedTaskId, StringComparison.Ordinal));
+                    item.TaskId.Equals(normalizedTaskId, StringComparison.Ordinal)
+                    && (!attemptTimestamp.HasValue || item.StartedAtUtc.ToUnixTimeMilliseconds() == attemptTimestamp.Value));
+            if (attemptTimestamp.HasValue && execution == null) return null;
             return _store.LoadOutput(normalizedGraphId, normalizedTaskId, execution);
         }
     }

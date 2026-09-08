@@ -14,6 +14,7 @@ export {
   DEFAULT_NVIDIA_MODEL,
   DEFAULT_COPILOT_MODEL,
   DEFAULT_CODEX_MODEL,
+  DEFAULT_GROK_MODEL,
   STATIC_MODEL_OPTIONS,
   mergeModelOptions,
   modelOptionsForProvider,

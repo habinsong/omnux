@@ -31,6 +31,7 @@ internal static class ProviderTimeoutPolicy
             "gemini" => Math.Max(90, context.LlmTimeoutSec * 3),
             "copilot" => Math.Max(120, context.LlmTimeoutSec * 3),
             "codex" => Math.Max(120, context.LlmTimeoutSec * 3),
+            "grok" => Math.Max(120, context.LlmTimeoutSec * 3),
             "cerebras" => Math.Max(120, providers.CerebrasTimeoutSec * 3),
             "nvidia" => Math.Max(360, providers.NvidiaTimeoutSec * 2),
             _ => Math.Max(8, context.LlmTimeoutSec)

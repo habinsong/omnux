@@ -172,6 +172,11 @@ public sealed partial class WebSocketGateway
             return;
         }
 
+        if (path.StartsWith("/api/coding-preview/", StringComparison.OrdinalIgnoreCase))
+        {
+            ApplyHealthEndpointCorsHeaders(context.Request, context.Response);
+        }
+
         if (await _apiEndpoint.TryHandleAsync(context, path, cancellationToken))
         {
             return;

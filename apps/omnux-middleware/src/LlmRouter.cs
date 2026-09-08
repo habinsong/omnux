@@ -43,6 +43,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
     private readonly NvidiaStatusPollingAdapter _nvidiaStatusPollingAdapter;
     private readonly CerebrasModelCatalog _cerebrasModelCatalog;
     private readonly bool _ownsCerebrasModelCatalog;
+    private readonly bool _ownsGrokClient;
+    public GrokCliClient GrokClient { get; }
     private readonly IProviderChatAdapter _openAiCompatibleChatAdapter;
     private readonly IProviderStreamingChatAdapter _openAiCompatibleStreamingChatAdapter;
     private readonly IGeminiGenerateContentAdapter _geminiGenerateContentAdapter;
@@ -61,12 +63,15 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         PathOptions paths,
         ContextOptions context,
         RuntimeSettings runtimeSettings,
-        CerebrasModelCatalog? cerebrasModelCatalog = null)
+        CerebrasModelCatalog? cerebrasModelCatalog = null,
+        GrokCliClient? grokClient = null)
     {
         _providers = providers;
         _paths = paths;
         _context = context;
         _runtimeSettings = runtimeSettings;
+        GrokClient = grokClient ?? new GrokCliClient(providers.GrokBinary);
+        _ownsGrokClient = grokClient == null;
         _selectedGroqModel = _providers.GroqModel;
         _usageStatePath = _paths.LlmUsageStatePath;
         _httpClient = new HttpClient
@@ -355,13 +360,26 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         }
     }
 
-    public string ResolvePlanningRoute(string role, IReadOnlyList<string>? providerChain = null)
+    public async Task<string> ResolvePlanningRouteAsync(string role, IReadOnlyList<string>? providerChain, CancellationToken cancellationToken)
+    {
+        foreach (var provider in PlanningPromptPolicy.NormalizeProviderChain(providerChain))
+        {
+            var grokAvailable = provider == "grok" && (await GrokClient.GetStatusAsync(cancellationToken)).Authenticated;
+            var route = ResolvePlanningRoute(role, new[] { provider }, grokAvailable);
+            if (!route.EndsWith(":fallback", StringComparison.Ordinal)) return route;
+        }
+        return string.Equals(role, "reviewer", StringComparison.OrdinalIgnoreCase) ? "reviewer:fallback" : "planner:fallback";
+    }
+
+    public string ResolvePlanningRoute(string role, IReadOnlyList<string>? providerChain = null, bool grokAvailable = false)
     {
         var normalizedRole = (role ?? string.Empty).Trim().ToLowerInvariant();
         var routeRole = normalizedRole == "reviewer" ? "reviewer" : "planner";
 
         foreach (var provider in PlanningPromptPolicy.NormalizeProviderChain(providerChain))
         {
+            if (provider == "grok" && grokAvailable) return $"{routeRole}:grok:{_providers.GrokModel}";
+
             if (provider == "gemini" && HasGeminiApiKey())
             {
                 return $"{routeRole}:gemini:{_providers.GeminiModel}";
@@ -398,6 +416,11 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         var prompt = PlanningPromptPolicy.BuildPlanningPrompt(objective, constraints, systemContext, mode);
         foreach (var provider in PlanningPromptPolicy.NormalizeProviderChain(providerChain))
         {
+            if (provider == "grok" && (await GrokClient.GetStatusAsync(cancellationToken)).Authenticated)
+            {
+                return await GenerateGrokChatAsync(prompt, _providers.GrokModel, cancellationToken);
+            }
+
             if (provider == "gemini" && HasGeminiApiKey())
             {
                 return await GenerateGeminiChatAsync(prompt, _providers.GeminiModel, 1024, cancellationToken);
@@ -432,6 +455,11 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         var prompt = PlanningPromptPolicy.BuildPlanReviewPrompt(plan, systemContext);
         foreach (var provider in PlanningPromptPolicy.NormalizeProviderChain(providerChain))
         {
+            if (provider == "grok" && (await GrokClient.GetStatusAsync(cancellationToken)).Authenticated)
+            {
+                return await GenerateGrokChatAsync(prompt, _providers.GrokModel, cancellationToken);
+            }
+
             if (provider == "gemini" && HasGeminiApiKey())
             {
                 return await GenerateGeminiChatAsync(prompt, _providers.GeminiModel, 768, cancellationToken);
@@ -1904,8 +1932,12 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                || name.EndsWith(".gif", StringComparison.Ordinal);
     }
 
+    public Task<string> GenerateGrokChatAsync(string input, string? model, CancellationToken cancellationToken)
+        => GrokClient.GenerateTextAsync(input, string.IsNullOrWhiteSpace(model) ? _providers.GrokModel : model, cancellationToken);
+
     public void Dispose()
     {
+        if (_ownsGrokClient) GrokClient.Dispose();
         _httpClient.Dispose();
         if (_ownsCerebrasModelCatalog)
         {

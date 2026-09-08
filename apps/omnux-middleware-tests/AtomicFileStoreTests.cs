@@ -45,6 +45,7 @@ public sealed class AtomicFileStoreTests
 
         Assert.Equal("{\"ok\":true}", restored);
         Assert.Equal("{\"ok\":true}", File.ReadAllText(path));
+        Assert.Equal("{\"ok\":true}", File.ReadAllText(path + ".bak"));
     }
 
     private static string CreateTempDirectory()
@@ -52,5 +53,29 @@ public sealed class AtomicFileStoreTests
         var path = Path.Combine(Path.GetTempPath(), "omnux-tests", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(path);
         return path;
+    }
+
+    [Fact]
+    public void RecoveryKeepsAValidPrimaryWrittenAfterTheInitialRead()
+    {
+        var dir = CreateTempDirectory();
+        var path = Path.Combine(dir, "state.json");
+        File.WriteAllText(path, "{broken");
+        File.WriteAllText(path + ".bak", "{\"version\":1}");
+        var firstValidation = true;
+        var restored = AtomicFileStore.ReadAllTextWithBackup(path, value =>
+        {
+            if (firstValidation)
+            {
+                firstValidation = false;
+                File.WriteAllText(path, "{\"version\":2}");
+                return false;
+            }
+            try { using var _ = JsonDocument.Parse(value); return true; }
+            catch (JsonException) { return false; }
+        });
+        Assert.Equal("{\"version\":2}", restored);
+        Assert.Equal("{\"version\":2}", File.ReadAllText(path));
+        Assert.Equal("{\"version\":1}", File.ReadAllText(path + ".bak"));
     }
 }

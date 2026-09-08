@@ -52,7 +52,7 @@ public sealed class PlanService
         var createdAtUtc = DateTimeOffset.UtcNow;
         var planId = $"plan_{createdAtUtc:yyyyMMddHHmmssfff}";
         var plannerChain = _routingPolicyResolver.ResolveProviderChain(TaskCategory.Planner);
-        var plannerRoute = _llmRouter.ResolvePlanningRoute("planner", plannerChain);
+        var plannerRoute = await _llmRouter.ResolvePlanningRouteAsync("planner", plannerChain, cancellationToken);
         var plannerContext = BuildPlannerContext(sourceConversationId);
         var draft = await _llmRouter.BuildWorkPlanDraftAsync(
             normalizedObjective,

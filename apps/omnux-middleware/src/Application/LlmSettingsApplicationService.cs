@@ -319,6 +319,7 @@ internal sealed class LlmSettingsApplicationService : ILlmSettingsApplicationSer
                     "cerebras" => _providers.CerebrasModel,
                     "nvidia" => _providers.NvidiaModel,
                     "codex" => _providers.CodexModel,
+            "grok" => _providers.GrokModel,
                     _ => _providers.GeminiModel
                 };
                 preferences.AutoGroqComplexUpgrade = false;
@@ -408,7 +409,13 @@ internal sealed class LlmSettingsApplicationService : ILlmSettingsApplicationSer
             return $"웹 다중 Codex 모델을 {model}로 바꿨습니다.";
         }
 
-        return "지원 슬롯은 single, orchestration, multi.groq, multi.gemini, multi.copilot, multi.cerebras, multi.nvidia, multi.codex 입니다.";
+        if (slot == "multi.grok")
+        {
+            preferences.MultiGrokModel = model;
+            return $"웹 다중 Grok 모델을 {model}로 바꿨습니다.";
+        }
+
+        return "지원 슬롯은 single, orchestration, multi.groq, multi.gemini, multi.copilot, multi.cerebras, multi.nvidia, multi.codex, multi.grok 입니다.";
     }
 
     private string BuildModelStatusText(
@@ -473,6 +480,7 @@ internal sealed class LlmSettingsApplicationService : ILlmSettingsApplicationSer
             "nvidia" => _providers.NvidiaModel,
             "copilot" => DefaultCopilotModel,
             "codex" => _providers.CodexModel,
+            "grok" => _providers.GrokModel,
             _ => _getSelectedGroqModel()
         };
     }
@@ -498,6 +506,7 @@ internal sealed class LlmSettingsApplicationService : ILlmSettingsApplicationSer
             "cerebras" => "Cerebras",
             "nvidia" => "NVIDIA NIM",
             "codex" => "Codex",
+            "grok" => "Grok",
             "auto" => "자동 선택",
             _ => "Groq"
         };
@@ -511,7 +520,7 @@ internal sealed class LlmSettingsApplicationService : ILlmSettingsApplicationSer
             value = "nvidia";
         }
 
-        if (value == "gemini" || value == "groq" || value == "cerebras" || value == "nvidia" || value == "copilot" || value == "codex")
+        if (value == "gemini" || value == "groq" || value == "cerebras" || value == "nvidia" || value == "copilot" || value == "codex" || value == "grok")
         {
             return value;
         }

@@ -4,7 +4,7 @@ import { CardBoundary } from "../../CardBoundary";
 import { Button } from "../../components/ui/primitives";
 import { useDesktopShellStore } from "../../shell-store";
 import { useDesktopAuthStore } from "../auth/auth-store";
-import { useBuildStore } from "../build/build-store";
+import { useBuildWorkspace } from "../build-workspace/build-state";
 import { useUiLogStore } from "../ui-log/ui-log-store";
 import {
   CodeRepomapPanel,
@@ -26,8 +26,8 @@ export function InsightsPage() {
   const bridgeStatus = useDesktopShellStore((state) => state.bridge.status);
   const authStatus = useDesktopAuthStore((state) => state.auth.status);
   const recordCardError = useUiLogStore((state) => state.recordCardError);
-  const buildResult = useBuildStore((state) => state.currentResult);
-  const buildRuntime = useBuildStore((state) => state.runtime);
+  const buildResult = useBuildWorkspace((state) => state.currentResult);
+  const buildRuntime = useBuildWorkspace((state) => state.runtime);
   const store = useInsightsStore();
   const canRequest = bridgeStatus === "connected" && authStatus === "authenticated";
 

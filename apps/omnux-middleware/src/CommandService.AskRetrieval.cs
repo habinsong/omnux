@@ -75,6 +75,59 @@ public sealed partial class CommandService
     /// 로컬 SQLite FTS 라 보통 수십 ms 지만, 어떤 실패/지연도 답변을 막지 않도록
     /// 타임박스(1.2s) 초과·오류 시 빈 결과로 통과시킨다(현행 동작과 동일).
     /// </summary>
+    private const string CodingAutoRetrievalDisableEnvName = "OMNUX_CODING_AUTO_RETRIEVAL";
+
+    /// <summary>
+    /// 코딩(Build) 루프용 자동 컨텍스트 검색 — objective 를 쿼리로 공유 메모리/노트/코드 인덱스를
+    /// 검색해 [참조 자료] 블록을 만든다. Ask 자동검색 실행기(TryBuildAutoRetrievalBlockAsync)를
+    /// 그대로 재사용하되 대화 이력·노트북은 제외(코딩엔 노이즈)하고, 구조형 자기참조 질문이면
+    /// 프로젝트 개요만 합류한다. OMNUX_CODING_AUTO_RETRIEVAL=0/false/off/no 로 비활성.
+    /// 결과가 없거나 예외/타임아웃이면 null 을 돌려 루프가 평소대로 동작한다.
+    /// </summary>
+    internal async Task<string?> BuildCodingRetrievalBlockAsync(string objective, CancellationToken cancellationToken)
+    {
+        var rawInput = objective ?? string.Empty;
+        if (AskAutoRetrievalPolicy.IsDisabledValue(Environment.GetEnvironmentVariable(CodingAutoRetrievalDisableEnvName)))
+        {
+            return null;
+        }
+
+        if (!AskAutoRetrievalPolicy.ShouldAttempt(rawInput))
+        {
+            return null;
+        }
+
+        // preflight 정책을 같이 평가해 advisory(UI에 뜨던 추천)와 실제 실행이 같은 신호를
+        // 공유하게 한다. 코딩 objective 는 명시적 코드 키워드가 없어도 메모리/코드 회수가
+        // 유효하므로 ShouldAttempt 를 기본 게이트로 쓰고, preflight 는 차원 선택(대화검색)과
+        // 관측 로그에 사용한다.
+        var preflightSignals = RagRetrievalPreflightPolicy.EvaluateSignals(rawInput);
+        var plan = AskIntentPlan.Empty with
+        {
+            AttemptRetrieval = true,
+            SearchConversations = preflightSignals.Contains("session_or_agent"),
+            IncludeProjectOverview = AskAutoRetrievalPolicy.ShouldIncludeProjectOverview(rawInput),
+            IncludeNotebookContext = false
+        };
+        _auditLogger.Log(
+            "coding",
+            "coding_auto_retrieval",
+            "preflight",
+            $"signals={(preflightSignals.Count == 0 ? "none" : string.Join("+", preflightSignals))} conversations={(plan.SearchConversations ? "on" : "off")}"
+        );
+
+        var outcome = await TryBuildAutoRetrievalBlockAsync(
+            rawInput,
+            linkedMemoryNotes: null,
+            source: "coding",
+            currentConversationId: null,
+            projectKey: null,
+            plan,
+            cancellationToken
+        ).ConfigureAwait(false);
+        return outcome.Block;
+    }
+
     private async Task<AskAutoRetrievalOutcome> TryBuildAutoRetrievalBlockAsync(
         string rawInput,
         IReadOnlyList<string>? linkedMemoryNotes,

@@ -42,7 +42,67 @@ public sealed class CodingPromptPolicyTests
         Assert.Contains("- provider rule", prompt);
         Assert.Contains("- language rule", prompt);
         Assert.Contains("- verification rule", prompt);
-        Assert.Contains("type 허용값: mkdir, write_file, append_file, read_file, delete_file, run", prompt);
+        Assert.Contains("type 허용값: mkdir, write_file, append_file, edit_file, read_file, delete_file, run", prompt);
+        Assert.Contains("edit_file", prompt);
+        // 에이전트가 루프 중 run 으로 직접 검증하도록 안내하는지 확인한다.
+        Assert.Contains("run 으로 빌드/테스트/실행을 직접 수행", prompt);
+    }
+
+    [Fact]
+    public void BuildLoopPromptInjectsRetrievalBlockWhenProvided()
+    {
+        var prompt = CodingPromptPolicy.BuildLoopPrompt(new CodingLoopPromptPolicyRequest(
+            Objective: "CLI를 만들어줘",
+            ResolvedLanguage: "python",
+            ModeLabel: "단일 모델 코딩",
+            WorkspaceRoot: "/tmp/work",
+            Provider: "codex",
+            Model: "gpt-5",
+            OneShotMode: false,
+            Iteration: 1,
+            MaxIterations: 4,
+            MaxActions: 3,
+            WorkspaceSnapshot: "total_files=1",
+            RecentLogs: "(none)",
+            LastExecution: new CodeExecutionResult("python", "/tmp/work", "-", "(none)", 0, "", "", "skipped"),
+            QualityBrief: "- acceptance=ok",
+            ProviderRuleLines: new[] { "- provider rule" },
+            LanguageRuleLines: new[] { "- language rule" },
+            VerificationRuleLines: new[] { "- verification rule" },
+            RetrievalBlock: "### memory:notes/cli (score 0.91)\n기존 CLI 컨벤션 메모"
+        ));
+
+        Assert.Contains("[참조 자료]", prompt);
+        Assert.Contains("기존 CLI 컨벤션 메모", prompt);
+        // 참조 자료는 목표 뒤·품질 브리프 앞에 위치한다(목표 우선 보장).
+        Assert.True(prompt.IndexOf("[목표]", StringComparison.Ordinal) < prompt.IndexOf("[참조 자료]", StringComparison.Ordinal));
+        Assert.True(prompt.IndexOf("[참조 자료]", StringComparison.Ordinal) < prompt.IndexOf("[품질 브리프]", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void BuildLoopPromptOmitsRetrievalSectionWhenBlockEmpty()
+    {
+        var prompt = CodingPromptPolicy.BuildLoopPrompt(new CodingLoopPromptPolicyRequest(
+            Objective: "CLI를 만들어줘",
+            ResolvedLanguage: "python",
+            ModeLabel: "단일 모델 코딩",
+            WorkspaceRoot: "/tmp/work",
+            Provider: "codex",
+            Model: "gpt-5",
+            OneShotMode: false,
+            Iteration: 1,
+            MaxIterations: 4,
+            MaxActions: 3,
+            WorkspaceSnapshot: "total_files=1",
+            RecentLogs: "(none)",
+            LastExecution: new CodeExecutionResult("python", "/tmp/work", "-", "(none)", 0, "", "", "skipped"),
+            QualityBrief: "- acceptance=ok",
+            ProviderRuleLines: new[] { "- provider rule" },
+            LanguageRuleLines: new[] { "- language rule" },
+            VerificationRuleLines: new[] { "- verification rule" }
+        ));
+
+        Assert.DoesNotContain("[참조 자료]", prompt);
     }
 
     [Fact]

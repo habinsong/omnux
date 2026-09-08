@@ -7,7 +7,7 @@ import { useUiLogStore } from "../ui-log/ui-log-store";
 import { NOTEBOOK_TEMPLATES, useNotebookPageBridge, useNotebookStore } from "./notebook-store";
 import type { NotebookKind } from "../middleware/notebook-gateway";
 import { Badge, Button, Input, SectionLabel, Textarea, cn } from "../../components/ui/primitives";
-import { usePlanningStore } from "../planning/planning-store";
+import { useTaskWorkspace } from "../task-workspace/task-workspace-state";
 import { useOpsPageStore } from "../ops/ops-store";
 import { useRefactorStore } from "../refactor/refactor-store";
 
@@ -68,14 +68,14 @@ function shortLines(values: string[], max = 5) {
 }
 
 function buildPlanDecisionDraft(): string {
-  const planning = usePlanningStore.getState();
-  const plan = planning.selectedPlan;
+  const planning = useTaskWorkspace.getState();
+  const plan = planning.plan;
   if (!plan) return "";
-  const detail = planning.planDetail;
+  const detail = plan;
   return [
     "계획에서 가져온 결정 메모",
     "",
-    `계획: ${plan.title || plan.planId}`,
+    `계획: ${plan.title || plan.id}`,
     `상태: ${plan.status || "-"}`,
     "",
     "목표:",
@@ -86,23 +86,23 @@ function buildPlanDecisionDraft(): string {
     "",
     detail?.review ? `리뷰 요약:\n- ${detail.review.summary || "-"}` : "",
     detail?.review?.risks.length ? `리스크:\n${shortLines(detail.review.risks)}` : "",
-    detail?.decisionLog.length ? `결정 로그:\n${shortLines(detail.decisionLog, 8)}` : ""
+    detail?.decisions.length ? `결정 로그:\n${shortLines(detail.decisions, 8)}` : ""
   ].filter(Boolean).join("\n");
 }
 
 function buildTaskVerificationDraft(): string {
-  const planning = usePlanningStore.getState();
-  const graph = planning.selectedGraph;
+  const planning = useTaskWorkspace.getState();
+  const graph = planning.run;
   const output = planning.output;
   if (!graph && !output) return "";
-  const nodes = graph?.nodes || [];
+  const nodes = graph?.steps || [];
   return [
     "작업 그래프에서 가져온 검증 메모",
     "",
-    graph ? `그래프: ${graph.graphId}` : "",
+    graph ? `그래프: ${graph.id}` : "",
     graph ? `상태: ${graph.status || "-"}` : "",
-    nodes.length ? `작업 요약:\n${shortLines(nodes.map((node) => `${node.taskId} · ${node.status || "-"} · ${node.title || node.category || "-"}`), 10)}` : "",
-    output ? `\n최근 출력: ${output.taskId} · ${output.status || "-"}` : "",
+    nodes.length ? `작업 요약:\n${shortLines(nodes.map((node) => `${node.id} · ${node.status || "-"} · ${node.title || node.category || "-"}`), 10)}` : "",
+    output ? `\n최근 출력: ${output.stepId} · ${output.status || "-"}` : "",
     output?.stdout ? `표준 출력:\n${output.stdout.slice(0, 1200)}` : "",
     output?.stderr ? `오류 출력:\n${output.stderr.slice(0, 1200)}` : ""
   ].filter(Boolean).join("\n");
@@ -140,16 +140,16 @@ function buildRefactorVerificationDraft(): string {
 }
 
 function QuickImportPanel({ onImport }: { onImport: (kind: NotebookKind, text: string) => void }) {
-  const selectedPlan = usePlanningStore((state) => state.selectedPlan);
-  const selectedGraph = usePlanningStore((state) => state.selectedGraph);
-  const output = usePlanningStore((state) => state.output);
+  const selectedPlan = useTaskWorkspace((state) => state.plan);
+  const selectedGraph = useTaskWorkspace((state) => state.run);
+  const output = useTaskWorkspace((state) => state.output);
   const doctor = useOpsPageStore((state) => state.doctor);
   const refactor = useRefactorStore();
   const sources = useMemo<QuickImportSource[]>(() => [
     {
       key: "plan-decision",
       label: "계획 결정",
-      description: selectedPlan ? selectedPlan.title || selectedPlan.planId : "작업 탭에서 계획을 선택하면 가져올 수 있습니다.",
+      description: selectedPlan ? selectedPlan.title || selectedPlan.id : "작업 탭에서 계획을 선택하면 가져올 수 있습니다.",
       kind: "decision",
       icon: ClipboardList,
       text: buildPlanDecisionDraft()
@@ -157,7 +157,7 @@ function QuickImportPanel({ onImport }: { onImport: (kind: NotebookKind, text: s
     {
       key: "task-verification",
       label: "작업 검증",
-      description: selectedGraph ? `${selectedGraph.graphId} · ${selectedGraph.status}` : output ? `${output.taskId} 출력` : "작업에서 그래프나 출력 결과를 열면 가져올 수 있습니다.",
+      description: selectedGraph ? `${selectedGraph.id} · ${selectedGraph.status}` : output ? `${output.stepId} 출력` : "작업에서 그래프나 출력 결과를 열면 가져올 수 있습니다.",
       kind: "verification",
       icon: CheckCircle2,
       text: buildTaskVerificationDraft()

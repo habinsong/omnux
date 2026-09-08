@@ -97,7 +97,7 @@ assertIncludes(coreRuntimeClient, "KillAsync", "dotnet core runtime exposes guar
 assertIncludes(coreRuntimeProgram, "new DotNetCoreRuntimeClient()", "middleware uses dotnet core runtime");
 assertNotIncludes(coreRuntimeProgram, "OMNUX_ENABLE_LEGACY_CORE_BOOTSTRAP", "middleware must not support legacy C core bootstrap");
 
-const markdownMessage = read("apps/desktop/src/features/ask/MarkdownMessage.tsx");
+const markdownMessage = read("apps/desktop/src/features/chat-workspace/ChatTranscript.tsx");
 assertNotIncludes(markdownMessage, "rehypeRaw", "desktop markdown renderer must not enable raw html");
 assertIncludes(markdownMessage, "safeHref", "desktop markdown renderer sanitizes links");
 assertIncludes(markdownMessage, "/^(https?:|mailto:)/i", "desktop markdown links are limited to safe schemes");
@@ -127,7 +127,7 @@ assertIncludes(architectureDoc, "외부접속 제한 모드 권한표", "archite
 assertIncludes(architectureDoc, "대화/코딩/루틴/로직 그래프 실행", "architecture doc documents remote execution actions are blocked");
 assertIncludes(architectureDoc, "`ETag`/`Last-Modified`", "architecture doc documents static asset revalidation");
 
-const gateway = read("apps/omnux-middleware/src/WebSocketGateway.cs");
+const gateway = read("apps/omnux-middleware/src/WebSocketGateway.cs") + read("apps/omnux-middleware/src/WebSocketGateway.ExploreResponses.cs");
 const toolApplicationService = read("apps/omnux-middleware/src/Application/ToolApplicationService.cs");
 const applicationServiceContracts = read("apps/omnux-middleware/src/Application/ApplicationServiceContracts.cs");
 const wsToolCommandDispatcher = read("apps/omnux-middleware/src/WsToolCommandDispatcher.cs");
@@ -239,8 +239,9 @@ const conversationContextPolicy = read("apps/omnux-middleware/src/ConversationCo
 const codingLanguagePolicy = read("apps/omnux-middleware/src/CodingLanguagePolicy.cs");
 const codingQualityBriefPolicy = read("apps/omnux-middleware/src/CodingQualityBriefPolicy.cs");
 const codingLoopTuningPolicy = read("apps/omnux-middleware/src/CodingLoopTuningPolicy.cs");
-const codingDeterministicOutputRepairPolicy = read("apps/omnux-middleware/src/CodingDeterministicOutputRepairPolicy.cs");
-const codingDeterministicScaffoldPolicy = read("apps/omnux-middleware/src/CodingDeterministicScaffoldPolicy.cs");
+// 정답 문자열을 출력하거나 고정 UI를 덮어쓰는 이전 복구 경로는 다시 도입하지 않는다.
+assertMissing("apps/omnux-middleware/src/CodingDeterministicOutputRepairPolicy.cs", "고정 정답 출력 복구 제거");
+assertMissing("apps/omnux-middleware/src/CodingDeterministicScaffoldPolicy.cs", "고정 UI 생성 경로 제거");
 const codingDeterministicStructuredRepairPolicy = read("apps/omnux-middleware/src/CodingDeterministicStructuredRepairPolicy.cs");
 const codingArtifactCleanupPolicy = read("apps/omnux-middleware/src/CodingArtifactCleanupPolicy.cs");
 const codingFallbackDecisionPolicy = read("apps/omnux-middleware/src/CodingFallbackDecisionPolicy.cs");
@@ -656,13 +657,6 @@ assertIncludes(codingLoopTuningPolicy, "ResolveMaxIterations", "coding loop tuni
 assertIncludes(codingLoopTuningPolicy, "ResolveMaxActions", "coding loop tuning policy owns action limit");
 assertIncludes(codingLoopTuningPolicy, "ResolveMaxRepairPasses", "coding loop tuning policy owns repair pass limit");
 assertIncludes(codingLoopTuningPolicy, "BuildRecentLoopLogs", "coding loop tuning policy owns recent loop log trimming");
-assertIncludes(codingDeterministicOutputRepairPolicy, "ShouldTrySingleFileOutputRepair", "coding deterministic output repair policy owns single-file stdout repair gate");
-assertIncludes(codingDeterministicOutputRepairPolicy, "BuildPythonStringLiteral", "coding deterministic output repair policy owns python string literal escaping");
-assertIncludes(codingDeterministicOutputRepairPolicy, "BuildPythonPrintCode", "coding deterministic output repair policy owns deterministic print code generation");
-assertIncludes(codingDeterministicScaffoldPolicy, "TryGenerateUiCloneScaffold", "coding deterministic scaffold policy owns UI clone scaffold generation");
-assertIncludes(codingDeterministicScaffoldPolicy, "TryGenerateWebShooterScaffold", "coding deterministic scaffold policy owns web shooter scaffold generation");
-assertIncludes(codingDeterministicScaffoldPolicy, "DomainRegex", "coding deterministic scaffold policy owns UI clone domain folder detection");
-assertIncludes(codingDeterministicScaffoldPolicy, "CodingLanguagePolicy.ResolveExplicitObjectiveLanguage", "coding deterministic scaffold policy respects explicit language guard");
 assertIncludes(codingDeterministicStructuredRepairPolicy, "TryBuildPlan", "coding deterministic structured repair policy owns plan selection");
 assertIncludes(codingDeterministicStructuredRepairPolicy, "TryBuildDeterministicPythonSnapshotRepairPlan", "coding deterministic structured repair policy owns python snapshot repair plan");
 assertIncludes(codingDeterministicStructuredRepairPolicy, "TryBuildDeterministicHtmlDashboardRepairPlan", "coding deterministic structured repair policy owns html dashboard repair plan");
@@ -687,10 +681,6 @@ assertIncludes(codingApplicationServiceLoop, "CodingLanguagePolicy.ResolveFinalR
 assertIncludes(codingApplicationServiceQuality, "CodingLanguagePolicy.ExtractLatestCodingRequestText", "coding application service quality delegates latest coding request extraction");
 assertIncludes(codingApplicationServiceLoop, "CodingQualityBriefPolicy.Build", "coding application service loop delegates coding quality brief");
 assertIncludes(codingApplicationServiceLoop, "CodingLoopTuningPolicy.ResolveMaxRepairPasses", "coding application service loop delegates repair pass limit to loop tuning policy");
-assertIncludes(codingApplicationServiceLoop, "CodingDeterministicOutputRepairPolicy.ShouldTrySingleFileOutputRepair", "coding application service loop delegates deterministic stdout repair gate");
-assertIncludes(codingApplicationServiceLoop, "CodingDeterministicOutputRepairPolicy.BuildPythonPrintCode", "coding application service loop delegates deterministic print code generation");
-assertIncludes(codingApplicationServiceLoop, "CodingDeterministicScaffoldPolicy.TryGenerateUiCloneScaffold", "coding application service loop delegates UI clone scaffold generation");
-assertIncludes(codingApplicationServiceLoop, "CodingDeterministicScaffoldPolicy.TryGenerateWebShooterScaffold", "coding application service loop delegates web shooter scaffold generation");
 assertIncludes(codingApplicationServiceLoop, "CodingArtifactCleanupPolicy.CleanupRedundantSingleFileArtifacts", "coding application service loop delegates redundant artifact cleanup");
 assertIncludes(codingApplicationServiceLoop, "CodingFallbackDecisionPolicy.ShouldPreferFileBundleFallback", "coding application service loop delegates file-bundle fallback decision");
 assertIncludes(providerRouting, "GroqPromptPolicy.IsRateLimitResponse", "provider routing delegates groq rate-limit response detection");
@@ -1038,8 +1028,8 @@ assertIncludes(telegramCodingSettingsApplicationService, "interface ITelegramCod
 assertIncludes(telegramCodingSettingsApplicationService, "TelegramCodingModeMutationRequest", "telegram coding settings application service carries mode request");
 assertIncludes(telegramCodingSettingsApplicationService, "TelegramCodingWorkerModelMutationRequest", "telegram coding settings application service carries worker model request");
 assertIncludes(telegramCodingSettingsApplicationService, "_preferenceContext.TelegramCodingPreferences", "telegram coding settings application service owns telegram coding preference state writes");
-assertIncludes(telegramCodingSettingsApplicationService, "ProviderModelSelectionPolicy.IsPinnedCopilotProvider", "telegram coding settings application service preserves pinned copilot model policy");
-assertIncludes(telegramCodingSettingsApplicationServiceTests, "SetAggregateModelPinsCopilotProvider", "telegram coding settings application service tests pinned copilot model");
+assertNotIncludes(telegramCodingSettingsApplicationService, "normalizedModel = DefaultCopilotModel", "텔레그램 코딩 설정은 명시한 Copilot 모델을 바꾸지 않는다");
+assertIncludes(telegramCodingSettingsApplicationServiceTests, "SetAggregateModelPreservesSelectedCopilotModel", "텔레그램 코딩 설정의 모델 선택 보존 회귀 검사");
 assertIncludes(telegramCodingSettingsApplicationServiceTests, "GetSnapshotReturnsClone", "telegram coding settings application service tests snapshot clone");
 assertIncludes(program, "new TelegramCodingSettingsApplicationService", "program wires telegram coding settings application service");
 assertIncludes(commandServiceTelegramLlmReports, "BuildTelegramLlmStatusAsync", "telegram llm reports partial owns status report body");
@@ -1254,7 +1244,8 @@ assertIncludes(codingApplicationService, "CodingWorkerSelectionPolicy.HasQuality
 assertIncludes(codingApplicationService, "CodingWorkerSelectionPolicy.MergeChangedFilesForBest", "coding application service uses worker selection policy merge");
 assertIncludes(codingApplicationService, "CodingWorkerSelectionPolicy.BuildOrchestrationSummary", "coding application service uses worker selection policy orchestration summary");
 assertIncludes(codingApplicationService, "CodingWorkerSelectionPolicy.BuildMultiResultExecution", "coding application service uses worker selection policy multi execution");
-assertIncludes(codingApplicationService, "CodingWorkerSelectionPolicy.BuildWorkerWorkspaceRoot", "coding application service uses worker selection policy workspace root");
+assertIncludes(codingApplicationService, "ProjectWorkspaceFiles.WorkerDirectoryAsync", "coding application service prepares an isolated worker workspace");
+assertIncludes(read("apps/omnux-middleware/src/Infrastructure/Workspace/ProjectWorkspaceFiles.cs"), "CodingWorkerSelectionPolicy.BuildWorkerWorkspaceRoot", "project workspace uses worker selection policy workspace root");
 assertIncludes(codingApplicationService, "CodingWorkerSelectionPolicy.BuildSkippedWorker", "coding application service uses worker selection policy skipped worker builder");
 assertNotIncludes(codingApplicationService, "private static IReadOnlyList<string> MergeChangedFiles(", "coding application service no longer owns changed files merger");
 assertNotIncludes(codingApplicationService, "private static CodingWorkerResult BuildSkippedCodingWorkerResult(", "coding application service no longer owns skipped worker builder");
@@ -1348,5 +1339,9 @@ assertIncludes(commandServiceConfig, "RoutineSchedulePolicy.TryParseSupportedCro
 assertNotIncludes(commandServiceConfig, "private static bool TryParseSupportedRoutineCronExpression(", "routine config no longer owns cron parser");
 assertNotIncludes(commandServiceConfig, "private static RoutineScheduleConfig ResolveRoutineScheduleConfigFromRequest(", "routine config no longer owns resolve config from request");
 assertNotIncludes(commandServiceConfig, "private static bool TryParseRoutineScheduleConfigFromRequest(", "routine config no longer owns try parse config from request");
+
+
+assertNotIncludes(codingApplicationServiceLoop, "CodingDeterministicOutputRepairPolicy", "코딩 루프는 기대 출력만 하드코딩하지 않는다");
+assertNotIncludes(codingApplicationServiceLoop, "CodingDeterministicScaffoldPolicy", "코딩 루프는 사용자 요청을 고정 템플릿으로 대체하지 않는다");
 
 console.log(JSON.stringify({ ok: true, assertions: assertionCount }, null, 2));

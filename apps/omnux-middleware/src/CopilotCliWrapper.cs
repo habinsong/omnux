@@ -226,12 +226,8 @@ public sealed class CopilotCliWrapper
 
     public async Task<IReadOnlyList<CopilotModelInfo>> GetModelsAsync(CancellationToken cancellationToken)
     {
-        var ids = new HashSet<string>(FallbackModelIds, StringComparer.OrdinalIgnoreCase);
         var fromHelp = await GetModelIdsFromCliHelpAsync(cancellationToken);
-        foreach (var id in fromHelp)
-        {
-            ids.Add(id);
-        }
+        var ids = new HashSet<string>(fromHelp.Count > 0 ? fromHelp : FallbackModelIds, StringComparer.OrdinalIgnoreCase);
 
         Dictionary<string, CopilotUsage> usageSnapshot;
         lock (_modelLock)
@@ -760,12 +756,10 @@ public sealed class CopilotCliWrapper
 
     private static string NormalizeSelectedModel(string? modelId)
     {
-        _ = modelId;
-        // omnux에서는 Copilot 모델을 gpt-5-mini로 고정한다.
-        return DefaultCopilotModel;
+        return string.IsNullOrWhiteSpace(modelId) ? DefaultCopilotModel : modelId.Trim();
     }
 
-    private static IReadOnlyList<string> ParseModelChoices(string helpText)
+    internal static IReadOnlyList<string> ParseModelChoices(string helpText)
     {
         if (string.IsNullOrWhiteSpace(helpText))
         {
@@ -784,14 +778,13 @@ public sealed class CopilotCliWrapper
             return Array.Empty<string>();
         }
 
-        var startParen = helpText.IndexOf('(', choicesIndex);
         var endParen = helpText.IndexOf(')', choicesIndex);
-        if (startParen < 0 || endParen < 0 || endParen <= startParen)
+        if (endParen < 0)
         {
             return Array.Empty<string>();
         }
 
-        var choicesSegment = helpText[startParen..(endParen + 1)];
+        var choicesSegment = helpText[choicesIndex..endParen];
         var values = new List<string>();
         foreach (Match match in QuotedModelRegex.Matches(choicesSegment))
         {

@@ -214,7 +214,7 @@ internal sealed class GatewayApiEndpoint
             context.Response.ContentLength64 = 0;
             context.Response.Headers["Cache-Control"] = "no-store";
             context.Response.Headers["X-Content-Type-Options"] = "nosniff";
-            context.Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
+            context.Response.Headers["Content-Security-Policy"] = CodingPreviewPolicy.FrameAncestors;
             context.Response.OutputStream.Close();
             return;
         }
@@ -304,27 +304,12 @@ internal sealed class GatewayApiEndpoint
         }
 
         var fullPath = Path.GetFullPath(Path.Combine(runDirectory, normalizedRelativePath));
-        if (!IsPathUnderRoot(fullPath, runDirectory) || !File.Exists(fullPath))
+        if (!CodingPreviewPolicy.IsRegularFileWithinRun(fullPath, runDirectory))
         {
             return null;
         }
 
-        var extension = Path.GetExtension(fullPath).ToLowerInvariant();
-        var contentType = extension switch
-        {
-            ".html" => "text/html; charset=utf-8",
-            ".css" => "text/css; charset=utf-8",
-            ".js" or ".mjs" => "application/javascript; charset=utf-8",
-            ".json" => "application/json; charset=utf-8",
-            ".svg" => "image/svg+xml",
-            ".png" => "image/png",
-            ".jpg" or ".jpeg" => "image/jpeg",
-            ".gif" => "image/gif",
-            ".webp" => "image/webp",
-            ".ico" => "image/x-icon",
-            ".txt" => "text/plain; charset=utf-8",
-            _ => string.Empty
-        };
+        var contentType = CodingPreviewPolicy.ContentType(fullPath);
         if (string.IsNullOrWhiteSpace(contentType))
         {
             return null;
@@ -429,7 +414,7 @@ internal sealed class GatewayApiEndpoint
         response.ContentType = contentType;
         response.Headers["Cache-Control"] = "no-store";
         response.Headers["X-Content-Type-Options"] = "nosniff";
-        response.Headers["X-Frame-Options"] = "SAMEORIGIN";
+        response.Headers["Content-Security-Policy"] = CodingPreviewPolicy.FrameAncestors;
         var bytes = Encoding.UTF8.GetBytes(body);
         response.ContentLength64 = bytes.Length;
         await response.OutputStream.WriteAsync(bytes, cancellationToken);
@@ -446,7 +431,7 @@ internal sealed class GatewayApiEndpoint
         response.ContentType = contentType;
         response.Headers["Cache-Control"] = "no-store";
         response.Headers["X-Content-Type-Options"] = "nosniff";
-        response.Headers["X-Frame-Options"] = "SAMEORIGIN";
+        response.Headers["Content-Security-Policy"] = CodingPreviewPolicy.FrameAncestors;
         response.ContentLength64 = body.Length;
         await response.OutputStream.WriteAsync(body, cancellationToken);
         response.OutputStream.Close();

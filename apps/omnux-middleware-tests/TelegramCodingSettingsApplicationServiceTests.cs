@@ -29,14 +29,24 @@ public sealed class TelegramCodingSettingsApplicationServiceTests
     }
 
     [Fact]
-    public void SetAggregateModelPinsCopilotProvider()
+    public void SetAggregateModelPreservesSelectedCopilotModel()
     {
         var (context, service) = BuildService();
 
-        var message = service.SetAggregateModel(new TelegramCodingAggregateModelMutationRequest("single", "custom-copilot"));
+        var message = service.SetAggregateModel(new TelegramCodingAggregateModelMutationRequest("single", "gpt-6-astra"));
 
-        Assert.Equal("텔레그램 단일 코딩 모델을 gpt-5-mini로 바꿨습니다.", message);
-        Assert.Equal("gpt-5-mini", context.TelegramCodingPreferences.SingleModel);
+        Assert.Equal("텔레그램 단일 코딩 모델을 gpt-6-astra로 바꿨습니다.", message);
+        Assert.Equal("gpt-6-astra", context.TelegramCodingPreferences.SingleModel);
+    }
+
+    [Fact]
+    public void SetWorkerModelPreservesExplicitCopilotModel()
+    {
+        var (context, service) = BuildService();
+        service.SetWorkerModel(new TelegramCodingWorkerModelMutationRequest("multi", "copilot", "gpt-6-astra"));
+        Assert.Equal("gpt-6-astra", context.TelegramCodingPreferences.MultiCopilotModel);
+        service.SetWorkerModel(new TelegramCodingWorkerModelMutationRequest("multi", "copilot", "none"));
+        Assert.Equal("none", context.TelegramCodingPreferences.MultiCopilotModel);
     }
 
     [Fact]
@@ -48,6 +58,23 @@ public sealed class TelegramCodingSettingsApplicationServiceTests
 
         Assert.Equal("텔레그램 다중 코딩 워커 Codex 모델을 none로 바꿨습니다.", message);
         Assert.Equal("none", context.TelegramCodingPreferences.MultiCodexModel);
+    }
+
+    [Fact]
+    public void GrokWorkerSelectionsSurviveSettingsSnapshots()
+    {
+        var (context, service) = BuildService();
+        service.SetAggregateProvider(new TelegramCodingAggregateProviderMutationRequest("single", "grok"));
+        service.SetAggregateModel(new TelegramCodingAggregateModelMutationRequest("single", "grok-4.6"));
+        service.SetWorkerModel(new TelegramCodingWorkerModelMutationRequest("orchestration", "grok", "grok-custom"));
+        service.SetWorkerModel(new TelegramCodingWorkerModelMutationRequest("multi", "grok", "grok-4.6"));
+        var snapshot = service.GetSnapshot();
+        Assert.Equal("grok", snapshot.SingleProvider);
+        Assert.Equal("grok-4.6", snapshot.SingleModel);
+        Assert.Equal("grok-custom", snapshot.OrchestrationGrokModel);
+        Assert.Equal("grok-4.6", snapshot.MultiGrokModel);
+        service.SetWorkerModel(new TelegramCodingWorkerModelMutationRequest("multi", "grok", "none"));
+        Assert.Equal("none", context.TelegramCodingPreferences.MultiGrokModel);
     }
 
     [Fact]

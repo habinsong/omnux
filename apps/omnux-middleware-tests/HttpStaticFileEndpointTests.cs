@@ -5,12 +5,12 @@ namespace Omnux.Middleware.Tests;
 public sealed class HttpStaticFileEndpointTests
 {
     [Fact]
-    public void DesktopUiExternalUrlUsesTauriVitePort()
+    public void DesktopUiExternalUrlUsesMiddlewareHttpPort()
     {
-        var url = WebSocketGateway.BuildDesktopUiExternalUrl("192.168.0.22");
+        // 외부접속 주소는 미들웨어 HTTP 포트(0.0.0.0 바인딩 + dist 서빙)를 가리켜야 한다.
+        var url = WebSocketGateway.BuildDesktopUiExternalUrl("192.168.0.22", 41880);
 
-        Assert.Equal("http://192.168.0.22:1420/", url);
-        Assert.Equal(1420, WebSocketGateway.DesktopUiPort);
+        Assert.Equal("http://192.168.0.22:41880/", url);
     }
 
     [Fact]

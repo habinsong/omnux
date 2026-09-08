@@ -100,6 +100,7 @@ public interface ITaskGraphApplicationService
         CancellationToken cancellationToken
     );
     TaskGraphActionResult CancelTask(string graphId, string taskId);
+    TaskGraphActionResult CancelTaskGraph(string graphId);
     Task<TaskGraphActionResult> RetryTaskAsync(
         string graphId,
         string taskId,
@@ -114,6 +115,8 @@ public interface ITaskGraphApplicationService
         CancellationToken cancellationToken
     );
     TaskOutputResult? GetTaskOutput(string graphId, string taskId);
+    TaskOutputResult? GetTaskOutput(string graphId, string taskId, long? attemptTimestamp)
+        => GetTaskOutput(graphId, taskId);
 }
 
 public interface ILogicApplicationService
@@ -166,9 +169,9 @@ public interface IRefactorApplicationService
 
 public interface IContextApplicationService
 {
-    Task<ProjectContextSnapshot> ScanProjectContextAsync(CancellationToken cancellationToken);
-    Task<SkillManifestListResult> ListSkillsAsync(CancellationToken cancellationToken);
-    Task<CommandTemplateListResult> ListCommandsAsync(CancellationToken cancellationToken);
+    Task<ProjectContextSnapshot> ScanProjectContextAsync(CancellationToken cancellationToken, string? projectKey = null);
+    Task<SkillManifestListResult> ListSkillsAsync(CancellationToken cancellationToken, string? projectKey = null);
+    Task<CommandTemplateListResult> ListCommandsAsync(CancellationToken cancellationToken, string? projectKey = null);
 }
 
 public interface INotebookApplicationService
@@ -449,7 +452,8 @@ public interface ICodingApplicationService
     Task<CodingResultExecutionResult> ExecuteLatestCodingResultAsync(
         string conversationId,
         string? standardInput,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? preferredTarget = null
     );
 }
 

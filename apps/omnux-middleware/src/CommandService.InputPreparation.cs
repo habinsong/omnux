@@ -78,22 +78,23 @@ public sealed partial class CommandService
         var isSkillCreationRequested = LooksLikeSkillCreationRequest(normalizedInput);
         var isSkillDeactivationRequested = LooksLikeSkillDeactivationRequest(normalizedInput);
         var threadKeyForActiveSkill = string.IsNullOrWhiteSpace(threadBindingKey) ? sessionKey : threadBindingKey;
+        var codingProject = string.IsNullOrWhiteSpace(threadKeyForActiveSkill) ? null : _conversationStore.Get(threadKeyForActiveSkill)?.CodingProject;
         var hasActiveSkill = !string.IsNullOrWhiteSpace(threadKeyForActiveSkill)
             && _activeSkillByThread.ContainsKey(threadKeyForActiveSkill);
         var shouldIncludeProjectContext = !skipProjectContext
-            && (TryExtractSessionScope(sessionKey) == "coding"
+            && (codingProject != null || TryExtractSessionScope(sessionKey) == "coding"
                 || LooksLikeProjectContextRequest(normalizedInput)
                 || isSkillListRequested
                 || isSkillCreationRequested
                 || isSkillDeactivationRequested
                 || hasActiveSkill);
-        var notebookContext = BuildNotebookPromptContext(normalizedInput, sessionKey, source);
+        var notebookContext = BuildNotebookPromptContext(normalizedInput, sessionKey, source, codingProject?.Key);
 
         if (shouldIncludeProjectContext)
         {
             try
             {
-                var snapshot = _projectContextLoader.LoadSnapshot();
+                var snapshot = _projectContextLoader.LoadSnapshot(codingProject?.Path);
                 var contextBuilder = new StringBuilder();
 
                 if (!string.IsNullOrWhiteSpace(snapshot.Instructions.CombinedText))
@@ -121,10 +122,14 @@ public sealed partial class CommandService
 
                 // 단어 경계 검사 helper로 이름 부분문자열 false-positive를 차단.
                 // 다중 스킬 입력은 상위 흐름에서 이미 거부되므로 여기선 첫 매칭(가장 긴 이름)만 채택.
-                var explicitlyMentionedSkill = DetectMentionedSkillsInPrompt(normalizedInput).FirstOrDefault();
+                var explicitlyMentionedSkill = ProjectSkillSelection.Mentioned(normalizedInput, snapshot.Skills).FirstOrDefault();
                 var requestedSkill = explicitlyMentionedSkill == null && !deactivationDetected
-                    ? FindSkillManifestByName(requestedSkillName, requestedSkillScope)
+                    ? ProjectSkillSelection.Find(snapshot.Skills, requestedSkillName, requestedSkillScope)
                     : null;
+
+                if (codingProject != null && !deactivationDetected && !string.IsNullOrWhiteSpace(requestedSkillName)
+                    && requestedSkill == null && explicitlyMentionedSkill == null)
+                    return new InputPreparationResult(normalizedInput, "선택한 프로젝트에서 요청한 스킬을 찾을 수 없습니다. 스킬을 다시 선택해 주세요.");
 
                 if (deactivationDetected && explicitlyMentionedSkill == null)
                 {
@@ -454,7 +459,7 @@ public sealed partial class CommandService
                 attachmentProvider = "gemini";
                 attachmentModel = ResolveModel("gemini", null);
             }
-            else if (_llmRouter.HasGroqApiKey() && nonTextAttachments.All(IsImageAttachment))
+            else if (_llmRouter.HasGroqApiKey() && CanProviderHandleAttachments("groq", DefaultGroqPrimaryModel, nonTextAttachments))
             {
                 attachmentProvider = "groq";
                 attachmentModel = DefaultGroqPrimaryModel;
@@ -939,7 +944,7 @@ public sealed partial class CommandService
                 "최근 대화");
     }
 
-    private string BuildNotebookPromptContext(string input, string? sessionKey, string source)
+    private string BuildNotebookPromptContext(string input, string? sessionKey, string source, string? projectKey = null)
     {
         var normalized = (input ?? string.Empty).Trim().ToLowerInvariant();
         var scope = TryExtractSessionScope(sessionKey);
@@ -972,7 +977,7 @@ public sealed partial class CommandService
 
         try
         {
-            return _notebookService.BuildContextBlock();
+            return _notebookService.BuildContextBlock(projectKey);
         }
         catch
         {
@@ -1616,7 +1621,7 @@ public sealed partial class CommandService
             : "mismatch";
     }
 
-    private static bool CanProviderHandleAttachments(
+    internal static bool CanProviderHandleAttachments(
         string provider,
         string model,
         IReadOnlyList<InputAttachment> nonTextAttachments
@@ -1639,7 +1644,8 @@ public sealed partial class CommandService
                 return false;
             }
 
-            return nonTextAttachments.All(IsImageAttachment);
+            return nonTextAttachments.All(IsImageAttachment)
+                && (!model.StartsWith("qwen/", StringComparison.OrdinalIgnoreCase) || nonTextAttachments.Count <= 3);
         }
 
         return false;
@@ -1648,7 +1654,8 @@ public sealed partial class CommandService
     private static bool SupportsGroqVisionModel(string model)
     {
         var normalized = (model ?? string.Empty).Trim().ToLowerInvariant();
-        return normalized.Contains("llama-4-scout", StringComparison.Ordinal)
+        return normalized is "qwen/qwen3.8-27b" or "qwen/qwen3.6-27b"
+               || normalized.Contains("llama-4-scout", StringComparison.Ordinal)
                || normalized.Contains("llama-4-maverick", StringComparison.Ordinal);
     }
 

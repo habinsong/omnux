@@ -42,18 +42,8 @@ public sealed class TaskGraphApplicationService : ITaskGraphApplicationService
             return new TaskGraphActionResult(false, "Task graph를 찾을 수 없습니다.", null);
         }
 
-        var sourcePlan = _planService.GetPlan(snapshot.Graph.SourcePlanId);
-        if (sourcePlan != null
-            && sourcePlan.Plan.Status != PlanStatus.Approved
-            && sourcePlan.Plan.Status != PlanStatus.Completed
-            && sourcePlan.Plan.Status != PlanStatus.Running)
-        {
-            return new TaskGraphActionResult(
-                false,
-                "Task graph 실행 전 원본 계획 승인 단계가 필요합니다.",
-                snapshot
-            );
-        }
+        var blocked = ExecutionBlocker(snapshot);
+        if (blocked != null) return blocked;
 
         return await _taskGraphCoordinator.RunGraphAsync(
             snapshot.Graph.GraphId,
@@ -66,6 +56,9 @@ public sealed class TaskGraphApplicationService : ITaskGraphApplicationService
     public TaskGraphActionResult CancelTask(string graphId, string taskId)
         => _taskGraphCoordinator.CancelTask(graphId, taskId);
 
+    public TaskGraphActionResult CancelTaskGraph(string graphId)
+        => _taskGraphCoordinator.CancelGraph(graphId);
+
     public async Task<TaskGraphActionResult> RetryTaskAsync(
         string graphId,
         string taskId,
@@ -74,14 +67,13 @@ public sealed class TaskGraphApplicationService : ITaskGraphApplicationService
         CancellationToken cancellationToken
     )
     {
-        var retry = _taskGraphService.RetryTask(graphId, taskId);
-        if (!retry.Ok)
-        {
-            return retry;
-        }
-
-        return await _taskGraphCoordinator.ResumeGraphAsync(
-            retry.Snapshot?.Graph.GraphId ?? graphId,
+        var snapshot = _taskGraphService.GetGraph(graphId);
+        if (snapshot == null) return new TaskGraphActionResult(false, "Task graph를 찾을 수 없습니다.", null);
+        var blocked = ExecutionBlocker(snapshot);
+        if (blocked != null) return blocked;
+        return await _taskGraphCoordinator.RetryTaskAsync(
+            graphId,
+            taskId,
             source,
             eventSink,
             cancellationToken
@@ -101,6 +93,8 @@ public sealed class TaskGraphApplicationService : ITaskGraphApplicationService
             return new TaskGraphActionResult(false, "Task graph를 찾을 수 없습니다.", null);
         }
 
+        var blocked = ExecutionBlocker(snapshot);
+        if (blocked != null) return blocked;
         return await _taskGraphCoordinator.ResumeGraphAsync(
             snapshot.Graph.GraphId,
             source,
@@ -109,6 +103,27 @@ public sealed class TaskGraphApplicationService : ITaskGraphApplicationService
         );
     }
 
+    private TaskGraphActionResult? ExecutionBlocker(TaskGraphSnapshot snapshot)
+    {
+        var sourcePlan = _planService.GetPlan(snapshot.Graph.SourcePlanId);
+        if (sourcePlan != null
+            && sourcePlan.Plan.Status != PlanStatus.Approved
+            && sourcePlan.Plan.Status != PlanStatus.Completed
+            && sourcePlan.Plan.Status != PlanStatus.Running)
+        {
+            return new TaskGraphActionResult(
+                false,
+                "Task graph 실행 전 원본 계획 승인 단계가 필요합니다.",
+                snapshot
+            );
+        }
+
+        return null;
+    }
+
     public TaskOutputResult? GetTaskOutput(string graphId, string taskId)
         => _taskGraphService.GetTaskOutput(graphId, taskId);
+
+    public TaskOutputResult? GetTaskOutput(string graphId, string taskId, long? attemptTimestamp)
+        => _taskGraphService.GetTaskOutput(graphId, taskId, attemptTimestamp);
 }

@@ -19,7 +19,8 @@ internal sealed record CodingLoopPromptPolicyRequest(
     string QualityBrief,
     IReadOnlyList<string> ProviderRuleLines,
     IReadOnlyList<string> LanguageRuleLines,
-    IReadOnlyList<string> VerificationRuleLines
+    IReadOnlyList<string> VerificationRuleLines,
+    string RetrievalBlock = ""
 );
 
 internal sealed record CodingWorkerSummaryDigest(string Provider, string Model, string Digest);
@@ -41,6 +42,13 @@ internal static class CodingPromptPolicy
         builder.AppendLine("[목표]");
         builder.AppendLine(request.Objective);
         builder.AppendLine();
+        if (!string.IsNullOrWhiteSpace(request.RetrievalBlock))
+        {
+            builder.AppendLine("[참조 자료] (사용자 메모리/코드 인덱스 자동 검색 — 보조 참고용, 목표가 우선)");
+            builder.AppendLine(request.RetrievalBlock.Trim());
+            builder.AppendLine();
+        }
+
         builder.AppendLine("[품질 브리프]");
         builder.AppendLine(request.QualityBrief);
         builder.AppendLine();
@@ -59,7 +67,9 @@ internal static class CodingPromptPolicy
         builder.AppendLine("반드시 JSON 객체만 출력하라. 마크다운/설명 금지.");
         builder.AppendLine("스키마:");
         builder.AppendLine("{\"analysis\":\"...\",\"done\":false,\"final_message\":\"...\",\"actions\":[{\"type\":\"mkdir\",\"path\":\"상대경로\",\"content\":\"...\",\"command\":\"...\"}]}");
-        builder.AppendLine("type 허용값: mkdir, write_file, append_file, read_file, delete_file, run");
+        builder.AppendLine("type 허용값: mkdir, write_file, append_file, edit_file, read_file, delete_file, run");
+        builder.AppendLine("edit_file 은 기존 파일의 일부만 교체한다: {\"type\":\"edit_file\",\"path\":\"상대경로\",\"find\":\"바꿀 기존 코드 그대로\",\"replace\":\"새 코드\"}");
+        builder.AppendLine("find 는 파일에 실제로 존재하는 문자열과 정확히 일치해야 하며 첫 번째 일치 항목만 교체된다. 전체를 새로 쓸 때만 write_file 을 사용");
         builder.AppendLine("주의: type을 `mkdir|write_file`처럼 합치지 말고 반드시 단일 값만 사용");
         builder.AppendLine($"제약: actions 최대 {Math.Max(1, request.MaxActions)}개");
         builder.AppendLine("제공자/모델 힌트:");
@@ -84,12 +94,13 @@ internal static class CodingPromptPolicy
         builder.AppendLine("- analysis에는 이번 반복에서 무엇을 만들고 어떤 파일을 건드릴지 짧게 적는다");
         builder.AppendLine("- done=false 이면 actions에 최소 1개의 실질 액션(mkdir/write_file/append_file/read_file/delete_file/run)을 반드시 넣는다");
         builder.AppendLine("- 경로는 가능하면 상대경로 사용");
-        builder.AppendLine("- run은 마지막 검증 단계에서 1회만 수행되므로 중간 반복에서는 가능한 한 넣지 말고 파일 생성/수정에 집중");
+        builder.AppendLine("- 기존 파일을 수정할 때는 먼저 read_file 로 내용을 확인하라. 읽은/작성한 파일 내용은 [최근 확인/수정한 파일 내용]에 표시된다");
+        builder.AppendLine("- run 으로 빌드/테스트/실행을 직접 수행하고 [최근 실행 결과]의 stdout/stderr 를 확인해 오류를 고쳐라");
+        builder.AppendLine("- 같은 실패 명령을 그대로 반복하지 말고 원인을 바꿔 수정한 뒤 다시 run 으로 검증하라");
         builder.AppendLine("- JSON 문자열 내부 줄바꿈은 반드시 \\n 으로 이스케이프");
         builder.AppendLine("- path 값에는 줄바꿈, 탭, 마크다운 bullet, 따옴표 래핑을 넣지 말고 순수 상대경로만 넣는다");
         builder.AppendLine("- content는 실제 파일 내용 그대로 넣고, 문자열 리터럴이나 파일명 중간에 임의 줄바꿈을 넣지 않는다");
-        builder.AppendLine("- 가능한 한 한 번에 필요한 파일을 모두 생성하고, 마지막 검증(run) 1회만 수행");
-        builder.AppendLine("- 실행 성공 및 요구사항 충족 시 즉시 done=true, actions=[]");
+        builder.AppendLine("- 검증(run)이 성공하고 요구사항을 충족했을 때만 done=true, actions=[] 로 종료");
         builder.AppendLine("- 오류가 있으면 원인 수정 액션을 포함");
         builder.AppendLine("- 목표 달성 시 done=true");
         return builder.ToString().Trim();

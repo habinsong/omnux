@@ -310,6 +310,7 @@ public sealed partial class WebSocketGateway
         public string? CerebrasModel { get; set; }
         public string? NvidiaModel { get; set; }
         public string? CodexModel { get; set; }
+        public string? GrokModel { get; set; }
         public string? SummaryProvider { get; set; }
         public string? Action { get; set; }
         public string? JobId { get; set; }

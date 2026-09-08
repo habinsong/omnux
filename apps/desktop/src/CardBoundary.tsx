@@ -9,6 +9,7 @@ type CardBoundaryProps = {
   children: ReactNode;
   onError: (card: ShellCard, message: string, componentStack?: string | null) => void;
   hideTitle?: boolean;
+  frameless?: boolean;
 };
 
 type CardBoundaryState = {
@@ -43,7 +44,12 @@ export class CardBoundary extends Component<CardBoundaryProps, CardBoundaryState
   };
 
   render() {
-    const { title, card, children, hideTitle } = this.props;
+    const { title, card, children, hideTitle, frameless } = this.props;
+    if (frameless) {
+      return this.state.message ? (
+        <ShellFault label={`${title}: ${this.state.message}`} stack={this.state.componentStack} onRetry={this.retry} />
+      ) : children;
+    }
     return (
       <Card className="flex h-full min-h-0 flex-col">
         {!hideTitle ? (
@@ -51,7 +57,7 @@ export class CardBoundary extends Component<CardBoundaryProps, CardBoundaryState
             <CardTitle>{title}</CardTitle>
           </CardHeader>
         ) : null}
-        <div className={cn("flex min-h-0 flex-1 flex-col gap-3 px-4 pb-4", hideTitle && "pt-4")}>
+        <div className={cn("flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-4", hideTitle && "pt-4")}>
           {this.state.message ? (
             <ShellFault
               label={`${card} 카드 렌더 실패: ${this.state.message}`}

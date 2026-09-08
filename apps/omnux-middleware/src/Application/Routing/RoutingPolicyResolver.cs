@@ -9,7 +9,8 @@ public sealed class RoutingPolicyResolver
         "nvidia",
         "cerebras",
         "copilot",
-        "codex"
+        "codex",
+        "grok"
     };
 
     private readonly FileRoutingPolicyStore _store;
@@ -233,18 +234,18 @@ public sealed class RoutingPolicyResolver
     {
         return new RoutingPolicy
         {
-            GeneralChat = new[] { "gemini", "groq", "nvidia", "cerebras", "copilot", "codex" },
-            Planner = new[] { "gemini", "groq", "nvidia", "cerebras", "codex", "copilot" },
-            Reviewer = new[] { "codex", "gemini", "groq", "nvidia", "cerebras", "copilot" },
-            SearchTimeSensitive = new[] { "gemini", "groq", "nvidia", "cerebras", "codex", "copilot" },
-            SearchFallback = new[] { "groq", "nvidia", "gemini", "cerebras", "codex", "copilot" },
-            DeepCode = new[] { "codex", "copilot", "gemini", "groq", "nvidia", "cerebras" },
-            SafeRefactor = new[] { "codex", "copilot", "gemini", "groq", "nvidia", "cerebras" },
-            QuickFix = new[] { "groq", "nvidia", "cerebras", "gemini", "copilot", "codex" },
-            VisualUi = new[] { "gemini", "codex", "groq", "nvidia", "cerebras", "copilot" },
-            RoutineBuilder = new[] { "groq", "nvidia", "gemini", "cerebras", "codex", "copilot" },
-            BackgroundMonitor = new[] { "groq", "nvidia", "cerebras", "gemini", "codex", "copilot" },
-            Documentation = new[] { "gemini", "codex", "groq", "nvidia", "copilot", "cerebras" }
+            GeneralChat = new[] { "gemini", "groq", "nvidia", "cerebras", "copilot", "codex", "grok" },
+            Planner = new[] { "gemini", "groq", "nvidia", "cerebras", "codex", "copilot", "grok" },
+            Reviewer = new[] { "codex", "gemini", "groq", "nvidia", "cerebras", "copilot", "grok" },
+            SearchTimeSensitive = new[] { "gemini", "groq", "nvidia", "cerebras", "codex", "copilot", "grok" },
+            SearchFallback = new[] { "groq", "nvidia", "gemini", "cerebras", "codex", "copilot", "grok" },
+            DeepCode = new[] { "codex", "copilot", "gemini", "groq", "nvidia", "cerebras", "grok" },
+            SafeRefactor = new[] { "codex", "copilot", "gemini", "groq", "nvidia", "cerebras", "grok" },
+            QuickFix = new[] { "groq", "nvidia", "cerebras", "gemini", "copilot", "codex", "grok" },
+            VisualUi = new[] { "gemini", "codex", "groq", "nvidia", "cerebras", "copilot", "grok" },
+            RoutineBuilder = new[] { "groq", "nvidia", "gemini", "cerebras", "codex", "copilot", "grok" },
+            BackgroundMonitor = new[] { "groq", "nvidia", "cerebras", "gemini", "codex", "copilot", "grok" },
+            Documentation = new[] { "gemini", "codex", "groq", "nvidia", "copilot", "cerebras", "grok" }
         };
     }
 

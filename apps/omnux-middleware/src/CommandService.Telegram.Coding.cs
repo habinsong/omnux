@@ -104,7 +104,7 @@ public sealed partial class CommandService
             {
                 if (tokens.Length < 4)
                 {
-                    return "사용법: /coding single provider <auto|groq|gemini|copilot|cerebras|nvidia|codex>";
+                    return "사용법: /coding single provider <auto|groq|gemini|copilot|cerebras|nvidia|codex|grok>";
                 }
 
                 return SetTelegramCodingAggregateProvider("single", tokens[3]);
@@ -148,7 +148,7 @@ public sealed partial class CommandService
             {
                 if (tokens.Length < 4)
                 {
-                    return "사용법: /coding orchestration provider <auto|groq|gemini|copilot|cerebras|nvidia|codex>";
+                    return "사용법: /coding orchestration provider <auto|groq|gemini|copilot|cerebras|nvidia|codex|grok>";
                 }
 
                 return SetTelegramCodingAggregateProvider("orchestration", tokens[3]);
@@ -169,7 +169,7 @@ public sealed partial class CommandService
             {
                 if (tokens.Length < 5)
                 {
-                    return "사용법: /coding orchestration worker <groq|gemini|copilot|cerebras|nvidia|codex> <model-id|none>";
+                    return "사용법: /coding orchestration worker <groq|gemini|copilot|cerebras|nvidia|codex|grok> <model-id|none>";
                 }
 
                 return SetTelegramCodingWorkerModel("orchestration", tokens[3], string.Join(' ', tokens.Skip(4)).Trim());
@@ -203,7 +203,7 @@ public sealed partial class CommandService
             {
                 if (tokens.Length < 4)
                 {
-                    return "사용법: /coding multi provider <auto|groq|gemini|copilot|cerebras|nvidia|codex>";
+                    return "사용법: /coding multi provider <auto|groq|gemini|copilot|cerebras|nvidia|codex|grok>";
                 }
 
                 return SetTelegramCodingAggregateProvider("multi", tokens[3]);
@@ -224,7 +224,7 @@ public sealed partial class CommandService
             {
                 if (tokens.Length < 5)
                 {
-                    return "사용법: /coding multi worker <groq|gemini|copilot|cerebras|codex> <model-id|none>";
+                    return "사용법: /coding multi worker <groq|gemini|copilot|cerebras|codex|grok> <model-id|none>";
                 }
 
                 return SetTelegramCodingWorkerModel("multi", tokens[3], string.Join(' ', tokens.Skip(4)).Trim());
@@ -341,6 +341,7 @@ public sealed partial class CommandService
                     webSearchEnabled,
                     snapshot.OrchestrationCodexModel,
                     NvidiaModel: snapshot.OrchestrationNvidiaModel,
+                    GrokModel: snapshot.OrchestrationGrokModel,
                     SkillName: telegramActiveSkillName
                 ),
                 cancellationToken
@@ -372,6 +373,7 @@ public sealed partial class CommandService
                 webSearchEnabled,
                 snapshot.MultiCodexModel,
                 NvidiaModel: snapshot.MultiNvidiaModel,
+                GrokModel: snapshot.MultiGrokModel,
                 SkillName: telegramActiveSkillName
             ),
             cancellationToken
@@ -388,9 +390,9 @@ public sealed partial class CommandService
         builder.AppendLine($"현재 모드: {FormatModeDisplayName(snapshot.Mode)} 코딩");
         builder.AppendLine($"단일: {FormatProviderWithModel(snapshot.SingleProvider, snapshot.SingleModel, allowAuto: true)} / 언어={snapshot.SingleLanguage}");
         builder.AppendLine($"오케스트레이션 주 구현: {FormatProviderWithModel(snapshot.OrchestrationProvider, snapshot.OrchestrationModel, allowAuto: true)} / 언어={snapshot.OrchestrationLanguage}");
-        builder.AppendLine($"오케스트레이션 워커: Groq={FormatCodingWorkerModel(snapshot.OrchestrationGroqModel)}, Gemini={FormatCodingWorkerModel(snapshot.OrchestrationGeminiModel)}, Cerebras={FormatCodingWorkerModel(snapshot.OrchestrationCerebrasModel)}, NVIDIA NIM={FormatCodingWorkerModel(snapshot.OrchestrationNvidiaModel)}, Copilot={FormatCodingWorkerModel(snapshot.OrchestrationCopilotModel)}, Codex={FormatCodingWorkerModel(snapshot.OrchestrationCodexModel)}");
+        builder.AppendLine($"오케스트레이션 워커: Groq={FormatCodingWorkerModel(snapshot.OrchestrationGroqModel)}, Gemini={FormatCodingWorkerModel(snapshot.OrchestrationGeminiModel)}, Cerebras={FormatCodingWorkerModel(snapshot.OrchestrationCerebrasModel)}, NVIDIA NIM={FormatCodingWorkerModel(snapshot.OrchestrationNvidiaModel)}, Copilot={FormatCodingWorkerModel(snapshot.OrchestrationCopilotModel)}, Codex={FormatCodingWorkerModel(snapshot.OrchestrationCodexModel)}, Grok={FormatCodingWorkerModel(snapshot.OrchestrationGrokModel)}");
         builder.AppendLine($"다중 요약: {FormatProviderWithModel(snapshot.MultiProvider, snapshot.MultiModel, allowAuto: true)} / 언어={snapshot.MultiLanguage}");
-        builder.AppendLine($"다중 워커: Groq={FormatCodingWorkerModel(snapshot.MultiGroqModel)}, Gemini={FormatCodingWorkerModel(snapshot.MultiGeminiModel)}, Cerebras={FormatCodingWorkerModel(snapshot.MultiCerebrasModel)}, NVIDIA NIM={FormatCodingWorkerModel(snapshot.MultiNvidiaModel)}, Copilot={FormatCodingWorkerModel(snapshot.MultiCopilotModel)}, Codex={FormatCodingWorkerModel(snapshot.MultiCodexModel)}");
+        builder.AppendLine($"다중 워커: Groq={FormatCodingWorkerModel(snapshot.MultiGroqModel)}, Gemini={FormatCodingWorkerModel(snapshot.MultiGeminiModel)}, Cerebras={FormatCodingWorkerModel(snapshot.MultiCerebrasModel)}, NVIDIA NIM={FormatCodingWorkerModel(snapshot.MultiNvidiaModel)}, Copilot={FormatCodingWorkerModel(snapshot.MultiCopilotModel)}, Codex={FormatCodingWorkerModel(snapshot.MultiCodexModel)}, Grok={FormatCodingWorkerModel(snapshot.MultiGrokModel)}");
         builder.AppendLine();
         if (latest?.LatestCodingResult != null)
         {

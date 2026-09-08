@@ -20,16 +20,16 @@ public sealed class ProviderModelSelectionPolicyTests
     }
 
     [Fact]
-    public void NormalizePinnedProviderModelSelectionPinsCopilotModel()
+    public void NormalizeProviderModelSelectionPreservesExplicitCopilotModel()
     {
         var result = ProviderModelSelectionPolicy.NormalizePinnedProviderModelSelection(
             "copilot",
-            "custom",
+            " gpt-6-astra ",
             "gpt-5-mini",
             model => model?.Trim()
         );
 
-        Assert.Equal("gpt-5-mini", result);
+        Assert.Equal("gpt-6-astra", result);
     }
 
     [Fact]

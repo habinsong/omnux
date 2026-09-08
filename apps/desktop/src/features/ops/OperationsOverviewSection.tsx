@@ -57,6 +57,7 @@ export function OperationsOverviewSection({ doctor, ops, store, canRequest, onEr
           onLoadLast={store.loadDoctorLast}
           onRun={store.runDoctor}
           onPreviewFix={store.previewDoctorFix}
+          onApplyFix={store.applyDoctorFix}
         />
       </CardBoundary>
     </section>

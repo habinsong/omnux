@@ -33,6 +33,16 @@ public sealed class AskIntentPlannerTests
     }
 
     [Fact]
+    public void PlanEnablesConversationsForPreflightSessionSignal()
+    {
+        // 회고 어휘는 없지만 preflight session_or_agent 신호(에이전트/실패 로그)가 있어
+        // executor 가 과거 대화(세션)도 검색하도록 켜진다.
+        var plan = AskIntentPlanner.Plan("에이전트 실패 로그 원인 분석해줘");
+        Assert.True(plan.AttemptRetrieval);
+        Assert.True(plan.SearchConversations);
+    }
+
+    [Fact]
     public void PlanEnablesOverviewForStructuralQuestion()
     {
         var plan = AskIntentPlanner.Plan("이 프로젝트 구조 설명해줘");

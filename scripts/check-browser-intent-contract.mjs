@@ -30,7 +30,9 @@ assert.equal(count(chat, "TryHandleBrowserChatIntent("), 2, "대화 single/orche
 assert.equal(count(chat, "TryHandleBrowserMultiIntent("), 1, "대화 multi 경로 브라우저 intent 연결 누락");
 assert.equal(count(coding, "TryHandleBrowserCodingIntent("), 3, "코딩 single/orchestration/multi 경로 브라우저 intent 연결 수 불일치");
 
-assert.match(browserTool, /_ => "auto"/, "BrowserTool 기본 auto 모드 누락");
+assert.match(browserTool, /OMNUX_BROWSER_TOOL_MODE"\) \?\? "auto"/, "BrowserTool 기본 auto 모드 누락");
+assert.doesNotMatch(browserTool, /ExecuteStubAction|ExecuteAutoAction/, "가짜 브라우저 성공 폴백을 재도입하면 안 됩니다.");
+assert.match(browserTool, /_host\.Execute\(/, "브라우저 intent가 실제 실행기로 전달되어야 합니다.");
 assert.match(usage, /네이버 열어줘/, "사용법 문서의 대화 탭 브라우저 예시 누락");
 assert.match(usage, /코딩 탭에서도 `네이버 열어줘`/, "사용법 문서의 코딩 탭 브라우저 예시 누락");
 assert.match(toolGuide, /일반 사용자는 대화 탭이나 코딩 탭에 자연어로 입력한다/, "도구 패널 문서의 실제 사용 경로 설명 누락");

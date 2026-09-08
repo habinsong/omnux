@@ -36,6 +36,7 @@ function resolvePythonCommand() {
 }
 
 function main() {
+  runStep("renewal inventory checks", "node", ["--test", "apps/shared/audit-renewal.test.mjs"]);
   runStep(
     "repo hygiene gate",
     "node",
@@ -57,10 +58,20 @@ function main() {
     "node",
     [toRelative(path.join(repoRoot, "scripts", "check-security-boundaries.mjs"))]
   );
+  runStep("fresh build workspace", "node", ["scripts/check-build-workspace-source.mjs"]);
+  runStep("fresh chat workspace", "node", ["scripts/check-chat-workspace-source.mjs"]);
+  runStep("fresh explore workspace", "node", ["scripts/check-explore-workspace-source.mjs"]);
+  runStep("fresh automation workspace", "node", ["scripts/check-automation-workspace-source.mjs"]);
+  runStep("fresh task workspace", "node", ["scripts/check-task-workspace-source.mjs"]);
   runStep(
     "tech stack contract",
     "node",
     [toRelative(path.join(repoRoot, "scripts", "check-tech-stack-contract.mjs"))]
+  );
+  runStep(
+    "shared model registry",
+    "node",
+    ["apps/shared/generate-cs-registry.js", "--check"]
   );
   runStep(
     "coding python game contract",

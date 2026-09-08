@@ -339,7 +339,7 @@ internal static class UnifiedSlashCommandPolicy
 
     private static bool IsConcreteProvider(string provider)
     {
-        return provider is "groq" or "gemini" or "copilot" or "cerebras" or "nvidia" or "codex";
+        return provider is "groq" or "gemini" or "copilot" or "cerebras" or "nvidia" or "codex" or "grok";
     }
 
     private static UnifiedSlashCommand Message(IReadOnlyList<string> tokens, string message)

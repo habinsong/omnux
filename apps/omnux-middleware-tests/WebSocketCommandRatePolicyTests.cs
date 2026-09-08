@@ -7,6 +7,9 @@ public sealed class WebSocketCommandRatePolicyTests
 {
     [Theory]
     [InlineData("doctor_get_last", null)]
+    [InlineData("coding_cancel", null)]
+    [InlineData("task_cancel", null)]
+    [InlineData("task_graph_cancel", null)]
     [InlineData("plan_list", null)]
     [InlineData("task_graph_list", null)]
     [InlineData("git_automation_snapshot_get", null)]
@@ -70,5 +73,12 @@ public sealed class WebSocketCommandRatePolicyTests
         Assert.Equal("run", root.GetProperty("requestAction").GetString());
         Assert.Equal(30, root.GetProperty("limitPerMinute").GetInt32());
         Assert.Equal(60, root.GetProperty("windowSeconds").GetInt32());
+    }
+
+    [Fact]
+    public void RateLimitedCodingRequestPreservesItsId()
+    {
+        using var doc = JsonDocument.Parse(WebSocketCommandRatePolicy.BuildRateLimitedErrorJson("coding_run_single", null, 30, "request-\"1"));
+        Assert.Equal("request-\"1", doc.RootElement.GetProperty("requestId").GetString());
     }
 }

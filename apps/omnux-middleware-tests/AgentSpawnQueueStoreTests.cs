@@ -83,7 +83,7 @@ public sealed class AgentSpawnQueueStoreTests
         try
         {
             var conversationStore = new ConversationStore(Path.Combine(stateDir, "conversations.json"));
-            var runtimeSettings = new RuntimeSettings(new AppConfig());
+            var runtimeSettings = new RuntimeSettings(new AppConfig { DashboardAccessStatePath = Path.Combine(stateDir, "dashboard_access.json") });
             var adapter = new AcpSessionBindingAdapter(stateDir, "codex", runtimeSettings);
             var admissionLimiter = new AgentSpawnAdmissionLimiter(
                 () => now,
@@ -179,7 +179,7 @@ public sealed class AgentSpawnQueueStoreTests
                 category: "session",
                 tags: new[] { "sessions_spawn", "subagent", "session" }
             );
-            var runtimeSettings = new RuntimeSettings(new AppConfig());
+            var runtimeSettings = new RuntimeSettings(new AppConfig { DashboardAccessStatePath = Path.Combine(stateDir, "dashboard_access.json") });
             var adapter = new AcpSessionBindingAdapter(stateDir, "codex", runtimeSettings);
             var admissionLimiter = new AgentSpawnAdmissionLimiter(
                 () => now,
@@ -290,7 +290,7 @@ public sealed class AgentSpawnQueueStoreTests
                 category: "session",
                 tags: new[] { "sessions_spawn", "acp", "session" }
             );
-            var runtimeSettings = new RuntimeSettings(new AppConfig());
+            var runtimeSettings = new RuntimeSettings(new AppConfig { DashboardAccessStatePath = Path.Combine(stateDir, "dashboard_access.json") });
             var adapter = new AcpSessionBindingAdapter(stateDir, "codex", runtimeSettings);
             var admissionLimiter = new AgentSpawnAdmissionLimiter(
                 () => now,
@@ -394,7 +394,7 @@ public sealed class AgentSpawnQueueStoreTests
         try
         {
             var conversationStore = new ConversationStore(Path.Combine(stateDir, "conversations.json"));
-            var runtimeSettings = new RuntimeSettings(new AppConfig());
+            var runtimeSettings = new RuntimeSettings(new AppConfig { DashboardAccessStatePath = Path.Combine(stateDir, "dashboard_access.json") });
             var adapter = new AcpSessionBindingAdapter(stateDir, "codex", runtimeSettings);
             var admissionLimiter = new AgentSpawnAdmissionLimiter(
                 () => now,
@@ -415,6 +415,7 @@ public sealed class AgentSpawnQueueStoreTests
                 admissionLimiter,
                 dailyCostLedger,
                 queueStore,
+                runBreaker: new AgentSpawnRunBreaker(Path.Combine(stateDir, "agent_spawn_breaker.json"), utcNow: () => now),
                 utcNow: () => now
             );
 
@@ -542,7 +543,7 @@ public sealed class AgentSpawnQueueStoreTests
         try
         {
             var conversationStore = new ConversationStore(Path.Combine(stateDir, "conversations.json"));
-            var runtimeSettings = new RuntimeSettings(new AppConfig());
+            var runtimeSettings = new RuntimeSettings(new AppConfig { DashboardAccessStatePath = Path.Combine(stateDir, "dashboard_access.json") });
             var adapter = new AcpSessionBindingAdapter(stateDir, "codex", runtimeSettings);
             var admissionLimiter = new AgentSpawnAdmissionLimiter(
                 () => now,
@@ -619,7 +620,7 @@ public sealed class AgentSpawnQueueStoreTests
         try
         {
             var conversationStore = new ConversationStore(Path.Combine(stateDir, "conversations.json"));
-            var runtimeSettings = new RuntimeSettings(new AppConfig());
+            var runtimeSettings = new RuntimeSettings(new AppConfig { DashboardAccessStatePath = Path.Combine(stateDir, "dashboard_access.json") });
             var adapter = new AcpSessionBindingAdapter(stateDir, "codex", runtimeSettings);
             var admissionLimiter = new AgentSpawnAdmissionLimiter(
                 () => now,
@@ -794,7 +795,7 @@ public sealed class AgentSpawnQueueStoreTests
         try
         {
             var conversationStore = new ConversationStore(Path.Combine(stateDir, "conversations.json"));
-            var runtimeSettings = new RuntimeSettings(new AppConfig());
+            var runtimeSettings = new RuntimeSettings(new AppConfig { DashboardAccessStatePath = Path.Combine(stateDir, "dashboard_access.json") });
             var adapter = new AcpSessionBindingAdapter(stateDir, "codex", runtimeSettings);
             var admissionLimiter = new AgentSpawnAdmissionLimiter(
                 () => now,

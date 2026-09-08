@@ -28,6 +28,9 @@ public interface IConversationStore
     int DeleteByScope(string scope, string? mode = null);
     ConversationThreadView AppendMessage(string conversationId, string role, string text, string meta, TokenUsage? tokenUsage = null);
     ConversationThreadView SetLatestCodingResult(string conversationId, ConversationCodingResultSnapshot? result);
+    ConversationThreadView BindCodingProject(string conversationId, CodingProjectBinding binding);
+    bool TryReplaceLatestCodingResult(string conversationId, ConversationCodingResultSnapshot expected, ConversationCodingResultSnapshot result);
+    bool TryUpdateCodingCheckpoint(string conversationId, string checkpointId, ConversationCodingResultSnapshot result);
     void SetActiveSkillName(string conversationId, string? skillName);
     IReadOnlyList<(string ConversationId, string SkillName)> ListActiveSkillBindings();
     ConversationThreadView SetLinkedMemoryNotes(string conversationId, IReadOnlyList<string> names);

@@ -4,7 +4,7 @@ namespace Omnux.Middleware;
 
 // Codex(OpenAI)는 보통 CLI 로그인 인증이라 표준 /models가 없다.
 // Codex/OpenAI API 키가 설정된 경우에만 GET https://api.openai.com/v1/models 에서
-// gpt-5* / *codex* 채팅 모델을 라이브로 가져오고, 그 외에는 검증된 정적 폴백을 반환한다.
+// GPT-5/6 및 Codex 모델을 라이브로 가져오고, 그 외에는 정적 폴백을 반환한다.
 public sealed class CodexModelCatalog : IDisposable
 {
     private const string OpenAiModelsEndpoint = "https://api.openai.com/v1/models";
@@ -52,8 +52,9 @@ public sealed class CodexModelCatalog : IDisposable
         }
     }
 
-    private static bool IsCodexRelevant(string id)
+    internal static bool IsCodexRelevant(string id)
         => id.StartsWith("gpt-5", StringComparison.OrdinalIgnoreCase)
+           || id.StartsWith("gpt-6", StringComparison.OrdinalIgnoreCase)
            || id.Contains("codex", StringComparison.OrdinalIgnoreCase);
 
     public void Dispose() => _httpClient.Dispose();

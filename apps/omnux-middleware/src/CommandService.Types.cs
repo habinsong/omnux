@@ -129,7 +129,9 @@ public sealed record LlmMultiChatResult(
     string NvidiaText = "",
     string NvidiaModel = "",
     TokenUsage? WorkerTokenUsage = null,
-    TokenUsage? SummaryTokenUsage = null
+    TokenUsage? SummaryTokenUsage = null,
+    string GrokText = "",
+    string GrokModel = ""
 );
 public sealed record InputAttachment(
     string Name,
@@ -186,7 +188,8 @@ public sealed record ChatRequest(
     string? SkillName = null,
     string? SkillScope = null,
     bool ThinkPlusEnabled = false,
-    string? NvidiaModel = null
+    string? NvidiaModel = null,
+    string? GrokModel = "none"
 );
 public sealed record MultiChatRequest(
     string Input,
@@ -211,7 +214,8 @@ public sealed record MultiChatRequest(
     string? NvidiaModel = null,
     bool ThinkPlusEnabled = false,
     string? SkillName = null,
-    string? SkillScope = null
+    string? SkillScope = null,
+    string? GrokModel = "none"
 );
 public sealed record ChatStreamUpdate(
     string Scope,
@@ -358,7 +362,9 @@ public sealed record ConversationMultiResult(
     string CommonCore = "",
     string Differences = "",
     string NvidiaText = "",
-    string NvidiaModel = ""
+    string NvidiaModel = "",
+    string GrokText = "",
+    string GrokModel = ""
 );
 public sealed record CodingRunRequest(
     string Input,
@@ -385,8 +391,13 @@ public sealed record CodingRunRequest(
     bool ThinkPlusEnabled = false,
     string? NvidiaModel = null,
     string? SkillName = null,
-    string? SkillScope = null
-);
+    string? SkillScope = null,
+    string? GrokModel = "none",
+    string? ProjectKey = null
+)
+{
+    internal CodingProjectBinding? BoundProject { get; init; }
+}
 public sealed record CodingWorkerResult(
     string Provider,
     string Model,
@@ -422,7 +433,10 @@ public sealed record ConversationCodingResultSnapshot(
     string CommonPoints = "",
     string Differences = "",
     string Recommendation = "",
-    CodingEvidencePack? Evidence = null
+    CodingEvidencePack? Evidence = null,
+    string? ResumeInput = null,
+    string? CheckpointId = null,
+    IReadOnlyDictionary<string, string?>? ResumeModels = null
 );
 public sealed record CodingEvidencePack(
     string RunMode,
@@ -474,7 +488,8 @@ public sealed record CodingRunResult(
     string CommonPoints = "",
     string Differences = "",
     string Recommendation = "",
-    CodingEvidencePack? Evidence = null
+    CodingEvidencePack? Evidence = null,
+    string RetrievalLabel = ""
 );
 public sealed record WorkspaceFilePreview(string FullPath, string Content);
 public sealed record MemoryIndexRebuildResult(
@@ -538,14 +553,14 @@ public sealed record CodingProgressUpdate(
     string StageTitle = "",
     string StageDetail = "",
     int StageIndex = 0,
-    int StageTotal = 0
+    int StageTotal = 0,
+    string? ConversationId = null
 );
 internal sealed record ParsedCode(string Language, string Code);
-internal sealed record ScaffoldFileSpec(string Path, string Content);
-internal sealed record CodingLoopAction(string Type, string Path, string Content, string Command);
+internal sealed record CodingLoopAction(string Type, string Path, string Content, string Command, string Find = "", string Replace = "");
 internal sealed record CodingLoopPlan(string Analysis, string FinalMessage, bool Done, IReadOnlyList<CodingLoopAction> Actions);
 internal sealed record CodingLoopActionResult(string Message, CodeExecutionResult? Execution, string CodePreview, string LastWrittenFile, string ChangedPath, bool Changed);
-internal sealed record AutonomousCodingOutcome(string Language, string Code, string RawResponse, CodeExecutionResult Execution, IReadOnlyList<string> ChangedFiles, string Summary, TokenUsage? TokenUsage = null);
+internal sealed record AutonomousCodingOutcome(string Language, string Code, string RawResponse, CodeExecutionResult Execution, IReadOnlyList<string> ChangedFiles, string Summary, TokenUsage? TokenUsage = null, string RetrievalLabel = "");
 internal sealed record ShellRunResult(int ExitCode, string StdOut, string StdErr, bool TimedOut);
 internal sealed record InputPreparationResult(
     string Text,
@@ -604,7 +619,9 @@ public sealed record RoutineSummary(
     string QualityStatus,
     IReadOnlyList<string> QualityWarnings,
     string RunCommand,
-    IReadOnlyList<RoutineRunSummary> Runs
+    IReadOnlyList<RoutineRunSummary> Runs,
+    bool Running = false,
+    long? NextRunAtMs = null
 );
 public sealed record RoutineActionResult(bool Ok, string Message, RoutineSummary? Routine);
 public sealed record RoutineProgressUpdate(
@@ -664,7 +681,8 @@ public sealed record RoutineRunDetailResult(
     string? ScreenshotPath,
     IReadOnlyList<string> DownloadPaths,
     string? Error,
-    string Content
+    string Content,
+    string? Output = null
 );
 public sealed record CronToolStatusResult(
     bool Enabled,
@@ -932,6 +950,7 @@ internal sealed class TelegramLlmPreferences
     public string MultiCerebrasModel { get; set; } = string.Empty;
     public string MultiNvidiaModel { get; set; } = string.Empty;
     public string MultiCodexModel { get; set; } = string.Empty;
+    public string MultiGrokModel { get; set; } = "none";
     public string MultiSummaryProvider { get; set; } = "auto";
     public string TalkThinkingLevel { get; set; } = "low";
     public string CodeThinkingLevel { get; set; } = "high";
@@ -953,6 +972,7 @@ internal sealed class TelegramLlmPreferences
             MultiCerebrasModel = MultiCerebrasModel,
             MultiNvidiaModel = MultiNvidiaModel,
             MultiCodexModel = MultiCodexModel,
+            MultiGrokModel = MultiGrokModel,
             MultiSummaryProvider = MultiSummaryProvider,
             TalkThinkingLevel = TalkThinkingLevel,
             CodeThinkingLevel = CodeThinkingLevel
@@ -975,6 +995,7 @@ internal sealed class TelegramCodingPreferences
     public string OrchestrationNvidiaModel { get; set; } = string.Empty;
     public string OrchestrationCopilotModel { get; set; } = "none";
     public string OrchestrationCodexModel { get; set; } = "none";
+    public string OrchestrationGrokModel { get; set; } = "none";
     public string MultiProvider { get; set; } = "gemini";
     public string MultiModel { get; set; } = string.Empty;
     public string MultiLanguage { get; set; } = "auto";
@@ -984,6 +1005,7 @@ internal sealed class TelegramCodingPreferences
     public string MultiNvidiaModel { get; set; } = string.Empty;
     public string MultiCopilotModel { get; set; } = "none";
     public string MultiCodexModel { get; set; } = "none";
+    public string MultiGrokModel { get; set; } = "none";
 
     public TelegramCodingPreferences Clone()
     {
@@ -1002,6 +1024,7 @@ internal sealed class TelegramCodingPreferences
             OrchestrationNvidiaModel = OrchestrationNvidiaModel,
             OrchestrationCopilotModel = OrchestrationCopilotModel,
             OrchestrationCodexModel = OrchestrationCodexModel,
+            OrchestrationGrokModel = OrchestrationGrokModel,
             MultiProvider = MultiProvider,
             MultiModel = MultiModel,
             MultiLanguage = MultiLanguage,
@@ -1010,7 +1033,8 @@ internal sealed class TelegramCodingPreferences
             MultiCerebrasModel = MultiCerebrasModel,
             MultiNvidiaModel = MultiNvidiaModel,
             MultiCopilotModel = MultiCopilotModel,
-            MultiCodexModel = MultiCodexModel
+            MultiCodexModel = MultiCodexModel,
+            MultiGrokModel = MultiGrokModel
         };
     }
 }
@@ -1049,6 +1073,7 @@ internal sealed class WebLlmPreferences
     public string MultiCerebrasModel { get; set; } = string.Empty;
     public string MultiNvidiaModel { get; set; } = string.Empty;
     public string MultiCodexModel { get; set; } = string.Empty;
+    public string MultiGrokModel { get; set; } = "none";
     public string MultiSummaryProvider { get; set; } = "auto";
     public string TalkThinkingLevel { get; set; } = "low";
     public string CodeThinkingLevel { get; set; } = "high";
@@ -1070,6 +1095,7 @@ internal sealed class WebLlmPreferences
             MultiCerebrasModel = MultiCerebrasModel,
             MultiNvidiaModel = MultiNvidiaModel,
             MultiCodexModel = MultiCodexModel,
+            MultiGrokModel = MultiGrokModel,
             MultiSummaryProvider = MultiSummaryProvider,
             TalkThinkingLevel = TalkThinkingLevel,
             CodeThinkingLevel = CodeThinkingLevel

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useDesktopAuthStore } from "./features/auth/auth-store";
-import { bindDesktopSessionSocket, publishDesktopMessage, requestDesktopAuth } from "./features/middleware/desktop-message-gateway";
+import { bindDesktopSessionSocket, publishDesktopMessage, requestDesktopAuth, shouldToastDesktopError } from "./features/middleware/desktop-message-gateway";
 import { requestDesktopOps } from "./features/middleware/ops-gateway";
 import { useOpsPageStore } from "./features/ops/ops-store";
 import { useUiLogStore } from "./features/ui-log/ui-log-store";
@@ -68,11 +68,19 @@ function handleAuthRequired(message: ServerMessage) {
 }
 
 function handleServerMessage(message: ServerMessage) {
+  const toastError = shouldToastDesktopError(message);
   publishDesktopMessage(message);
   const shellStore = useDesktopShellStore.getState();
   const authStore = useDesktopAuthStore.getState();
   const opsStore = useOpsPageStore.getState();
   shellStore.markBridgeStatus("connected");
+
+  if (message.type === "notebook_result" || message.type === "routine_result" || message.type === "plan_result") {
+    const payload = message.payload && typeof message.payload === "object" ? message.payload as Record<string, unknown> : {};
+    const label = {notebook_result: "노트 처리 결과", routine_result: "자동화 처리 결과", plan_result: "작업 계획 처리 결과"}[message.type];
+    useUiLogStore.getState().recordLog("info", String(payload.message || message.message || label), {source:"operations"});
+    return;
+  }
 
   if (message.type === "auth_required") {
     handleAuthRequired(message);
@@ -93,6 +101,16 @@ function handleServerMessage(message: ServerMessage) {
 
   if (message.type === "otp_request_result") {
     authStore.markOtpRequestResult(booleanValue(message.ok), stringValue(message.message) || "OTP 요청 결과를 받았다.");
+    return;
+  }
+
+  if (message.type === "settings_state") {
+    // settings_state 는 연결/설정 변경 시마다 브로드캐스트된다. 텔레그램 연결 여부를
+    // 최초 auth_required 핸드셰이크가 아니라 실시간 설정 상태에서 갱신해, 나중에
+    // 설정탭에서 연결해도 자동화탭 등에서 "미설정"으로 굳지 않게 한다.
+    authStore.setTelegramConfigured(
+      booleanValue(message.telegramBotTokenSet) && booleanValue(message.telegramChatIdSet)
+    );
     return;
   }
 
@@ -131,7 +149,7 @@ function handleServerMessage(message: ServerMessage) {
       return;
     }
     const text = formatServerErrorMessage(message, rawText);
-    useUiLogStore.getState().recordLog("error", text, { source: "middleware" });
+    useUiLogStore.getState().recordLog("error", text, { source: "middleware", toast: toastError });
     const doctor = opsStore.doctor;
     if (doctor.loading || doctor.running || doctor.fixPreviewing || doctor.fixApplying) {
       opsStore.markDoctorError(text);

@@ -122,7 +122,8 @@ internal sealed class WsAiCommandDispatcher
                     socket,
                     sendLock,
                     "empty message",
-                    cancellationToken
+                    cancellationToken,
+                    requestId: message.RequestId, requestType: message.Type
                 );
                 return true;
             }
@@ -160,6 +161,7 @@ internal sealed class WsAiCommandDispatcher
                         WebUrls: message.WebUrls,
                         WebSearchEnabled: message.WebSearchEnabled,
                         CodexModel: message.CodexModel,
+                        GrokModel: message.GrokModel ?? "none",
                         RequestId: message.RequestId,
                         SkillName: message.SkillName,
                         SkillScope: message.SkillScope,
@@ -169,7 +171,7 @@ internal sealed class WsAiCommandDispatcher
                     stream
                 );
 
-                await SendChatResultAsync(socket, sendLock, result, cancellationToken);
+                await SendChatResultAsync(socket, sendLock, result, cancellationToken, message.RequestId);
                 await _sendGroqModelsAsync(socket, sendLock, cancellationToken);
                 await _sendCopilotModelsAsync(socket, sendLock, cancellationToken);
                 await _sendUsageStatsAsync(socket, sendLock, cancellationToken);
@@ -181,7 +183,8 @@ internal sealed class WsAiCommandDispatcher
                     socket,
                     sendLock,
                     "chat_single failed: " + ex.Message,
-                    cancellationToken
+                    cancellationToken,
+                    requestId: message.RequestId, requestType: message.Type
                 );
             }
 
@@ -196,7 +199,8 @@ internal sealed class WsAiCommandDispatcher
                     socket,
                     sendLock,
                     "empty message",
-                    cancellationToken
+                    cancellationToken,
+                    requestId: message.RequestId, requestType: message.Type
                 );
                 return true;
             }
@@ -228,13 +232,15 @@ internal sealed class WsAiCommandDispatcher
                         WebUrls: message.WebUrls,
                         WebSearchEnabled: message.WebSearchEnabled,
                         CodexModel: message.CodexModel,
+                        GrokModel: message.GrokModel ?? "none",
+                        RequestId: message.RequestId,
                         ThinkPlusEnabled: message.ThinkPlus == true,
                         SkillName: message.SkillName,
                         SkillScope: message.SkillScope
                     ),
                     cancellationToken
                 );
-                await SendChatResultAsync(socket, sendLock, result, cancellationToken);
+                await SendChatResultAsync(socket, sendLock, result, cancellationToken, message.RequestId);
                 await _sendUsageStatsAsync(socket, sendLock, cancellationToken);
                 await _sendConversationsAsync(socket, sendLock, scopeValue, modeValue, cancellationToken);
             }
@@ -244,7 +250,8 @@ internal sealed class WsAiCommandDispatcher
                     socket,
                     sendLock,
                     "chat_orchestration failed: " + ex.Message,
-                    cancellationToken
+                    cancellationToken,
+                    requestId: message.RequestId, requestType: message.Type
                 );
             }
 
@@ -259,7 +266,8 @@ internal sealed class WsAiCommandDispatcher
                     socket,
                     sendLock,
                     "empty message",
-                    cancellationToken
+                    cancellationToken,
+                    requestId: message.RequestId, requestType: message.Type
                 );
                 return true;
             }
@@ -290,6 +298,7 @@ internal sealed class WsAiCommandDispatcher
                         WebUrls: message.WebUrls,
                         WebSearchEnabled: message.WebSearchEnabled,
                         CodexModel: message.CodexModel,
+                        GrokModel: message.GrokModel ?? "none",
                         ThinkPlusEnabled: message.ThinkPlus == true,
                         SkillName: message.SkillName,
                         SkillScope: message.SkillScope
@@ -330,7 +339,10 @@ internal sealed class WsAiCommandDispatcher
                     retryDirective.RetryRequired,
                     retryDirective.RetryAction,
                     retryDirective.RetryScope,
-                    retryDirective.RetryReason
+                    retryDirective.RetryReason,
+                    Grok: result.GrokText,
+                    GrokModel: result.GrokModel,
+                    RequestId: message.RequestId
                 );
                 var multiJson = JsonSerializer.Serialize(multiResponse, WsAiJsonContext.Default.ChatMultiResultWsResponse);
                 await WebSocketGateway.SendTextAsync(
@@ -350,224 +362,94 @@ internal sealed class WsAiCommandDispatcher
                     socket,
                     sendLock,
                     "chat_multi failed: " + ex.Message,
-                    cancellationToken
+                    cancellationToken,
+                    requestId: message.RequestId, requestType: message.Type
                 );
             }
 
             return true;
         }
 
-        if (message.Type == "coding_run_single")
+        if (message.Type is "coding_run_single" or "coding_run_orchestration" or "coding_run_multi")
         {
             if (string.IsNullOrWhiteSpace(message.Text))
             {
-                await SendGuardedErrorAsync(
-                    socket,
-                    sendLock,
-                    "empty coding input",
-                    cancellationToken
-                );
+                await SendGuardedErrorAsync(socket, sendLock, "empty coding input", cancellationToken,
+                    requestId: message.RequestId, requestType: message.Type);
                 return true;
             }
 
+            var scopeValue = message.Scope ?? "coding";
+            var modeValue = message.Mode ?? message.Type["coding_run_".Length..];
+            var progressLock = new object();
+            var progressPipeline = Task.CompletedTask;
+            Action<CodingProgressUpdate> progress = update =>
+            {
+                lock (progressLock)
+                {
+                    if (!string.IsNullOrEmpty(update.ConversationId)) message.ConversationId = update.ConversationId;
+                    progressPipeline = progressPipeline.ContinueWith(
+                        _ => SendCodingProgressAsync(socket, sendLock, scopeValue, modeValue, update, cancellationToken, message.RequestId),
+                        cancellationToken, TaskContinuationOptions.None, TaskScheduler.Default
+                    ).Unwrap();
+                }
+            };
             try
             {
-                var scopeValue = message.Scope ?? "coding";
-                var modeValue = message.Mode ?? "single";
-                var progressPipeline = Task.CompletedTask;
-                Action<CodingProgressUpdate> progress = update =>
-                {
-                    progressPipeline = progressPipeline.ContinueWith(
-                        _ => SendCodingProgressAsync(socket, sendLock, scopeValue, modeValue, update, cancellationToken),
-                        cancellationToken,
-                        TaskContinuationOptions.None,
-                        TaskScheduler.Default
-                    ).Unwrap();
-                };
-                var result = await _codingService.RunCodingSingleAsync(
-                    new CodingRunRequest(
-                        Input: message.Text,
-                        Source: "web",
-                        Scope: scopeValue,
-                        Mode: modeValue,
-                        ConversationId: message.ConversationId,
-                        ConversationTitle: message.ConversationTitle,
-                        Project: message.Project,
-                        Category: message.Category,
-                        Tags: message.Tags,
-                        Provider: message.Provider,
-                        Model: message.Model,
-                        Language: message.Language ?? "auto",
-                        LinkedMemoryNotes: message.MemoryNotes,
-                        GroqModel: message.GroqModel,
-                        GeminiModel: message.GeminiModel,
-                        CerebrasModel: message.CerebrasModel,
-                        NvidiaModel: message.NvidiaModel,
-                        CopilotModel: message.CopilotModel,
-                        CodexModel: message.CodexModel,
-                        Attachments: message.Attachments,
-                        WebUrls: message.WebUrls,
-                        WebSearchEnabled: message.WebSearchEnabled,
-                        ThinkPlusEnabled: message.ThinkPlus == true,
-                        SkillName: message.SkillName,
-                        SkillScope: message.SkillScope
-                    ),
-                    cancellationToken,
-                    progress
+                var request = new CodingRunRequest(
+                    Input: message.Text,
+                    Source: "web",
+                    Scope: scopeValue,
+                    Mode: modeValue,
+                    ConversationId: message.ConversationId,
+                    ConversationTitle: message.ConversationTitle,
+                    Project: message.Project,
+                    ProjectKey: message.ProjectKey,
+                    Category: message.Category,
+                    Tags: message.Tags,
+                    Provider: message.Provider,
+                    Model: message.Model,
+                    Language: message.Language ?? "auto",
+                    LinkedMemoryNotes: message.MemoryNotes,
+                    GroqModel: message.GroqModel,
+                    GeminiModel: message.GeminiModel,
+                    CerebrasModel: message.CerebrasModel,
+                    NvidiaModel: message.NvidiaModel,
+                    CopilotModel: message.CopilotModel,
+                    CodexModel: message.CodexModel,
+                    GrokModel: message.GrokModel ?? "none",
+                    Attachments: message.Attachments,
+                    WebUrls: message.WebUrls,
+                    WebSearchEnabled: message.WebSearchEnabled,
+                    ThinkPlusEnabled: message.ThinkPlus == true,
+                    SkillName: message.SkillName,
+                    SkillScope: message.SkillScope
                 );
+                var result = message.Type switch
+                {
+                    "coding_run_orchestration" => await _codingService.RunCodingOrchestrationAsync(request, cancellationToken, progress),
+                    "coding_run_multi" => await _codingService.RunCodingMultiAsync(request, cancellationToken, progress),
+                    _ => await _codingService.RunCodingSingleAsync(request, cancellationToken, progress)
+                };
                 await FlushCodingProgressAsync(progressPipeline);
-                await SendCodingResultAsync(socket, sendLock, result, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                await SendCodingResultAsync(socket, sendLock, result, cancellationToken, message.RequestId);
                 await _sendConversationsAsync(socket, sendLock, scopeValue, modeValue, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
-                await SendGuardedErrorAsync(
-                    socket,
-                    sendLock,
-                    "coding_single failed: " + ex.Message,
-                    cancellationToken
-                );
+                await SendGuardedErrorAsync(socket, sendLock, $"coding_{modeValue} failed: " + ex.Message,
+                    cancellationToken, requestId: message.RequestId, requestType: message.Type);
             }
-
-            return true;
-        }
-
-        if (message.Type == "coding_run_orchestration")
-        {
-            try
+            finally
             {
-                var scopeValue = message.Scope ?? "coding";
-                var modeValue = message.Mode ?? "orchestration";
-                var progressPipeline = Task.CompletedTask;
-                Action<CodingProgressUpdate> progress = update =>
-                {
-                    progressPipeline = progressPipeline.ContinueWith(
-                        _ => SendCodingProgressAsync(socket, sendLock, scopeValue, modeValue, update, cancellationToken),
-                        cancellationToken,
-                        TaskContinuationOptions.None,
-                        TaskScheduler.Default
-                    ).Unwrap();
-                };
-                var result = await _codingService.RunCodingOrchestrationAsync(
-                    new CodingRunRequest(
-                        Input: message.Text ?? string.Empty,
-                        Source: "web",
-                        Scope: scopeValue,
-                        Mode: modeValue,
-                        ConversationId: message.ConversationId,
-                        ConversationTitle: message.ConversationTitle,
-                        Project: message.Project,
-                        Category: message.Category,
-                        Tags: message.Tags,
-                        Provider: message.Provider,
-                        Model: message.Model,
-                        Language: message.Language ?? "auto",
-                        LinkedMemoryNotes: message.MemoryNotes,
-                        GroqModel: message.GroqModel,
-                        GeminiModel: message.GeminiModel,
-                        CerebrasModel: message.CerebrasModel,
-                        NvidiaModel: message.NvidiaModel,
-                        CopilotModel: message.CopilotModel,
-                        Attachments: message.Attachments,
-                        WebUrls: message.WebUrls,
-                        WebSearchEnabled: message.WebSearchEnabled,
-                        CodexModel: message.CodexModel,
-                        ThinkPlusEnabled: message.ThinkPlus == true,
-                        SkillName: message.SkillName,
-                        SkillScope: message.SkillScope
-                    ),
-                    cancellationToken,
-                    progress
-                );
+                // 연결 자원을 정리하기 전에 취소된 워커의 진행 메시지까지 관찰한다.
                 await FlushCodingProgressAsync(progressPipeline);
-                await SendCodingResultAsync(socket, sendLock, result, cancellationToken);
-                await _sendConversationsAsync(socket, sendLock, scopeValue, modeValue, cancellationToken);
             }
-            catch (Exception ex)
-            {
-                await SendGuardedErrorAsync(
-                    socket,
-                    sendLock,
-                    "coding_orchestration failed: " + ex.Message,
-                    cancellationToken
-                );
-            }
-
-            return true;
-        }
-
-        if (message.Type == "coding_run_multi")
-        {
-            if (string.IsNullOrWhiteSpace(message.Text))
-            {
-                await SendGuardedErrorAsync(
-                    socket,
-                    sendLock,
-                    "empty coding input",
-                    cancellationToken
-                );
-                return true;
-            }
-
-            try
-            {
-                var scopeValue = message.Scope ?? "coding";
-                var modeValue = message.Mode ?? "multi";
-                var progressPipeline = Task.CompletedTask;
-                Action<CodingProgressUpdate> progress = update =>
-                {
-                    progressPipeline = progressPipeline.ContinueWith(
-                        _ => SendCodingProgressAsync(socket, sendLock, scopeValue, modeValue, update, cancellationToken),
-                        cancellationToken,
-                        TaskContinuationOptions.None,
-                        TaskScheduler.Default
-                    ).Unwrap();
-                };
-                var result = await _codingService.RunCodingMultiAsync(
-                    new CodingRunRequest(
-                        Input: message.Text,
-                        Source: "web",
-                        Scope: scopeValue,
-                        Mode: modeValue,
-                        ConversationId: message.ConversationId,
-                        ConversationTitle: message.ConversationTitle,
-                        Project: message.Project,
-                        Category: message.Category,
-                        Tags: message.Tags,
-                        Provider: message.Provider,
-                        Model: message.Model,
-                        Language: message.Language ?? "auto",
-                        LinkedMemoryNotes: message.MemoryNotes,
-                        GroqModel: message.GroqModel,
-                        GeminiModel: message.GeminiModel,
-                        CerebrasModel: message.CerebrasModel,
-                        NvidiaModel: message.NvidiaModel,
-                        CopilotModel: message.CopilotModel,
-                        Attachments: message.Attachments,
-                        WebUrls: message.WebUrls,
-                        WebSearchEnabled: message.WebSearchEnabled,
-                        CodexModel: message.CodexModel,
-                        ThinkPlusEnabled: message.ThinkPlus == true,
-                        SkillName: message.SkillName,
-                        SkillScope: message.SkillScope
-                    ),
-                    cancellationToken,
-                    progress
-                );
-                await FlushCodingProgressAsync(progressPipeline);
-                await SendCodingResultAsync(socket, sendLock, result, cancellationToken);
-                await _sendConversationsAsync(socket, sendLock, scopeValue, modeValue, cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                await SendGuardedErrorAsync(
-                    socket,
-                    sendLock,
-                    "coding_multi failed: " + ex.Message,
-                    cancellationToken
-                );
-            }
-
             return true;
         }
 
@@ -578,7 +460,9 @@ internal sealed class WsAiCommandDispatcher
                 await WebSocketGateway.SendTextAsync(
                     socket,
                     sendLock,
-                    "{\"type\":\"coding_execute_result\",\"ok\":false,\"message\":\"conversationId가 필요합니다.\"}",
+                    "{\"type\":\"coding_execute_result\",\"ok\":false,"
+                    + $"\"requestId\":\"{WebSocketGateway.EscapeJson(message.RequestId ?? string.Empty)}\","
+                    + "\"message\":\"conversationId가 필요합니다.\"}",
                     cancellationToken
                 );
                 return true;
@@ -589,9 +473,14 @@ internal sealed class WsAiCommandDispatcher
                 var executionResult = await _codingService.ExecuteLatestCodingResultAsync(
                     message.ConversationId,
                     message.StandardInput,
-                    cancellationToken
+                    cancellationToken,
+                    message.Target
                 );
-                await SendCodingExecutionResultAsync(socket, sendLock, executionResult, cancellationToken);
+                await SendCodingExecutionResultAsync(socket, sendLock, executionResult, cancellationToken, message.RequestId);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -601,6 +490,7 @@ internal sealed class WsAiCommandDispatcher
                     "{"
                     + "\"type\":\"coding_execute_result\","
                     + "\"ok\":false,"
+                    + $"\"requestId\":\"{WebSocketGateway.EscapeJson(message.RequestId ?? string.Empty)}\","
                     + $"\"conversationId\":\"{WebSocketGateway.EscapeJson(message.ConversationId ?? string.Empty)}\","
                     + $"\"message\":\"{WebSocketGateway.EscapeJson(ex.Message)}\""
                     + "}",
@@ -670,7 +560,7 @@ internal sealed class WsAiCommandDispatcher
         }
     }
 
-    private async Task SendGuardedErrorAsync(WebSocket socket, SemaphoreSlim sendLock, string message, CancellationToken cancellationToken, SearchAnswerGuardFailure? guardFailure = null)
+    private async Task SendGuardedErrorAsync(WebSocket socket, SemaphoreSlim sendLock, string message, CancellationToken cancellationToken, SearchAnswerGuardFailure? guardFailure = null, string? requestId = null, string? requestType = null)
     {
         var effectiveGuardFailure = guardFailure ?? WebSocketGateway.TryParseGuardFailureFromMessage(message);
         var retryDirective = WebSocketGateway.ResolveRetryDirective(effectiveGuardFailure);
@@ -683,13 +573,15 @@ internal sealed class WsAiCommandDispatcher
             retryDirective.RetryRequired,
             retryDirective.RetryAction,
             retryDirective.RetryScope,
-            retryDirective.RetryReason
+            retryDirective.RetryReason,
+            requestId,
+            requestType
         );
         var json = JsonSerializer.Serialize(response, WsAiJsonContext.Default.GuardedErrorWsResponse);
         await WebSocketGateway.SendTextAsync(socket, sendLock, json, cancellationToken);
     }
 
-    private async Task SendChatResultAsync(WebSocket socket, SemaphoreSlim sendLock, ConversationChatResult result, CancellationToken cancellationToken)
+    private async Task SendChatResultAsync(WebSocket socket, SemaphoreSlim sendLock, ConversationChatResult result, CancellationToken cancellationToken, string? requestId = null)
     {
         var retryDirective = WebSocketGateway.ResolveRetryDirective(result.GuardFailure);
         var normalizedRetryStopReason = WebSocketGateway.NormalizeWebSearchRetryStopReason(result.RetryStopReason);
@@ -702,7 +594,7 @@ internal sealed class WsAiCommandDispatcher
             result.Provider,
             result.Model,
             result.Route,
-            result.RequestId ?? string.Empty,
+            requestId ?? result.RequestId ?? string.Empty,
             result.Text,
             result.Conversation,
             result.AutoMemoryNote,
@@ -746,7 +638,7 @@ internal sealed class WsAiCommandDispatcher
         await WebSocketGateway.SendTextAsync(socket, sendLock, json, cancellationToken);
     }
 
-    private async Task SendCodingResultAsync(WebSocket socket, SemaphoreSlim sendLock, CodingRunResult result, CancellationToken cancellationToken)
+    private async Task SendCodingResultAsync(WebSocket socket, SemaphoreSlim sendLock, CodingRunResult result, CancellationToken cancellationToken, string? requestId)
     {
         var retryDirective = WebSocketGateway.ResolveRetryDirective(result.GuardFailure);
         var normalizedRetryStopReason = WebSocketGateway.NormalizeWebSearchRetryStopReason(result.RetryStopReason);
@@ -783,13 +675,15 @@ internal sealed class WsAiCommandDispatcher
             result.CommonPoints,
             result.Differences,
             result.Recommendation,
-            result.Evidence
+            result.Evidence,
+            result.RetrievalLabel,
+            requestId
         );
         var json = JsonSerializer.Serialize(response, WsAiJsonContext.Default.CodingResultWsResponse);
         await WebSocketGateway.SendTextAsync(socket, sendLock, json, cancellationToken);
     }
 
-    private async Task SendCodingExecutionResultAsync(WebSocket socket, SemaphoreSlim sendLock, CodingResultExecutionResult result, CancellationToken cancellationToken)
+    private async Task SendCodingExecutionResultAsync(WebSocket socket, SemaphoreSlim sendLock, CodingResultExecutionResult result, CancellationToken cancellationToken, string? requestId)
     {
         var response = new CodingExecutionResultWsResponse(
             "coding_execute_result",
@@ -803,13 +697,14 @@ internal sealed class WsAiCommandDispatcher
             result.PreviewUrl,
             result.PreviewEntry,
             result.Execution,
-            result.Evidence
+            result.Evidence,
+            requestId
         );
         var json = JsonSerializer.Serialize(response, WsAiJsonContext.Default.CodingExecutionResultWsResponse);
         await WebSocketGateway.SendTextAsync(socket, sendLock, json, cancellationToken);
     }
 
-    private async Task SendCodingProgressAsync(WebSocket socket, SemaphoreSlim sendLock, string scope, string mode, CodingProgressUpdate update, CancellationToken cancellationToken)
+    private async Task SendCodingProgressAsync(WebSocket socket, SemaphoreSlim sendLock, string scope, string mode, CodingProgressUpdate update, CancellationToken cancellationToken, string? requestId)
     {
         var effectiveMode = string.IsNullOrWhiteSpace(update.Mode) ? mode : update.Mode;
         var response = new CodingProgressWsResponse(
@@ -828,7 +723,9 @@ internal sealed class WsAiCommandDispatcher
             update.StageTitle,
             update.StageDetail,
             update.StageIndex,
-            update.StageTotal
+            update.StageTotal,
+            requestId,
+            update.ConversationId
         );
         var json = JsonSerializer.Serialize(response, WsAiJsonContext.Default.CodingProgressWsResponse);
         await WebSocketGateway.SendTextAsync(socket, sendLock, json, cancellationToken);

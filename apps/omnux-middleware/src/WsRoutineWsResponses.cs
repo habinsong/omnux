@@ -2,16 +2,20 @@ using System.Text.Json.Serialization;
 
 namespace Omnux.Middleware;
 
+internal record RoutineErrorWsResponse(string Type, string Message, string? RequestId, string? RequestType);
+
 internal record RoutinesStateWsResponse(
     string Type,
-    IReadOnlyList<RoutineSummary> Items
+    IReadOnlyList<RoutineSummary> Items,
+    string? RequestId = null
 );
 
 internal record RoutineActionResultWsResponse(
     string Type,
     bool Ok,
     string Message,
-    RoutineSummary? Routine
+    RoutineSummary? Routine,
+    string? RequestId = null
 );
 
 internal record RoutineProgressWsResponse(
@@ -24,7 +28,8 @@ internal record RoutineProgressWsResponse(
     string StageKey,
     string StageTitle,
     string StageDetail,
-    int StageIndex
+    int StageIndex,
+    string? RequestId = null
 );
 
 internal record RoutineRunDetailWsResponse(
@@ -50,7 +55,9 @@ internal record RoutineRunDetailWsResponse(
     string? ScreenshotPath,
     IReadOnlyList<string> DownloadPaths,
     string? Error,
-    string Content
+    string Content,
+    string? RequestId = null,
+    string? Output = null
 );
 
 internal record RoutineExecutionPreviewWsResponse(
@@ -62,7 +69,8 @@ internal record RoutineExecutionPreviewWsResponse(
     string TimezoneId,
     string ResolvedExecutionMode,
     string ExecutionRoute,
-    IReadOnlyList<string> Warnings
+    IReadOnlyList<string> Warnings,
+    string? RequestId = null
 );
 
 internal record RoutineSchedulerStatusWsResponse(
@@ -73,13 +81,15 @@ internal record RoutineSchedulerStatusWsResponse(
     int RunningRoutines,
     int DueRoutines,
     long? NextRunAtMs,
-    string? LastError
+    string? LastError,
+    string? RequestId = null
 );
 
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
 )]
+[JsonSerializable(typeof(RoutineErrorWsResponse))]
 [JsonSerializable(typeof(RoutinesStateWsResponse))]
 [JsonSerializable(typeof(RoutineActionResultWsResponse))]
 [JsonSerializable(typeof(RoutineProgressWsResponse))]

@@ -5,7 +5,7 @@
  */
 import registry from "../../../../shared/model-registry.json";
 
-type ProviderKey = "groq" | "gemini" | "cerebras" | "nvidia" | "copilot" | "codex";
+type ProviderKey = "groq" | "gemini" | "cerebras" | "nvidia" | "copilot" | "codex" | "grok";
 type AnyProvider = ProviderKey | "auto";
 
 interface ProviderConfig {
@@ -41,6 +41,7 @@ export const DEFAULT_CEREBRAS_MODEL = providers.cerebras.default;
 export const DEFAULT_NVIDIA_MODEL = providers.nvidia.default;
 export const DEFAULT_COPILOT_MODEL = providers.copilot.default;
 export const DEFAULT_CODEX_MODEL = providers.codex.default;
+export const DEFAULT_GROK_MODEL = providers.grok.default;
 
 // ── 정적 폴백 모델 목록 (기존 STATIC_MODEL_OPTIONS 대체) ──
 
@@ -52,26 +53,18 @@ export const STATIC_MODEL_OPTIONS: Partial<Record<AnyProvider, string[]>> = Obje
 
 export type ProviderCatalogs = Partial<Record<Exclude<AnyProvider, "auto">, string[]>>;
 
-/**
- * 정적 폴백 목록을 최종 목록으로 사용한다.
- * API에서 받아온 모델은 정적 목록에 있는 것만 유지하고, 나머지는 무시한다.
- * (Gemini 등 모델이 수십 개씩 오는 제공자에서 노이즈를 방지하기 위함.)
- */
+/** 제공자 카탈로그가 있으면 우선 사용한다. 조회 전·실패 시에만 정적 목록을 사용한다. */
 export function mergeModelOptions(provider: AnyProvider, ...sets: Array<string[] | undefined>): string[] {
-  const staticList = STATIC_MODEL_OPTIONS[provider] ?? [];
-  if (staticList.length === 0) {
-    const seen = new Set<string>();
-    const result: string[] = [];
-    for (const item of sets.flatMap((set) => set ?? [])) {
-      const value = String(item || "").trim();
-      const key = value.toLowerCase();
-      if (!value || seen.has(key)) continue;
-      seen.add(key);
-      result.push(value);
-    }
-    return result;
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const item of sets.flatMap((set) => set ?? [])) {
+    const value = String(item || "").trim();
+    const key = value.toLowerCase();
+    if (!value || seen.has(key)) continue;
+    seen.add(key);
+    result.push(value);
   }
-  return staticList.filter(Boolean);
+  return result.length > 0 ? result : [...(STATIC_MODEL_OPTIONS[provider] ?? [])];
 }
 
 export function modelOptionsForProvider(provider: AnyProvider, catalogs: ProviderCatalogs): string[] {

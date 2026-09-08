@@ -8,16 +8,13 @@ namespace Omnux.Middleware;
 public sealed partial class RoutineApplicationService
 {
     private const string RoutineBrowserAgentDefaultProvider = "codex";
-    private const string RoutineBrowserAgentDefaultModel = "gpt-5.4";
+    private static readonly string RoutineBrowserAgentDefaultModel = ModelRegistry.GetDefaultModel("codex");
     private const int RoutineBrowserAgentDefaultTimeoutSeconds = 120;
     private const int RoutineBrowserAgentMinTimeoutSeconds = 120;
     private const int RoutineBrowserAgentMaxTimeoutSeconds = 1800;
     private const string RoutineBrowserAgentToolProfilePlaywrightOnly = "playwright_only";
     private const string RoutineBrowserAgentToolProfileDesktopControl = "desktop_control";
-    private static readonly IReadOnlySet<string> RoutineBrowserAgentSupportedModels = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-    {
-        RoutineBrowserAgentDefaultModel
-    };
+    private static readonly IReadOnlySet<string> RoutineBrowserAgentSupportedModels = new HashSet<string>(ModelRegistry.GetFallbackModels("codex"), StringComparer.OrdinalIgnoreCase);
     private static readonly IReadOnlySet<string> RoutineBrowserAgentSupportedToolProfiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         RoutineBrowserAgentToolProfilePlaywrightOnly,

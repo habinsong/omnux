@@ -11,9 +11,9 @@ namespace Omnux.Middleware;
 public sealed partial class CommandService :
     IGatewayApplicationService
 {
-    private const string DefaultGroqPrimaryModel = "meta-llama/llama-4-scout-17b-16e-instruct";
+    private static readonly string DefaultGroqPrimaryModel = ModelRegistry.GetDefaultModel("groq");
     private const string DefaultGroqFastModel = "llama-3.1-8b-instant";
-    private const string DefaultGroqComplexModel = "qwen/qwen3-32b";
+    private static readonly string DefaultGroqComplexModel = ModelRegistry.GetDefaultModel("groq");
     private const string DefaultCerebrasModel = "gpt-oss-120b";
     private const string LegacyCerebrasLlamaModel = "llama3.1-8b";
     private const string DefaultCopilotModel = "gpt-5-mini";

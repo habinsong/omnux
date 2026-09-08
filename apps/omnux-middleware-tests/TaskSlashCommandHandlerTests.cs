@@ -156,6 +156,7 @@ public sealed class TaskSlashCommandHandlerTests
         }
 
         public TaskGraphActionResult CancelTask(string graphId, string taskId) => new TaskGraphActionResult(true, "canceled", null);
+        public TaskGraphActionResult CancelTaskGraph(string graphId) => new TaskGraphActionResult(true, "canceled", null);
 
         public Task<TaskGraphActionResult> RetryTaskAsync(string graphId, string taskId, string source, TaskGraphEventSink? eventSink, CancellationToken cancellationToken)
             => Task.FromResult(new TaskGraphActionResult(true, "retry", null));

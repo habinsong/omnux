@@ -53,10 +53,14 @@ public sealed class MemoryIndexDocumentSync
         _projectRootDir = ResolveProjectRoot(paths);
     }
 
-    public MemoryIndexSyncSnapshot SyncOnce()
+    public MemoryIndexSyncSnapshot SyncOnce() => SyncDocuments(conversationsOnly: false);
+
+    public MemoryIndexSyncSnapshot SyncConversations() => SyncDocuments(conversationsOnly: true);
+
+    private MemoryIndexSyncSnapshot SyncDocuments(bool conversationsOnly)
     {
         var stopwatch = Stopwatch.StartNew();
-        var documents = LoadMemoryDocuments();
+        var documents = conversationsOnly ? LoadConversationThreads() : LoadMemoryDocuments();
         var scanned = documents.Count;
         var indexed = 0;
         var skipped = 0;
@@ -65,12 +69,8 @@ public sealed class MemoryIndexDocumentSync
         var sessionDocuments = documents.Count(document => document.Source.Equals("sessions", StringComparison.Ordinal));
         var projectDocuments = documents.Count(document => document.Source.Equals("project", StringComparison.Ordinal));
 
-        var activeBySource = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["memory"] = new HashSet<string>(StringComparer.Ordinal),
-            ["sessions"] = new HashSet<string>(StringComparer.Ordinal),
-            ["project"] = new HashSet<string>(StringComparer.Ordinal)
-        };
+        var sources = conversationsOnly ? new[] { "sessions" } : new[] { "memory", "sessions", "project" };
+        var activeBySource = sources.ToDictionary(source => source, _ => new HashSet<string>(StringComparer.Ordinal), StringComparer.OrdinalIgnoreCase);
 
         foreach (var document in documents)
         {
@@ -113,8 +113,9 @@ public sealed class MemoryIndexDocumentSync
         }
 
         var now = EscapeSql(DateTimeOffset.UtcNow.ToString("O"));
+        var syncKey = conversationsOnly ? "last_conversation_sync_utc" : "last_sync_utc";
         RunSql(
-            $"INSERT INTO meta (key, value) VALUES ('last_sync_utc', '{now}') " +
+            $"INSERT INTO meta (key, value) VALUES ('{syncKey}', '{now}') " +
             "ON CONFLICT(key) DO UPDATE SET value = excluded.value;"
         );
 

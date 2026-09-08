@@ -13,10 +13,11 @@ export const requestDesktopNotebook = {
     kind: NotebookKind,
     content: string,
     projectKey?: string,
-    meta: { source?: string; conversationId?: string | null; provider?: string; model?: string; tags?: string[] } = {}
+    meta: { source?: string; conversationId?: string | null; provider?: string; model?: string; tags?: string[]; requestId?: string } = {}
   ) {
     return sendDesktopRequest({
       type: "notebook_append",
+      requestId: meta.requestId,
       kind,
       text: content,
       content,
