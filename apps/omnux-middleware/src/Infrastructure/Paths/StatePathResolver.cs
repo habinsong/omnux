@@ -54,7 +54,7 @@ public sealed class DefaultStatePathResolver : IStatePathResolver
     public static DefaultStatePathResolver CreateDefault()
     {
         var stateRootDir = ResolveDefaultStateDir();
-        var workspaceRootDir = ResolveDefaultWorkspaceRootDir();
+        var workspaceRootDir = ResolveDefaultWorkspaceRootDir(stateRootDir);
         var dashboardIndexPath = ResolveDefaultDashboardIndexPath();
         return new DefaultStatePathResolver(
             stateRootDir,
@@ -193,8 +193,14 @@ public sealed class DefaultStatePathResolver : IStatePathResolver
         return candidates[0];
     }
 
-    private static string ResolveDefaultWorkspaceRootDir()
+    internal static string ResolveDefaultWorkspaceRootDir(string stateRootDir)
     {
+        var configured = Env.Get("OMNUX_WORKSPACE_ROOT");
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            return Path.GetFullPath(configured.Trim());
+        }
+
         var baseDir = AppContext.BaseDirectory;
         var cwd = Directory.GetCurrentDirectory();
         var candidates = new[]
@@ -210,14 +216,31 @@ public sealed class DefaultStatePathResolver : IStatePathResolver
 
         foreach (var candidate in candidates)
         {
-            var parent = Directory.GetParent(candidate);
-            if (parent != null && Directory.Exists(parent.FullName))
+            if (Directory.Exists(candidate))
             {
                 return candidate;
             }
         }
 
-        return candidates[0];
+        foreach (var candidate in candidates)
+        {
+            var parent = Directory.GetParent(candidate);
+            // 부모가 파일시스템 루트면 후보를 버린다. `/coding` 을 고르면 컨테이너 루트가 `/` 가 되어
+            // `/.runtime` 생성이 read-only file system 으로 실패한다(패키징된 .app 에서 실제로 발생).
+            if (parent != null && !IsFileSystemRoot(parent.FullName) && Directory.Exists(parent.FullName))
+            {
+                return candidate;
+            }
+        }
+
+        // 리포 상대 경로가 모두 빗나가는 패키징 실행(.app / installed binary) 대비 안전한 기본값.
+        return Path.Combine(stateRootDir, "workspace", "coding");
+    }
+
+    private static bool IsFileSystemRoot(string path)
+    {
+        var full = Path.GetFullPath(path);
+        return string.Equals(full, Path.GetPathRoot(full), StringComparison.Ordinal);
     }
 
     private static string ResolveDefaultStateDir()
@@ -238,7 +261,7 @@ public sealed class DefaultStatePathResolver : IStatePathResolver
         if (leaf.Equals("coding", StringComparison.OrdinalIgnoreCase))
         {
             var parent = Directory.GetParent(workspaceRoot);
-            if (parent != null)
+            if (parent != null && !IsFileSystemRoot(parent.FullName))
             {
                 return parent.FullName;
             }

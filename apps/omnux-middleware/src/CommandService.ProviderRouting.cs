@@ -666,13 +666,8 @@ public sealed partial class CommandService
 
     private static string NormalizeProvider(string? provider, bool allowAuto)
     {
-        var value = (provider ?? string.Empty).Trim().ToLowerInvariant();
-        if (value == "nvidia-nim" || value == "nvidia_nim" || value == "nim")
-        {
-            value = "nvidia";
-        }
-
-        if (value == "gemini" || value == "groq" || value == "cerebras" || value == "nvidia" || value == "copilot" || value == "codex" || value == "grok")
+        var value = ProviderModelSelectionPolicy.NormalizeProviderAliases(provider);
+        if (ProviderModelSelectionPolicy.IsKnownLlmProvider(value))
         {
             return value;
         }
@@ -683,6 +678,11 @@ public sealed partial class CommandService
         }
 
         return "groq";
+    }
+
+    private static string? SanitizeMaintenanceModel(string? preferredProvider, string? preferredModel)
+    {
+        return ProviderModelSelectionPolicy.SanitizeMaintenanceModel(preferredProvider, preferredModel);
     }
 
     private static bool IsDisabledModelSelection(string? model)
