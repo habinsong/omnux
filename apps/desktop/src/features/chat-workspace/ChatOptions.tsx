@@ -18,9 +18,8 @@ export function ChatOptions({ canRequest }: { canRequest: boolean }) {
   const state = useAskStore();
   const speech = useSpeechStore();
   const providers = PROVIDER_KEYS.map(provider => <option key={provider} value={provider}>{PROVIDER_LABEL[provider]}</option>);
-  return <details className="chat-fold" open={state.sidePanel === "models" || undefined} onToggle={event => { if (!event.currentTarget.open && state.sidePanel === "models") state.setSidePanel(null); }}>
-    <summary>모델과 응답 방식 <span className="chat-summary-note">{state.chatMode === "multi" ? "모델 비교" : state.provider === "auto" ? "자동 선택" : PROVIDER_LABEL[state.provider]}</span></summary>
-    <div className="chat-fields">
+  // 화면이 탭으로 갈려 있으므로 여기서 다시 접지 않는다.
+  return <div className="chat-fields">
       <div className="chat-columns">
         <label>응답 방식<select value={state.chatMode} disabled={state.pending} onChange={event => { if (event.target.value !== state.chatMode) state.setChatMode(event.target.value as AskChatMode); }}><option value="single">한 모델로 대화</option><option value="orchestration">역할을 나눠 대화</option><option value="multi">모델별 답변 비교</option></select></label>
         {state.chatMode !== "multi" && <label>응답 제공자<select value={state.provider} disabled={state.pending} onChange={event => state.setProvider(event.target.value as AskProvider)}><option value="auto">자동 선택</option>{providers}</select></label>}
@@ -35,6 +34,5 @@ export function ChatOptions({ canRequest }: { canRequest: boolean }) {
       </div>
       <details className="chat-fold"><summary>제공자별 기본 모델</summary><div className="chat-columns">{PROVIDER_KEYS.map(provider => <ModelField key={provider} provider={provider} />)}</div></details>
       <div><button className="chat-button" disabled={!canRequest || state.pending} onClick={state.loadModelCatalogs}>모델 목록 새로고침</button></div>
-    </div>
-  </details>;
+  </div>;
 }

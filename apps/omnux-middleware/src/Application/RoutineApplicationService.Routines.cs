@@ -601,7 +601,28 @@ public sealed partial class RoutineApplicationService
 
         try
         {
-            return await RunRoutineNowCoreAsync(key, routine, source, cancellationToken).ConfigureAwait(false);
+            var hookGate = ResolveRoutineHookGate();
+            var gateDecision = await hookGate
+                .BeforeRunAsync(key, routine.Title ?? string.Empty, cancellationToken)
+                .ConfigureAwait(false);
+            if (!gateDecision.Allowed)
+            {
+                var blockedReason = gateDecision.DecidedByHookId.Length > 0
+                    ? $"훅 {gateDecision.DecidedByHookId}이(가) 실행을 막았습니다: {gateDecision.Reason}"
+                    : $"훅이 실행을 막았습니다: {gateDecision.Reason}";
+                var blockedRoutine = _routineRegistry.Read(key, current => current);
+                return new RoutineActionResult(
+                    false,
+                    blockedReason,
+                    blockedRoutine == null ? null : ToRoutineSummary(blockedRoutine)
+                );
+            }
+
+            var result = await RunRoutineNowCoreAsync(key, routine, source, cancellationToken).ConfigureAwait(false);
+            await hookGate
+                .AfterRunAsync(key, result.Ok ? "ok" : "error", cancellationToken)
+                .ConfigureAwait(false);
+            return result;
         }
         finally
         {

@@ -46,6 +46,9 @@ public sealed partial class WebSocketGateway
                 remoteDashboardClient,
                 cancellationToken
             );
+            await ExtensionLifecycleHookNotifier.Resolve()
+                .NotifyAsync(HookEventCatalog.SessionStart, sessionId, "websocket", cancellationToken)
+                .ConfigureAwait(false);
             await SendSettingsStateAsync(socket, sendLock, cancellationToken, remoteDashboardClient);
             if (_sessionManager.IsAuthenticated(sessionId))
             {
@@ -494,6 +497,16 @@ public sealed partial class WebSocketGateway
                     continue;
                 }
 
+                if (await _extensionCommandDispatcher.TryHandleAsync(
+                        message,
+                        socket,
+                        sendLock,
+                        cancellationToken
+                    ))
+                {
+                    continue;
+                }
+
                 if (await _ragCommandDispatcher.TryHandleAsync(
                         message,
                         socket,
@@ -602,6 +615,10 @@ public sealed partial class WebSocketGateway
 
             if (sessionId != null)
             {
+                // 연결이 끊긴 뒤라 취소 토큰을 쓰지 않는다. 알림 실패는 정리 흐름을 막지 않는다.
+                await ExtensionLifecycleHookNotifier.Resolve()
+                    .NotifyAsync(HookEventCatalog.SessionEnd, sessionId, "websocket", CancellationToken.None)
+                    .ConfigureAwait(false);
                 _sessionManager.Remove(sessionId);
                 ClearRateWindow(sessionId);
             }

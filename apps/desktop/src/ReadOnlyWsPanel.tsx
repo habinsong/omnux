@@ -3,18 +3,12 @@ import { useDesktopAuthStore } from "./features/auth/auth-store";
 import { useOpsPageStore } from "./features/ops/ops-store";
 import { useDesktopShellStore } from "./shell-store";
 import { ShellFault } from "./ShellFault";
+import { statusTone } from "./components/ui/status-tone";
 import { Badge, Button } from "./components/ui/primitives";
 import {
   requestDesktopDoctorLast,
   requestDesktopOpsSnapshot
 } from "./use-middleware-session";
-
-function statusTone(status: string): "success" | "warning" | "destructive" | "default" {
-  if (/(connected|authenticated|ok|ready)/i.test(status)) return "success";
-  if (/(error|fail|blocked|disconnected)/i.test(status)) return "destructive";
-  if (/(connecting|waiting|pending)/i.test(status)) return "warning";
-  return "default";
-}
 
 function statusLabel(status: string | null | undefined): string {
   const text = status?.trim();

@@ -1,197 +1,369 @@
-import { useEffect } from "react";
-import { Activity, GitBranch, Inbox, Network, RefreshCcw } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { CardBoundary } from "../../CardBoundary";
+import { useEffect, useRef, useState } from "react";
+import { RefreshCcw, Send } from "lucide-react";
+import { Screen, ScreenNotice } from "../../components/screen/Screen";
+import { ScreenTabs, type ScreenTab } from "../../components/screen/ScreenTabs";
+import { Button, Input, Spinner, Textarea, cn } from "../../components/ui/primitives";
+import { statusLabel, statusTone } from "../../components/ui/status-tone";
 import { useDesktopShellStore } from "../../shell-store";
 import { useDesktopAuthStore } from "../auth/auth-store";
-import { useUiLogStore } from "../ui-log/ui-log-store";
-import { AgentBusWritePanel } from "./AgentBusWritePanel";
 import { useAgentsPageBridge, useAgentsStore } from "./agents-store";
-import { Badge, Button } from "../../components/ui/primitives";
+import {
+  AGENT_TABS,
+  AGENT_WRITE_KINDS,
+  countFailedAgentSlices,
+  describeAgentSlice,
+  describeWriteBlock,
+  formatAgentTime,
+  writeKindLabel,
+  type AgentSliceId,
+  type AgentWriteKind
+} from "./agents-view";
 
-function healthTone(value: string): "success" | "warning" | "destructive" | "primary" | "default" {
-  const v = value.toLowerCase();
-  if (/(ok|healthy|completed|clean|idle)/.test(v)) return "success";
-  if (/(timeout|stale|attention|dirty)/.test(v)) return "warning";
-  if (/(failed|error|killed)/.test(v)) return "destructive";
-  if (/(running|dispatching|active)/.test(v)) return "primary";
-  return "default";
+/* ============================================================================
+   에이전트 화면.
+   캡슐 탭 넷(실행 중·흐름·공유 기록·작업 폴더) + 기록 남기기 탭 하나.
+   탭을 고를 때 그 조회만 보낸다. 목록은 남은 높이 안에서만 스크롤한다.
+   ============================================================================ */
+
+type TabId = AgentSliceId | "write";
+
+export function AgentsPage() {
+  useAgentsPageBridge();
+
+  const bridgeStatus = useDesktopShellStore((state) => state.bridge.status);
+  const authStatus = useDesktopAuthStore((state) => state.auth.status);
+  const connected = bridgeStatus === "connected" && authStatus === "authenticated";
+
+  const slices = useAgentsStore((state) => state.slices);
+  const gatewayNotice = useAgentsStore((state) => state.gatewayNotice);
+  const load = useAgentsStore((state) => state.load);
+
+  const [tab, setTab] = useState<TabId>("watchdog");
+  const requested = useRef<Set<AgentSliceId>>(new Set());
+
+  useEffect(() => {
+    if (!connected || tab === "write") return;
+    const id = tab;
+    if (requested.current.has(id)) return;
+    if (slices[id].status !== "idle") return;
+    requested.current.add(id);
+    load(id);
+  }, [connected, tab, slices, load]);
+
+  const failed = countFailedAgentSlices(slices);
+
+  const tabs: ScreenTab[] = [
+    ...AGENT_TABS.map((entry) => ({
+      id: entry.id,
+      label: entry.label,
+      badge: slices[entry.id].status === "failed" ? "실패" : undefined,
+      alert: slices[entry.id].status === "failed"
+    })),
+    { id: "write", label: "기록 남기기", icon: Send }
+  ];
+
+  const active = tab === "write" ? null : slices[tab];
+
+  return (
+    <Screen
+      title="에이전트"
+      hint="작업자끼리 주고받은 기록과 실행 상태를 봅니다."
+      actions={
+        tab !== "write" ? (
+          <Button variant="outline" size="sm" onClick={() => load(tab)} disabled={!connected || active?.status === "loading"}>
+            {active?.status === "loading" ? <Spinner size={14} /> : <RefreshCcw size={14} aria-hidden="true" />} 다시 조회
+          </Button>
+        ) : null
+      }
+      notice={
+        !connected ? (
+          <ScreenNotice tone="warning">연결되지 않았습니다. 조회와 기록을 할 수 없습니다.</ScreenNotice>
+        ) : gatewayNotice ? (
+          <ScreenNotice tone="danger">{gatewayNotice}</ScreenNotice>
+        ) : failed > 0 ? (
+          <ScreenNotice tone="danger">조회하지 못한 탭이 {failed}개 있습니다.</ScreenNotice>
+        ) : null
+      }
+    >
+      <ScreenTabs tabs={tabs} value={tab} onChange={(id) => setTab(id as TabId)} label="에이전트 보기 종류" />
+
+      {tab === "write" ? <WritePanel connected={connected} /> : <SliceBody id={tab} />}
+    </Screen>
+  );
 }
 
-function CompactEmptyState({ icon: Icon, title, description }: { icon: LucideIcon; title: string; description: string }) {
+function Frame({ head, children }: { head: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-2 rounded-md border border-border bg-muted/25 px-2.5 py-2">
-      <Icon size={14} className="shrink-0 text-muted-foreground" aria-hidden="true" />
-      <span className="min-w-0">
-        <span className="block text-xs font-medium">{title}</span>
-        <span className="block text-[11px] text-muted-foreground">{description}</span>
-      </span>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
+      <p className="shrink-0 truncate border-b border-border px-3 py-1.5 text-[11px] text-muted-foreground">{head}</p>
+      <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
     </div>
   );
 }
 
-export function AgentsPage() {
-  useAgentsPageBridge();
-  const bridgeStatus = useDesktopShellStore((state) => state.bridge.status);
-  const authStatus = useDesktopAuthStore((state) => state.auth.status);
-  const recordCardError = useUiLogStore((state) => state.recordCardError);
-  const store = useAgentsStore();
-  const canRequest = bridgeStatus === "connected" && authStatus === "authenticated";
+function Empty({ children }: { children: React.ReactNode }) {
+  return <p className="px-3 py-6 text-center text-xs text-muted-foreground">{children}</p>;
+}
 
-  useEffect(() => {
-    if (canRequest) store.loadAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canRequest]);
+function Row({ name, detail, status }: { name: string; detail?: string; status?: string }) {
+  const tone = status ? statusTone(status) : "default";
+  return (
+    <li className="flex min-w-0 items-start gap-2 px-3 py-2">
+      <span className="min-w-0 flex-1">
+        <span className="block min-w-0 break-words text-xs">{name}</span>
+        {detail ? <span className="block min-w-0 break-words text-[11px] text-muted-foreground">{detail}</span> : null}
+      </span>
+      {status ? (
+        <span
+          className={cn(
+            "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+            tone === "destructive" && "bg-destructive/15 text-destructive",
+            tone === "warning" && "bg-warning/15 text-warning",
+            tone === "success" && "bg-success/15 text-success",
+            (tone === "default" || tone === "primary") && "bg-muted text-muted-foreground"
+          )}
+        >
+          {statusLabel(status)}
+        </span>
+      ) : null}
+    </li>
+  );
+}
 
-  const bus = store.bus;
-  const watchdog = store.watchdog;
-  const worktree = store.worktree;
-  const trace = store.trace;
+function SliceBody({ id }: { id: AgentSliceId }) {
+  const state = useAgentsStore((store) => store.slices[id]);
+  const load = useAgentsStore((store) => store.load);
+  const watchdog = useAgentsStore((store) => store.watchdog);
+  const trace = useAgentsStore((store) => store.trace);
+  const bus = useAgentsStore((store) => store.bus);
+  const worktree = useAgentsStore((store) => store.worktree);
+
+  const definition = AGENT_TABS.find((entry) => entry.id === id);
+  const head =
+    state.status === "failed"
+      ? state.error
+      : state.status === "loading"
+        ? "조회 중"
+        : state.updatedAt
+          ? `${formatAgentTime(state.updatedAt)} 기준`
+          : (definition?.hint ?? "");
 
   return (
-    <div className="dashboard-tab space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold tracking-tight">에이전트</h1>
-          <p className="text-sm text-muted-foreground">작업자 간 메시지, 공유 상태, 실행 흐름을 조용히 점검합니다.</p>
+    <>
+      {state.status === "failed" ? (
+        <div className="flex shrink-0 items-center justify-between gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2">
+          <span className="min-w-0 break-words text-xs text-destructive">{state.error}</span>
+          <Button size="sm" variant="outline" onClick={() => load(id)}>
+            다시 조회
+          </Button>
         </div>
-        <Button variant="outline" size="sm" className="shrink-0" onClick={store.loadAll} disabled={!canRequest || store.loading}>
-          <RefreshCcw size={15} aria-hidden="true" /> {store.loading ? "조회 중" : "새로고침"}
-        </Button>
+      ) : null}
+
+      <Frame head={`${definition?.hint ?? ""} · ${describeAgentSlice(state)}${head && state.status === "ready" ? ` · ${head}` : ""}`}>
+        {id === "watchdog" ? (
+          watchdog === null ? (
+            <Empty>탭을 열면 조회합니다.</Empty>
+          ) : watchdog.runs.length === 0 ? (
+            <Empty>지금 돌고 있는 작업자가 없습니다.</Empty>
+          ) : (
+            <ul className="divide-y divide-border">
+              {watchdog.runs.map((run) => (
+                <Row
+                  key={run.runId}
+                  name={run.runId}
+                  detail={`${run.backend} · ${run.ageSeconds}초 경과`}
+                  status={run.health || run.state}
+                />
+              ))}
+            </ul>
+          )
+        ) : null}
+
+        {id === "trace" ? (
+          trace === null ? (
+            <Empty>탭을 열면 조회합니다.</Empty>
+          ) : trace.agents.length === 0 && trace.interventions.length === 0 ? (
+            <Empty>기록된 작업 흐름이 없습니다.</Empty>
+          ) : (
+            <ul className="divide-y divide-border">
+              {trace.interventions.map((item) => (
+                <Row key={item.interventionId} name={item.title || item.interventionId} detail={item.reason} status={item.severity} />
+              ))}
+              {trace.agents.map((agent) => (
+                <Row
+                  key={agent.agentId}
+                  name={agent.agentId}
+                  detail={`${agent.role || "역할 없음"} · 메시지 ${agent.messageCount}`}
+                  status={agent.state}
+                />
+              ))}
+              {trace.threads.map((thread) => (
+                <Row key={thread.threadId} name={thread.title || thread.threadId} detail={`메시지 ${thread.messageCount}`} />
+              ))}
+            </ul>
+          )
+        ) : null}
+
+        {id === "bus" ? (
+          bus === null ? (
+            <Empty>탭을 열면 조회합니다.</Empty>
+          ) : bus.messages.length === 0 && bus.board.length === 0 ? (
+            <Empty>주고받은 기록이 없습니다.</Empty>
+          ) : (
+            <ul className="divide-y divide-border">
+              {bus.messages.map((message, index) => (
+                <Row key={`m-${index}`} name={`${message.from || "?"} → ${message.to || "모두"}`} detail={message.body} />
+              ))}
+              {bus.board.map((entry, index) => (
+                <Row key={`b-${index}`} name={`${entry.agentId} · ${entry.key}`} detail={entry.value} status={entry.status} />
+              ))}
+            </ul>
+          )
+        ) : null}
+
+        {id === "worktree" ? (
+          worktree === null ? (
+            <Empty>탭을 열면 조회합니다.</Empty>
+          ) : worktree.worktrees.length === 0 ? (
+            <Empty>갈라 쓴 작업 폴더가 없습니다.</Empty>
+          ) : (
+            <ul className="divide-y divide-border">
+              {worktree.worktrees.map((entry) => (
+                <Row
+                  key={entry.name}
+                  name={entry.name}
+                  detail={entry.branch || entry.headShortHash || "브랜치 정보 없음"}
+                  status={entry.hasChanges ? "dirty" : entry.status}
+                />
+              ))}
+            </ul>
+          )
+        ) : null}
+      </Frame>
+    </>
+  );
+}
+
+function WritePanel({ connected }: { connected: boolean }) {
+  const draft = useAgentsStore((state) => state.draft);
+  const submitting = useAgentsStore((state) => state.submitting);
+  const lastAction = useAgentsStore((state) => state.lastAction);
+  const lastError = useAgentsStore((state) => state.lastError);
+  const store = useAgentsStore;
+
+  const [kind, setKind] = useState<AgentWriteKind>("message");
+  const blocked = describeWriteBlock(kind, draft);
+  const busy = submitting === kind;
+
+  const submit = () => {
+    const actions = store.getState();
+    if (kind === "message") actions.postMessage();
+    else if (kind === "board") actions.putBoard();
+    else if (kind === "lifecycle") actions.emitLifecycle();
+    else actions.postGroupCommand();
+  };
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex min-w-0 shrink-0 gap-1.5 overflow-x-auto border-b border-border px-2 py-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {AGENT_WRITE_KINDS.map((entry) => (
+          <button
+            key={entry.kind}
+            type="button"
+            aria-pressed={kind === entry.kind}
+            onClick={() => setKind(entry.kind)}
+            className={cn(
+              "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
+              "outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+              kind === entry.kind ? "bg-primary/12 text-primary" : "text-muted-foreground hover:bg-accent"
+            )}
+          >
+            {entry.label}
+          </button>
+        ))}
       </div>
-      {store.lastError ? <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{store.lastError}</p> : null}
 
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <CardBoundary title="조율 기록" card="operations" onError={recordCardError}>
-          <AgentBusWritePanel canRequest={canRequest} />
-        </CardBoundary>
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
+        <p className="text-[11px] text-muted-foreground">
+          실제 프로세스를 움직이지 않습니다. 작업자들이 같이 보는 기록에 내용만 저장합니다.
+        </p>
 
-        <CardBoundary title="공유 상태" card="logs" onError={recordCardError}>
-          {bus ? (
-            <>
-              <div className="flex flex-wrap gap-2">
-                <Badge tone="primary">메시지 {bus.totalMessages || bus.messages.length}</Badge>
-                <Badge tone="outline">보드 {bus.board.length}</Badge>
-                <Badge tone="outline">상태 변경 {bus.lifecycle.length}</Badge>
-              </div>
-              <div className="space-y-1">
-                {bus.messages.slice(0, 6).map((m, i) => (
-                  <div key={i} className="rounded-md border border-border bg-card/60 px-2.5 py-1.5">
-                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                      <span className="font-mono">{m.from || "?"}</span> → <span className="font-mono">{m.to || "all"}</span>
-                      {m.kind ? <Badge tone="outline">{m.kind}</Badge> : null}
-                    </div>
-                    <div className="truncate text-xs">{m.body}</div>
-                  </div>
-                ))}
-                {bus.board.slice(0, 4).map((b, i) => (
-                  <div key={`b-${i}`} className="flex items-center justify-between gap-2 rounded-md bg-muted/40 px-2.5 py-1.5 text-xs">
-                    <span className="truncate"><span className="font-mono text-muted-foreground">{b.agentId}</span> · {b.key}: {b.value}</span>
-                    {b.status ? <Badge tone={healthTone(b.status)}>{b.status}</Badge> : null}
-                  </div>
-                ))}
-                {bus.messages.length === 0 && bus.board.length === 0 ? <CompactEmptyState icon={Inbox} title="공유 기록 없음" description="작업자 간 메시지와 보드 상태가 여기에 표시됩니다." /> : null}
-              </div>
-            </>
-          ) : (
-            <CompactEmptyState icon={Inbox} title="공유 상태 없음" description="새로고침하면 작업자 간 공유 기록이 표시됩니다." />
-          )}
-        </CardBoundary>
+        {lastError ? (
+          <p className="min-w-0 break-words rounded-md bg-destructive/10 px-2 py-1.5 text-[11px] text-destructive">{lastError}</p>
+        ) : null}
+        {lastAction ? <p className="min-w-0 break-words text-[11px] text-success">{lastAction}</p> : null}
 
-        <CardBoundary title="활성 실행" card="runtime" onError={recordCardError}>
-          {watchdog ? (
-            <>
-              <div className="flex items-center gap-2">
-                <Badge tone={healthTone(watchdog.status)}>{watchdog.status}</Badge>
-                <Badge tone="outline">활성 {watchdog.activeCount}</Badge>
-              </div>
-              <div className="space-y-1">
-                {watchdog.runs.map((r) => (
-                  <div key={r.runId} className="flex items-center justify-between gap-2 rounded-md border border-border bg-card/60 px-2.5 py-2">
-                    <span className="min-w-0">
-                      <span className="block truncate font-mono text-xs">{r.runId}</span>
-                      <span className="block truncate text-[11px] text-muted-foreground">{r.backend} · {r.state} · {r.ageSeconds}s</span>
-                    </span>
-                    <Badge tone={healthTone(r.health)}>{r.health || r.state}</Badge>
-                  </div>
-                ))}
-                {watchdog.runs.length === 0 ? <CompactEmptyState icon={Activity} title="활성 실행 없음" description="현재 실행 중인 작업자가 없습니다." /> : null}
-              </div>
-            </>
-          ) : (
-            <CompactEmptyState icon={Activity} title="실행 상태 없음" description="새로고침하면 활성 실행 상태가 표시됩니다." />
-          )}
-        </CardBoundary>
+        {kind === "message" ? (
+          <>
+            <Field label="보낸 쪽" value={draft.messageFrom} onChange={(v) => store.getState().setDraft({ messageFrom: v })} />
+            <Field label="받는 쪽" value={draft.messageTo} onChange={(v) => store.getState().setDraft({ messageTo: v })} placeholder="비우면 모두" />
+            <Field label="종류" value={draft.messageKind} onChange={(v) => store.getState().setDraft({ messageKind: v })} />
+            <Area label="내용" value={draft.messageBody} onChange={(v) => store.getState().setDraft({ messageBody: v })} />
+          </>
+        ) : null}
 
-        <CardBoundary title="작업 폴더" card="operations" onError={recordCardError}>
-          {worktree ? (
-            <>
-              <div className="flex flex-wrap gap-2">
-                <Badge tone={healthTone(worktree.status)}>{worktree.status}</Badge>
-                <Badge tone="outline">폴더 {worktree.totalWorktreeCount}</Badge>
-                {worktree.cleanupCandidateCount > 0 ? <Badge tone="warning">정리 {worktree.cleanupCandidateCount}</Badge> : null}
-              </div>
-              <div className="space-y-1">
-                {worktree.worktrees.map((w) => (
-                  <div key={w.name} className="flex items-center justify-between gap-2 rounded-md border border-border bg-card/60 px-2.5 py-2">
-                    <span className="min-w-0">
-                      <span className="block truncate font-mono text-xs">{w.name}</span>
-                      <span className="flex items-center gap-1 truncate text-[11px] text-muted-foreground"><GitBranch size={10} aria-hidden="true" /> {w.branch || w.headShortHash || "-"}</span>
-                    </span>
-                    <Badge tone={w.hasChanges ? "warning" : healthTone(w.status)}>{w.hasChanges ? "변경 있음" : w.status || "정리됨"}</Badge>
-                  </div>
-                ))}
-                {worktree.worktrees.length === 0 ? <CompactEmptyState icon={GitBranch} title="작업 폴더 없음" description="분리된 작업 폴더가 없습니다." /> : null}
-              </div>
-            </>
-          ) : (
-            <CompactEmptyState icon={GitBranch} title="작업 폴더 상태 없음" description="새로고침하면 분리된 작업 폴더 상태가 표시됩니다." />
-          )}
-        </CardBoundary>
+        {kind === "board" ? (
+          <>
+            <Field label="대상 작업자" value={draft.boardAgentId} onChange={(v) => store.getState().setDraft({ boardAgentId: v })} />
+            <Field label="항목" value={draft.boardKey} onChange={(v) => store.getState().setDraft({ boardKey: v })} />
+            <Field label="상태" value={draft.boardStatus} onChange={(v) => store.getState().setDraft({ boardStatus: v })} />
+            <Area label="내용" value={draft.boardValue} onChange={(v) => store.getState().setDraft({ boardValue: v })} />
+          </>
+        ) : null}
 
-        <CardBoundary title="흐름" card="logs" onError={recordCardError}>
-          {trace ? (
-            <>
-              <div className="flex flex-wrap gap-2">
-                <Badge tone={healthTone(trace.status)}>{trace.status || "상태"}</Badge>
-                <Badge tone="outline">작업자 {trace.agents.length}</Badge>
-                <Badge tone="outline">스레드 {trace.threads.length}</Badge>
-                <Badge tone={trace.interventions.length > 0 ? "warning" : "outline"}>개입 {trace.interventions.length}</Badge>
-                <Badge tone="outline">연결 {trace.edgeCount}</Badge>
-              </div>
-              <div className="space-y-1">
-                {trace.interventions.slice(0, 4).map((item) => (
-                  <div key={item.interventionId} className="rounded-md border border-warning/30 bg-warning/10 px-2.5 py-1.5">
-                    <div className="flex items-center justify-between gap-2 text-xs">
-                      <span className="truncate font-medium">{item.title || item.reason || item.interventionId}</span>
-                      <Badge tone={healthTone(item.severity)}>{item.severity || "검토"}</Badge>
-                    </div>
-                    {item.reason ? <div className="truncate text-[11px] text-muted-foreground">{item.reason}</div> : null}
-                  </div>
-                ))}
-                {trace.agents.slice(0, 5).map((agent) => (
-                  <div key={agent.agentId} className="flex items-center justify-between gap-2 rounded-md border border-border bg-card/60 px-2.5 py-2">
-                    <span className="min-w-0">
-                      <span className="block truncate font-mono text-xs">{agent.agentId}</span>
-                      <span className="block truncate text-[11px] text-muted-foreground">{agent.role || "작업자"} · 메시지 {agent.messageCount} · 상태 {agent.lifecycleEventCount}</span>
-                    </span>
-                    <Badge tone={healthTone(agent.state)}>{agent.state || "대기"}</Badge>
-                  </div>
-                ))}
-                {trace.threads.slice(0, 4).map((thread) => (
-                  <div key={thread.threadId} className="rounded-md bg-muted/40 px-2.5 py-1.5 text-xs">
-                    <div className="truncate font-medium">{thread.title || thread.threadId}</div>
-                    <div className="truncate text-[11px] text-muted-foreground">메시지 {thread.messageCount} · {thread.lastMessageUtc}</div>
-                  </div>
-                ))}
-                {trace.agents.length === 0 && trace.threads.length === 0 ? <CompactEmptyState icon={Network} title="흐름 없음" description="공유 기록이 쌓이면 작업 흐름이 표시됩니다." /> : null}
-              </div>
-            </>
-          ) : (
-            <CompactEmptyState icon={Network} title="흐름 상태 없음" description="새로고침하면 공유 기록 기반 흐름이 표시됩니다." />
-          )}
-        </CardBoundary>
-      </section>
+        {kind === "lifecycle" ? (
+          <>
+            <Field label="대상 작업자" value={draft.lifecycleAgentId} onChange={(v) => store.getState().setDraft({ lifecycleAgentId: v })} />
+            <Field label="상태" value={draft.lifecycleState} onChange={(v) => store.getState().setDraft({ lifecycleState: v })} />
+            <Area label="상세" value={draft.lifecycleDetail} onChange={(v) => store.getState().setDraft({ lifecycleDetail: v })} />
+          </>
+        ) : null}
+
+        {kind === "command" ? (
+          <>
+            <Field label="보낸 쪽" value={draft.commandFrom} onChange={(v) => store.getState().setDraft({ commandFrom: v })} />
+            <Field label="명령" value={draft.command} onChange={(v) => store.getState().setDraft({ command: v })} />
+            <Field label="그룹 ID" value={draft.commandGroupId} onChange={(v) => store.getState().setDraft({ commandGroupId: v })} />
+            <Field label="실행 ID" value={draft.commandRunId} onChange={(v) => store.getState().setDraft({ commandRunId: v })} />
+            <Area label="상세" value={draft.commandBody} onChange={(v) => store.getState().setDraft({ commandBody: v })} />
+          </>
+        ) : null}
+
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <Button size="sm" variant="primary" onClick={submit} disabled={!connected || busy || blocked.length > 0}>
+            {busy ? <Spinner size={12} /> : <Send size={12} aria-hidden="true" />} {writeKindLabel(kind)} 남기기
+          </Button>
+          {blocked ? <span className="min-w-0 break-words text-[11px] text-muted-foreground">{blocked}</span> : null}
+        </div>
+      </div>
     </div>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <label className="flex min-w-0 flex-col gap-1 text-[11px]">
+      {label}
+      <Input className="h-8 text-xs" value={value} aria-label={label} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
+    </label>
+  );
+}
+
+function Area({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+  return (
+    <label className="flex min-w-0 flex-col gap-1 text-[11px]">
+      {label}
+      <Textarea rows={3} className="text-xs" value={value} aria-label={label} onChange={(event) => onChange(event.target.value)} />
+    </label>
   );
 }

@@ -1,0 +1,40 @@
+/**
+ * 다른 화면이 "설정의 이 항목" 으로 보낼 때 쓰는 이름표.
+ * 화면 파일에서 떼어 둔다. 이름표를 늘려도 화면 코드는 손대지 않는다.
+ */
+export const SETTINGS_ALIASES: Record<string, string> = {
+  appearance: "general-preferences",
+  theme: "general-preferences",
+  detail: "general-preferences",
+  startup: "general-startup",
+  "start-on-launch": "general-startup",
+  launch: "general-startup",
+  speech: "general-speech",
+  tts: "general-speech",
+  voice: "general-speech",
+  shortcuts: "general-shortcuts",
+  shortcut: "general-shortcuts",
+  hotkeys: "general-shortcuts",
+  keyboard: "general-shortcuts",
+  permissions: "general-permissions",
+  permission: "general-permissions",
+  policy: "general-permissions",
+  "default-project": "general-default-project",
+  project: "general-default-project",
+  status: "general-status",
+  otp: "general-otp",
+  telegram: "int-telegram",
+  external: "int-external",
+  lan: "int-external",
+  keys: "models-keys",
+  models: "models-keys",
+  priority: "models-priority",
+  "model-priority": "models-priority",
+  "models-priority": "models-priority",
+  cli: "models-cli",
+  "model-select": "models-select",
+  usage: "models-usage",
+  memory: "memory-notes",
+  backup: "memory-backup",
+  sync: "memory-sync"
+};

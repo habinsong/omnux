@@ -79,8 +79,10 @@ internal sealed class TelemetryLlmCallScope : IDisposable
             return;
         }
 
-        var status = ResolveStatus(responseText);
-        var error = status == "ok" ? string.Empty : Trim(responseText, 1_000);
+        // 실패 판정은 제공자 이름으로 시작하는 실패 문장에만 걸린다.
+        // 본문 가운데 "오류"·"timeout" 이 나오는 정상 답변을 실패로 기록하지 않는다.
+        var status = ProviderResponseStatusPolicy.Resolve(provider, responseText);
+        var error = status == ProviderResponseStatusPolicy.Ok ? string.Empty : Trim(responseText, 1_000);
         Record(provider, model, status, responseText?.Length ?? 0, usage, error);
     }
 
@@ -192,31 +194,6 @@ internal sealed class TelemetryLlmCallScope : IDisposable
         {
             _activity?.Stop();
         }
-    }
-
-    private static string ResolveStatus(string? responseText)
-    {
-        var normalized = (responseText ?? string.Empty).Trim().ToLowerInvariant();
-        if (normalized.Length == 0)
-        {
-            return "empty";
-        }
-
-        if (normalized.Contains("응답 시간이 초과", StringComparison.Ordinal)
-            || normalized.Contains("timeout", StringComparison.Ordinal)
-            || normalized.Contains("timed out", StringComparison.Ordinal))
-        {
-            return "timeout";
-        }
-
-        if (normalized.Contains("호출 오류", StringComparison.Ordinal)
-            || normalized.Contains("error:", StringComparison.Ordinal)
-            || normalized.Contains("exception", StringComparison.Ordinal))
-        {
-            return "error";
-        }
-
-        return "ok";
     }
 
     private static string NormalizeStatus(string? status)

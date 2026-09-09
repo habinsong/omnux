@@ -30,7 +30,9 @@ type UiLogState = {
 };
 
 const UI_LOG_SCHEMA_VERSION = 1;
-const MAX_LOGS = 25;
+/** 셸이 보관하는 최근 기록 수. 화면이 보관 한도를 정직하게 알리는 데도 쓴다. */
+export const MAX_UI_LOGS = 25;
+const MAX_LOGS = MAX_UI_LOGS;
 // v2: 부팅 race/secrets 폴백 등 이전 버전의 stale warn/error 잔재를 1회 폐기하기 위해 키를 올린다.
 const LOG_STORAGE_KEY = "omnux-desktop-ui-logs-v2";
 

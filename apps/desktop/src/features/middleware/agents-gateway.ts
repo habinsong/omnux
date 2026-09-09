@@ -13,8 +13,8 @@ registerDesktopRequestTypes(
 );
 
 export const requestDesktopAgents = {
-  bus(limit = 100) {
-    return sendDesktopRequest({ type: "agent_bus_get", limit });
+  bus(limit = 100, requestId?: string) {
+    return sendDesktopRequest({ type: "agent_bus_get", limit, requestId });
   },
   postMessage(input: { fromAgentId: string; toAgentId: string; kind: string; body: string; groupId?: string; runId?: string }) {
     return sendDesktopRequest({
@@ -59,13 +59,13 @@ export const requestDesktopAgents = {
       runId: input.runId?.trim() || undefined
     });
   },
-  watchdog(limit = 100) {
-    return sendDesktopRequest({ type: "agent_watchdog_snapshot_get", limit });
+  watchdog(limit = 100, requestId?: string) {
+    return sendDesktopRequest({ type: "agent_watchdog_snapshot_get", limit, requestId });
   },
-  worktree() {
-    return sendDesktopRequest({ type: "agent_worktree_snapshot_get" });
+  worktree(requestId?: string) {
+    return sendDesktopRequest({ type: "agent_worktree_snapshot_get", requestId });
   },
-  trace(limit = 100) {
-    return sendDesktopRequest({ type: "multi_agent_trace_snapshot_get", limit });
+  trace(limit = 100, requestId?: string) {
+    return sendDesktopRequest({ type: "multi_agent_trace_snapshot_get", limit, requestId });
   }
 };

@@ -1,282 +1,355 @@
-import { useEffect, type ReactNode } from "react";
-import { BrainCircuit, Clock3, RefreshCcw, RotateCcw, Route, Save, Server } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { CardBoundary } from "../../CardBoundary";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Clock3, RefreshCcw, RotateCcw, Route, Save, Server } from "lucide-react";
+import { Screen, ScreenNotice } from "../../components/screen/Screen";
+import { ScreenTabs, type ScreenTab } from "../../components/screen/ScreenTabs";
+import { Button, Input, Spinner, cn } from "../../components/ui/primitives";
+import { statusLabel, statusTone } from "../../components/ui/status-tone";
 import { useDesktopShellStore } from "../../shell-store";
 import { useDesktopAuthStore } from "../auth/auth-store";
-import { useUiLogStore } from "../ui-log/ui-log-store";
-import { type RoutingDecision, type RoutingLocalLlm, useRoutingPageBridge, useRoutingStore } from "./routing-store";
-import { Badge, Button, Input, SectionLabel } from "../../components/ui/primitives";
+import { useRoutingPageBridge, useRoutingStore } from "./routing-store";
+import {
+  categoryMeta,
+  describeChain,
+  dirtyKeys,
+  formatChain,
+  formatDecisionTime,
+  localCheckLabel,
+  overrideCount
+} from "./routing-model";
 
-const CATEGORY_META: Record<string, { label: string; hint: string }> = {
-  generalChat: { label: "일반 채팅", hint: "기본 단일/오케스트레이션 채팅" },
-  planner: { label: "계획 생성", hint: "작업 계획 초안 생성" },
-  reviewer: { label: "계획 리뷰", hint: "작업 계획 검토" },
-  searchTimeSensitive: { label: "최신성 검색", hint: "실시간 웹 필요 여부 판단" },
-  searchFallback: { label: "검색 보조", hint: "검색 보조 판단" },
-  deepCode: { label: "깊은 코딩", hint: "대형 구현과 통합 작업" },
-  safeRefactor: { label: "안전 리뷰", hint: "구조 정리와 안전 수정" },
-  quickFix: { label: "빠른 수정", hint: "짧은 버그 수정과 검증" },
-  visualUi: { label: "UI 작업", hint: "레이아웃과 스타일 작업" },
-  routineBuilder: { label: "루틴 빌더", hint: "루틴 생성과 갱신" },
-  backgroundMonitor: { label: "백그라운드 모니터", hint: "분석과 상태 확인" },
-  documentation: { label: "문서화", hint: "문서화와 가이드" }
-};
+/* ============================================================================
+   라우팅 화면.
+   캡슐 탭: 경로 / 최근 선택 / 로컬 모델.
+   경로 목록은 남은 높이를 채우고 안쪽에서만 스크롤한다. 줄을 열면 그 줄에서 바로 고친다.
+   ============================================================================ */
 
-function statusTone(status: string): "success" | "warning" | "destructive" | "primary" | "outline" | "default" {
-  const value = status.toLowerCase();
-  if (/(available|ok|ready|clean|ready_for_manual_routing)/.test(value)) return "success";
-  if (/(warning|requested|manual)/.test(value)) return "warning";
-  if (/(blocked|failed|error|unavailable)/.test(value)) return "destructive";
-  if (/(skipped|not_requested|snapshot)/.test(value)) return "outline";
-  if (/(selected|override|resolved)/.test(value)) return "primary";
-  return "default";
-}
-
-function statusLabel(status: string): string {
-  const value = status.toLowerCase();
-  if (!value) return "-";
-  if (/(available|ok|ready|clean|ready_for_manual_routing)/.test(value)) return "정상";
-  if (/(not_requested)/.test(value)) return "확인 전";
-  if (/(skipped)/.test(value)) return "건너뜀";
-  if (/(unavailable)/.test(value)) return "사용 불가";
-  if (/(failed|error)/.test(value)) return "실패";
-  if (/(blocked)/.test(value)) return "차단";
-  if (/(warning|requested|manual)/.test(value)) return "수동 확인";
-  if (/(selected|override|resolved)/.test(value)) return "선택됨";
-  return status;
-}
-
-function checkLabel(name: string): string {
-  if (name === "offline_flag") return "오프라인 설정";
-  if (name === "local_models") return "로컬 모델";
-  if (name === "cloud_credentials") return "클라우드 키";
-  if (name === "provider_routing") return "경로 전환";
-  return name;
-}
-
-function checkMessage(check: RoutingLocalLlm["checks"][number]): string {
-  if (check.name === "offline_flag") return "오프라인 모드 요청 여부를 확인했습니다.";
-  if (check.name === "local_models") return check.status === "ok" ? "사용 가능한 로컬 모델이 있습니다." : "사용 가능한 로컬 모델이 없습니다.";
-  if (check.name === "cloud_credentials") return check.status === "ok" ? "클라우드 키가 준비되어 있습니다." : "감지된 클라우드 키가 없습니다.";
-  if (check.name === "provider_routing") return check.status === "ok" ? "경로 전환을 사용할 수 있습니다." : "자동 경로 전환은 아직 비활성입니다.";
-  return check.message;
-}
-
-function formatTimestamp(value: string): string {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("ko-KR", { dateStyle: "short", timeStyle: "medium", hour12: false });
-}
-
-function ProviderBadges({ providers, emptyLabel = "없음" }: { providers: string[]; emptyLabel?: string }) {
-  if (providers.length === 0) return <span className="text-xs text-muted-foreground">{emptyLabel}</span>;
-  return (
-    <div className="flex min-w-0 flex-wrap gap-1">
-      {providers.map((provider) => (
-        <Badge key={provider} tone="outline" className="max-w-full truncate font-mono">
-          {provider}
-        </Badge>
-      ))}
-    </div>
-  );
-}
-
-function CompactEmptyState({ icon: Icon, title, description }: { icon: LucideIcon; title: string; description: string }) {
-  return (
-    <div className="flex items-center gap-2 rounded-md border border-border bg-muted/25 px-2.5 py-2">
-      <Icon size={14} className="shrink-0 text-muted-foreground" aria-hidden="true" />
-      <span className="min-w-0">
-        <span className="block text-xs font-medium">{title}</span>
-        <span className="block text-[11px] text-muted-foreground">{description}</span>
-      </span>
-    </div>
-  );
-}
+type TabId = "chains" | "decision" | "local";
 
 export function RoutingPolicyPage() {
   useRoutingPageBridge();
+
   const bridgeStatus = useDesktopShellStore((state) => state.bridge.status);
   const authStatus = useDesktopAuthStore((state) => state.auth.status);
-  const recordCardError = useUiLogStore((state) => state.recordCardError);
-  const store = useRoutingStore();
-  const canRequest = bridgeStatus === "connected" && authStatus === "authenticated";
+  const connected = bridgeStatus === "connected" && authStatus === "authenticated";
+
+  const snapshot = useRoutingStore((state) => state.snapshot);
+  const draft = useRoutingStore((state) => state.draftChains);
+  const loading = useRoutingStore((state) => state.loading);
+  const pending = useRoutingStore((state) => state.pending);
+  const lastError = useRoutingStore((state) => state.lastError);
+  const store = useRoutingStore;
+
+  const [tab, setTab] = useState<TabId>("chains");
+  const [openKey, setOpenKey] = useState("");
+  const loadedOnce = useRef(false);
 
   useEffect(() => {
-    if (canRequest) {
-      store.load();
-      store.loadLocalLlm();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canRequest]);
+    if (!connected || loadedOnce.current) return;
+    loadedOnce.current = true;
+    store.getState().load();
+  }, [connected, store]);
 
-  const keys = Object.keys(store.snapshot.effectiveChains);
-  const decision = store.snapshot.lastDecision;
+  const keys = useMemo(() => Object.keys(snapshot.effectiveChains).sort(), [snapshot.effectiveChains]);
+  const unsaved = useMemo(() => dirtyKeys(draft, snapshot.effectiveChains), [draft, snapshot.effectiveChains]);
+  const overrides = overrideCount(snapshot.overrideChains);
+
+  const tabs: ScreenTab[] = [
+    { id: "chains", label: "작업별 경로", icon: Route, badge: keys.length > 0 ? String(keys.length) : undefined },
+    { id: "decision", label: "최근 선택", icon: Clock3 },
+    { id: "local", label: "로컬 모델", icon: Server }
+  ];
 
   return (
-    <div className="dashboard-tab space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold tracking-tight">라우팅</h1>
-          <p className="text-sm text-muted-foreground">작업 종류별 실행 경로를 조정하고 최근 선택을 확인합니다.</p>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={store.load} disabled={!canRequest || store.loading}>
-            <RefreshCcw size={15} aria-hidden="true" /> {store.loading ? "조회 중" : "새로고침"}
-          </Button>
-          <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={store.reset} disabled={!canRequest || store.pending}>
-            <RotateCcw size={15} aria-hidden="true" /> 초기화
-          </Button>
-          <Button variant="primary" size="sm" onClick={store.save} disabled={!canRequest || store.pending}>
-            <Save size={15} aria-hidden="true" /> {store.pending ? "저장 중" : "저장"}
-          </Button>
-        </div>
-      </div>
-      {store.lastError ? <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{store.lastError}</p> : null}
-      {store.lastMessage ? <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">{store.lastMessage}</p> : null}
-
-      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <CardBoundary title="작업 경로" card="operations" onError={recordCardError}>
-          {keys.length === 0 ? (
-            <CompactEmptyState icon={Route} title="경로 없음" description={canRequest ? "새로고침하면 작업별 실행 경로가 표시됩니다." : "미들웨어 연결 후 표시됩니다."} />
-          ) : (
-            <div className="grid grid-cols-1 gap-2 2xl:grid-cols-2">
-              {keys.map((key) => {
-                const def = (store.snapshot.defaultChains[key] || []).join(", ");
-                const hasOverride = (store.snapshot.overrideChains[key] || []).length > 0;
-                const meta = CATEGORY_META[key] || { label: key, hint: "사용자 정의 작업" };
-                return (
-                  <div key={key} className="min-w-0 rounded-md border border-border bg-card/60 p-2.5">
-                    <div className="flex min-w-0 items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium">{meta.label}</div>
-                        <div className="truncate text-[11px] text-muted-foreground">{meta.hint}</div>
-                      </div>
-                      <Badge tone={hasOverride ? "primary" : "outline"}>{hasOverride ? "사용자 지정" : "기본"}</Badge>
-                    </div>
-                    <Input className="mt-1.5 font-mono text-xs" value={store.draftChains[key] ?? ""} placeholder={def || "예: codex, groq"} onChange={(event) => store.setDraft(key, event.target.value)} />
-                    <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                      <span className="truncate font-mono">{key}</span>
-                      {def ? <span className="truncate">기본: {def}</span> : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardBoundary>
-
-        <div className="space-y-4 self-start">
-          <CardBoundary title="최근 선택" card="logs" onError={recordCardError}>
-            <Button variant="outline" size="sm" onClick={store.loadDecision} disabled={!canRequest}>
-              <RefreshCcw size={14} aria-hidden="true" /> 최근 선택 조회
+    <Screen
+      title="라우팅"
+      hint="작업 종류마다 어떤 제공자를 어떤 순서로 쓸지 정합니다."
+      actions={
+        tab === "chains" ? (
+          <>
+            <Button variant="outline" size="sm" onClick={() => store.getState().load()} disabled={!connected || loading}>
+              {loading ? <Spinner size={14} /> : <RefreshCcw size={14} aria-hidden="true" />} 다시 조회
             </Button>
-            <RoutingDecisionPanel decision={decision} />
-          </CardBoundary>
-          <CardBoundary title="로컬 모델 상태" card="middleware" onError={recordCardError}>
-            <LocalLlmRoutingPanel local={store.localLlm} loading={store.localLoading} canRequest={canRequest} onRefresh={store.loadLocalLlm} />
-          </CardBoundary>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => store.getState().save()}
+              disabled={!connected || pending || unsaved.length === 0}
+            >
+              {pending ? <Spinner size={14} /> : <Save size={14} aria-hidden="true" />} 저장
+            </Button>
+          </>
+        ) : null
+      }
+      notice={
+        lastError ? (
+          <ScreenNotice tone="danger">{lastError}</ScreenNotice>
+        ) : !connected ? (
+          <ScreenNotice tone="warning">연결되지 않았습니다. 조회와 저장을 할 수 없습니다.</ScreenNotice>
+        ) : unsaved.length > 0 ? (
+          <ScreenNotice tone="warning">
+            저장하지 않은 변경 {unsaved.length}개. 다시 조회해도 이 변경은 지워지지 않습니다.
+          </ScreenNotice>
+        ) : null
+      }
+    >
+      <ScreenTabs tabs={tabs} value={tab} onChange={(id) => setTab(id as TabId)} label="라우팅 보기 종류" />
+
+      {tab === "chains" ? (
+        <ChainList
+          keys={keys}
+          unsaved={unsaved}
+          overrides={overrides}
+          openKey={openKey}
+          onOpen={setOpenKey}
+          connected={connected}
+        />
+      ) : tab === "decision" ? (
+        <DecisionPanel connected={connected} />
+      ) : (
+        <LocalPanel connected={connected} />
+      )}
+    </Screen>
+  );
+}
+
+function ChainList({
+  keys,
+  unsaved,
+  overrides,
+  openKey,
+  onOpen,
+  connected
+}: {
+  keys: string[];
+  unsaved: string[];
+  overrides: number;
+  openKey: string;
+  onOpen: (key: string) => void;
+  connected: boolean;
+}) {
+  const snapshot = useRoutingStore((state) => state.snapshot);
+  const draft = useRoutingStore((state) => state.draftChains);
+  const pending = useRoutingStore((state) => state.pending);
+  const store = useRoutingStore;
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex min-w-0 shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-1.5">
+        <span className="min-w-0 truncate text-[11px] text-muted-foreground">직접 지정 {overrides}개</span>
+        <div className="flex shrink-0 items-center gap-1">
+          {unsaved.length > 0 ? (
+            <Button size="sm" variant="ghost" onClick={() => store.getState().discardDraft()}>
+              <RotateCcw size={12} aria-hidden="true" /> 변경 버리기
+            </Button>
+          ) : null}
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => void store.getState().reset()}
+            disabled={!connected || pending || overrides === 0}
+          >
+            직접 지정 모두 지우기
+          </Button>
         </div>
-      </section>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {keys.length === 0 ? (
+          <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+            {connected ? "다시 조회하면 작업별 경로가 나옵니다." : "연결된 뒤에 나옵니다."}
+          </p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {keys.map((key) => {
+              const meta = categoryMeta(key);
+              const hasOverride = (snapshot.overrideChains[key] ?? []).length > 0;
+              const dirty = unsaved.includes(key);
+              const open = openKey === key;
+              return (
+                <li key={key} className="min-w-0">
+                  <button
+                    type="button"
+                    aria-expanded={open}
+                    onClick={() => onOpen(open ? "" : key)}
+                    className="flex w-full min-w-0 items-center gap-2 px-3 py-2 text-left outline-none hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60"
+                  >
+                    <span className="w-[96px] shrink-0 truncate text-xs font-medium">{meta.label}</span>
+                    <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted-foreground">
+                      {describeChain(snapshot.effectiveChains[key], hasOverride)}
+                    </span>
+                    {dirty ? (
+                      <span className="shrink-0 rounded-full bg-warning/15 px-1.5 py-0.5 text-[10px] font-medium text-warning">
+                        저장 안 함
+                      </span>
+                    ) : hasOverride ? (
+                      <span className="shrink-0 rounded-full bg-primary/12 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                        직접 지정
+                      </span>
+                    ) : null}
+                  </button>
+
+                  {open ? (
+                    <div className="min-w-0 space-y-1.5 border-t border-border bg-muted/20 px-3 py-2">
+                      <p className="text-[11px] text-muted-foreground">{meta.hint}</p>
+                      <Input
+                        className="h-8 font-mono text-xs"
+                        value={draft[key] ?? ""}
+                        aria-label={`${meta.label} 제공자 순서`}
+                        placeholder={formatChain(snapshot.defaultChains[key]) || "예: groq, gemini"}
+                        onChange={(event) => store.getState().setDraft(key, event.target.value)}
+                      />
+                      <div className="flex min-w-0 flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                        <span className="min-w-0 break-all font-mono">{key}</span>
+                        {formatChain(snapshot.defaultChains[key]) ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => store.getState().setDraft(key, formatChain(snapshot.defaultChains[key]))}
+                          >
+                            기본값으로
+                          </Button>
+                        ) : null}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">비우면 기본값을 씁니다. 「저장」을 눌러야 반영됩니다.</p>
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
 
-function RoutingDecisionPanel({ decision }: { decision: RoutingDecision | null }) {
-  if (!decision) {
-    return <div className="mt-3"><CompactEmptyState icon={Clock3} title="최근 선택 없음" description="최근 실행 경로가 생기면 선택 결과가 표시됩니다." /></div>;
-  }
+function DecisionPanel({ connected }: { connected: boolean }) {
+  const decision = useRoutingStore((state) => state.snapshot.lastDecision);
+  const loadDecision = useRoutingStore((state) => state.loadDecision);
+  const [asked, setAsked] = useState(false);
+
+  useEffect(() => {
+    if (!connected || asked) return;
+    setAsked(true);
+    loadDecision();
+  }, [connected, asked, loadDecision]);
+
   return (
-    <div className="mt-3 space-y-3">
-      <div className="grid grid-cols-2 gap-2">
-        <DecisionStat label="카테고리" value={decision.categoryLabel || decision.categoryKey || "-"} />
-        <DecisionStat label="결과" value={decision.resolvedProvider || "-"} mono />
-        <DecisionStat label="요청" value={decision.requestedProvider || "-"} mono />
-        <DecisionStat label="시각" value={formatTimestamp(decision.decidedAtUtc)} />
-      </div>
-      <div className="rounded-md border border-border bg-card/60 p-2.5">
-        <SectionLabel>결정 사유</SectionLabel>
-        <p className="mt-1 text-sm text-foreground">{decision.reason || "결정 사유 없음"}</p>
-      </div>
-      <div className="space-y-2">
-        <DecisionRow label="선택 경로">
-          <ProviderBadges providers={decision.providerChain} />
-        </DecisionRow>
-        <DecisionRow label="사용 가능 경로">
-          <ProviderBadges providers={decision.availableProviders} />
-        </DecisionRow>
-      </div>
-    </div>
-  );
-}
-
-function LocalLlmRoutingPanel({ local, loading, canRequest, onRefresh }: { local: RoutingLocalLlm | null; loading: boolean; canRequest: boolean; onRefresh: () => void }) {
-  if (!local) {
-    return (
-      <div className="space-y-3">
-        <Button variant="outline" size="sm" onClick={onRefresh} disabled={!canRequest || loading}>
-          <RefreshCcw size={14} aria-hidden="true" /> {loading ? "조회 중" : "상태 조회"}
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto rounded-xl border border-border bg-card p-3">
+      <div>
+        <Button size="sm" variant="outline" onClick={loadDecision} disabled={!connected}>
+          <RefreshCcw size={12} aria-hidden="true" /> 다시 조회
         </Button>
-        <CompactEmptyState icon={Server} title="로컬 모델 상태 없음" description="Ollama / LM Studio 확인 결과를 보조 정보로 표시합니다." />
       </div>
-    );
-  }
+
+      {decision === null ? (
+        <p className="text-xs text-muted-foreground">아직 기록된 선택이 없습니다.</p>
+      ) : (
+        <>
+          <p className="min-w-0 break-words text-sm font-medium">
+            {decision.categoryLabel || decision.categoryKey || "-"} → {decision.resolvedProvider || "-"}
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            요청 {decision.requestedProvider || "-"} · {formatDecisionTime(decision.decidedAtUtc)}
+          </p>
+          <p className="min-w-0 break-words rounded-lg border border-border bg-muted/20 px-2.5 py-2 text-xs">
+            {decision.reason || "이유가 기록되지 않았습니다."}
+          </p>
+          <Chain label="선택한 순서" chain={decision.providerChain} />
+          <Chain label="쓸 수 있던 제공자" chain={decision.availableProviders} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function Chain({ label, chain }: { label: string; chain: string[] }) {
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="sm" onClick={onRefresh} disabled={!canRequest || loading}>
-          <RefreshCcw size={14} aria-hidden="true" /> {loading ? "조회 중" : "새로고침"}
+    <div className="min-w-0">
+      <p className="text-[11px] text-muted-foreground">{label}</p>
+      {chain.length === 0 ? (
+        <p className="text-xs text-muted-foreground">없음</p>
+      ) : (
+        <p className="min-w-0 break-words font-mono text-xs">{chain.map((item, index) => `${index + 1}. ${item}`).join("  ")}</p>
+      )}
+    </div>
+  );
+}
+
+function LocalPanel({ connected }: { connected: boolean }) {
+  const local = useRoutingStore((state) => state.localLlm);
+  const loading = useRoutingStore((state) => state.localLoading);
+  const loadLocalLlm = useRoutingStore((state) => state.loadLocalLlm);
+  const [asked, setAsked] = useState(false);
+
+  useEffect(() => {
+    if (!connected || asked) return;
+    setAsked(true);
+    loadLocalLlm();
+  }, [connected, asked, loadLocalLlm]);
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex min-w-0 shrink-0 items-center justify-between gap-2 border-b border-border px-3 py-1.5">
+        <span className="min-w-0 truncate text-[11px] text-muted-foreground">
+          {local
+            ? `연결점 ${local.availableEndpointCount}/${local.endpoints.length}개 · 모델 ${local.totalModelCount}개`
+            : loading
+              ? "조회 중"
+              : "아직 조회 전"}
+        </span>
+        <Button size="sm" variant="ghost" onClick={loadLocalLlm} disabled={!connected || loading}>
+          {loading ? <Spinner size={12} /> : <RefreshCcw size={12} aria-hidden="true" />} 다시 조회
         </Button>
-        <Badge tone={local.offlineReady ? "success" : "warning"}>{local.offlineReady ? "오프라인 준비" : "수동 확인"}</Badge>
-        <Badge tone={statusTone(local.offlineStatus)}>{statusLabel(local.offlineStatus || "not_requested")}</Badge>
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        <DecisionStat label="연결점" value={local.availableEndpointCount.toLocaleString()} mono />
-        <DecisionStat label="모델" value={local.totalModelCount.toLocaleString()} mono />
-        <DecisionStat label="클라우드 키" value={local.cloudProviderKeysPresent.length.toLocaleString()} mono />
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {local === null ? (
+          <p className="px-3 py-6 text-center text-xs text-muted-foreground">Ollama·LM Studio 를 찾을 수 있는지 확인합니다.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {local.endpoints.map((endpoint) => (
+              <StatusRow
+                key={`${endpoint.name}-${endpoint.baseUrl}`}
+                name={`${endpoint.name} · ${endpoint.kind}`}
+                detail={endpoint.error || `${endpoint.baseUrl} · 모델 ${endpoint.modelCount}개`}
+                status={endpoint.status}
+              />
+            ))}
+            {local.checks.map((check) => (
+              <StatusRow key={check.name} name={localCheckLabel(check.name)} detail={check.message} status={check.status} />
+            ))}
+          </ul>
+        )}
       </div>
-      <div className="space-y-1">
-        {local.endpoints.slice(0, 4).map((endpoint) => (
-          <DecisionRow key={`${endpoint.name}-${endpoint.baseUrl}`} label={`${endpoint.name} · ${endpoint.kind}`}>
-            <Badge tone={statusTone(endpoint.status)}>{statusLabel(endpoint.status)}</Badge>
-            <Badge tone="outline">{endpoint.modelCount} 모델</Badge>
-          </DecisionRow>
-        ))}
-        {local.endpoints.length === 0 ? <p className="py-2 text-center text-xs text-muted-foreground">발견된 로컬 연결점 없음</p> : null}
-      </div>
-      <div className="space-y-1">
-        {local.checks.slice(0, 4).map((check) => (
-          <DecisionRow key={check.name} label={checkLabel(check.name)} sub={checkMessage(check)}>
-            <Badge tone={statusTone(check.status)}>{statusLabel(check.status)}</Badge>
-          </DecisionRow>
-        ))}
-      </div>
-      <div className="rounded-md border border-border bg-muted/30 p-2 text-[11px] text-muted-foreground">
-        <BrainCircuit size={13} className="mr-1 inline-block align-[-2px]" aria-hidden="true" />
-        상태 확인 전용입니다. 실제 경로 자동 전환과 클라우드 차단은 아직 실행하지 않습니다.
-      </div>
+
+      <p className="shrink-0 border-t border-border px-3 py-1.5 text-[11px] text-muted-foreground">
+        상태만 확인합니다. 이 값으로 경로를 자동으로 바꾸지 않습니다.
+      </p>
     </div>
   );
 }
 
-function DecisionStat({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+function StatusRow({ name, detail, status }: { name: string; detail: string; status: string }) {
+  const tone = statusTone(status);
   return (
-    <div className="min-w-0 rounded-md border border-border bg-card/60 p-2.5">
-      <div className="truncate text-[11px] text-muted-foreground">{label}</div>
-      <div className={`mt-0.5 truncate text-sm font-semibold ${mono ? "font-mono" : ""}`}>{value}</div>
-    </div>
-  );
-}
-
-function DecisionRow({ label, sub, children }: { label: string; sub?: string; children: ReactNode }) {
-  return (
-    <div className="flex min-w-0 items-center justify-between gap-2 rounded-md border border-border bg-card/60 px-2.5 py-2">
-      <div className="min-w-0">
-        <div className="truncate text-xs font-medium">{label}</div>
-        {sub ? <div className="truncate text-[11px] text-muted-foreground">{sub}</div> : null}
-      </div>
-      <div className="flex min-w-0 max-w-[60%] flex-wrap justify-end gap-1">{children}</div>
-    </div>
+    <li className="flex min-w-0 items-start gap-2 px-3 py-2">
+      <span className="min-w-0 flex-1">
+        <span className="block min-w-0 break-words text-xs">{name}</span>
+        <span className="block min-w-0 break-all text-[11px] text-muted-foreground">{detail}</span>
+      </span>
+      <span
+        className={cn(
+          "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+          tone === "destructive" && "bg-destructive/15 text-destructive",
+          tone === "warning" && "bg-warning/15 text-warning",
+          tone === "success" && "bg-success/15 text-success",
+          (tone === "default" || tone === "primary") && "bg-muted text-muted-foreground"
+        )}
+      >
+        {statusLabel(status)}
+      </span>
+    </li>
   );
 }

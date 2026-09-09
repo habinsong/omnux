@@ -4,8 +4,6 @@ import { useAskStore } from "../ask/ask-store";
 import { filesToAttachments, hasDraggedFiles } from "../ask/AskAttachments";
 import { useVoiceInput } from "../ask/AskSpeech";
 import { shortcutMatches, useDesktopPreferenceStore } from "../shell/preference-store";
-import { ChatOptions } from "./ChatOptions";
-import { ChatResources } from "./ChatResources";
 
 export function ChatComposer({ canRequest }: { canRequest: boolean }) {
   const state = useAskStore();
@@ -52,7 +50,5 @@ export function ChatComposer({ canRequest }: { canRequest: boolean }) {
         {voice.supported && <button type="button" className="chat-button chat-quiet" aria-label="음성 입력" aria-pressed={voice.active} onClick={() => voice.toggle(state.input)}>{voice.active ? <MicOff size={15} /> : <Mic size={15} />}</button>}
       </div><button className="chat-button" data-primary type="submit" aria-label="질문 보내기" disabled={!canSend}><ArrowUp size={16} aria-hidden="true" />{state.pending ? "응답 중" : "보내기"}</button></div>
     </form>
-    <ChatOptions canRequest={canRequest} />
-    <ChatResources canRequest={canRequest} />
   </section>;
 }

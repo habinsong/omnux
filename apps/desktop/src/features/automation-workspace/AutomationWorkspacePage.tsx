@@ -1,26 +1,42 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ListChecks, PenLine, Plus, RefreshCcw } from "lucide-react";
+import { Screen, ScreenNotice } from "../../components/screen/Screen";
+import { ScreenTabs, type ScreenTab } from "../../components/screen/ScreenTabs";
+import { Button } from "../../components/ui/primitives";
 import { useDesktopAuthStore } from "../auth/auth-store";
 import { useDesktopNavigationStore } from "../shell/navigation-store";
 import { useDesktopShellStore } from "../../shell-store";
-import { AutomationFormPanel } from "./AutomationFormPanel";
-import { AutomationResultPanel } from "./AutomationResultPanel";
 import { useAutomationWorkspace } from "./automation-state";
-import "./automation-workspace.css";
+import { AutomationFormPanel, AutomationListPanel, AutomationResultPanel } from "./AutomationPanels";
+
+/* ============================================================================
+   자동화 화면.
+   목록 / 작성 / 결과 를 캡슐 탭으로 가른다.
+   결과 탭은 고른 자동화가 있을 때만 나온다 — 빈 칸을 보여 주지 않는다.
+   ============================================================================ */
+
+type TabId = "list" | "editor" | "result";
 
 export function AutomationWorkspacePage() {
   const state = useAutomationWorkspace();
   const navigation = useDesktopNavigationStore();
-  const authenticated = useDesktopAuthStore(value => value.auth.status === "authenticated");
-  const online = useDesktopShellStore(value => value.bridge.status === "connected");
+  const authenticated = useDesktopAuthStore((value) => value.auth.status === "authenticated");
+  const online = useDesktopShellStore((value) => value.bridge.status === "connected");
   const connected = authenticated && online;
-  const selected = state.items.find(item => item.id === state.selectedId);
+  const selected = state.items.find((item) => item.id === state.selectedId);
   const dialog = useRef<HTMLDialogElement>(null);
+  const [tab, setTab] = useState<TabId>("list");
+
   useEffect(() => {
     if (!connected) return;
     state.refresh();
-    const timer = window.setInterval(() => { if (!document.hidden && !useAutomationWorkspace.getState().pending.list) state.refresh(); }, 15000);
+    const timer = window.setInterval(() => {
+      if (!document.hidden && !useAutomationWorkspace.getState().pending.list) state.refresh();
+    }, 15000);
     return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected]);
+
   useEffect(() => {
     const payload = navigation.routePayload;
     if (!payload || state.pending.change) return;
@@ -38,21 +54,96 @@ export function AutomationWorkspacePage() {
       if (payload.scheduleDayOfMonth) state.patch({ day: payload.scheduleDayOfMonth });
     }
     navigation.clearRoutePayload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigation.routeVersion, state.editor, state.pending.change]);
-  useEffect(() => { if (state.confirmation) dialog.current?.showModal(); else dialog.current?.close(); }, [state.confirmation]);
-  return <div className="automation-workspace" data-surface="automation">
-    <header className="automation-page-heading"><div><h1>자동화</h1><p>반복할 일과 시간을 정해 두세요.</p></div>{!state.editor && <button type="button" className="automation-button" data-primary disabled={!connected || Boolean(state.pending.change)} onClick={state.create}>새 자동화</button>}</header>
-    {!connected && <p className="automation-notice" role="status">서버에 연결하면 자동화를 불러올 수 있습니다.</p>}
-    {state.error && <div className="automation-notice automation-warning" role="alert"><p>{state.error}</p><button type="button" className="automation-button automation-quiet" onClick={() => useAutomationWorkspace.setState({ error: "" })}>닫기</button></div>}
-    {state.scheduler && (!state.scheduler.enabled || state.scheduler.error) && <p className="automation-notice automation-warning" role="status">{state.scheduler.error || "예약 실행이 중지되어 있습니다. 서버 상태를 확인해 주세요."}</p>}
-    {state.pending.change && <p className="automation-note" role="status">{state.progress || (state.pending.change.type === "run_routine" ? "실행 결과를 기다리고 있습니다." : "변경을 저장하고 있습니다.")}</p>}
-    {!state.editor && !selected && <section className="automation-library" aria-label="저장한 자동화">
-      {state.pending.list && !state.items.length ? <p role="status">자동화를 불러오고 있습니다.</p> : !state.items.length ? <p className="automation-empty">아직 자동화가 없습니다. 반복할 일을 하나 등록해 보세요.</p> : <ul>{state.items.map(item => <li key={item.id}><button type="button" className="automation-list-link" disabled={Boolean(state.pending.change)} onClick={() => state.select(item.id)}><span>{item.title || "이름 없는 자동화"}</span><small>{item.running ? "실행 중" : item.enabled ? `다음 ${item.next}` : "예약 꺼짐"} · {item.schedule}</small></button><button type="button" className="automation-button automation-quiet" aria-label={`${item.title} ${item.enabled ? "예약 끄기" : "예약 켜기"}`} disabled={!connected || Boolean(state.pending.change)} onClick={() => state.toggle(item)}>{item.enabled ? "예약 켜짐" : "예약 꺼짐"}</button></li>)}</ul>}
-    </section>}
-    {(state.editor || selected) && state.items.length > 0 && <details className="automation-library-fold"><summary>저장한 자동화 · {state.items.length}</summary><div className="automation-fields-row"><label>자동화 선택<select disabled={state.editor || Boolean(state.pending.change)} value={state.selectedId} onChange={event => state.select(event.target.value)}><option value="">목록으로 돌아가기</option>{state.items.map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>{state.editor && <p className="automation-note">작성을 저장하거나 취소한 뒤 다른 자동화를 선택할 수 있습니다.</p>}</div></details>}
-    {state.editor ? <AutomationFormPanel connected={connected} /> : selected && <AutomationResultPanel key={selected.id} item={selected} connected={connected} />}
-    <dialog ref={dialog} className="automation-dialog" aria-labelledby="automation-confirm-title" onCancel={() => useAutomationWorkspace.setState({ confirmation: null })} onClose={() => useAutomationWorkspace.setState({ confirmation: null })}>
-      {state.confirmation && <form onSubmit={event => { event.preventDefault(); state.accept(); }}><h2 id="automation-confirm-title">{state.confirmation.title}</h2><p>{state.confirmation.message}</p><div className="automation-actions"><button type="button" autoFocus className="automation-button" onClick={() => useAutomationWorkspace.setState({ confirmation: null })}>취소</button><button type="submit" className="automation-button" data-primary disabled={!connected}>{state.confirmation.action === "delete" ? "삭제" : "보내기"}</button></div></form>}
-    </dialog>
-  </div>;
+
+  useEffect(() => {
+    if (state.confirmation) dialog.current?.showModal();
+    else dialog.current?.close();
+  }, [state.confirmation]);
+
+  // 작성이 열리면 작성 탭, 자동화를 고르면 결과 탭으로 옮긴다.
+  useEffect(() => {
+    if (state.editor) setTab("editor");
+  }, [state.editor]);
+  useEffect(() => {
+    if (state.selectedId && !state.editor) setTab("result");
+  }, [state.selectedId, state.editor]);
+
+  const tabs: ScreenTab[] = [
+    { id: "list", label: "목록", icon: ListChecks, badge: state.items.length > 0 ? String(state.items.length) : undefined },
+    ...(state.editor ? [{ id: "editor", label: state.editId ? "편집" : "새 자동화", icon: PenLine } as ScreenTab] : []),
+    ...(selected && !state.editor ? [{ id: "result", label: "결과", icon: RefreshCcw } as ScreenTab] : [])
+  ];
+  const active: TabId = tabs.some((entry) => entry.id === tab) ? tab : "list";
+
+  const schedulerFault = state.scheduler && (!state.scheduler.enabled || state.scheduler.error);
+
+  return (
+    <Screen
+      title="자동화"
+      hint="반복할 일과 시간을 정해 두면 그때마다 알아서 실행합니다."
+      actions={
+        !state.editor ? (
+          <Button variant="primary" size="sm" disabled={!connected || Boolean(state.pending.change)} onClick={state.create}>
+            <Plus size={14} aria-hidden="true" /> 새 자동화
+          </Button>
+        ) : null
+      }
+      notice={
+        !connected ? (
+          <ScreenNotice tone="warning">서버에 연결하면 자동화를 불러올 수 있습니다.</ScreenNotice>
+        ) : state.error ? (
+          <ScreenNotice tone="danger">{state.error}</ScreenNotice>
+        ) : schedulerFault ? (
+          <ScreenNotice tone="warning">{state.scheduler?.error || "예약 실행이 멈춰 있습니다. 서버 상태를 확인하세요."}</ScreenNotice>
+        ) : state.pending.change ? (
+          <ScreenNotice>
+            {state.progress || (state.pending.change.type === "run_routine" ? "실행 결과를 기다리고 있습니다." : "변경을 저장하고 있습니다.")}
+          </ScreenNotice>
+        ) : null
+      }
+    >
+      <ScreenTabs tabs={tabs} value={active} onChange={(id) => setTab(id as TabId)} label="자동화 보기 종류" />
+
+      {active === "editor" && state.editor ? (
+        <AutomationFormPanel connected={connected} />
+      ) : active === "result" && selected ? (
+        <AutomationResultPanel key={selected.id} item={selected} connected={connected} />
+      ) : (
+        <AutomationListPanel connected={connected} />
+      )}
+
+      <dialog
+        ref={dialog}
+        className="max-w-sm rounded-xl border border-border bg-card p-4 text-foreground backdrop:bg-black/40"
+        aria-labelledby="automation-confirm-title"
+        onCancel={() => useAutomationWorkspace.setState({ confirmation: null })}
+        onClose={() => useAutomationWorkspace.setState({ confirmation: null })}
+      >
+        {state.confirmation ? (
+          <form
+            className="min-w-0 space-y-3"
+            onSubmit={(event) => {
+              event.preventDefault();
+              state.accept();
+            }}
+          >
+            <h2 id="automation-confirm-title" className="text-sm font-semibold">
+              {state.confirmation.title}
+            </h2>
+            <p className="min-w-0 break-words text-xs text-muted-foreground">{state.confirmation.message}</p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button type="button" variant="ghost" size="sm" autoFocus onClick={() => useAutomationWorkspace.setState({ confirmation: null })}>
+                취소
+              </Button>
+              <Button type="submit" variant="primary" size="sm" disabled={!connected}>
+                {state.confirmation.action === "delete" ? "삭제" : "보내기"}
+              </Button>
+            </div>
+          </form>
+        ) : null}
+      </dialog>
+    </Screen>
+  );
 }

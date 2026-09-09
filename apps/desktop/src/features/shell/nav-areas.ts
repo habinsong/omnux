@@ -17,7 +17,7 @@ export const NAV_AREAS: NavAreaDefinition[] = [
   { id: "home", label: "홈", icon: Home, pages: ["home"] },
   { id: "workspace", label: "워크스페이스", icon: PanelsTopLeft, pages: ["ask", "build", "automate", "explore", "refactor"] },
   { id: "projects", label: "프로젝트", icon: FolderKanban, pages: ["projects", "planning", "notebooks"] },
-  { id: "engine", label: "엔진", icon: Cpu, pages: ["agents", "skills", "routing", "logic"] },
+  { id: "engine", label: "엔진", icon: Cpu, pages: ["agents", "skills", "extensions", "routing", "logic"] },
   { id: "monitor", label: "모니터", icon: Activity, pages: ["activity", "insights", "operations"] },
   { id: "system", label: "설정", icon: Settings, pages: ["settings"] }
 ];

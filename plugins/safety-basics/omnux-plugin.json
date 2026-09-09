@@ -1,0 +1,40 @@
+{
+  "id": "safety-basics",
+  "name": "안전 기본",
+  "version": "1.0.0",
+  "description": "비밀 파일 쓰기와 되돌릴 수 없는 명령을 실행 전에 막는 기본 검사 묶음이다.",
+  "author": "omnux",
+  "license": "MIT",
+  "hooks": [
+    {
+      "id": "block-secret-write",
+      "event": "coding.file.pre",
+      "handler": "builtin",
+      "builtinId": "deny-path",
+      "builtinArgument": "**/.env|**/.env.*|**/secrets/**|**/*.pem|**/id_rsa",
+      "failureMode": "open",
+      "enabled": true,
+      "description": "비밀 파일로 판단되는 경로의 쓰기를 거부한다."
+    },
+    {
+      "id": "confirm-destructive-command",
+      "event": "coding.command.pre",
+      "handler": "builtin",
+      "builtinId": "ask-command",
+      "builtinArgument": "*rm -rf *|*git push --force*|*git reset --hard*|*mkfs*|*dd if=*",
+      "failureMode": "open",
+      "enabled": true,
+      "description": "되돌리기 어려운 명령에 사용자 승인을 요청한다."
+    }
+  ],
+  "rules": [
+    {
+      "id": "verify-before-done",
+      "title": "완료 판정",
+      "body": "실행하거나 검증한 결과만 완료로 보고한다. 실패하거나 확인하지 못한 항목은 그대로 적는다.",
+      "scope": "global",
+      "priority": 20,
+      "enabled": true
+    }
+  ]
+}

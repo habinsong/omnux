@@ -114,6 +114,32 @@ internal sealed class WsAiCommandDispatcher
             return true;
         }
 
+        // 사용자 프롬프트 제출 훅. 세 채팅 경로가 같은 규칙을 쓰도록 한 곳에서 판정한다.
+        if (message.Type is "llm_chat_single" or "llm_chat_orchestration" or "llm_chat_multi"
+            && !string.IsNullOrWhiteSpace(message.Text))
+        {
+            var promptGate = await ResolvePromptHookGate()
+                .BeforePromptAsync(message.Text, message.ConversationId ?? string.Empty, cancellationToken)
+                .ConfigureAwait(false);
+            if (!promptGate.Allowed)
+            {
+                var blockedReason = promptGate.DecidedByHookId.Length > 0
+                    ? $"훅 {promptGate.DecidedByHookId}이(가) 요청을 막았습니다: {promptGate.Reason}"
+                    : $"훅이 요청을 막았습니다: {promptGate.Reason}";
+                await SendGuardedErrorAsync(
+                    socket,
+                    sendLock,
+                    blockedReason,
+                    cancellationToken,
+                    requestId: message.RequestId, requestType: message.Type
+                );
+                return true;
+            }
+
+            // 훅이 붙인 문맥은 사용자 본문을 바꾸지 않고 아래에 표시된 블록으로만 덧붙인다.
+            message.Text = PromptContextComposer.Apply(message.Text, promptGate.AdditionalContext);
+        }
+
         if (message.Type == "llm_chat_single")
         {
             if (string.IsNullOrWhiteSpace(message.Text))
@@ -172,6 +198,7 @@ internal sealed class WsAiCommandDispatcher
                 );
 
                 await SendChatResultAsync(socket, sendLock, result, cancellationToken, message.RequestId);
+                await NotifyResponseCompleteAsync(message, modeValue, cancellationToken).ConfigureAwait(false);
                 await _sendGroqModelsAsync(socket, sendLock, cancellationToken);
                 await _sendCopilotModelsAsync(socket, sendLock, cancellationToken);
                 await _sendUsageStatsAsync(socket, sendLock, cancellationToken);
@@ -241,6 +268,7 @@ internal sealed class WsAiCommandDispatcher
                     cancellationToken
                 );
                 await SendChatResultAsync(socket, sendLock, result, cancellationToken, message.RequestId);
+                await NotifyResponseCompleteAsync(message, modeValue, cancellationToken).ConfigureAwait(false);
                 await _sendUsageStatsAsync(socket, sendLock, cancellationToken);
                 await _sendConversationsAsync(socket, sendLock, scopeValue, modeValue, cancellationToken);
             }
@@ -351,6 +379,7 @@ internal sealed class WsAiCommandDispatcher
                     multiJson,
                     cancellationToken
                 );
+                await NotifyResponseCompleteAsync(message, modeValue, cancellationToken).ConfigureAwait(false);
                 await _sendGroqModelsAsync(socket, sendLock, cancellationToken);
                 await _sendCopilotModelsAsync(socket, sendLock, cancellationToken);
                 await _sendUsageStatsAsync(socket, sendLock, cancellationToken);
@@ -558,6 +587,37 @@ internal sealed class WsAiCommandDispatcher
         {
             // Ignore
         }
+    }
+
+    /// <summary>확장 계층을 읽지 못하면 훅 없이 진행한다. 훅 오류로 채팅 전체를 막지 않는다.</summary>
+    private static IPromptHookGate ResolvePromptHookGate()
+    {
+        try
+        {
+            return new ExtensionPromptHookGate(
+                new HookDispatcher(SharedExtensionServices.Service),
+                SharedExtensionServices.Approvals
+            );
+        }
+        catch (Exception)
+        {
+            return NullPromptHookGate.Instance;
+        }
+    }
+
+    /// <summary>응답이 끝난 뒤 알린다. 차단할 수 없는 이벤트라 판정을 읽지 않는다.</summary>
+    private static Task NotifyResponseCompleteAsync(
+        WebSocketGateway.ClientMessage message,
+        string mode,
+        CancellationToken cancellationToken
+    )
+    {
+        return ExtensionLifecycleHookNotifier.Resolve().NotifyAsync(
+            HookEventCatalog.ResponseComplete,
+            message.ConversationId ?? string.Empty,
+            mode,
+            cancellationToken
+        );
     }
 
     private async Task SendGuardedErrorAsync(WebSocket socket, SemaphoreSlim sendLock, string message, CancellationToken cancellationToken, SearchAnswerGuardFailure? guardFailure = null, string? requestId = null, string? requestType = null)

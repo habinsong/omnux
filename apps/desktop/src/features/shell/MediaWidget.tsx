@@ -8,6 +8,8 @@ import {
   consumeMediaRefreshRecheck,
   controlMedia,
   getMediaInfo,
+  isMediaBridgeUnavailable,
+  resetMediaBridgeAvailability,
   seekMedia,
   type MediaControlAction,
   type MediaData
@@ -72,6 +74,7 @@ export function MediaWidget() {
 
   // 실제 데이터 상태
   const [mediaData, setMediaData] = useState<MediaData | null>(null);
+  const [bridgeUnavailable, setBridgeUnavailable] = useState(false);
   const [controlPending, setControlPending] = useState(false);
   const [seeking, setSeeking] = useState(false);
   const [scrubPosition, setScrubPosition] = useState<number | null>(null);
@@ -152,6 +155,7 @@ export function MediaWidget() {
       const data = await getMediaInfo();
       if (requestId !== mediaRequestIdRef.current) return;
       applyMediaData(data);
+      setBridgeUnavailable(isMediaBridgeUnavailable());
     } catch (err) {
       console.error("Failed to fetch media info:", err);
     }
@@ -163,7 +167,11 @@ export function MediaWidget() {
     let recheckTimer: number | null = null;
     const poll = async () => {
       await fetchMedia();
-      if (!disposed) pollTimer = window.setTimeout(poll, MEDIA_POLL_INTERVAL_MS);
+      // 브리지가 없다고 판단되면 폴링을 멈춘다. 거절된 연결을 반복하면
+      // 콘솔이 오류로 차서 실제 문제를 가린다. 새로고침 재확인과 사용자 조작으로 다시 시작한다.
+      if (!disposed && !isMediaBridgeUnavailable()) {
+        pollTimer = window.setTimeout(poll, MEDIA_POLL_INTERVAL_MS);
+      }
     };
     pollTimer = window.setTimeout(() => void poll(), MEDIA_STARTUP_DELAY_MS);
     if (refreshRecheckOnMountRef.current) {
@@ -181,6 +189,8 @@ export function MediaWidget() {
   useEffect(() => {
     const handleRefreshRecheck = () => {
       consumeMediaRefreshRecheck();
+      resetMediaBridgeAvailability();
+      setBridgeUnavailable(false);
       void fetchMedia();
     };
     window.addEventListener(MEDIA_REFRESH_RECHECK_EVENT, handleRefreshRecheck);
@@ -199,7 +209,9 @@ export function MediaWidget() {
     ? [mediaData.artist, mediaData.album]
       .filter((value) => value.trim().length > 0)
       .join(" · ") || mediaData.source || "재생 중"
-    : "시스템 미디어 세션 없음";
+    : bridgeUnavailable
+      ? "미디어 브리지에 연결하지 못했습니다"
+      : "시스템 미디어 세션 없음";
   const artUrl = mediaData?.art_url;
 
   const runControl = async (action: MediaControlAction) => {

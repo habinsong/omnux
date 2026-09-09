@@ -1,292 +1,300 @@
 import { useEffect, useState } from "react";
-import { Code2, EllipsisVertical, FolderGit2, MessageSquare, Pencil, Plus, RefreshCcw, Star, Trash2, X } from "lucide-react";
-import { CardBoundary } from "../../CardBoundary";
-import { useDesktopAuthStore } from "../auth/auth-store";
+import { Code2, FolderGit2, MessageSquare, Plus, RefreshCcw, Star, Trash2 } from "lucide-react";
+import { Screen, ScreenNotice } from "../../components/screen/Screen";
+import { ScreenTabs, type ScreenTab } from "../../components/screen/ScreenTabs";
+import { Badge, Button, Input, Spinner, Textarea, cn } from "../../components/ui/primitives";
 import { useDesktopShellStore } from "../../shell-store";
-import { useUiLogStore } from "../ui-log/ui-log-store";
+import { useDesktopAuthStore } from "../auth/auth-store";
 import { useDesktopNavigationStore } from "../shell/navigation-store";
 import { PROJECT_COLORS, useProjectsPageBridge, useProjectsStore, type ProjectItem } from "./projects-store";
-import { Badge, Button, EmptyState, IconButton, Input, Textarea, cn } from "../../components/ui/primitives";
 
-const FIELD_LABEL = "block space-y-1 text-xs font-semibold text-muted-foreground";
+/* ============================================================================
+   프로젝트 화면.
+   목록은 한 줄씩. 줄을 누르면 그 줄 아래에서만 자세히 열린다.
+   카드 격자와 떠 있는 메뉴를 없애 한 화면에 담는다.
+   ============================================================================ */
 
-function formatDate(value: string) {
+type TabId = "list" | "form";
+
+function stamp(value: string): string {
   const parsed = new Date(value || "");
   if (Number.isNaN(parsed.getTime())) return "-";
   return parsed.toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
-function ProjectCard({
-  project,
-  disabled,
-  onAsk,
-  onBuild,
-  onOpen,
-  onEdit,
-  onMain,
-  onDelete
-}: {
-  project: ProjectItem;
-  disabled: boolean;
-  onAsk: () => void;
-  onBuild: () => void;
-  onOpen: (project: ProjectItem) => void;
-  onEdit: (project: ProjectItem) => void;
-  onMain: (project: ProjectItem) => void;
-  onDelete: (project: ProjectItem) => void;
-}) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const stop = (event: React.MouseEvent, fn: () => void) => {
-    event.stopPropagation();
-    fn();
+export function ProjectsPage() {
+  useProjectsPageBridge();
+
+  const bridgeStatus = useDesktopShellStore((state) => state.bridge.status);
+  const authStatus = useDesktopAuthStore((state) => state.auth.status);
+  const connected = bridgeStatus === "connected" && authStatus === "authenticated";
+
+  const projects = useProjectsStore((state) => state.projects);
+  const loading = useProjectsStore((state) => state.loading);
+  const lastError = useProjectsStore((state) => state.lastError);
+  const lastMessage = useProjectsStore((state) => state.lastMessage);
+  const selectedKey = useProjectsStore((state) => state.selectedProjectKey);
+  const store = useProjectsStore;
+
+  const [tab, setTab] = useState<TabId>("list");
+  const [openKey, setOpenKey] = useState("");
+
+  useEffect(() => {
+    if (connected) store.getState().loadProjects();
+  }, [connected, store]);
+
+  const selected = projects.find((item) => item.projectKey === selectedKey) || null;
+
+  const openNew = () => {
+    store.getState().resetForm();
+    setTab("form");
   };
-  const runMenuAction = (event: React.MouseEvent, fn: () => void) => {
-    event.stopPropagation();
-    setMenuOpen(false);
-    fn();
+  const openEdit = (project: ProjectItem) => {
+    store.getState().selectProject(project);
+    setTab("form");
   };
+
+  const tabs: ScreenTab[] = [
+    { id: "list", label: "목록", icon: FolderGit2, badge: projects.length > 0 ? String(projects.length) : undefined },
+    { id: "form", label: selected ? "수정" : "추가", icon: Plus }
+  ];
+
   return (
-    <article
-      onClick={() => onOpen(project)}
-      className="relative flex cursor-pointer flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-card)] backdrop-blur-xl transition-all duration-200 hover:-translate-y-0.5 hover:border-border-strong"
+    <Screen
+      title="프로젝트"
+      hint="로컬 폴더를 등록하면 질문·빌드·자동화가 같은 기준을 씁니다."
+      actions={
+        <>
+          <Button variant="outline" size="sm" disabled={!connected || loading} onClick={() => store.getState().loadProjects()}>
+            {loading ? <Spinner size={14} /> : <RefreshCcw size={14} aria-hidden="true" />} 다시 조회
+          </Button>
+          <Button variant="primary" size="sm" onClick={openNew}>
+            <Plus size={14} aria-hidden="true" /> 추가
+          </Button>
+        </>
+      }
+      notice={
+        !connected ? (
+          <ScreenNotice tone="warning">연결되지 않았습니다.</ScreenNotice>
+        ) : lastError ? (
+          <ScreenNotice tone="danger">{lastError}</ScreenNotice>
+        ) : lastMessage ? (
+          <ScreenNotice>{lastMessage}</ScreenNotice>
+        ) : null
+      }
     >
-      <div className="flex items-start justify-between">
-        {/* 동적 프로젝트 컬러: 사용자 지정 HEX → inline style 불가피 */}
-        <span className="flex h-11 w-11 items-center justify-center rounded-lg" style={{ backgroundColor: `${project.color}1f`, color: project.color }}>
-          <FolderGit2 size={21} aria-hidden="true" />
-        </span>
-        <div className="relative flex shrink-0 items-center gap-1">
-          {project.isMain ? (
-            <Badge tone="primary">
-              <Star size={11} aria-hidden="true" /> 대표
-            </Badge>
-          ) : null}
-          <IconButton
-            icon={EllipsisVertical}
-            label="프로젝트 옵션"
-            disabled={disabled}
-            onClick={(event) => stop(event, () => setMenuOpen(!menuOpen))}
-          />
-          {menuOpen ? (
-            <div className="absolute right-0 top-9 z-20 w-40 rounded-md border border-border bg-card p-1 shadow-lg backdrop-blur-xl" onClick={(event) => event.stopPropagation()}>
-              <button
-                type="button"
-                className="flex h-8 w-full min-w-0 items-center gap-2 rounded px-2 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                onClick={(event) => runMenuAction(event, () => onEdit(project))}
-              >
-                <Pencil size={13} className="shrink-0" aria-hidden="true" /> <span className="truncate">수정</span>
-              </button>
-              {!project.isMain ? (
-                <button
-                  type="button"
-                  className="flex h-8 w-full min-w-0 items-center gap-2 rounded px-2 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                  onClick={(event) => runMenuAction(event, () => onMain(project))}
-                >
-                  <Star size={13} className="shrink-0" aria-hidden="true" /> <span className="truncate">대표 지정</span>
-                </button>
-              ) : null}
-              <button
-                type="button"
-                className="flex h-8 w-full min-w-0 items-center gap-2 rounded px-2 text-left text-xs text-destructive transition-colors hover:bg-destructive/10"
-                onClick={(event) => runMenuAction(event, () => onDelete(project))}
-              >
-                <Trash2 size={13} className="shrink-0" aria-hidden="true" /> <span className="truncate">삭제</span>
-              </button>
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="min-w-0 space-y-1">
-        <h2 className="truncate text-sm font-semibold">{project.name}</h2>
-        <p className="line-clamp-2 text-xs text-muted-foreground">{project.description || "등록된 로컬 프로젝트"}</p>
-        <div className="truncate font-mono text-[11px] text-muted-foreground">{project.path || "-"}</div>
-      </div>
-
-      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-        <span>
-          <b className="text-foreground">{project.runs}</b> 실행
-        </span>
-        <span>
-          <b className="text-foreground">{project.automations}</b> 루틴
-        </span>
-        <span className="ml-auto">{formatDate(project.lastOpenedUtc)}</span>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-1.5 border-t border-border pt-3">
-        <Button variant="outline" size="sm" onClick={(event) => stop(event, onAsk)}>
-          <MessageSquare size={14} aria-hidden="true" /> 질문
-        </Button>
-        <Button variant="outline" size="sm" onClick={(event) => stop(event, onBuild)}>
-          <Code2 size={14} aria-hidden="true" /> 빌드
-        </Button>
-      </div>
-    </article>
+      <ScreenTabs tabs={tabs} value={tab} onChange={(id) => setTab(id as TabId)} label="프로젝트 보기 종류" />
+      {tab === "list" ? (
+        <ProjectList
+          projects={projects}
+          connected={connected}
+          openKey={openKey}
+          onToggle={(key) => setOpenKey(openKey === key ? "" : key)}
+          onEdit={openEdit}
+          onAdd={openNew}
+        />
+      ) : (
+        <ProjectForm connected={connected} selected={selected} onDone={() => setTab("list")} />
+      )}
+    </Screen>
   );
 }
 
-export function ProjectsPage() {
-  useProjectsPageBridge();
-  const bridgeStatus = useDesktopShellStore((state) => state.bridge.status);
-  const authStatus = useDesktopAuthStore((state) => state.auth.status);
-  const recordCardError = useUiLogStore((state) => state.recordCardError);
+function ProjectList({
+  projects,
+  connected,
+  openKey,
+  onToggle,
+  onEdit,
+  onAdd
+}: {
+  projects: ProjectItem[];
+  connected: boolean;
+  openKey: string;
+  onToggle: (key: string) => void;
+  onEdit: (project: ProjectItem) => void;
+  onAdd: () => void;
+}) {
   const navigate = useDesktopNavigationStore((state) => state.setActivePage);
-  const store = useProjectsStore();
-  const [editorOpen, setEditorOpen] = useState(false);
-  const canRequest = bridgeStatus === "connected" && authStatus === "authenticated";
-  const selectedProject = store.projects.find((item) => item.projectKey === store.selectedProjectKey) || null;
+  const store = useProjectsStore;
 
-  useEffect(() => {
-    if (canRequest) store.loadProjects();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canRequest]);
+  const go = (page: "ask" | "build", project: ProjectItem) => {
+    store.getState().touchProject(project);
+    navigate(page, { projectKey: project.projectKey, projectName: project.name, projectPath: project.path });
+  };
 
-  const openNewProjectEditor = () => {
-    store.resetForm();
-    setEditorOpen(true);
-  };
-  const openProjectEditor = (project: ProjectItem) => {
-    store.selectProject(project);
-    setEditorOpen(true);
-  };
-  const setMainProject = (project: ProjectItem) => {
-    store.selectProject(project);
-    store.updateSelectedProject(true);
-  };
-  const deleteProject = (project: ProjectItem) => {
-    store.selectProject(project);
-    void store.deleteSelectedProject();
-  };
+  if (projects.length === 0) {
+    return (
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-card/40 p-6 text-center">
+        <FolderGit2 size={26} className="text-muted-foreground" aria-hidden="true" />
+        <p className="text-sm font-medium">등록된 프로젝트가 없습니다</p>
+        <p className="max-w-sm text-xs text-muted-foreground">로컬 폴더 경로를 등록하면 질문·빌드·자동화에서 같은 작업 기준을 씁니다.</p>
+        <Button variant="primary" size="sm" onClick={onAdd}>
+          <Plus size={14} aria-hidden="true" /> 프로젝트 추가
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="dashboard-tab space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">프로젝트</h1>
-          <p className="text-sm leading-relaxed text-muted-foreground">로컬 폴더를 등록하고 질문·빌드·자동화의 기준으로 사용합니다.</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button variant="outline" size="sm" disabled={!canRequest || store.loading} onClick={store.loadProjects}>
-            <RefreshCcw size={15} aria-hidden="true" /> {store.loading ? "조회 중" : "새로고침"}
-          </Button>
-          <Button variant="primary" onClick={openNewProjectEditor}>
-            <Plus size={16} aria-hidden="true" /> 프로젝트 추가
-          </Button>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+        <ul className="min-w-0 divide-y divide-border">
+          {projects.map((project) => {
+            const open = openKey === project.projectKey;
+            return (
+              <li key={project.projectKey} className="min-w-0">
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  onClick={() => onToggle(project.projectKey)}
+                  className="flex w-full min-w-0 items-center gap-2.5 px-3 py-2.5 text-left outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60"
+                >
+                  {/* 프로젝트 색은 사용자가 고른 HEX 라 inline style 을 쓴다. */}
+                  <span
+                    aria-hidden="true"
+                    className="h-6 w-6 shrink-0 rounded-md"
+                    style={{ backgroundColor: `${project.color}2e`, boxShadow: `inset 0 0 0 1px ${project.color}` }}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate text-xs font-medium">{project.name}</span>
+                      {project.isMain ? <Badge tone="primary">대표</Badge> : null}
+                    </span>
+                    <span className="block truncate font-mono text-[10px] text-muted-foreground">{project.path || "경로 없음"}</span>
+                  </span>
+                  <span className="shrink-0 text-[10px] text-muted-foreground">{stamp(project.lastOpenedUtc)}</span>
+                </button>
+
+                {open ? (
+                  <div className="min-w-0 space-y-2 px-3 pb-3">
+                    {project.description ? (
+                      <p className="min-w-0 break-words text-[11px] text-muted-foreground">{project.description}</p>
+                    ) : null}
+                    <p className="text-[11px] text-muted-foreground">
+                      실행 <b className="text-foreground">{project.runs}</b> · 루틴 <b className="text-foreground">{project.automations}</b>
+                    </p>
+                    <div className="flex min-w-0 flex-wrap gap-1.5">
+                      <Button variant="outline" size="sm" onClick={() => go("ask", project)}>
+                        <MessageSquare size={12} aria-hidden="true" /> 질문
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => go("build", project)}>
+                        <Code2 size={12} aria-hidden="true" /> 빌드
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => onEdit(project)}>
+                        수정
+                      </Button>
+                      {!project.isMain ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={!connected}
+                          onClick={() => {
+                            store.getState().selectProject(project);
+                            store.getState().updateSelectedProject(true);
+                          }}
+                        >
+                          <Star size={12} aria-hidden="true" /> 대표로
+                        </Button>
+                      ) : null}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        disabled={!connected}
+                        onClick={() => {
+                          store.getState().selectProject(project);
+                          store.getState().deleteSelectedProject();
+                        }}
+                      >
+                        <Trash2 size={12} aria-hidden="true" /> 삭제
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+function ProjectForm({ connected, selected, onDone }: { connected: boolean; selected: ProjectItem | null; onDone: () => void }) {
+  const form = useProjectsStore((state) => state.form);
+  const pending = useProjectsStore((state) => state.pending);
+  const store = useProjectsStore;
+  const editing = selected !== null;
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="min-w-0 space-y-3 p-3">
+          <p className="text-[11px] text-muted-foreground">로컬에 실제로 있는 폴더만 등록됩니다.</p>
+
+          <label className="block min-w-0 space-y-1 text-[11px] font-medium text-muted-foreground">
+            이름
+            <Input className="h-8 text-xs" value={form.name} onChange={(event) => store.getState().setFormValue("name", event.target.value)} />
+          </label>
+          <label className="block min-w-0 space-y-1 text-[11px] font-medium text-muted-foreground">
+            로컬 폴더 경로
+            <Input
+              className="h-8 font-mono text-xs"
+              value={form.path}
+              placeholder="/Users/…"
+              onChange={(event) => store.getState().setFormValue("path", event.target.value)}
+            />
+          </label>
+          <label className="block min-w-0 space-y-1 text-[11px] font-medium text-muted-foreground">
+            설명
+            <Textarea rows={2} className="text-xs" value={form.description} onChange={(event) => store.getState().setFormValue("description", event.target.value)} />
+          </label>
+
+          <div className="min-w-0 space-y-1">
+            <p className="text-[11px] font-medium text-muted-foreground">색</p>
+            <div className="flex min-w-0 flex-wrap gap-1.5">
+              {PROJECT_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  title={color}
+                  aria-label={`색 ${color}`}
+                  aria-pressed={form.color === color}
+                  onClick={() => store.getState().setFormValue("color", color)}
+                  className={cn(
+                    "h-7 w-7 rounded-full outline-none transition-transform focus-visible:ring-2 focus-visible:ring-ring/60",
+                    form.color === color ? "scale-110 ring-2 ring-primary ring-offset-2 ring-offset-card" : "hover:scale-105"
+                  )}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
-      {store.lastError ? (
-        <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">{store.lastError}</p>
-      ) : null}
-      {store.lastMessage ? (
-        <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">{store.lastMessage}</p>
-      ) : null}
-
-      {editorOpen ? (
-        <CardBoundary title={selectedProject ? "프로젝트 수정" : "프로젝트 등록"} card="operations" onError={recordCardError}>
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-xs leading-relaxed text-muted-foreground">로컬에 실제 존재하는 폴더만 등록됩니다.</p>
-            <IconButton icon={X} label="닫기" onClick={() => setEditorOpen(false)} />
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <label className={FIELD_LABEL}>
-              이름
-              <Input value={store.form.name} onChange={(event) => store.setFormValue("name", event.target.value)} />
-            </label>
-            <label className={FIELD_LABEL}>
-              로컬 폴더 경로
-              <Input value={store.form.path} onChange={(event) => store.setFormValue("path", event.target.value)} />
-            </label>
-            <label className={cn(FIELD_LABEL, "sm:col-span-2")}>
-              설명
-              <Textarea rows={2} value={store.form.description} onChange={(event) => store.setFormValue("description", event.target.value)} />
-            </label>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {PROJECT_COLORS.map((color) => (
-              <button
-                key={color}
-                type="button"
-                onClick={() => store.setFormValue("color", color)}
-                title={color}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
-                  store.form.color === color ? "border-primary text-foreground" : "border-border text-muted-foreground hover:bg-accent"
-                )}
-              >
-                <span aria-hidden="true" className="h-3 w-3 rounded-full" style={{ backgroundColor: color }} />
-                {color}
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2 border-t border-border pt-3">
-            <Button variant="primary" size="sm" onClick={store.createProject} disabled={!canRequest || store.pending || !!selectedProject}>
-              등록
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => store.updateSelectedProject(false)} disabled={!canRequest || store.pending || !selectedProject}>
-              수정
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => store.updateSelectedProject(true)} disabled={!canRequest || store.pending || !selectedProject || selectedProject.isMain}>
-              대표 지정
-            </Button>
-          </div>
-        </CardBoundary>
-      ) : null}
-
-      {store.projects.length === 0 ? (
-        <EmptyState
-          icon={FolderGit2}
-          title="등록된 프로젝트가 없습니다"
-          description="로컬 폴더 경로를 등록하면 질문, 빌드, 자동화에서 같은 작업 기준을 사용할 수 있습니다."
-          action={
-            <Button variant="primary" size="sm" onClick={openNewProjectEditor}>
-              <Plus size={15} aria-hidden="true" /> 프로젝트 추가
-            </Button>
-          }
-        />
-      ) : (
-        <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {store.projects.map((project) => (
-            <ProjectCard
-              key={project.projectKey}
-              project={project}
-              disabled={!canRequest}
-              onOpen={(item) => {
-                store.touchProject(item);
-                navigate("build", {
-                  projectKey: item.projectKey,
-                  projectName: item.name,
-                  projectPath: item.path
-                });
-              }}
-              onAsk={() => navigate("ask", {
-                projectKey: project.projectKey,
-                projectName: project.name,
-                projectPath: project.path
-              })}
-              onBuild={() => navigate("build", {
-                projectKey: project.projectKey,
-                projectName: project.name,
-                projectPath: project.path
-              })}
-              onEdit={openProjectEditor}
-              onMain={setMainProject}
-              onDelete={deleteProject}
-            />
-          ))}
-          <button
-            type="button"
-            onClick={openNewProjectEditor}
-            className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-card/40 p-4 text-center text-muted-foreground transition-colors duration-200 hover:border-primary/50 hover:text-foreground"
-          >
-            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-              <Plus size={20} aria-hidden="true" />
-            </span>
-            <b className="text-sm">프로젝트 추가</b>
-            <span className="text-xs">로컬 폴더를 지정해 시작하세요.</span>
-          </button>
-        </section>
-      )}
+      <div className="flex min-w-0 shrink-0 flex-wrap gap-2 border-t border-border p-3">
+        {editing ? (
+          <Button variant="primary" size="sm" disabled={!connected || pending} onClick={() => store.getState().updateSelectedProject(false)}>
+            {pending ? <Spinner size={12} /> : null} 수정 저장
+          </Button>
+        ) : (
+          <Button variant="primary" size="sm" disabled={!connected || pending} onClick={() => store.getState().createProject()}>
+            {pending ? <Spinner size={12} /> : null} 등록
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            store.getState().resetForm();
+            onDone();
+          }}
+        >
+          {editing ? "수정 그만두기" : "지우기"}
+        </Button>
+      </div>
     </div>
   );
 }

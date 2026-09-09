@@ -276,23 +276,26 @@ internal static class SessionReplayEventBuilder
                );
     }
 
+    /// <summary>
+    /// 기록의 종류는 저장된 표식(Meta)에서만 정한다.
+    /// 답변 본문에 watchdog·breaker 라는 낱말이 나온다는 이유로 사건으로 바꾸지 않는다.
+    /// Meta 값은 생산자가 쓰는 값이다: auto-compress, sessions_spawn_watchdog(_closed),
+    /// sessions_spawn_breaker_blocked.
+    /// </summary>
     private static string ResolveConversationKind(ConversationMessageView message)
     {
         var meta = message.Meta ?? string.Empty;
-        var text = message.Text ?? string.Empty;
         if (ContainsAny(meta, "auto-compress"))
         {
             return "context_compression";
         }
 
-        if (ContainsAny(meta, "watchdog", "sessions_spawn_watchdog")
-            || ContainsAny(text, "sessions_spawn_watchdog", "watchdog"))
+        if (ContainsAny(meta, "watchdog"))
         {
             return "watchdog";
         }
 
-        if (ContainsAny(meta, "agent_spawn_breaker", "breaker.blocked")
-            || ContainsAny(text, "agent_spawn_breaker", "breaker.blocked"))
+        if (ContainsAny(meta, "breaker"))
         {
             return "run_breaker";
         }
@@ -305,18 +308,23 @@ internal static class SessionReplayEventBuilder
         };
     }
 
+    /// <summary>
+    /// 심각도는 저장된 표식(Meta)에서만 정한다.
+    /// 답변 본문을 훑어 "오류"·"timeout" 같은 낱말을 찾으면, 오류를 설명하는 정상 답변까지
+    /// 오류로 표시되고 타임라인의 오류 건수가 부풀려진다. 본문은 판정에 쓰지 않는다.
+    /// 실제 실패는 호출 기록(status)과 실행 상태(state)가 따로 표시한다.
+    /// </summary>
     private static string ResolveConversationSeverity(ConversationMessageView message)
     {
         var meta = message.Meta ?? string.Empty;
-        var text = message.Text ?? string.Empty;
-        if (ContainsAny(meta, "watchdog_closed", "breaker.blocked")
-            || ContainsAny(text, "timeout", "timed out", "응답 시간이 초과", "오류", "exception", "failed"))
+
+        // 닫힌 watchdog 과 차단된 breaker 는 실행이 실제로 끊긴 상태다.
+        if (ContainsAny(meta, "watchdog_closed", "breaker_blocked", "breaker.blocked"))
         {
             return "error";
         }
 
-        if (ContainsAny(meta, "auto-compress", "watchdog", "breaker")
-            || ContainsAny(text, "warning", "주의", "stale"))
+        if (ContainsAny(meta, "auto-compress", "watchdog", "breaker"))
         {
             return "warning";
         }
@@ -324,10 +332,13 @@ internal static class SessionReplayEventBuilder
         return "info";
     }
 
+    /// <summary>
+    /// 작업자 메시지의 심각도는 종류(Kind)에서만 정한다.
+    /// 본문에 "중단"이 들어갔다는 이유로 평범한 전달 메시지를 주의로 올리지 않는다.
+    /// </summary>
     private static string ResolveAgentMessageSeverity(AgentCommunicationMessage message)
     {
-        if (ContainsAny(message.Kind, "command", "stop", "cancel")
-            || ContainsAny(message.Body, "stop", "cancel", "중단"))
+        if (ContainsAny(message.Kind, "command", "stop", "cancel"))
         {
             return "warning";
         }

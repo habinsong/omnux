@@ -3,6 +3,18 @@ import { create } from "zustand";
 import { subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
 import { requestDesktopInsights } from "../middleware/insights-gateway";
 import { normalizeDoctorReport, type DoctorReport } from "../ops/ops-doctor";
+import {
+  REQUEST_PREFIX,
+  SLICE_TIMEOUT_MS,
+  createSliceMap,
+  markFailed,
+  markLoading,
+  markReady,
+  requestIdFor,
+  sliceForMessage,
+  type SliceId,
+  type SliceMap
+} from "./insights-view";
 
 export type TelemetryTraceEvent = {
   id: string;
@@ -217,10 +229,62 @@ type InsightsState = {
   repomap: RepomapSnapshot | null;
   commitLearning: CommitLearningSnapshot | null;
   selfImprovement: SelfImprovementSnapshot | null;
-  loading: boolean;
-  lastError: string;
-  loadAll: () => void;
+  /** 조회 단위마다 자기 상태를 갖는다. 하나가 실패해도 나머지가 완료로 보이지 않게 한다. */
+  slices: SliceMap;
+  /** 어느 조회의 응답인지 알 수 없는 서버 오류. 구역 상태를 덮어쓰지 않고 따로 보관한다. */
+  gatewayNotice: string;
+  load: (id: SliceId) => void;
+  loadMany: (ids: SliceId[]) => void;
+  clearGatewayNotice: () => void;
 };
+
+/** 조회 단위 → 실제 전송 함수. 요청마다 자기 ID 를 붙인다. */
+const SLICE_REQUESTS: Record<SliceId, () => boolean> = {
+  telemetry: () => requestDesktopInsights.telemetry(100, requestIdFor("telemetry")),
+  // doctor_result 는 운영 화면에서도 나온다. 그 응답도 진단 결과가 새로 온 것이므로 완료로 본다.
+  doctor: () => requestDesktopInsights.doctorLast(requestIdFor("doctor")),
+  mcp: () => requestDesktopInsights.mcpServers(requestIdFor("mcp")),
+  localLlm: () => requestDesktopInsights.localLlm(requestIdFor("localLlm")),
+  terminal: () => requestDesktopInsights.terminal(requestIdFor("terminal")),
+  git: () => requestDesktopInsights.gitTimeMachine(30, requestIdFor("git")),
+  semantic: () => requestDesktopInsights.semanticSearch(requestIdFor("semantic")),
+  repomap: () => requestDesktopInsights.codeRepomap(80, requestIdFor("repomap")),
+  commits: () => requestDesktopInsights.commitLearning(30, requestIdFor("commits")),
+  improvements: () => requestDesktopInsights.selfImprovement(30, requestIdFor("improvements"))
+};
+
+const sliceTimers = new Map<SliceId, ReturnType<typeof setTimeout>>();
+
+function clearSliceTimer(id: SliceId) {
+  const timer = sliceTimers.get(id);
+  if (timer !== undefined) {
+    clearTimeout(timer);
+    sliceTimers.delete(id);
+  }
+}
+
+function armSliceTimer(id: SliceId) {
+  clearSliceTimer(id);
+  sliceTimers.set(
+    id,
+    setTimeout(() => {
+      sliceTimers.delete(id);
+      const state = useInsightsStore.getState();
+      if (state.slices[id].status !== "loading") return;
+      useInsightsStore.setState({
+        slices: markFailed(state.slices, id, "응답이 오지 않았습니다. 다시 조회하세요.")
+      });
+    }, SLICE_TIMEOUT_MS)
+  );
+}
+
+/** 응답을 받은 구역만 완료로 바꾼다. 다른 구역의 상태는 건드리지 않는다. */
+function completeSlice(id: SliceId) {
+  clearSliceTimer(id);
+  useInsightsStore.setState((state) => ({
+    slices: markReady(state.slices, id, new Date().toISOString())
+  }));
+}
 
 export const useInsightsStore = create<InsightsState>((set) => ({
   telemetry: null,
@@ -233,23 +297,23 @@ export const useInsightsStore = create<InsightsState>((set) => ({
   repomap: null,
   commitLearning: null,
   selfImprovement: null,
-  loading: false,
-  lastError: "",
-  loadAll: () => {
-    set({ loading: true, lastError: "" });
-    const ok =
-      requestDesktopInsights.telemetry() &&
-      requestDesktopInsights.doctorLast() &&
-      requestDesktopInsights.mcpServers() &&
-      requestDesktopInsights.localLlm() &&
-      requestDesktopInsights.terminal() &&
-      requestDesktopInsights.gitTimeMachine() &&
-      requestDesktopInsights.semanticSearch() &&
-      requestDesktopInsights.codeRepomap() &&
-      requestDesktopInsights.commitLearning() &&
-      requestDesktopInsights.selfImprovement();
-    if (!ok) set({ loading: false, lastError: "인사이트 스냅샷 요청을 전송하지 못했다." });
-  }
+  slices: createSliceMap(),
+  gatewayNotice: "",
+  load: (id) => {
+    set((state) => ({ slices: markLoading(state.slices, id) }));
+    // 한 요청이 실패해도 나머지를 건너뛰지 않는다.
+    // 이전 구현은 && 로 이어 붙여 앞선 전송이 실패하면 뒤의 요청을 아예 보내지 않았다.
+    const sent = SLICE_REQUESTS[id]();
+    if (!sent) {
+      set((state) => ({ slices: markFailed(state.slices, id, "요청을 보내지 못했습니다. 연결을 확인하세요.") }));
+      return;
+    }
+    armSliceTimer(id);
+  },
+  loadMany: (ids) => {
+    for (const id of ids) useInsightsStore.getState().load(id);
+  },
+  clearGatewayNotice: () => set({ gatewayNotice: "" })
 }));
 
 function arr(value: unknown): Record<string, unknown>[] {
@@ -303,31 +367,15 @@ function normalizeTelemetryEvent(event: Record<string, unknown>): TelemetryTrace
   };
 }
 
-const INSIGHTS_SNAPSHOT_TYPES = new Set<string>([
-  "telemetry_snapshot",
-  "doctor_result",
-  "mcp_servers_snapshot",
-  "local_llm_snapshot",
-  "terminal_capabilities_snapshot",
-  "git_time_machine_snapshot",
-  "semantic_search_readiness_snapshot",
-  "code_repomap_snapshot",
-  "commit_learning_snapshot",
-  "self_improvement_snapshot"
-]);
-
 export function useInsightsPageBridge() {
   useEffect(() => {
     return subscribeDesktopMessages((message: DesktopServerMessage) => {
       const payload = (message.payload || {}) as Record<string, unknown>;
-      // loadAll은 10개 스냅샷 요청을 보낸다. 어느 하나라도 응답이 오면 loading을 풀어
-      // (텔레메트리 응답에만 묶여 있던) 락을 방지한다. 나머지 슬라이스는 도착하는 대로 채워진다.
-      if (typeof message.type === "string" && INSIGHTS_SNAPSHOT_TYPES.has(message.type) && useInsightsStore.getState().loading) {
-        useInsightsStore.setState({ loading: false });
-      }
+      // 응답을 받은 구역만 완료로 바꾼다. 한 응답이 열 구역 전체의 상태를 대신하지 않는다.
+      const answered = typeof message.type === "string" ? sliceForMessage(message.type) : null;
+      if (answered !== null) completeSlice(answered);
       if (message.type === "telemetry_snapshot") {
         useInsightsStore.setState({
-          loading: false,
           telemetry: {
             events: arr(payload.events).map(normalizeTelemetryEvent),
             providers: arr(payload.providers).map((p) => ({ provider: s(p.provider), eventCount: n(p.eventCount), totalTokens: n(p.totalTokens), averageDurationMs: n(p.averageDurationMs), maxDurationMs: n(p.maxDurationMs) })),
@@ -608,7 +656,21 @@ export function useInsightsPageBridge() {
         return;
       }
       if (message.type === "error") {
-        useInsightsStore.setState({ loading: false, lastError: s(message.message) || "오류" });
+        // 서버 오류에는 어느 요청의 응답인지 알려주는 값이 늘 붙지 않는다.
+        // 요청 ID 가 있으면 그 구역만 실패로 바꾸고, 없으면 구역 상태를 건드리지 않고 따로 알린다.
+        const requestId = typeof message.requestId === "string" ? message.requestId : "";
+        const target = requestId.startsWith(REQUEST_PREFIX)
+          ? (requestId.slice(REQUEST_PREFIX.length) as SliceId)
+          : null;
+        const text = s(message.message) || "오류";
+        if (target !== null && useInsightsStore.getState().slices[target] !== undefined) {
+          clearSliceTimer(target);
+          useInsightsStore.setState((state) => ({ slices: markFailed(state.slices, target, text) }));
+          return;
+        }
+        useInsightsStore.setState({
+          gatewayNotice: `미들웨어가 오류를 보냈습니다: ${text} (어느 조회의 응답인지는 알 수 없습니다.)`
+        });
       }
     });
   }, []);

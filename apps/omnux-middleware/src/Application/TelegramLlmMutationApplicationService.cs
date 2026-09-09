@@ -24,7 +24,8 @@ internal interface ITelegramLlmMutationApplicationService
 internal sealed class TelegramLlmMutationApplicationService : ITelegramLlmMutationApplicationService
 {
     private const string DefaultGroqPrimaryModel = "meta-llama/llama-4-scout-17b-16e-instruct";
-    private const string DefaultGroqFastModel = "llama-3.1-8b-instant";
+    // Groq 가 2026-06-17 에 llama-3.1-8b-instant 지원 종료를 공지하며 gpt-oss-20b 로 이전을 안내했다.
+    private const string DefaultGroqFastModel = "openai/gpt-oss-20b";
     private const string DefaultCerebrasModel = "gpt-oss-120b";
     private const string LegacyCerebrasLlamaModel = "llama3.1-8b";
     private const string DefaultCopilotModel = "gpt-5-mini";

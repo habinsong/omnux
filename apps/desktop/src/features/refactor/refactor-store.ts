@@ -3,6 +3,16 @@ import { create } from "zustand";
 import { subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
 import { requestDesktopRefactorTool } from "../middleware/refactor-gateway";
 import { requestPermissionDialog } from "../dialog/dialog-store";
+import {
+  REQUEST_LABELS,
+  REQUEST_TIMEOUT_MS,
+  buildRequestId,
+  defaultAnchorRange,
+  formatAnchorContent,
+  replacementForRequest,
+  selectAnchorRange,
+  type RefactorRequestKind
+} from "./refactor-model";
 
 type RefactorAnchorLine = {
   lineNumber: number;
@@ -23,13 +33,20 @@ type RefactorState = {
   symbol: string;
   newName: string;
   previewId: string;
+  previewPath: string;
   previewDiff: string;
   issues: string[];
   applied: boolean;
+  /** 줄을 지우려는 의도. 빈 교체 코드를 실수로 보내지 않기 위한 명시 표시다. */
+  anchorDelete: boolean;
   pending: boolean;
+  /** 지금 기다리는 요청. 다른 요청의 응답을 받아들이지 않기 위해 쓴다. */
+  pendingRequestId: string;
+  pendingKind: RefactorRequestKind | null;
   lastError: string;
   lastMessage: string;
   setField: (key: "path" | "anchorStartLine" | "anchorEndLine" | "anchorReplacement" | "pattern" | "replacement" | "symbol" | "newName", value: string) => void;
+  setAnchorDelete: (value: boolean) => void;
   read: () => void;
   anchorPreview: () => void;
   astReplace: () => void;
@@ -60,10 +77,6 @@ function normalizeAnchorLines(value: unknown): RefactorAnchorLine[] {
     : [];
 }
 
-function buildAnchorContent(lines: RefactorAnchorLine[]): string {
-  return lines.map((line) => `L${line.lineNumber} ${line.content}`).join("\n");
-}
-
 function normalizeIssue(value: unknown): string {
   if (typeof value === "string") return value;
   const payload = record(value);
@@ -73,6 +86,53 @@ function normalizeIssue(value: unknown): string {
   const lineLabel = startLine > 0 ? `L${startLine}${endLine >= startLine ? `-${endLine}` : ""}: ` : "";
   const snippet = s(payload.currentSnippet).trim();
   return `${lineLabel}${reason}${snippet ? `\n${snippet}` : ""}`;
+}
+
+
+let requestSequence = 0;
+let pendingTimer: ReturnType<typeof setTimeout> | null = null;
+
+function clearPendingTimer() {
+  if (pendingTimer !== null) {
+    clearTimeout(pendingTimer);
+    pendingTimer = null;
+  }
+}
+
+/**
+ * 요청을 보내고 기한을 건다.
+ * 기한은 모듈 수준이라 **화면을 떠나도 계속 돈다.**
+ * 이전 화면은 요청을 보낸 뒤 화면을 떠나면 응답을 받을 구독이 사라져
+ * pending 이 영원히 참으로 남고 모든 버튼이 잠겼다.
+ */
+function sendRefactorRequest(kind: RefactorRequestKind, send: (requestId: string) => boolean): void {
+  requestSequence += 1;
+  const requestId = buildRequestId(kind, requestSequence);
+  clearPendingTimer();
+  useRefactorStore.setState({ pending: true, pendingRequestId: requestId, pendingKind: kind, lastError: "" });
+
+  if (!send(requestId)) {
+    clearPendingTimer();
+    useRefactorStore.setState({
+      pending: false,
+      pendingRequestId: "",
+      pendingKind: null,
+      lastError: `${REQUEST_LABELS[kind]} 요청을 보내지 못했습니다. 연결을 확인하세요.`
+    });
+    return;
+  }
+
+  pendingTimer = setTimeout(() => {
+    pendingTimer = null;
+    const state = useRefactorStore.getState();
+    if (state.pendingRequestId !== requestId) return;
+    useRefactorStore.setState({
+      pending: false,
+      pendingRequestId: "",
+      pendingKind: null,
+      lastError: `${REQUEST_LABELS[kind]} 응답이 오지 않았습니다. 다시 시도하세요.`
+    });
+  }, REQUEST_TIMEOUT_MS);
 }
 
 export const useRefactorStore = create<RefactorState>((set, get) => ({
@@ -88,55 +148,77 @@ export const useRefactorStore = create<RefactorState>((set, get) => ({
   symbol: "",
   newName: "",
   previewId: "",
+  previewPath: "",
   previewDiff: "",
   issues: [],
   applied: false,
+  anchorDelete: false,
   pending: false,
+  pendingRequestId: "",
+  pendingKind: null,
   lastError: "",
   lastMessage: "",
   setField: (key, value) => set({ [key]: value } as Partial<RefactorState>),
+  setAnchorDelete: (value) => set({ anchorDelete: value }),
   read: () => {
-    if (!get().path.trim()) return;
-    set({ pending: true, lastError: "", applied: false, anchorLines: [], previewId: "", previewDiff: "" });
-    if (!requestDesktopRefactorTool.read(get().path)) set({ pending: false, lastError: "파일 읽기 요청을 전송하지 못했다." });
+    const path = get().path.trim();
+    if (path.length === 0) return;
+    // 새로 읽으면 이전 미리보기는 더 이상 쓸 수 없다. 적용 버튼이 남지 않게 먼저 지운다.
+    set({ applied: false, anchorLines: [], previewId: "", previewPath: "", previewDiff: "", issues: [] });
+    sendRefactorRequest("read", (requestId) => requestDesktopRefactorTool.read(path, requestId));
   },
   anchorPreview: () => {
-    const { path, loadedPath, anchorStartLine, anchorEndLine, anchorReplacement, anchorLines } = get();
-    const targetPath = path.trim() || loadedPath.trim();
-    const startLine = Number(anchorStartLine || 0);
-    const endLine = Number(anchorEndLine || 0);
-    if (!targetPath || !Number.isInteger(startLine) || !Number.isInteger(endLine) || startLine < 1 || endLine < startLine || !anchorReplacement.trim()) {
-      set({ lastError: "파일, 시작/끝 줄, 교체 코드를 확인하세요." });
+    const state = get();
+    const targetPath = state.path.trim() || state.loadedPath.trim();
+    const startLine = Number(state.anchorStartLine || 0);
+    const endLine = Number(state.anchorEndLine || 0);
+    if (targetPath.length === 0) {
+      set({ lastError: "파일 경로를 입력하세요." });
       return;
     }
-    const selectedLines = anchorLines
-      .filter((line) => line.lineNumber >= startLine && line.lineNumber <= endLine)
-      .sort((a, b) => a.lineNumber - b.lineNumber);
-    if (selectedLines.length !== endLine - startLine + 1) {
-      set({ lastError: "선택한 줄 범위의 anchor를 찾지 못했습니다. 먼저 파일을 다시 읽어주세요." });
+    const selection = selectAnchorRange(state.anchorLines, startLine, endLine);
+    if (!selection.ok) {
+      set({ lastError: selection.reason });
       return;
     }
-    set({ pending: true, lastError: "", applied: false });
-    if (!requestDesktopRefactorTool.preview(targetPath, [{
-      startLine,
-      endLine,
-      expectedHashes: selectedLines.map((line) => line.hash),
-      replacement: anchorReplacement
-    }])) {
-      set({ pending: false, lastError: "refactor_preview 요청을 전송하지 못했다." });
+    if (!state.anchorDelete && state.anchorReplacement.length === 0) {
+      set({ lastError: "교체할 코드를 입력하거나 「이 줄을 지웁니다」를 고르세요." });
+      return;
     }
+
+    // 새 미리보기를 만들기 전에 이전 것을 지운다.
+    // 이전 화면은 새 미리보기가 실패해도 이전 previewId 가 남아 적용 버튼이 켜져 있었다.
+    set({ applied: false, previewId: "", previewPath: "", previewDiff: "", issues: [] });
+    sendRefactorRequest("preview", (requestId) =>
+      requestDesktopRefactorTool.preview(
+        targetPath,
+        [
+          {
+            startLine,
+            endLine,
+            expectedHashes: selection.lines.map((line) => line.hash),
+            replacement: replacementForRequest(state)
+          }
+        ],
+        requestId
+      )
+    );
   },
   astReplace: () => {
     const { path, pattern, replacement } = get();
     if (!path.trim() || !pattern.trim()) return;
-    set({ pending: true, lastError: "" });
-    if (!requestDesktopRefactorTool.astReplace(path, pattern, replacement)) set({ pending: false, lastError: "ast_replace 요청을 전송하지 못했다." });
+    set({ applied: false, previewId: "", previewPath: "", previewDiff: "", issues: [] });
+    sendRefactorRequest("ast", (requestId) =>
+      requestDesktopRefactorTool.astReplace(path, pattern, replacement, requestId)
+    );
   },
   lspRename: () => {
     const { path, symbol, newName } = get();
     if (!path.trim() || !symbol.trim() || !newName.trim()) return;
-    set({ pending: true, lastError: "" });
-    if (!requestDesktopRefactorTool.lspRename(path, symbol, newName)) set({ pending: false, lastError: "lsp_rename 요청을 전송하지 못했다." });
+    set({ applied: false, previewId: "", previewPath: "", previewDiff: "", issues: [] });
+    sendRefactorRequest("rename", (requestId) =>
+      requestDesktopRefactorTool.lspRename(path, symbol, newName, requestId)
+    );
   },
   apply: async () => {
     const state = get();
@@ -154,8 +236,7 @@ export const useRefactorStore = create<RefactorState>((set, get) => ({
       tone: "danger"
     });
     if (!permission) return;
-    set({ pending: true, lastError: "" });
-    if (!requestDesktopRefactorTool.apply(previewId)) set({ pending: false, lastError: "refactor_apply 요청을 전송하지 못했다." });
+    sendRefactorRequest("apply", (requestId) => requestDesktopRefactorTool.apply(previewId, requestId));
   }
 }));
 
@@ -163,28 +244,56 @@ export function useRefactorPageBridge() {
   useEffect(() => {
     return subscribeDesktopMessages((message: DesktopServerMessage) => {
       if (message.type !== "refactor_result") return;
+
+      // 지금 기다리는 요청의 응답만 받아들인다.
+      // 이전 화면은 어떤 refactor_result 든 그대로 반영해, 늦게 도착한 이전 요청의 결과가
+      // 화면을 덮어썼다.
+      const state = useRefactorStore.getState();
+      const requestId = typeof message.requestId === "string" ? message.requestId : "";
+      if (state.pendingRequestId.length > 0 && requestId.length > 0 && requestId !== state.pendingRequestId) {
+        return;
+      }
+
+      clearPendingTimer();
+
       const payload = (message.payload || {}) as Record<string, unknown>;
       const ok = payload.ok !== false;
-      const action = s(message.action);
+      const action = s(message.action) || (state.pendingKind ?? "");
       const readResult = (payload.readResult || null) as Record<string, unknown> | null;
       const preview = (payload.preview || null) as Record<string, unknown> | null;
       const applyResult = (payload.applyResult || null) as Record<string, unknown> | null;
-      const issues = Array.isArray(payload.issues) ? payload.issues.map(normalizeIssue) : Array.isArray(preview?.issues) ? (preview!.issues as unknown[]).map(normalizeIssue) : [];
+      const issues = Array.isArray(payload.issues)
+        ? payload.issues.map(normalizeIssue)
+        : Array.isArray(preview?.issues)
+          ? (preview!.issues as unknown[]).map(normalizeIssue)
+          : [];
       const anchorLines = readResult ? normalizeAnchorLines(readResult.lines) : [];
+      const range = defaultAnchorRange(anchorLines);
+      const isRead = action === "read" && readResult !== null;
 
       useRefactorStore.setState((prev) => ({
         pending: false,
-        lastError: ok ? "" : s(payload.message) || "Safe Refactor 요청이 실패했습니다.",
-        lastMessage: s(payload.message) || (ok ? "완료" : ""),
+        pendingRequestId: "",
+        pendingKind: null,
+        lastError: ok ? "" : s(payload.message) || "요청이 실패했습니다.",
+        lastMessage: ok ? s(payload.message) || "완료" : "",
         issues,
-        content: action === "read" && readResult ? buildAnchorContent(anchorLines) : prev.content,
-        anchorLines: action === "read" && readResult ? anchorLines : prev.anchorLines,
-        anchorStartLine: action === "read" && readResult && anchorLines[0] ? String(anchorLines[0].lineNumber) : prev.anchorStartLine,
-        anchorEndLine: action === "read" && readResult && anchorLines[0] ? String(anchorLines[Math.min(anchorLines.length - 1, 4)].lineNumber) : prev.anchorEndLine,
-        loadedPath: readResult ? s(readResult.path) : preview ? s(preview.path) : applyResult ? s(applyResult.path) : prev.loadedPath,
-        previewId: preview ? s(preview.previewId) : action === "apply" && ok ? "" : prev.previewId,
-        previewDiff: preview ? s(preview.diff || preview.unifiedDiff || preview.preview) : action === "apply" && ok ? "" : prev.previewDiff,
-        applied: action === "apply" ? !!(applyResult?.applied) : prev.applied
+        content: isRead ? formatAnchorContent(anchorLines) : prev.content,
+        anchorLines: isRead ? anchorLines : prev.anchorLines,
+        anchorStartLine: isRead && range.start ? range.start : prev.anchorStartLine,
+        anchorEndLine: isRead && range.end ? range.end : prev.anchorEndLine,
+        loadedPath: readResult
+          ? s(readResult.path)
+          : preview
+            ? s(preview.path)
+            : applyResult
+              ? s(applyResult.path)
+              : prev.loadedPath,
+        // 미리보기는 성공했을 때만 남긴다. 실패하면 적용 버튼이 켜지지 않는다.
+        previewId: preview && ok ? s(preview.previewId) : "",
+        previewPath: preview && ok ? s(preview.path) || prev.path : "",
+        previewDiff: preview && ok ? s(preview.diff || preview.unifiedDiff || preview.preview) : "",
+        applied: action === "apply" ? Boolean(applyResult?.applied) : prev.applied
       }));
     });
   }, []);

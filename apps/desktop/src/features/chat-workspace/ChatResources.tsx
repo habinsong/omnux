@@ -7,10 +7,7 @@ export function ChatResources({ canRequest }: { canRequest: boolean }) {
   const state = useAskStore();
   const images = useRef<HTMLInputElement>(null);
   const busy = !canRequest || state.pending;
-  return <details className="chat-fold" open={state.sidePanel === "memory" || state.sidePanel === "context" || undefined} onToggle={event => {
-    if (!event.currentTarget.open && (state.sidePanel === "memory" || state.sidePanel === "context")) state.setSidePanel(null);
-  }}><summary>참고 자료 <span className="chat-summary-note">{state.selectedMemoryNotes.length ? `메모리 ${state.selectedMemoryNotes.length}개` : "필요할 때 추가"}</span></summary>
-    <div className="chat-fields">
+  return <div className="chat-fields">
       <details className="chat-fold" open={state.sidePanel === "memory" || undefined}><summary>공유 메모리</summary><div className="chat-fields">
         {!state.memoryNotes.length && <p className="chat-muted">{state.loadingMemoryNotes ? "메모리를 읽고 있습니다." : "저장된 메모리가 없습니다."}</p>}
         <div className="chat-memory-list">{state.memoryNotes.map(note => <div className="chat-row" key={note.name}>
@@ -51,6 +48,5 @@ export function ChatResources({ canRequest }: { canRequest: boolean }) {
       </div></details>
       {!!state.conversationContext.compressionEvents.length && <details className="chat-fold"><summary>이전 대화의 요약</summary>{state.conversationContext.compressionEvents.map((entry, index) => <p key={index} className="chat-plain">{entry.preview}</p>)}</details>}
       <details className="chat-fold"><summary>작성한 질문으로 작업 시작</summary><div className="chat-actions"><button className="chat-button" disabled={!state.input.trim()} onClick={state.createPlanFromInput}>작업으로 가져가기</button><button className="chat-button" disabled={!state.input.trim()} onClick={state.saveInputAsRoutine}>자동화로 가져가기</button></div></details>
-    </div>
-  </details>;
+  </div>;
 }

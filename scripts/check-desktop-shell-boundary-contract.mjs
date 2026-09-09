@@ -1233,8 +1233,13 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   assertIncludes(opsStoreSource, "approvalToken: previewId", "Doctor approval identifies its preview");
   assertIncludes(opsStoreSource, "if (!permission) return;", "Doctor apply respects rejected permission");
   assertIncludes(opsStoreSource, "requestDesktopOps.doctorFixApply(previewId)", "Doctor apply sends the approved preview");
-  const doctorPanelSource = read("apps/desktop/src/features/ops/OperationsDoctorPanel.tsx");
-  assertIncludes(doctorPanelSource, "disabled={!canApplyFix}", "Doctor apply button requires an applicable preview");
+  const doctorSectionSource = read("apps/desktop/src/features/ops/OpsDoctorSection.tsx");
+  assertIncludes(doctorSectionSource, "disabled={!canApply}", "Doctor apply button requires an applicable preview");
+  assertIncludes(
+    doctorSectionSource,
+    'doctor.fixResult?.action === "preview"',
+    "Doctor apply button only enables after a preview"
+  );
 
   const frontendViolations = [];
   for (const filePath of frontendFiles) {

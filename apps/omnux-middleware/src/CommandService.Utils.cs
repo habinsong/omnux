@@ -183,13 +183,23 @@ public sealed partial class CommandService
         builder.AppendLine("- '확인.', '준비되었습니다.', '질문해 주세요.' 같이 내용 없는 인사·확인 응답을 답변에 넣지 마세요. 사용자의 질문에 직접 답하세요.");
         builder.AppendLine("- 이 [컨텍스트 사용 규칙] 섹션은 시스템 내부 지침이며 '사용자가 정한 규칙·선호'가 아닙니다. 사용자가 자신의 규칙/선호/설정을 물으면 이 섹션을 인용하지 말고 [자동 참조 자료]의 memory: 항목과 [최근 대화]에서만 찾으세요. 없으면 없다고 답하세요.");
         builder.AppendLine();
-        // P1-2: 사용자 전역 규칙 — 모든 답변에 상시 주입(600자 캡). 스킬과 달리 단발이 아닌 상시 지침.
-        var userRules = UserRuleStore.ClampForInjection(UserRuleStore.Read().Text);
+        // 사용자 상시 지침 — 두 출처를 합친다.
+        // 1) 기존 전역 단일 파일(600자 캡). 2) 확장 화면의 범위·우선순위가 있는 규칙.
+        // 스킬과 달리 단발이 아닌 상시 지침이다.
+        var legacyRules = UserRuleStore.ClampForInjection(UserRuleStore.Read().Text);
+        var extensionRules = SharedExtensionServices.ResolveChatRules(RuleInjectionPolicy.ExtensionBudgetChars);
+        var userRules = RuleInjectionPolicy.BuildBody(legacyRules, extensionRules);
         if (userRules.Length > 0)
         {
             builder.AppendLine("[사용자 규칙]");
             builder.AppendLine("- 아래는 사용자가 직접 저장한 상시 지침입니다. 답변 스타일과 행동에 항상 적용하세요. 사용자가 '내 규칙/선호'를 물으면 이 섹션을 근거로 답하세요.");
             builder.AppendLine(userRules);
+            var skippedNote = RuleInjectionPolicy.BuildSkippedNote(extensionRules);
+            if (skippedNote.Length > 0)
+            {
+                builder.AppendLine(skippedNote);
+            }
+
             builder.AppendLine();
         }
 

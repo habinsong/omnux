@@ -6,8 +6,8 @@ registerDesktopRequestTypes("notebook_get", "notebook_append", "handoff_create")
 export type NotebookKind = "learning" | "decision" | "verification";
 
 export const requestDesktopNotebook = {
-  get(projectKey?: string) {
-    return sendDesktopRequest({ type: "notebook_get", projectKey: projectKey?.trim() || undefined });
+  get(projectKey?: string, requestId?: string) {
+    return sendDesktopRequest({ type: "notebook_get", projectKey: projectKey?.trim() || undefined, requestId });
   },
   append(
     kind: NotebookKind,
@@ -29,7 +29,7 @@ export const requestDesktopNotebook = {
       tags: Array.isArray(meta.tags) ? meta.tags : []
     });
   },
-  createHandoff(projectKey?: string) {
-    return sendDesktopRequest({ type: "handoff_create", projectKey: projectKey?.trim() || undefined });
+  createHandoff(projectKey?: string, requestId?: string) {
+    return sendDesktopRequest({ type: "handoff_create", projectKey: projectKey?.trim() || undefined, requestId });
   }
 };

@@ -17,37 +17,37 @@ registerDesktopRequestTypes(
 );
 
 export const requestDesktopInsights = {
-  telemetry(limit = 100) {
-    return sendDesktopRequest({ type: "telemetry_snapshot_get", limit });
+  telemetry(limit = 100, requestId?: string) {
+    return sendDesktopRequest({ type: "telemetry_snapshot_get", limit, requestId });
   },
-  doctorLast() {
-    return sendDesktopRequest({ type: "doctor_get_last" });
+  doctorLast(requestId?: string) {
+    return sendDesktopRequest({ type: "doctor_get_last", requestId });
   },
-  mcpServers() {
-    return sendDesktopRequest({ type: "mcp_servers_list" });
+  mcpServers(requestId?: string) {
+    return sendDesktopRequest({ type: "mcp_servers_list", requestId });
   },
-  localLlm() {
-    return sendDesktopRequest({ type: "local_llm_snapshot_get" });
+  localLlm(requestId?: string) {
+    return sendDesktopRequest({ type: "local_llm_snapshot_get", requestId });
   },
-  terminal() {
-    return sendDesktopRequest({ type: "terminal_capabilities_get" });
+  terminal(requestId?: string) {
+    return sendDesktopRequest({ type: "terminal_capabilities_get", requestId });
   },
-  gitTimeMachine(limit = 30) {
-    return sendDesktopRequest({ type: "git_time_machine_snapshot_get", limit });
+  gitTimeMachine(limit = 30, requestId?: string) {
+    return sendDesktopRequest({ type: "git_time_machine_snapshot_get", limit, requestId });
   },
   agentBus(limit = 100) {
     return sendDesktopRequest({ type: "agent_bus_get", limit });
   },
-  semanticSearch() {
-    return sendDesktopRequest({ type: "semantic_search_readiness_get" });
+  semanticSearch(requestId?: string) {
+    return sendDesktopRequest({ type: "semantic_search_readiness_get", requestId });
   },
-  codeRepomap(limit = 80) {
-    return sendDesktopRequest({ type: "code_repomap_snapshot_get", limit });
+  codeRepomap(limit = 80, requestId?: string) {
+    return sendDesktopRequest({ type: "code_repomap_snapshot_get", limit, requestId });
   },
-  commitLearning(limit = 30) {
-    return sendDesktopRequest({ type: "commit_learning_snapshot_get", limit });
+  commitLearning(limit = 30, requestId?: string) {
+    return sendDesktopRequest({ type: "commit_learning_snapshot_get", limit, requestId });
   },
-  selfImprovement(limit = 30) {
-    return sendDesktopRequest({ type: "self_improvement_snapshot_get", limit });
+  selfImprovement(limit = 30, requestId?: string) {
+    return sendDesktopRequest({ type: "self_improvement_snapshot_get", limit, requestId });
   }
 };

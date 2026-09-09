@@ -1,34 +1,34 @@
 import { useEffect } from "react";
 import { create } from "zustand";
 import { subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
-import { requestDesktopNotebook, type NotebookKind } from "../middleware/notebook-gateway";
+import { requestDesktopNotebook } from "../middleware/notebook-gateway";
+import {
+  EMPTY_SNAPSHOT,
+  NOTEBOOK_TEMPLATES,
+  draftAfterAppend,
+  mergeDraft,
+  notebookRequestId,
+  type NotebookDocument,
+  type NotebookKind,
+  type NotebookSnapshot
+} from "./notebook-model";
 
-type NotebookDocument = { exists: boolean; content: string; path: string };
-type NotebookSnapshot = {
-  learnings: NotebookDocument;
-  decisions: NotebookDocument;
-  verification: NotebookDocument;
-  handoff: NotebookDocument;
-};
-
-const EMPTY_DOC: NotebookDocument = { exists: false, content: "", path: "" };
-const EMPTY_SNAPSHOT: NotebookSnapshot = { learnings: EMPTY_DOC, decisions: EMPTY_DOC, verification: EMPTY_DOC, handoff: EMPTY_DOC };
+export type { NotebookKind, NotebookSnapshot, NotebookDocument } from "./notebook-model";
+export { NOTEBOOK_TEMPLATES } from "./notebook-model";
 
 type NotebookState = {
   snapshot: NotebookSnapshot;
+  /** 어느 프로젝트 기준의 결과인지. 늦게 온 다른 프로젝트 응답을 걸러 낸다. */
+  snapshotProject: string;
   loaded: boolean;
   loading: boolean;
   pending: boolean;
   projectKeyDraft: string;
-  filterText: string;
-  expandedDocument: keyof NotebookSnapshot | "";
   appendKind: NotebookKind;
   appendText: string;
   lastMessage: string;
   lastError: string;
   setProjectKeyDraft: (projectKey: string) => void;
-  setFilterText: (text: string) => void;
-  setExpandedDocument: (field: keyof NotebookSnapshot | "") => void;
   setAppendKind: (kind: NotebookKind) => void;
   setAppendText: (text: string) => void;
   insertTemplate: (kind: NotebookKind) => void;
@@ -38,112 +38,129 @@ type NotebookState = {
   createHandoff: () => void;
 };
 
-export const NOTEBOOK_TEMPLATES: Record<NotebookKind, string> = {
-  learning: [
-    "오늘 남길 것:",
-    "- ",
-    "",
-    "다음에 써먹을 것:",
-    "- ",
-    "",
-    "주의할 점:",
-    "- "
-  ].join("\n"),
-  decision: [
-    "뭐 하기로 했나:",
-    "- ",
-    "",
-    "왜 그렇게 갔나:",
-    "- ",
-    "",
-    "일단 안 한 것:",
-    "- "
-  ].join("\n"),
-  verification: [
-    "확인한 것:",
-    "- ",
-    "",
-    "어떻게 확인했나:",
-    "- ",
-    "",
-    "결과:",
-    "- ",
-    "",
-    "아직 찝찝한 것:",
-    "- "
-  ].join("\n")
-};
+let sequence = 0;
+/** 보낸 요청의 ID → 그 요청이 쓴 프로젝트 기준과 본문. 응답을 되짚는 데 쓴다. */
+const inflight = new Map<string, { projectKey: string; sentText: string }>();
 
-function mergeNotebookDraft(base: string, next: string) {
-  const current = String(base || "").trim();
-  const addition = String(next || "").trim();
-  if (!current) return addition;
-  if (!addition || current.includes(addition)) return current;
-  return `${current}\n\n${addition}`.trim();
+function nextId(action: "get" | "append" | "handoff", projectKey: string, sentText = ""): string {
+  sequence += 1;
+  const requestId = notebookRequestId(action, sequence);
+  inflight.set(requestId, { projectKey, sentText });
+  if (inflight.size > 32) {
+    const oldest = inflight.keys().next().value;
+    if (oldest !== undefined) inflight.delete(oldest);
+  }
+  return requestId;
+}
+
+function str(value: unknown): string {
+  return typeof value === "string" ? value : value == null ? "" : String(value);
+}
+
+function num(value: unknown): number {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/** 서버 문서 한 건. `contentTruncated` 를 반드시 함께 가져온다. */
+function readDocument(value: unknown): NotebookDocument {
+  const record = (value || {}) as Record<string, unknown>;
+  return {
+    exists: record.exists === true,
+    content: str(record.content ?? record.preview ?? ""),
+    path: str(record.path),
+    truncated: record.contentTruncated === true,
+    sizeBytes: num(record.sizeBytes),
+    updatedAtUtc: str(record.updatedAtUtc)
+  };
 }
 
 export const useNotebookStore = create<NotebookState>((set, get) => ({
   snapshot: EMPTY_SNAPSHOT,
+  snapshotProject: "",
   loaded: false,
   loading: false,
   pending: false,
   projectKeyDraft: "",
-  filterText: "",
-  expandedDocument: "",
-  appendKind: "learning",
+  appendKind: "decision",
   appendText: "",
   lastMessage: "",
   lastError: "",
   setProjectKeyDraft: (projectKey) => set({ projectKeyDraft: projectKey }),
-  setFilterText: (text) => set({ filterText: text }),
-  setExpandedDocument: (field) => set({ expandedDocument: field }),
   setAppendKind: (kind) => set({ appendKind: kind }),
   setAppendText: (text) => set({ appendText: text }),
-  insertTemplate: (kind) => set({ appendKind: kind, appendText: NOTEBOOK_TEMPLATES[kind] }),
-  applyDraft: (kind, text) => set((state) => ({ appendKind: kind, appendText: mergeNotebookDraft(state.appendText, text || NOTEBOOK_TEMPLATES[kind]) })),
+  insertTemplate: (kind) =>
+    set((state) => ({ appendKind: kind, appendText: mergeDraft(state.appendText, NOTEBOOK_TEMPLATES[kind]) })),
+  applyDraft: (kind, text) =>
+    set((state) => ({ appendKind: kind, appendText: mergeDraft(state.appendText, text || NOTEBOOK_TEMPLATES[kind]) })),
   load: () => {
+    const projectKey = get().projectKeyDraft.trim();
     set({ loading: true, lastError: "" });
-    if (!requestDesktopNotebook.get(get().projectKeyDraft)) set({ loading: false, lastError: "노트북 조회 요청을 전송하지 못했다." });
+    if (!requestDesktopNotebook.get(projectKey, nextId("get", projectKey))) {
+      set({ loading: false, lastError: "조회 요청을 보내지 못했습니다. 연결을 확인하세요." });
+    }
   },
   append: () => {
-    const text = get().appendText.trim();
-    if (!text) return;
+    const state = get();
+    const text = state.appendText.trim();
+    if (text.length === 0) return;
+    const projectKey = state.projectKeyDraft.trim();
     set({ pending: true, lastError: "" });
-    if (!requestDesktopNotebook.append(get().appendKind, text, get().projectKeyDraft)) set({ pending: false, lastError: "노트북 기록 요청을 전송하지 못했다." });
+    const sent = requestDesktopNotebook.append(state.appendKind, text, projectKey, {
+      requestId: nextId("append", projectKey, text)
+    });
+    if (!sent) set({ pending: false, lastError: "기록 요청을 보내지 못했습니다. 연결을 확인하세요." });
   },
   createHandoff: () => {
+    const projectKey = get().projectKeyDraft.trim();
     set({ pending: true, lastError: "" });
-    if (!requestDesktopNotebook.createHandoff(get().projectKeyDraft)) set({ pending: false, lastError: "이어보기 문서 생성 요청을 전송하지 못했다." });
+    if (!requestDesktopNotebook.createHandoff(projectKey, nextId("handoff", projectKey))) {
+      set({ pending: false, lastError: "이어보기 문서 생성 요청을 보내지 못했습니다." });
+    }
   }
 }));
-
-function doc(value: unknown): NotebookDocument {
-  const v = (value || {}) as Record<string, unknown>;
-  return { exists: !!v.exists, content: String(v.content || v.preview || ""), path: String(v.path || "") };
-}
 
 export function useNotebookPageBridge() {
   useEffect(() => {
     return subscribeDesktopMessages((message: DesktopServerMessage) => {
       if (message.type !== "notebook_result") return;
+
+      const requestId = typeof message.requestId === "string" ? message.requestId : "";
+      const sent = requestId.length > 0 ? inflight.get(requestId) : undefined;
+      if (requestId.length > 0) inflight.delete(requestId);
+
+      const state = useNotebookStore.getState();
+      // 프로젝트 기준을 바꾼 뒤 늦게 온 이전 응답은 버린다.
+      if (sent !== undefined && sent.projectKey !== state.projectKeyDraft.trim()) return;
+
       const payload = (message.payload || {}) as Record<string, unknown>;
       const snapshot = (payload.snapshot || {}) as Record<string, unknown>;
       const ok = payload.ok !== false;
+      const action = str(message.action);
+      const hasSnapshot = Boolean(
+        snapshot.learnings || snapshot.decisions || snapshot.verification || snapshot.handoff
+      );
+
       useNotebookStore.setState((prev) => ({
-        loaded: true,
+        loaded: ok ? true : prev.loaded,
         loading: false,
         pending: false,
-        lastError: ok ? "" : String(payload.message || "노트북 요청이 실패했습니다."),
-        lastMessage: ok ? String(payload.message || "") : "",
-        appendText: ok && message.action === "append" ? "" : prev.appendText,
-        snapshot: snapshot.learnings || snapshot.decisions || snapshot.verification || snapshot.handoff
+        lastError: ok ? "" : str(payload.message) || "요청이 실패했습니다.",
+        lastMessage: ok ? str(payload.message) : "",
+        // 보낸 내용만 지운다. 보내는 동안 더 쓴 부분은 남긴다.
+        appendText:
+          ok && action === "append" && sent !== undefined
+            ? draftAfterAppend(prev.appendText, sent.sentText)
+            : prev.appendText,
+        snapshot: hasSnapshot
           ? {
-              learnings: doc(snapshot.learnings),
-              decisions: doc(snapshot.decisions),
-              verification: doc(snapshot.verification),
-              handoff: doc(snapshot.handoff)
+              learnings: readDocument(snapshot.learnings),
+              decisions: readDocument(snapshot.decisions),
+              verification: readDocument(snapshot.verification),
+              handoff: readDocument(snapshot.handoff)
             }
-          : prev.snapshot
+          : prev.snapshot,
+        snapshotProject: hasSnapshot ? (sent?.projectKey ?? prev.projectKeyDraft.trim()) : prev.snapshotProject
       }));
     });
   }, []);

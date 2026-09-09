@@ -3,6 +3,19 @@ import { create } from "zustand";
 import { subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
 import { requestDesktopAgents } from "../middleware/agents-gateway";
 import { requestConfirmDialog } from "../dialog/dialog-store";
+import {
+  AGENT_SLICE_IDS,
+  SLICE_TIMEOUT_MS,
+  agentRequestId,
+  agentSliceForMessage,
+  agentSliceForRequestId,
+  createAgentSliceMap,
+  markAgentFailed,
+  markAgentLoading,
+  markAgentReady,
+  type AgentSliceId,
+  type AgentSliceMap
+} from "./agents-view";
 
 type BusMessage = { from: string; to: string; kind: string; body: string };
 type BoardEntry = { agentId: string; key: string; value: string; status: string };
@@ -39,11 +52,16 @@ type AgentsState = {
   trace: { status: string; agents: TraceAgent[]; threads: TraceThread[]; interventions: TraceIntervention[]; edgeCount: number } | null;
   draft: AgentBusDraft;
   submitting: "" | "message" | "board" | "lifecycle" | "command";
-  loading: boolean;
+  /** 조회 단위마다 자기 상태를 갖는다. 하나가 실패해도 화면이 멈추지 않는다. */
+  slices: AgentSliceMap;
+  /** 어느 조회의 응답인지 알 수 없는 서버 오류. 구역 상태를 덮어쓰지 않는다. */
+  gatewayNotice: string;
   lastError: string;
   lastAction: string;
   setDraft: (patch: Partial<AgentBusDraft>) => void;
+  load: (id: AgentSliceId) => void;
   loadAll: () => void;
+  clearGatewayNotice: () => void;
   postMessage: () => void;
   putBoard: () => void;
   emitLifecycle: () => void;
@@ -60,6 +78,45 @@ function normalizeBusSnapshot(payload: Record<string, unknown>) {
     lifecycle: arr(payload.lifecycle).map((l) => ({ agentId: s(l.agentId), event: s(l.event || l.kind), runId: s(l.runId) })),
     totalMessages: n(payload.totalMessages)
   };
+}
+
+function sendSliceRequest(id: AgentSliceId): boolean {
+  if (id === "bus") return requestDesktopAgents.bus(100, agentRequestId("bus"));
+  if (id === "watchdog") return requestDesktopAgents.watchdog(100, agentRequestId("watchdog"));
+  if (id === "worktree") return requestDesktopAgents.worktree(agentRequestId("worktree"));
+  return requestDesktopAgents.trace(100, agentRequestId("trace"));
+}
+
+const sliceTimers = new Map<AgentSliceId, ReturnType<typeof setTimeout>>();
+
+function clearAgentTimer(id: AgentSliceId) {
+  const timer = sliceTimers.get(id);
+  if (timer !== undefined) {
+    clearTimeout(timer);
+    sliceTimers.delete(id);
+  }
+}
+
+/** 응답이 오지 않아도 "조회 중"으로 영원히 남지 않게 기한을 둔다. */
+function armAgentTimer(id: AgentSliceId) {
+  clearAgentTimer(id);
+  sliceTimers.set(
+    id,
+    setTimeout(() => {
+      sliceTimers.delete(id);
+      if (useAgentsStore.getState().slices[id].status !== "loading") return;
+      useAgentsStore.setState((state) => ({
+        slices: markAgentFailed(state.slices, id, "응답이 오지 않았습니다. 다시 조회하세요.")
+      }));
+    }, SLICE_TIMEOUT_MS)
+  );
+}
+
+function completeAgentSlice(id: AgentSliceId) {
+  clearAgentTimer(id);
+  useAgentsStore.setState((state) => ({
+    slices: markAgentReady(state.slices, id, new Date().toISOString())
+  }));
 }
 
 export const useAgentsStore = create<AgentsState>((set, get) => ({
@@ -87,15 +144,27 @@ export const useAgentsStore = create<AgentsState>((set, get) => ({
     commandBody: ""
   },
   submitting: "",
-  loading: false,
+  slices: createAgentSliceMap(),
+  gatewayNotice: "",
   lastError: "",
   lastAction: "",
   setDraft: (patch) => set((state) => ({ draft: { ...state.draft, ...patch } })),
-  loadAll: () => {
-    set({ loading: true, lastError: "" });
-    const ok = requestDesktopAgents.bus() && requestDesktopAgents.watchdog() && requestDesktopAgents.worktree() && requestDesktopAgents.trace();
-    if (!ok) set({ loading: false, lastError: "에이전트 스냅샷 요청을 전송하지 못했다." });
+  load: (id) => {
+    set((state) => ({ slices: markAgentLoading(state.slices, id) }));
+    // 요청을 && 로 잇지 않는다. 하나가 실패해도 나머지를 건너뛰지 않는다.
+    const sent = sendSliceRequest(id);
+    if (!sent) {
+      set((state) => ({
+        slices: markAgentFailed(state.slices, id, "요청을 보내지 못했습니다. 연결을 확인하세요.")
+      }));
+      return;
+    }
+    armAgentTimer(id);
   },
+  loadAll: () => {
+    for (const id of AGENT_SLICE_IDS) useAgentsStore.getState().load(id);
+  },
+  clearGatewayNotice: () => set({ gatewayNotice: "" }),
   postMessage: () => {
     const draft = get().draft;
     if (!draft.messageFrom.trim() || !draft.messageBody.trim()) {
@@ -172,11 +241,11 @@ export function useAgentsPageBridge() {
   useEffect(() => {
     return subscribeDesktopMessages((message: DesktopServerMessage) => {
       const payload = (message.payload || {}) as Record<string, unknown>;
+      // 응답을 받은 구역만 완료로 바꾼다. 한 응답이 네 구역 전체를 대신하지 않는다.
+      const answered = typeof message.type === "string" ? agentSliceForMessage(message.type) : null;
+      if (answered !== null) completeAgentSlice(answered);
       if (message.type === "agent_bus_snapshot") {
-        useAgentsStore.setState({
-          loading: false,
-          bus: normalizeBusSnapshot(payload)
-        });
+        useAgentsStore.setState({ bus: normalizeBusSnapshot(payload) });
         return;
       }
       if (message.type === "agent_message_result" || message.type === "agent_board_result" || message.type === "agent_lifecycle_result" || message.type === "agent_group_command_result") {
@@ -188,7 +257,7 @@ export function useAgentsPageBridge() {
           lastAction: ok ? s(payload.message) || message.type : "",
           lastError: ok ? "" : s(payload.message) || "에이전트 버스 쓰기 실패"
         });
-        if (ok) requestDesktopAgents.trace();
+        if (ok) useAgentsStore.getState().load("trace");
         return;
       }
       if (message.type === "agent_watchdog_snapshot") {
@@ -232,7 +301,19 @@ export function useAgentsPageBridge() {
         return;
       }
       if (message.type === "error") {
-        useAgentsStore.setState({ loading: false, submitting: "", lastError: s(message.message) || "오류" });
+        // 요청 ID 가 있으면 그 구역만 실패로 바꾸고, 없으면 구역 상태를 건드리지 않는다.
+        const requestId = typeof message.requestId === "string" ? message.requestId : "";
+        const target = agentSliceForRequestId(requestId);
+        const text = s(message.message) || "오류";
+        if (target !== null) {
+          clearAgentTimer(target);
+          useAgentsStore.setState((state) => ({ slices: markAgentFailed(state.slices, target, text) }));
+          return;
+        }
+        useAgentsStore.setState({
+          submitting: "",
+          gatewayNotice: `미들웨어가 오류를 보냈습니다: ${text} (어느 조회의 응답인지는 알 수 없습니다.)`
+        });
       }
     });
   }, []);

@@ -1,176 +1,248 @@
 import { useEffect } from "react";
 import { create } from "zustand";
 import { subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
-import { requestDesktopSkill, type SkillScope } from "../middleware/skill-gateway";
+import { requestDesktopSkill } from "../middleware/skill-gateway";
 import { requestConfirmDialog } from "../dialog/dialog-store";
+import {
+  defaultSkillBody,
+  describeSaveBlock,
+  parseScope,
+  shouldReplaceList,
+  skillKey,
+  skillRequestId,
+  type SkillEditorState,
+  type SkillListItem
+} from "./skills-model";
 
-type SkillItem = { name: string; scope: SkillScope; description: string };
-type SkillEditor = { name: string; scope: SkillScope; description: string; body: string; isNew: boolean };
+export type { SkillListItem, SkillEditorState, SkillScope } from "./skills-model";
+
 type SkillStatus = { kind: "ok" | "error"; message: string } | null;
 
 type SkillState = {
-  skills: SkillItem[];
+  skills: SkillListItem[];
+  /** 목록을 한 번이라도 받았는지. 실패와 "아직 안 받음"을 구분한다. */
+  listLoaded: boolean;
   loading: boolean;
-  editor: SkillEditor | null;
+  /** 저장·삭제 진행 중. 같은 요청을 두 번 보내지 않게 한다. */
+  saving: boolean;
+  editor: SkillEditorState | null;
   selectedKey: string;
+  /** 지금 기다리는 조회 요청. 늦게 온 이전 응답이 편집기를 덮어쓰지 않게 한다. */
+  pendingGetId: string;
   searchQuery: string;
   status: SkillStatus;
   load: () => void;
   newSkill: () => void;
-  openSkill: (item: SkillItem) => void;
-  patchEditor: (patch: Partial<SkillEditor>) => void;
+  openSkill: (item: SkillListItem) => void;
+  closeEditor: () => void;
+  patchEditor: (patch: Partial<SkillEditorState>) => void;
   setSearchQuery: (query: string) => void;
-  insertDefaultBody: () => void;
+  insertDefaultBody: () => Promise<void>;
   saveEditor: () => void;
-  deleteSkill: (item: SkillItem) => void;
+  deleteSkill: (item: SkillListItem) => Promise<void>;
 };
 
-const SKILL_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
+let sequence = 0;
 
-function defaultSkillBody(name: string) {
-  const title = String(name || "new-skill")
-    .split("-")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ") || "New Tool";
+function nextId(kind: "list" | "get" | "save" | "delete"): string {
+  sequence += 1;
+  return skillRequestId(kind, sequence);
+}
 
-  return [
-    `# ${title}`,
-    "",
-    "## 목표",
-    "- 이 도구가 해결할 일을 한두 문장으로 명확히 적는다.",
-    "- 사용자가 반복해서 요청하는 방식이나 기준을 일관되게 적용한다.",
-    "",
-    "## 사용 흐름",
-    "- 입력에서 확인할 핵심 정보와 제약을 먼저 파악한다.",
-    "- 필요한 경우 한 가지 질문만 짧게 되묻는다.",
-    "- 답변 또는 작업은 사용자가 요청한 범위 안에서 끝까지 처리한다.",
-    "",
-    "## 응답 원칙",
-    "- 근거가 부족한 내용은 추측하지 않고 정보 부족으로 표시한다.",
-    "- 불필요한 배경 설명보다 사용자가 바로 쓸 수 있는 결과를 우선한다.",
-    "- 말투, 깊이, 길이는 사용자의 상황에 맞춘다.",
-    "",
-    "## 출력 형식",
-    "- 핵심 결과를 먼저 말한다.",
-    "- 필요한 경우 짧은 예시나 체크리스트를 붙인다.",
-    "- 코드, 표, 목록이 더 명확한 경우 해당 형식을 사용한다.",
-    "",
-    "## 확인 기준",
-    "- 사용자의 원래 요청을 모두 반영했는지 확인한다.",
-    "- 금지된 추측이나 과장된 표현이 없는지 확인한다.",
-    "- 다음 대화에서 그대로 재사용해도 어색하지 않은지 확인한다.",
-    "",
-    "## 피해야 할 것",
-    "- 사용자가 요청하지 않은 기능이나 역할을 덧붙이지 않는다.",
-    "- 너무 짧은 메모형 지침으로 끝내지 않는다.",
-    "- 일반론만 반복하지 않는다."
-  ].join("\n");
+function str(value: unknown): string {
+  return typeof value === "string" ? value : value == null ? "" : String(value);
+}
+
+/** 서버는 대문자·소문자 키를 섞어 보낸다. 둘 다 본다. */
+function pick(payload: Record<string, unknown>, ...keys: string[]): string {
+  for (const key of keys) {
+    const value = payload[key];
+    if (value !== undefined && value !== null && value !== "") return str(value);
+  }
+  return "";
+}
+
+function isOk(payload: Record<string, unknown>): boolean {
+  if (payload.ok === false || payload.Ok === false) return false;
+  return true;
 }
 
 export const useSkillStore = create<SkillState>((set, get) => ({
   skills: [],
+  listLoaded: false,
   loading: false,
+  saving: false,
   editor: null,
   selectedKey: "",
+  pendingGetId: "",
   searchQuery: "",
   status: null,
   load: () => {
     set({ loading: true });
-    if (!requestDesktopSkill.list()) set({ loading: false, status: { kind: "error", message: "도구 목록 요청을 전송하지 못했다." } });
+    if (!requestDesktopSkill.list(nextId("list"))) {
+      set({ loading: false, status: { kind: "error", message: "목록 조회 요청을 보내지 못했습니다. 연결을 확인하세요." } });
+    }
   },
-  newSkill: () => set({ editor: { name: "", scope: "project", description: "", body: "", isNew: true }, selectedKey: "", status: null }),
+  newSkill: () =>
+    set({
+      editor: { name: "", scope: "project", description: "", body: "", isNew: true },
+      selectedKey: "",
+      status: null
+    }),
   openSkill: (item) => {
-    set({ selectedKey: `${item.scope}:${item.name}` });
-    if (!requestDesktopSkill.get(item.name, item.scope)) set({ status: { kind: "error", message: "도구 조회 요청을 전송하지 못했다." } });
+    const requestId = nextId("get");
+    set({ selectedKey: skillKey(item), pendingGetId: requestId, status: null });
+    if (!requestDesktopSkill.get(item.name, item.scope, requestId)) {
+      set({ pendingGetId: "", status: { kind: "error", message: "도구 조회 요청을 보내지 못했습니다." } });
+    }
   },
+  closeEditor: () => set({ editor: null, selectedKey: "", pendingGetId: "" }),
   patchEditor: (patch) => set((state) => (state.editor ? { editor: { ...state.editor, ...patch } } : {})),
   setSearchQuery: (query) => set({ searchQuery: query }),
   insertDefaultBody: async () => {
     const editor = get().editor;
-    if (!editor) return;
-    if (String(editor.body || "").trim()) {
+    if (editor === null) return;
+    if (editor.body.trim().length > 0) {
       const confirmed = await requestConfirmDialog({
         title: "기본 양식 넣기",
-        message: "작성 중인 본문을 기본 양식으로 바꿀까요?",
+        message: "쓰고 있던 본문을 기본 양식으로 바꿉니다. 되돌릴 수 없습니다.",
         confirmLabel: "바꾸기",
         tone: "default"
       });
       if (!confirmed) return;
     }
-    const name = String(editor.name || "new-skill").trim() || "new-skill";
-    set({ editor: { ...editor, body: defaultSkillBody(name) } });
+    set({ editor: { ...editor, body: defaultSkillBody(editor.name.trim() || "새 도구") } });
   },
   saveEditor: () => {
     const editor = get().editor;
-    const name = String(editor?.name || "").trim();
-    if (!editor || !name) {
-      set({ status: { kind: "error", message: "도구 이름을 입력하세요." } });
+    const blocked = describeSaveBlock(editor);
+    if (editor === null || blocked.length > 0) {
+      set({ status: { kind: "error", message: blocked || "저장할 내용이 없습니다." } });
       return;
     }
-    if (editor.isNew && !SKILL_NAME_PATTERN.test(name)) {
-      set({ status: { kind: "error", message: "도구 이름은 소문자, 숫자, 하이픈만 사용할 수 있습니다." } });
-      return;
-    }
-    if (!requestDesktopSkill.save({ name, scope: editor.scope, description: editor.description, body: editor.body, allowOverwrite: !editor.isNew })) {
-      set({ status: { kind: "error", message: "도구 저장 요청을 전송하지 못했다." } });
+    set({ saving: true, status: null });
+    const sent = requestDesktopSkill.save(
+      {
+        name: editor.name.trim(),
+        scope: editor.scope,
+        description: editor.description,
+        body: editor.body,
+        // 이미 저장한 도구를 다시 저장할 때만 덮어쓰기를 허용한다.
+        allowOverwrite: !editor.isNew
+      },
+      nextId("save")
+    );
+    if (!sent) {
+      set({ saving: false, status: { kind: "error", message: "저장 요청을 보내지 못했습니다. 연결을 확인하세요." } });
     }
   },
   deleteSkill: async (item) => {
     const confirmed = await requestConfirmDialog({
       title: "도구 삭제",
-      message: `'${item.name}' (${item.scope === "global" ? "전역" : "프로젝트"}) 도구를 삭제할까요?`,
+      message: `'${item.name}' (${item.scope === "global" ? "전역" : "프로젝트"}) 를 지웁니다. 되돌릴 수 없습니다.`,
       confirmLabel: "삭제",
       tone: "danger"
     });
     if (!confirmed) return;
-    if (!requestDesktopSkill.remove(item.name, item.scope)) set({ status: { kind: "error", message: "도구 삭제 요청을 전송하지 못했다." } });
+    set({ saving: true, status: null });
+    if (!requestDesktopSkill.remove(item.name, item.scope, nextId("delete"))) {
+      set({ saving: false, status: { kind: "error", message: "삭제 요청을 보내지 못했습니다." } });
+    }
   }
 }));
-
-function p(message: DesktopServerMessage): Record<string, unknown> {
-  return (message.payload || message) as Record<string, unknown>;
-}
-function bool(value: unknown): boolean {
-  return value !== false;
-}
 
 export function useSkillPageBridge() {
   useEffect(() => {
     return subscribeDesktopMessages((message: DesktopServerMessage) => {
+      const payload = (message.payload || message) as Record<string, unknown>;
+
       if (message.type === "skills_list_result") {
-        const payload = (message.payload || {}) as Record<string, unknown>;
-        const items = Array.isArray(payload.items) ? (payload.items as Record<string, unknown>[]) : [];
-        useSkillStore.setState({
+        const ok = isOk(payload);
+        const rawItems = Array.isArray(payload.items) ? (payload.items as Record<string, unknown>[]) : [];
+        const items: SkillListItem[] = rawItems.map((item) => ({
+          name: pick(item, "name", "Name"),
+          scope: parseScope(pick(item, "scope", "Scope") || "project"),
+          description: pick(item, "description", "Description")
+        }));
+
+        useSkillStore.setState((prev) => ({
           loading: false,
-          skills: items.map((i) => ({ name: String(i.name || i.Name || ""), scope: (String(i.scope || i.Scope || "project") as SkillScope), description: String(i.description || i.Description || "") }))
+          listLoaded: ok ? true : prev.listLoaded,
+          // 실패 응답으로 이미 받아 둔 목록을 지우지 않는다.
+          skills: shouldReplaceList(ok, items.length, prev.skills.length) ? items : prev.skills,
+          status: ok
+            ? prev.status
+            : { kind: "error", message: pick(payload, "message", "Message", "error", "Error") || "목록을 불러오지 못했습니다." }
+        }));
+        return;
+      }
+
+      if (message.type === "skill_get_result") {
+        // 지금 기다리는 조회의 응답만 편집기에 넣는다.
+        const state = useSkillStore.getState();
+        const requestId = typeof message.requestId === "string" ? message.requestId : "";
+        if (state.pendingGetId.length > 0 && requestId.length > 0 && requestId !== state.pendingGetId) return;
+
+        const ok = isOk(payload);
+        if (!ok) {
+          useSkillStore.setState({
+            pendingGetId: "",
+            status: { kind: "error", message: pick(payload, "error", "Error", "message", "Message") || "도구를 불러오지 못했습니다." }
+          });
+          return;
+        }
+
+        const name = pick(payload, "name", "Name");
+        useSkillStore.setState({
+          pendingGetId: "",
+          editor: {
+            name,
+            scope: parseScope(pick(payload, "scope", "Scope") || "project"),
+            description: pick(payload, "description", "Description"),
+            body: pick(payload, "body", "Body"),
+            isNew: false
+          },
+          status: null
         });
         return;
       }
-      if (message.type === "skill_get_result") {
-        const payload = p(message);
-        const ok = bool(payload.Ok) && bool(payload.ok);
-        if (ok) {
-          useSkillStore.setState({
-            editor: { name: String(payload.Name || payload.name || ""), scope: (String(payload.Scope || payload.scope || "project") as SkillScope), description: String(payload.Description || payload.description || ""), body: String(payload.Body || payload.body || ""), isNew: false },
-            status: { kind: "ok", message: `'${String(payload.Name || payload.name)}' 도구를 불러왔습니다.` }
-          });
-        } else {
-          useSkillStore.setState({ status: { kind: "error", message: String(payload.Error || payload.error || "도구를 불러오지 못했습니다.") } });
-        }
+
+      if (message.type === "skill_save_result") {
+        const ok = isOk(payload);
+        const name = pick(payload, "name", "Name");
+        useSkillStore.setState((prev) => ({
+          saving: false,
+          // 저장에 성공하면 더 이상 새 도구가 아니다.
+          // 이전 구현은 isNew 를 그대로 둬서, 방금 저장한 도구를 다시 저장하면
+          // "같은 이름의 스킬이 이미 있습니다" 로 실패했다.
+          editor: ok && prev.editor ? { ...prev.editor, isNew: false } : prev.editor,
+          selectedKey: ok && prev.editor ? skillKey({ name: prev.editor.name.trim(), scope: prev.editor.scope }) : prev.selectedKey,
+          status: {
+            kind: ok ? "ok" : "error",
+            message: ok
+              ? `'${name || prev.editor?.name || ""}' 를 저장했습니다.`
+              : pick(payload, "error", "Error", "message", "Message") || "저장하지 못했습니다."
+          }
+        }));
+        if (ok) requestDesktopSkill.list(nextId("list"));
         return;
       }
-      if (message.type === "skill_save_result" || message.type === "skill_delete_result") {
-        const payload = p(message);
-        const ok = bool(payload.Ok) && bool(payload.ok);
-        const name = String(payload.Name || payload.name || "");
-        const verb = message.type === "skill_save_result" ? "저장" : "삭제";
-        useSkillStore.setState({ status: { kind: ok ? "ok" : "error", message: ok ? `'${name}' 도구를 ${verb}했습니다.` : String(payload.Error || payload.error || `${verb} 실패`) } });
-        if (ok) {
-          requestDesktopSkill.list();
-          if (message.type === "skill_delete_result") useSkillStore.setState({ editor: null, selectedKey: "" });
-        }
-        return;
+
+      if (message.type === "skill_delete_result") {
+        const ok = isOk(payload);
+        const name = pick(payload, "name", "Name");
+        useSkillStore.setState((prev) => ({
+          saving: false,
+          editor: ok ? null : prev.editor,
+          selectedKey: ok ? "" : prev.selectedKey,
+          status: {
+            kind: ok ? "ok" : "error",
+            message: ok
+              ? `'${name}' 를 지웠습니다.`
+              : pick(payload, "error", "Error", "message", "Message") || "삭제하지 못했습니다."
+          }
+        }));
+        if (ok) requestDesktopSkill.list(nextId("list"));
       }
     });
   }, []);

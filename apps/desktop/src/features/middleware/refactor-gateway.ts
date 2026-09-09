@@ -11,19 +11,19 @@ export type RefactorAnchorEdit = {
 };
 
 export const requestDesktopRefactorTool = {
-  read(path: string) {
-    return sendDesktopRequest({ type: "refactor_read", path: path.trim() });
+  read(path: string, requestId?: string) {
+    return sendDesktopRequest({ type: "refactor_read", path: path.trim(), requestId });
   },
-  preview(path: string, edits: RefactorAnchorEdit[]) {
-    return sendDesktopRequest({ type: "refactor_preview", path: path.trim(), edits });
+  preview(path: string, edits: RefactorAnchorEdit[], requestId?: string) {
+    return sendDesktopRequest({ type: "refactor_preview", path: path.trim(), edits, requestId });
   },
-  apply(previewId: string) {
-    return sendDesktopRequest({ type: "refactor_apply", previewId: previewId.trim() });
+  apply(previewId: string, requestId?: string) {
+    return sendDesktopRequest({ type: "refactor_apply", previewId: previewId.trim(), requestId });
   },
-  astReplace(path: string, pattern: string, replacement: string) {
-    return sendDesktopRequest({ type: "ast_replace", path: path.trim(), pattern, replacement });
+  astReplace(path: string, pattern: string, replacement: string, requestId?: string) {
+    return sendDesktopRequest({ type: "ast_replace", path: path.trim(), pattern, replacement, requestId });
   },
-  lspRename(path: string, symbol: string, newName: string) {
-    return sendDesktopRequest({ type: "lsp_rename", path: path.trim(), symbol: symbol.trim(), newName: newName.trim() });
+  lspRename(path: string, symbol: string, newName: string, requestId?: string) {
+    return sendDesktopRequest({ type: "lsp_rename", path: path.trim(), symbol: symbol.trim(), newName: newName.trim(), requestId });
   }
 };

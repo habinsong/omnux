@@ -13,6 +13,8 @@ import { OperationsPage } from "./features/ops/OperationsPage";
 import { InsightsPage } from "./features/insights/InsightsPage";
 import { NotebookPage } from "./features/notebooks/NotebookPage";
 import { SkillsPage } from "./features/skills/SkillsPage";
+import { ExtensionsPage } from "./features/extensions/ExtensionsPage";
+import { useExtensionPageBridge } from "./features/extensions/extensions-store";
 import { RoutingPolicyPage } from "./features/routing/RoutingPolicyPage";
 import { TaskWorkspacePage } from "./features/task-workspace/TaskWorkspacePage";
 import { useTaskWorkspaceSession } from "./features/task-workspace/task-workspace-state";
@@ -25,6 +27,7 @@ import {
 } from "./features/shell/DesktopNavigation";
 import { DesktopRail } from "./features/shell/DesktopRail";
 import { areaDefinition, areaForPage } from "./features/shell/nav-areas";
+import { isFixedScreenPage } from "./components/screen/fixed-screens";
 import { DesktopTopBar } from "./features/shell/DesktopTopBar";
 import { CommandPalette } from "./features/shell/CommandPalette";
 import { PageBoundary } from "./features/shell/PageBoundary";
@@ -60,7 +63,8 @@ import {
   Route as RouteIcon,
   ClipboardList,
   GitCompare,
-  Network
+  Network,
+  Puzzle
 } from "lucide-react";
 
 function App() {
@@ -72,6 +76,7 @@ function App() {
   useExploreWorkspaceSession();
   useTaskWorkspaceSession();
   useAutomationWorkspaceSession();
+  useExtensionPageBridge();
 
   const activePage = useDesktopNavigationStore((state) => state.activePage);
   const setActivePage = useDesktopNavigationStore((state) => state.setActivePage);
@@ -104,6 +109,7 @@ function App() {
       { id: "insights", label: "로그", description: "Logs", icon: FileTerminal, render: () => <InsightsPage /> },
       { id: "notebooks", label: "노트", description: "Notes", icon: NotebookText, render: () => <NotebookPage /> },
       { id: "skills", label: "도구", description: "Tools", icon: Wrench, render: () => <SkillsPage /> },
+      { id: "extensions", label: "확장", description: "Extensions", icon: Puzzle, render: () => <ExtensionsPage /> },
       { id: "routing", label: "라우팅", description: "Routing", icon: RouteIcon, render: () => <RoutingPolicyPage /> },
       { id: "planning", label: "작업", description: "Tasks", icon: ClipboardList, render: () => <TaskWorkspacePage /> },
       { id: "refactor", label: "리뷰", description: "Review", icon: GitCompare, render: () => <RefactorPage /> },
@@ -116,6 +122,7 @@ function App() {
   );
   const activePageDefinition = pages.find((page) => page.id === activePage) || pages[0];
   const isHome = activePageDefinition.id === "home";
+  const fixedScreen = isFixedScreenPage(activePageDefinition.id);
   const activeArea = areaForPage(activePage);
   const activeAreaDef = areaDefinition(activeArea);
   const AreaIcon = activeAreaDef.icon;
@@ -280,11 +287,22 @@ function App() {
 
         <div
           className={cn(
-            "min-h-0 flex-1 overflow-y-auto",
+            "min-h-0 flex-1",
+            // 새 화면 껍데기를 쓰는 페이지는 페이지가 스크롤되지 않는다.
+            // 스크롤은 펼친 칸 안쪽에서만 생긴다.
+            fixedScreen ? "overflow-hidden" : "overflow-y-auto",
             subPanelOpen && !isHome ? "lg:ml-[260px]" : "lg:ml-0"
           )}
         >
-          <div className={isHome ? "h-full" : "flex min-h-full w-full min-w-0 flex-col p-4 sm:p-6"}>
+          <div
+            className={
+              isHome
+                ? "h-full"
+                : fixedScreen
+                  ? "flex h-full w-full min-w-0 flex-col p-3 sm:p-5"
+                  : "flex min-h-full w-full min-w-0 flex-col p-4 sm:p-6"
+            }
+          >
             <PageBoundary page={activePageDefinition.id}>{activePageDefinition.render()}</PageBoundary>
           </div>
         </div>

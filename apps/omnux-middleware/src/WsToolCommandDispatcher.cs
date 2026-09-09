@@ -282,7 +282,100 @@ internal sealed class WsToolCommandDispatcher
         _sendWebFetchResultAsync = sendWebFetchResultAsync;
     }
 
+    /// <summary>이 처리기가 실제로 실행하는 도구 요청 타입. 훅 대상 판정에 쓴다.</summary>
+    private static readonly HashSet<string> ToolRequestTypes = new(StringComparer.Ordinal)
+    {
+        "sessions_list", "sessions_history", "sessions_send", "sessions_spawn",
+        "cron", "browser", "canvas", "nodes",
+        "cleanup_preview", "cleanup_apply", "telegram_stub_command",
+        "web_search", "web_fetch"
+    };
+
     public async Task<bool> TryHandleAsync(
+        WebSocketGateway.ClientMessage message,
+        string sessionId,
+        WebSocket socket,
+        SemaphoreSlim sendLock,
+        CancellationToken cancellationToken
+    )
+    {
+        var toolName = message.Type ?? string.Empty;
+        if (!ToolRequestTypes.Contains(toolName))
+        {
+            return await TryHandleCoreAsync(message, sessionId, socket, sendLock, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        var action = message.Action ?? string.Empty;
+        var gate = ResolveToolHookGate();
+        var decision = await gate
+            .BeforeToolAsync(toolName, action, message.RawJson, cancellationToken)
+            .ConfigureAwait(false);
+        if (!decision.Allowed)
+        {
+            await SendToolBlockedAsync(message, socket, sendLock, decision, cancellationToken)
+                .ConfigureAwait(false);
+            return true;
+        }
+
+        try
+        {
+            var handled = await TryHandleCoreAsync(message, sessionId, socket, sendLock, cancellationToken)
+                .ConfigureAwait(false);
+            if (handled)
+            {
+                await gate.AfterToolAsync(toolName, action, cancellationToken).ConfigureAwait(false);
+            }
+
+            return handled;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            await gate.OnToolErrorAsync(toolName, action, exception.Message, cancellationToken)
+                .ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    /// <summary>확장 계층을 읽지 못하면 훅 없이 진행한다. 훅 오류로 도구 전체를 막지 않는다.</summary>
+    private static IToolHookGate ResolveToolHookGate()
+    {
+        try
+        {
+            return new ExtensionToolHookGate(
+                new HookDispatcher(SharedExtensionServices.Service),
+                SharedExtensionServices.Approvals
+            );
+        }
+        catch (Exception)
+        {
+            return NullToolHookGate.Instance;
+        }
+    }
+
+    private static Task SendToolBlockedAsync(
+        WebSocketGateway.ClientMessage message,
+        WebSocket socket,
+        SemaphoreSlim sendLock,
+        HookGateDecision decision,
+        CancellationToken cancellationToken
+    )
+    {
+        var reason = decision.DecidedByHookId.Length > 0
+            ? $"훅 {decision.DecidedByHookId}이(가) 도구 실행을 막았습니다: {decision.Reason}"
+            : $"훅이 도구 실행을 막았습니다: {decision.Reason}";
+        return WebSocketGateway.SendTextAsync(
+            socket,
+            sendLock,
+            "{\"type\":\"error\","
+            + $"\"message\":\"{WebSocketGateway.EscapeJson(reason)}\","
+            + $"\"requestId\":\"{WebSocketGateway.EscapeJson(message.RequestId ?? string.Empty)}\","
+            + $"\"requestType\":\"{WebSocketGateway.EscapeJson(message.Type ?? string.Empty)}\"}}",
+            cancellationToken
+        );
+    }
+
+    private async Task<bool> TryHandleCoreAsync(
         WebSocketGateway.ClientMessage message,
         string sessionId,
         WebSocket socket,

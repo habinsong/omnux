@@ -4,6 +4,7 @@ import { subscribeDesktopMessages, type DesktopServerMessage } from "../middlewa
 import { requestDesktopInsights } from "../middleware/insights-gateway";
 import { requestDesktopRouting } from "../middleware/routing-gateway";
 import { requestConfirmDialog } from "../dialog/dialog-store";
+import { buildPolicy, formatChain, mergeServerChains } from "./routing-model";
 
 type Chains = Record<string, string[]>;
 export type RoutingDecision = {
@@ -50,6 +51,7 @@ type RoutingState = {
   loadLocalLlm: () => void;
   setDraft: (key: string, value: string) => void;
   save: () => void;
+  discardDraft: () => void;
   reset: () => void;
   loadDecision: () => void;
 };
@@ -76,14 +78,20 @@ export const useRoutingStore = create<RoutingState>((set, get) => ({
   },
   setDraft: (key, value) => set((state) => ({ draftChains: { ...state.draftChains, [key]: value } })),
   save: () => {
-    const draft = get().draftChains;
-    const policy: Chains = {};
-    for (const key of Object.keys(draft)) {
-      policy[key] = String(draft[key] || "").split(",").map((item) => item.trim()).filter(Boolean);
-    }
     set({ pending: true, lastError: "" });
-    if (!requestDesktopRouting.save(policy)) set({ pending: false, lastError: "라우팅 정책 저장 요청을 전송하지 못했다." });
+    if (!requestDesktopRouting.save(buildPolicy(get().draftChains))) {
+      set({ pending: false, lastError: "라우팅 정책 저장 요청을 전송하지 못했다." });
+    }
   },
+  discardDraft: () =>
+    set((state) => {
+      // 편집을 버리고 서버 값으로 되돌린다. 사용자가 명시적으로 누를 때만 한다.
+      const next: Record<string, string> = {};
+      for (const key of Object.keys(state.snapshot.effectiveChains)) {
+        next[key] = formatChain(state.snapshot.effectiveChains[key]);
+      }
+      return { draftChains: next, lastMessage: "편집을 버리고 저장된 값으로 되돌렸습니다." };
+    }),
   reset: async () => {
     const confirmed = await requestConfirmDialog({ title: "사용자 지정 초기화", message: "사용자 지정 실행 경로를 모두 기본값으로 되돌릴까요?", confirmLabel: "초기화", tone: "danger" });
     if (!confirmed) return;
@@ -139,10 +147,6 @@ export function useRoutingPageBridge() {
         const snapshot = (payload.snapshot || {}) as Record<string, unknown>;
         const ok = payload.ok !== false;
         const effective = chains(snapshot.effectiveChains);
-        const draft = Object.keys(effective).reduce<Record<string, string>>((acc, key) => {
-          acc[key] = effective[key].join(", ");
-          return acc;
-        }, {});
         useRoutingStore.setState((prev) => ({
           loaded: true,
           loading: false,
@@ -155,7 +159,9 @@ export function useRoutingPageBridge() {
             effectiveChains: effective,
             lastDecision: normalizeDecision(snapshot.lastDecision) || prev.snapshot.lastDecision
           },
-          draftChains: Object.keys(draft).length > 0 ? draft : prev.draftChains
+          // 저장하지 않은 편집을 서버 응답이 덮어쓰지 않는다.
+          // 손대지 않은 항목만 새 값으로 맞춘다.
+          draftChains: mergeServerChains(prev.draftChains, prev.snapshot.effectiveChains, effective)
         }));
         return;
       }

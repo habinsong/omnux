@@ -14,15 +14,16 @@ export interface SkillSaveInput {
 }
 
 export const requestDesktopSkill = {
-  list() {
-    return sendDesktopRequest({ type: "skills_list" });
+  list(requestId?: string) {
+    return sendDesktopRequest({ type: "skills_list", requestId });
   },
-  get(name: string, scope: SkillScope) {
-    return sendDesktopRequest({ type: "skill_get", skillName: name, skillScope: scope });
+  get(name: string, scope: SkillScope, requestId?: string) {
+    return sendDesktopRequest({ type: "skill_get", skillName: name, skillScope: scope, requestId });
   },
-  save(input: SkillSaveInput) {
+  save(input: SkillSaveInput, requestId?: string) {
     return sendDesktopRequest({
       type: "skill_save",
+      requestId,
       skillName: input.name.trim(),
       skillScope: input.scope,
       skillDescription: input.description,
@@ -30,8 +31,8 @@ export const requestDesktopSkill = {
       skillAllowOverwrite: !!input.allowOverwrite
     });
   },
-  remove(name: string, scope: SkillScope) {
-    return sendDesktopRequest({ type: "skill_delete", skillName: name, skillScope: scope });
+  remove(name: string, scope: SkillScope, requestId?: string) {
+    return sendDesktopRequest({ type: "skill_delete", skillName: name, skillScope: scope, requestId });
   },
   clearActive(conversationId: string) {
     return sendDesktopRequest({ type: "skill_active_clear", conversationId: conversationId.trim() });

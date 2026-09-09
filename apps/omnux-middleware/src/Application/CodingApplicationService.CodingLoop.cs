@@ -266,6 +266,9 @@ public sealed partial class CodingApplicationService
             ? string.Empty
             : $"refs {Math.Max(1, retrievalBlock.Split("### ", StringSplitOptions.None).Length - 1)}";
 
+        // 훅이 계획을 거부하면 사유를 담아 루프를 끝내고 복구·수정 경로를 건너뛴다.
+        var planHookBlockReason = string.Empty;
+
         for (var i = 1; i <= maxIterations; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -333,6 +336,17 @@ public sealed partial class CodingApplicationService
             }
 
             consecutivePlanParseFailures = 0;
+
+            var planDecision = await ResolveCodingHookGate(workspaceRoot)
+                .BeforePlanAsync(objective, workspaceRoot, cancellationToken)
+                .ConfigureAwait(false);
+            if (!planDecision.Allowed)
+            {
+                planHookBlockReason = FormatCodingHookBlockReason(planDecision);
+                iterations.Add($"iter={i} plan_blocked_by_hook: {planHookBlockReason}");
+                break;
+            }
+
             var actionResults = new List<string>();
             var actions = plan.Actions.Take(maxActions).ToArray();
             progressCallback?.Invoke(BuildCodingProgressUpdate(
@@ -487,6 +501,38 @@ public sealed partial class CodingApplicationService
             {
                 break;
             }
+        }
+
+        if (planHookBlockReason.Length > 0)
+        {
+            // 훅이 계획을 거부했다. 아래 복구 생성·수정 반복으로 넘어가면 차단이 무의미해지므로
+            // 여기서 바로 끝낸다. 이미 바뀐 파일이 있으면 그대로 보고한다.
+            progressCallback?.Invoke(BuildCodingProgressUpdate(
+                progressMode,
+                provider,
+                model,
+                "blocked",
+                "훅이 이번 코딩 계획을 막았습니다.",
+                maxIterations,
+                maxIterations,
+                100,
+                true,
+                "planning",
+                "구현 계획",
+                TrimForOutput(planHookBlockReason, 220),
+                3,
+                VisibleCodingStageTotal
+            ));
+            return BuildHookBlockedCodingOutcome(
+                currentLanguage,
+                lastCode,
+                lastRawResponse,
+                workspaceRoot,
+                changedFiles,
+                totalTokenUsage,
+                retrievalLabel,
+                planHookBlockReason
+            );
         }
 
         if (changedFiles.Count == 0)
@@ -722,6 +768,25 @@ public sealed partial class CodingApplicationService
                 : WrapCommandWithExpectedOutputAssertion(deferredRunCommand, expectedOutput, expectedOutputLines);
             if (!string.IsNullOrWhiteSpace(finalCommand))
             {
+                // 최종 검증 실행 직전. 훅이 거부하면 검증 명령을 실행하지 않는다.
+                var verifyDecision = await ResolveCodingHookGate(workspaceRoot)
+                    .BeforeVerifyAsync(finalDisplayCommand, workspaceRoot, cancellationToken)
+                    .ConfigureAwait(false);
+                if (!verifyDecision.Allowed)
+                {
+                    var verifyBlockReason = FormatCodingHookBlockReason(verifyDecision);
+                    iterations.Add($"verify_blocked_by_hook: {verifyBlockReason}");
+                    lastExecution = lastExecution with
+                    {
+                        Status = "blocked",
+                        StdErr = verifyBlockReason
+                    };
+                    finalCommand = string.Empty;
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(finalCommand))
+            {
                 progressCallback?.Invoke(BuildCodingProgressUpdate(
                     progressMode,
                     provider,
@@ -939,6 +1004,7 @@ public sealed partial class CodingApplicationService
                 var shell = await RunWorkspaceCommandWithAutoInstallAsync(command, root, token);
                 return new CodingLoopShellResult(shell.ExitCode, shell.StdOut, shell.StdErr, shell.TimedOut);
             },
+            ResolveCodingHookGate(workspaceRoot),
             cancellationToken
         );
     }

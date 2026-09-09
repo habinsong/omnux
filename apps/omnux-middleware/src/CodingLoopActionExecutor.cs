@@ -13,6 +13,7 @@ internal static class CodingLoopActionExecutor
         Func<string, string, string> resolveWorkspacePath,
         Func<string, string, string, string> normalizeProviderGeneratedFileContent,
         Func<string, string, CancellationToken, Task<CodingLoopShellResult>> runWorkspaceCommandAsync,
+        ICodingHookGate hookGate,
         CancellationToken cancellationToken
     )
     {
@@ -24,6 +25,24 @@ internal static class CodingLoopActionExecutor
             return new CodingLoopActionResult($"{type}:missing_path", null, string.Empty, string.Empty, string.Empty, false);
         }
         var resolvedNonRunPath = resolvedPath ?? string.Empty;
+
+        if (MutatesFile(type))
+        {
+            // 파일을 바꾸기 전에 훅에 묻는다. 거부는 실행하지 않고 사유를 그대로 남긴다.
+            var target = resolveWorkspacePath(workspaceRoot, resolvedNonRunPath);
+            var gateDecision = await hookGate.BeforeFileAsync(type, target, cancellationToken);
+            if (!gateDecision.Allowed)
+            {
+                return new CodingLoopActionResult(
+                    $"{type}_blocked_by_hook:{FormatBlockReason(gateDecision)}",
+                    null,
+                    string.Empty,
+                    target,
+                    target,
+                    false
+                );
+            }
+        }
 
         if (type == "mkdir")
         {
@@ -54,6 +73,7 @@ internal static class CodingLoopActionExecutor
                 preview = preview[..12000] + "\n...(truncated)";
             }
 
+            await hookGate.AfterFileAsync(type, filePath, cancellationToken);
             return new CodingLoopActionResult($"write:{filePath}", null, preview, filePath, filePath, true);
         }
 
@@ -79,6 +99,7 @@ internal static class CodingLoopActionExecutor
                 preview = normalizedContent;
             }
 
+            await hookGate.AfterFileAsync(type, filePath, cancellationToken);
             return new CodingLoopActionResult($"append:{filePath}", null, preview, filePath, filePath, true);
         }
 
@@ -113,6 +134,7 @@ internal static class CodingLoopActionExecutor
             );
             await File.WriteAllTextAsync(filePath, updated, cancellationToken);
             var editedPreview = updated.Length > 12000 ? updated[..12000] + "\n...(truncated)" : updated;
+            await hookGate.AfterFileAsync(type, filePath, cancellationToken);
             return new CodingLoopActionResult($"edit:{filePath}", null, editedPreview, filePath, filePath, true);
         }
 
@@ -135,6 +157,7 @@ internal static class CodingLoopActionExecutor
             if (File.Exists(filePath))
             {
                 File.Delete(filePath);
+                await hookGate.AfterFileAsync(type, filePath, cancellationToken);
                 return new CodingLoopActionResult($"delete:{filePath}", null, string.Empty, filePath, filePath, true);
             }
 
@@ -153,6 +176,19 @@ internal static class CodingLoopActionExecutor
                 return new CodingLoopActionResult($"run_blocked_unsafe:{TrimForOutput(command, 120)}", null, string.Empty, string.Empty, string.Empty, false);
             }
 
+            var commandDecision = await hookGate.BeforeCommandAsync(command, workspaceRoot, cancellationToken);
+            if (!commandDecision.Allowed)
+            {
+                return new CodingLoopActionResult(
+                    $"run_blocked_by_hook:{FormatBlockReason(commandDecision)}",
+                    null,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    false
+                );
+            }
+
             var shell = await runWorkspaceCommandAsync(command, workspaceRoot, cancellationToken);
             var execution = new CodeExecutionResult(
                 "bash",
@@ -169,6 +205,18 @@ internal static class CodingLoopActionExecutor
 
         return new CodingLoopActionResult($"unsupported_action:{type}", null, string.Empty, string.Empty, string.Empty, false);
     }
+    /// <summary>파일 내용을 바꾸는 액션인지. 읽기·mkdir·run 은 여기에 포함하지 않는다.</summary>
+    private static bool MutatesFile(string type)
+    {
+        return type is "write_file" or "append_file" or "edit_file" or "delete_file";
+    }
+
+    private static string FormatBlockReason(HookGateDecision decision)
+    {
+        var reason = TrimForOutput(decision.Reason, 240);
+        return decision.DecidedByHookId.Length > 0 ? $"{decision.DecidedByHookId}: {reason}" : reason;
+    }
+
     private static string TrimForOutput(string text, int maxLength)
     {
         var value = text ?? string.Empty;

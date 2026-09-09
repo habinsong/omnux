@@ -25,9 +25,9 @@ public sealed class ProviderMaintenanceModelSelectionTests
     }
 
     [Theory]
-    [InlineData("groq", "llama-3.3-70b-versatile")]
-    [InlineData("gemini", "gemini-2.5-flash")]
-    [InlineData("nim", "meta/llama-3.1-8b-instruct")]
+    [InlineData("groq", "openai/gpt-oss-120b")]
+    [InlineData("gemini", "gemini-3.8-flash")]
+    [InlineData("nim", "moonshotai/kimi-k2.5")]
     public void RealProviderModelHintsSurvive(string provider, string model)
     {
         Assert.Equal(model, ProviderModelSelectionPolicy.SanitizeMaintenanceModel(provider, model));

@@ -58,6 +58,46 @@ function main() {
     "node",
     [toRelative(path.join(repoRoot, "scripts", "check-security-boundaries.mjs"))]
   );
+  runStep(
+    "extension wiring contract",
+    "node",
+    [toRelative(path.join(repoRoot, "scripts", "check-extension-wiring-contract.mjs"))]
+  );
+  runStep(
+    "activity screen model",
+    "node",
+    [toRelative(path.join(repoRoot, "scripts", "check-activity-screen.mjs"))]
+  );
+  runStep(
+    "insights screen model",
+    "node",
+    [toRelative(path.join(repoRoot, "scripts", "check-insights-screen.mjs"))]
+  );
+  runStep(
+    "operations screen model",
+    "node",
+    [toRelative(path.join(repoRoot, "scripts", "check-operations-screen.mjs"))]
+  );
+  runStep(
+    "routing screen model",
+    "node",
+    [toRelative(path.join(repoRoot, "scripts", "check-routing-screen.mjs"))]
+  );
+  runStep(
+    "agents screen model",
+    "node",
+    [toRelative(path.join(repoRoot, "scripts", "check-agents-screen.mjs"))]
+  );
+  runStep(
+    "review screen model",
+    "node",
+    [toRelative(path.join(repoRoot, "scripts", "check-review-screen.mjs"))]
+  );
+  runStep(
+    "skills screen model",
+    "node",
+    [toRelative(path.join(repoRoot, "scripts", "check-skills-screen.mjs"))]
+  );
   runStep("fresh build workspace", "node", ["scripts/check-build-workspace-source.mjs"]);
   runStep("fresh chat workspace", "node", ["scripts/check-chat-workspace-source.mjs"]);
   runStep("fresh explore workspace", "node", ["scripts/check-explore-workspace-source.mjs"]);

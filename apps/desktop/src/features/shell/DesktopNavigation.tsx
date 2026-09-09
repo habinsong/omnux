@@ -20,7 +20,8 @@ export type DesktopPageId =
   | "routing"
   | "planning"
   | "refactor"
-  | "agents";
+  | "agents"
+  | "extensions";
 
 export type DesktopPageDefinition = {
   id: DesktopPageId;

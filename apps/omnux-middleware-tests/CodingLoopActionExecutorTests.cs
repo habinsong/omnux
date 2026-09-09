@@ -248,6 +248,7 @@ public sealed class CodingLoopActionExecutorTests
         string root,
         IReadOnlyList<string>? requestedPaths = null,
         Func<string, string, CancellationToken, Task<CodingLoopShellResult>>? runner = null,
+        ICodingHookGate? hookGate = null,
         CancellationToken cancellationToken = default
     )
     {
@@ -260,6 +261,7 @@ public sealed class CodingLoopActionExecutorTests
             ResolveWorkspacePath,
             (_, _, content) => content,
             runner ?? ((_, _, _) => Task.FromResult(new CodingLoopShellResult(0, string.Empty, string.Empty, false))),
+            hookGate ?? NullCodingHookGate.Instance,
             cancellationToken
         );
     }

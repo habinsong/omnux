@@ -6,11 +6,9 @@
   --build-fill: #f5f6f8;
   --build-danger: #b12637;
   --build-padding: clamp(16px, 2vw, 24px);
-  display: grid;
+  /* 바깥 배치는 화면(Screen)이 정한다. 여기서 grid + padding-bottom 을 걸면 화면이 넘친다. */
   width: 100%;
   min-width: 0;
-  gap: 24px;
-  padding-bottom: 40px;
   color: var(--build-ink);
   font-size: 14px;
   line-height: 1.7;

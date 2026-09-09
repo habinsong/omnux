@@ -104,6 +104,7 @@ public sealed partial class WebSocketGateway
     private readonly WsRagCommandDispatcher _ragCommandDispatcher;
     private readonly WsTerminalCommandDispatcher _terminalCommandDispatcher;
     private readonly WsCodeRepomapCommandDispatcher _codeRepomapCommandDispatcher;
+    private readonly WsExtensionCommandDispatcher _extensionCommandDispatcher;
     private readonly WsRefactorCommandDispatcher _refactorCommandDispatcher;
     private readonly WsContextCommandDispatcher _contextCommandDispatcher;
     private readonly WsNotebookCommandDispatcher _notebookCommandDispatcher;
@@ -352,6 +353,12 @@ public sealed partial class WebSocketGateway
         );
         _codeRepomapCommandDispatcher = new WsCodeRepomapCommandDispatcher(
             new CodeRepomapSnapshotService(_paths.WorkspaceRootDir)
+        );
+        _extensionCommandDispatcher = new WsExtensionCommandDispatcher(
+            new ExtensionApplicationService(
+                new ExtensionConfigStore(),
+                () => _paths.WorkspaceRootDir
+            )
         );
         _refactorCommandDispatcher = new WsRefactorCommandDispatcher(
             refactorService
@@ -2882,6 +2889,7 @@ public sealed partial class WebSocketGateway
             string? skillScope = null;
             string? skillDescription = null;
             string? skillBody = null;
+            bool? skillAllowOverwrite = null;
             bool? thinkPlus = null;
             if (doc.RootElement.TryGetProperty("skillName", out var skillNameEl))
             {
@@ -2898,6 +2906,13 @@ public sealed partial class WebSocketGateway
             if (doc.RootElement.TryGetProperty("skillBody", out var skillBodyEl))
             {
                 skillBody = skillBodyEl.GetString();
+            }
+            // 이 값을 읽지 않으면 dispatcher 의 `SkillAllowOverwrite == true` 가 늘 거짓이 되어
+            // **이미 있는 스킬을 영영 고칠 수 없다.**
+            if (doc.RootElement.TryGetProperty("skillAllowOverwrite", out var skillOverwriteEl))
+            {
+                if (skillOverwriteEl.ValueKind == JsonValueKind.True) skillAllowOverwrite = true;
+                else if (skillOverwriteEl.ValueKind == JsonValueKind.False) skillAllowOverwrite = false;
             }
             if (doc.RootElement.TryGetProperty("thinkPlus", out var thinkPlusEl))
             {
@@ -3578,6 +3593,7 @@ public sealed partial class WebSocketGateway
                 SkillScope = skillScope,
                 SkillDescription = skillDescription,
                 SkillBody = skillBody,
+                SkillAllowOverwrite = skillAllowOverwrite,
                 ThinkPlus = thinkPlus,
                 RoutineId = routineId,
                 ExecutionMode = executionMode,

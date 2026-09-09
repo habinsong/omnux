@@ -57,13 +57,13 @@ public static class ModelRegistry
 
     private static readonly FrozenDictionary<string, string[]> Fallbacks = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
     {
-    ["groq"] = new[] { "qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.6-27b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant", "groq/compound", "groq/compound-mini" },
+    ["groq"] = new[] { "qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.6-27b", "groq/compound", "groq/compound-mini" },
     ["gemini"] = new[] { "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.1-pro-preview" },
     ["cerebras"] = new[] { "gpt-oss-120b", "qwen-3.8-27b" },
     ["nvidia"] = new[] { "moonshotai/kimi-k3", "deepseek-ai/deepseek-v4-pro-0813", "openai/gpt-oss-120b" },
     ["copilot"] = new[] { "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.4-mini", "gpt-5-mini", "claude-sonnet-4.6", "claude-haiku-4.5", "gemini-3.8-flash" },
     ["codex"] = new[] { "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex" },
-    ["grok"] = new[] { "grok-4.6" }
+    ["grok"] = new[] { "grok-4.6", "grok-4.5" }
     }.ToFrozenDictionary();
 
     public static readonly FrozenDictionary<string, CopilotModelMeta> CopilotKnownMeta = new Dictionary<string, CopilotModelMeta>(StringComparer.OrdinalIgnoreCase)
