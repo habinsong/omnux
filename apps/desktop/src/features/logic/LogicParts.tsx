@@ -24,7 +24,7 @@ import { appendContextSelectionBundle } from "../context-picker/context-picker-s
 
 const SELECT_CLASS =
   "h-8 w-full min-w-0 rounded-md border border-input bg-transparent px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
-const SECTION_TITLE = "text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground";
+const SECTION_TITLE = "text-[11px] font-medium text-muted-foreground";
 
 export function statusForNode(snapshot: LogicRunSnapshot | null, nodeId: string): string {
   return snapshot?.nodes.find((node) => node.nodeId === nodeId)?.status || "";
@@ -326,7 +326,7 @@ export function LogicCanvas({
                       cx={size.width}
                       cy={localY}
                       r={7}
-                      className="cursor-crosshair fill-primary stroke-card transition-transform hover:scale-110"
+                      className="cursor-crosshair fill-primary stroke-card"
                       strokeWidth={1.5}
                       onPointerDown={(event) => startLink(event, node, port)}
                     />
@@ -442,7 +442,7 @@ export function LogicPathBrowserPanel({
       <div className="max-h-[52vh] space-y-1 overflow-y-auto pr-1">
         {pathState.loading ? <p className="py-4 text-center text-xs text-muted-foreground">경로를 조회 중입니다.</p> : null}
         {(snapshot?.items || []).map((entry) => (
-          <div key={`${entry.isDirectory ? "d" : "f"}-${entry.browsePath || entry.selectPath || entry.name}`} className="flex items-center gap-1.5 rounded-md border border-border bg-card/60 px-2 py-1.5">
+          <div key={`${entry.isDirectory ? "d" : "f"}-${entry.browsePath || entry.selectPath || entry.name}`} className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1.5">
             <button
               type="button"
               className="flex min-w-0 flex-1 items-center gap-2 text-left"
@@ -495,7 +495,7 @@ export function RunIoDetailPanel({ snapshot, selectedNodeId }: { snapshot: Logic
             onClick={() => useLogicStore.getState().selectNode(node.nodeId)}
             className={cn(
               "flex w-full items-center justify-between gap-2 rounded-md border px-2 py-1.5 text-left transition-colors",
-              node.nodeId === selected.nodeId ? "border-primary/50 bg-primary/10" : "border-border bg-card/60 hover:bg-accent"
+              node.nodeId === selected.nodeId ? "border-primary/50 bg-primary/10" : "border-border bg-card hover:bg-accent"
             )}
           >
             <span className="min-w-0">
@@ -523,7 +523,7 @@ export function RunIoDetailPanel({ snapshot, selectedNodeId }: { snapshot: Logic
         <div className="space-y-1">
           <p className={SECTION_TITLE}>데이터</p>
           {dataEntries.slice(0, 12).map(([key, value]) => (
-            <div key={key} className="rounded-md border border-border bg-card/60 p-2">
+            <div key={key} className="rounded-md border border-border bg-card p-2">
               <p className="truncate font-mono text-[10px] text-muted-foreground">{key}</p>
               <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-xs">{value}</p>
             </div>
@@ -552,7 +552,7 @@ export function RunIoDetailPanel({ snapshot, selectedNodeId }: { snapshot: Logic
 
 export function NodePalette({ onAdd, onClose }: { onAdd: (type: string) => void; onClose: () => void }) {
   return (
-    <div className="absolute left-0 top-full z-30 mt-1 max-h-[60vh] w-64 overflow-y-auto rounded-lg border border-border bg-popover p-2 shadow-[var(--shadow-card)] backdrop-blur-xl">
+    <div className="absolute left-0 top-full z-30 mt-1 max-h-[60vh] w-64 overflow-y-auto rounded-md border border-border bg-popover p-2">
       {LOGIC_NODE_GROUPS.map((group) => (
         <div key={group.key} className="mb-2 last:mb-0">
           <p className={cn(SECTION_TITLE, "px-1.5 py-1")}>{group.label}</p>

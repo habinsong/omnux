@@ -14,7 +14,7 @@ type State = {
   planId: string; runId: string; output: OutputView | null; outputStep: string; outputTime: number | null;
   draft: PlanForm & { mode: "fast" | "interview" }; editingPlan: PlanForm | null; editingSteps: EditableRunStep[] | null;
   composer: boolean; notice: Notice; confirmation: Confirmation | null; pending: Partial<Record<Slot, Request>>;
-  startAfterApproval: string; cancelingRun: string;
+  startAfterApproval: string; cancelingRun: string; outputFocus: boolean; sourceConversationId: string;
   request: (slot: Slot, type: TaskWorkspaceCommand, fields?: Record<string, unknown>) => void;
   refresh: () => void; openPlan: (id: string) => void; openRun: (id: string) => void;
   readOutput: (stepId: string, time?: number) => void; create: () => void;
@@ -27,7 +27,7 @@ const requestId = () => `task-workspace-${globalThis.crypto?.randomUUID?.() || `
 export const useTaskWorkspace = create<State>((set, get) => ({
   plans: [], runs: [], plan: null, run: null, planId: "", runId: "", output: null, outputStep: "", outputTime: null,
   draft: emptyDraft(), editingPlan: null, editingSteps: null, composer: true, notice: null, confirmation: null, pending: {},
-  startAfterApproval: "", cancelingRun: "",
+  startAfterApproval: "", cancelingRun: "", outputFocus: false, sourceConversationId: "",
   request: (slot, type, fields = {}) => {
     if (slot === "mutation" && get().pending.mutation) return;
     const request = { id: requestId(), type, fields };
@@ -57,7 +57,7 @@ export const useTaskWorkspace = create<State>((set, get) => ({
   create: () => {
     const draft = get().draft;
     if (draft.objective.trim().length < 5) { set({ notice: { tone: "error", text: "만들고 싶은 결과를 5자 이상 적어 주세요." } }); return; }
-    get().request("mutation", "plan_create", { text: draft.objective.trim(), constraints: inputLines(draft.constraints), mode: draft.mode });
+    get().request("mutation", "plan_create", { text: draft.objective.trim(), constraints: inputLines(draft.constraints), mode: draft.mode, conversationId: get().sourceConversationId || undefined });
   },
   startPlan: () => {
     const plan = get().plan;
@@ -120,7 +120,7 @@ function receive(message: DesktopServerMessage) {
     const plan = planView(payload.snapshot);
     if (!plan || (slot === "plan" && plan.id !== state.planId)) { finish({}); return; }
     finish({ plan, planId: plan.id, composer: false, editingPlan: null,
-      ...(slot === "mutation" ? { notice: text(payload.message) ? { tone: "info", text: text(payload.message) } : null, ...(request?.type === "plan_create" ? { draft: emptyDraft() } : {}) } : {}) });
+      ...(slot === "mutation" ? { notice: text(payload.message) ? { tone: "info", text: text(payload.message) } : null, ...(request?.type === "plan_create" ? { draft: emptyDraft(), sourceConversationId: "" } : {}) } : {}) });
     state.refresh();
     if (request?.type === "plan_approve" && state.startAfterApproval === plan.id) {
       useTaskWorkspace.setState({ startAfterApproval: "" });
@@ -138,7 +138,7 @@ function receive(message: DesktopServerMessage) {
     if (!run || (slot === "run" && run.id !== state.runId)) { finish({}); return; }
     finish({ run, runId: run.id, cancelingRun: run.status === "running" ? state.cancelingRun : "", editingSteps: slot === "mutation" ? null : state.editingSteps,
       ...(slot === "mutation" ? { notice: text(payload.message) ? { tone: "info", text: text(payload.message) } : null } : {}) });
-    if (!state.outputStep && ["completed", "failed", "canceled"].includes(run.status) && (!state.pending.mutation || slot === "mutation")) {
+    if (!state.outputStep && run.status === "completed" && (!state.pending.mutation || slot === "mutation")) {
       const resultStep = run.steps.find(step => step.status === "failed") || [...run.steps].reverse().find(step => step.status === "completed") || run.steps.find(step => run.attempts.some(attempt => attempt.stepId === step.id));
       if (resultStep) state.readOutput(resultStep.id);
     }

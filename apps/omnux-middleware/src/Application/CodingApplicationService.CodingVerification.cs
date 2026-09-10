@@ -815,7 +815,7 @@ for ($i = 0; $i -lt $expected.Count; $i++) {
             }
 
             if (shouldRunProgram && packageText.Contains("\"start\"", StringComparison.OrdinalIgnoreCase)
-                && !ContainsAny(objectiveText.ToLowerInvariant(), "react", "vite", "브라우저", "web", "웹"))
+                && !CodingTaskSignalPolicy.LooksLikeBrowserApp(objectiveText))
             {
                 windowsCommands.Add("npm start");
             }
@@ -855,7 +855,7 @@ for ($i = 0; $i -lt $expected.Count; $i++) {
         }
 
         if (shouldRunProgram && packageText.Contains("\"start\"", StringComparison.OrdinalIgnoreCase)
-            && !ContainsAny(objectiveText.ToLowerInvariant(), "react", "vite", "브라우저", "web", "웹"))
+            && !CodingTaskSignalPolicy.LooksLikeBrowserApp(objectiveText))
         {
             commands.Add("npm start");
         }
@@ -1338,7 +1338,7 @@ async function waitFor(url, deadlineMs = 12000) {
             "render"
         };
         var text = CodingLanguagePolicy.ExtractLatestCodingRequestText(WebUtility.HtmlDecode(objectiveText ?? string.Empty)).ToLowerInvariant();
-        if (ContainsAny(text, "tetris", "테트리스"))
+        if (ContainsAny(text, "tetris"))
         {
             requiredMarkers.AddRange(new[] { "board", "pieces", "rotation", "collision", "line_clear", "score", "level", "game_over" });
         }

@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useDesktopShellStore } from "../../shell-store";
 import { subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
 import { sendBuildCommand, codingFileUrl, localPreviewUrl, readCodingFile, type BuildCommand } from "../middleware/build-workspace-gateway";
+import { interruptBuildNotebookSave, receiveBuildNotebookSave } from "./build-notebook-save";
 import { requestDesktopLlm } from "../middleware/llm-gateway";
 import { projectChoice, projectReview, type ProjectChoice, type ProjectReview } from "./build-project-review";
 import { attachmentLimit, readAttachments } from "./build-attachments";
@@ -67,13 +68,13 @@ export const useBuildWorkspace = create<State>((set, get) => ({
     if (!input) return;
     if (state.attachments.length > 6 || state.attachments.reduce((sum, item) => sum + item.sizeBytes, 0) > attachmentLimit) { set({ error: "첨부 파일은 최대 6개, 전체 10MB 이하여야 합니다." }); return; }
     const settings = state.settings;
-    if (settings.mode !== "single" && !Object.values(settings.workers).some(value => value && value !== "none")) { set({ error: "함께 작업할 모델을 한 개 이상 선택해 주세요.", settingsOpen: true }); return; }
+    if (settings.mode !== "single" && !Object.values(settings.workers).some(value => value && value !== "none")) { set({ error: "워커 모델을 한 개 이상 고르세요.", settingsOpen: true }); return; }
     const [skillScope, ...skillName] = settings.skill.split(":");
     const fields = { text: input, scope: "coding", mode: settings.mode, conversationId: state.activeId || undefined, conversationTitle: settings.title || undefined, project: settings.project || undefined, projectKey: settings.projectKey || undefined,
       provider: settings.provider === "auto" ? undefined : settings.provider, model: settings.provider === "auto" ? undefined : settings.models[settings.provider], language: settings.language,
       webUrls: Array.from(new Set(input.match(/https?:\/\/[^\s<>"']+/g) || [])), webSearchEnabled: settings.webSearch, thinkPlus: settings.think, attachments: state.attachments, memoryNotes: settings.memory, skillScope: skillName.length ? skillScope : undefined, skillName: skillName.join(":") || undefined,
       ...(settings.mode === "single" ? {} : Object.fromEntries(Object.entries(settings.workers).map(([provider, model]) => [`${provider}Model`, model || "none"]))) };
-    if (state.request("run", `coding_run_${settings.mode}`, fields)) set({ input: "", attachments: [], submitted: { input, attachments: state.attachments, settings }, error: "", progress: "작업을 시작하고 있습니다.", cancelPending: false, file: null, runtime: null, projectReview: null, projectMessage: "" });
+    if (state.request("run", `coding_run_${settings.mode}`, fields)) set({ input: "", attachments: [], submitted: { input, attachments: state.attachments, settings }, error: "", progress: "작업을 시작하고 있습니다.", cancelPending: false, file: null, runtime: null, projectReview: null, projectMessage: "", settingsOpen: false });
   },
   cancel: () => {
     const state = get(), pending = state.pending.run || state.pending.execute;
@@ -111,6 +112,7 @@ export const useBuildWorkspace = create<State>((set, get) => ({
   }
 }));
 function receive(message: DesktopServerMessage) {
+  if (receiveBuildNotebookSave(message)) return;
   const state = useBuildWorkspace.getState();
   const catalog = /^([a-z]+)_models$/.exec(text(message.type));
   if (catalog && catalog[1] in state.settings.models) { useBuildWorkspace.setState({ catalogs: { ...state.catalogs, [catalog[1]]: strings(message.items).length ? strings(message.items) : list(message.items).map(item => (text(object(item).id) || text(object(item).name) || text(object(item).model))).filter(Boolean) } }); return; }
@@ -175,6 +177,7 @@ export function useBuildWorkspaceSession() {
     const messages = subscribeDesktopMessages(receive);
     const bridge = useDesktopShellStore.subscribe((current, previous) => {
       if (current.bridge.status !== "closed" && !(previous.bridge.status === "connected" && current.bridge.status === "connecting")) return;
+      interruptBuildNotebookSave();
       const state = useBuildWorkspace.getState();
       const active = state.pending.run || state.pending.execute;
       useBuildWorkspace.setState({ pending: {}, cancelPending: false, progress: "", ...(active ? { error: "연결이 끊겼습니다. 다시 연결한 뒤 저장한 빌드에서 진행 결과를 확인해 주세요.", ...(!state.input.trim() && state.submitted ? { input: state.submitted.input, attachments: state.attachments.length ? state.attachments : state.submitted.attachments } : {}) } : {}) });

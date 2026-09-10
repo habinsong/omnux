@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Bell, Info, Menu, Moon, Search, Sparkles, Sun, X, RefreshCcw } from "lucide-react";
+import { AlertTriangle, Bell, Info, Menu, Monitor, Moon, Search, Sun, X, RefreshCcw } from "lucide-react";
 import { useDesktopAuthStore } from "../auth/auth-store";
 import { useDesktopShellStore } from "../../shell-store";
 import { useUiLogStore, type ShellLogEntry } from "../ui-log/ui-log-store";
@@ -75,7 +75,7 @@ export function DesktopTopBar({ onOpenNav, onOpenCommandPalette, onSelectPage }:
   const [notificationSeenAt, setNotificationSeenAt] = useState(readNotificationSeenAt);
 
   const status = runtimeStatus(bridgeStatus, authStatus, runtimePhase, middlewareStatus);
-  const ThemeIcon = theme === "dark" ? Moon : theme === "light" ? Sun : Sparkles;
+  const ThemeIcon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
   const alertLogs = useMemo(() => logs.filter((log) => log.level === "warn" || log.level === "error"), [logs]);
   const recentAlerts = useMemo(() => alertLogs.slice(0, 5), [alertLogs]);
   const unreadCount = useMemo(() => alertLogs.filter((log) => logTimeMs(log) > notificationSeenAt).length, [alertLogs, notificationSeenAt]);
@@ -110,8 +110,8 @@ export function DesktopTopBar({ onOpenNav, onOpenCommandPalette, onSelectPage }:
   };
 
   return (
-    <header className="sticky top-0 z-20 flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-2 px-3 py-2 sm:h-14 sm:flex-nowrap sm:gap-3 sm:px-5 sm:py-0">
-      <div className="order-1 flex min-w-0 flex-none items-center justify-start sm:flex-1">
+    <header className="sticky top-0 z-20 flex h-14 w-full min-w-0 shrink-0 items-center gap-2 px-3 sm:gap-3 sm:px-5">
+      <div className="flex shrink-0 items-center">
         <div className="lg:hidden">
           <IconButton icon={Menu} label="메뉴" className="h-8 w-8" onClick={onOpenNav} />
         </div>
@@ -119,17 +119,18 @@ export function DesktopTopBar({ onOpenNav, onOpenCommandPalette, onSelectPage }:
 
       <button
         type="button"
+        data-topbar-search
         onClick={onOpenCommandPalette}
-        className="group order-3 flex h-9 min-w-0 basis-full items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground sm:order-2 sm:w-full sm:max-w-lg sm:basis-auto"
+        className="group flex h-9 min-w-0 flex-1 items-center gap-2 rounded-md border border-border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors duration-200 hover:bg-accent hover:text-foreground"
       >
         <Search size={16} className="shrink-0" aria-hidden="true" />
-        <span className="truncate font-medium">검색하거나 명령 실행</span>
+        <span className="truncate font-medium">검색</span>
         <kbd className="ml-auto hidden shrink-0 rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline-block">
           ⌘K
         </kbd>
       </button>
 
-      <div className="order-2 flex min-w-0 flex-1 items-center justify-end gap-1 sm:order-3 sm:gap-1.5">
+      <div data-topbar-actions className="flex shrink-0 items-center justify-end gap-1 sm:gap-1.5">
         <Button
           variant="ghost"
           size={status.label ? "sm" : "icon"}
@@ -141,7 +142,7 @@ export function DesktopTopBar({ onOpenNav, onOpenCommandPalette, onSelectPage }:
           {status.label ? <span className="hidden sm:inline">{status.label}</span> : null}
         </Button>
 
-        <IconButton icon={RefreshCcw} label="새로고침 (F5)" className="h-8 w-8" onClick={reloadDesktopShell} />
+        <IconButton icon={RefreshCcw} label="새로고침 (F5)" className="h-8 w-8 max-sm:hidden" onClick={reloadDesktopShell} />
 
         <div className="relative">
           <button
@@ -157,11 +158,11 @@ export function DesktopTopBar({ onOpenNav, onOpenCommandPalette, onSelectPage }:
                 {unreadCount > 9 ? "9+" : unreadCount}
               </span>
             ) : null}
-            {unreadCount > 0 ? <span className="absolute right-0 top-0 h-2 w-2 animate-ping rounded-full bg-destructive/70" aria-hidden="true" /> : null}
+
           </button>
 
           {notificationOpen ? (
-            <div className="absolute right-0 top-11 z-40 w-[min(360px,calc(100vw-32px))] overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-2xl shadow-black/10">
+            <div className="absolute right-0 top-11 z-40 w-[min(360px,calc(100vw-32px))] overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-md">
               <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
                 <div className="flex min-w-0 items-center gap-2">
                   <Bell size={14} className="shrink-0 text-primary" aria-hidden="true" />
@@ -202,7 +203,7 @@ export function DesktopTopBar({ onOpenNav, onOpenCommandPalette, onSelectPage }:
               </div>
               <div className="flex items-center justify-between gap-2 border-t border-border bg-muted/30 px-3 py-2">
                 <Button variant="ghost" size="sm" className="h-7 px-2" onClick={markNotificationsRead}>읽음</Button>
-                <Button variant="outline" size="sm" className="h-7 px-2" onClick={openActivity}>Activity 열기</Button>
+                <Button variant="outline" size="sm" className="h-7 px-2" onClick={openActivity}>활동</Button>
               </div>
             </div>
           ) : null}

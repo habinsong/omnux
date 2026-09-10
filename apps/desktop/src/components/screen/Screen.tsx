@@ -15,7 +15,8 @@ export function Screen({
   hint,
   actions,
   notice,
-  children
+  children,
+  surface
 }: {
   title: string;
   /** 한 줄 설명. 두 줄 넘게 쓰지 않는다. */
@@ -24,15 +25,16 @@ export function Screen({
   /** 지금 꼭 봐야 하는 한 줄. 없으면 자리를 차지하지 않는다. */
   notice?: ReactNode;
   children: ReactNode;
+  surface?: string;
 }) {
   return (
-    <div className="flex h-full min-h-0 w-full min-w-0 flex-col gap-3">
-      <header className="flex min-w-0 shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+    <div className="flex h-full min-h-0 w-full min-w-0 flex-col gap-2" data-surface={surface}>
+      <header className="flex w-full min-w-0 shrink-0 items-center justify-between gap-2">
         <div className="min-w-0">
-          <h1 className="truncate text-lg font-semibold tracking-tight">{title}</h1>
-          {hint ? <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{hint}</p> : null}
+          <h1 className="truncate text-base font-semibold tracking-tight sm:text-lg">{title}</h1>
+          {hint ? <p className="mt-0.5 hidden line-clamp-1 text-xs text-muted-foreground sm:block">{hint}</p> : null}
         </div>
-        {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+        {actions ? <div className="flex shrink-0 flex-nowrap items-center gap-2">{actions}</div> : null}
       </header>
 
       {notice ? <div className="min-w-0 shrink-0">{notice}</div> : null}
@@ -52,7 +54,7 @@ export function ScreenNotice({
 }) {
   return (
     <p
-      role="status"
+      role={tone === "danger" ? "alert" : "status"}
       className={cn(
         "min-w-0 rounded-lg border px-3 py-2 text-xs leading-relaxed",
         tone === "danger" && "border-destructive/40 bg-destructive/10 text-destructive",

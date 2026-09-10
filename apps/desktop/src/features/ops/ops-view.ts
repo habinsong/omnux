@@ -72,7 +72,7 @@ export function describeStatus(status: LoadStatus, hint: string, loadOnOpen: boo
   if (status === "loading") return "조회 중";
   if (status === "failed") return "실패";
   if (status === "ready") return "완료";
-  return loadOnOpen ? hint : hint;
+  return loadOnOpen ? "열면 조회" : hint;
 }
 
 /* --------------------------------------------------------------------------

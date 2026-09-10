@@ -37,6 +37,7 @@ function resolvePythonCommand() {
 
 function main() {
   runStep("renewal inventory checks", "node", ["--test", "apps/shared/audit-renewal.test.mjs"]);
+  runStep("shared model catalog ids", "node", ["--test", "apps/shared/model-registry.test.mjs"]);
   runStep(
     "repo hygiene gate",
     "node",
@@ -103,6 +104,8 @@ function main() {
   runStep("fresh explore workspace", "node", ["scripts/check-explore-workspace-source.mjs"]);
   runStep("fresh automation workspace", "node", ["scripts/check-automation-workspace-source.mjs"]);
   runStep("fresh task workspace", "node", ["scripts/check-task-workspace-source.mjs"]);
+  runStep("renewal screen contracts", "node", ["scripts/check-renewal-screens.mjs"]);
+  runStep("ui slop tells", "node", ["scripts/check-ui-slop.mjs"]);
   runStep(
     "tech stack contract",
     "node",

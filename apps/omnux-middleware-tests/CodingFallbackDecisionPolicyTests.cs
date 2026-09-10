@@ -43,14 +43,14 @@ public sealed class CodingFallbackDecisionPolicyTests
     public void ShouldHonorExplicitMultiFileTextSignalsWhenEnabled()
     {
         Assert.True(CodingFallbackDecisionPolicy.ShouldPreferFileBundleFallback(
-            "여러 파일로 작성",
+            "write with multiple files",
             null,
             isExplicitSingleFile: false,
             projectPrefersMultiFile: false,
             includeExplicitMultiFileTextSignals: true
         ));
         Assert.False(CodingFallbackDecisionPolicy.ShouldPreferFileBundleFallback(
-            "여러 파일로 작성",
+            "write with multiple files",
             null,
             isExplicitSingleFile: false,
             projectPrefersMultiFile: false,

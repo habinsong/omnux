@@ -1,5 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Globe, Search } from "lucide-react";
 import { Button, Input, Textarea, cn } from "../../components/ui/primitives";
+import {
+  CAPSULE_FIELD,
+  CapsuleBar,
+  ExpandChoice,
+  ExtrasRow,
+  Fold,
+  RoundIcon
+} from "../../components/capsule/capsule";
 import { useDesktopNavigationStore } from "../shell/navigation-store";
 import { requestConfirmDialog } from "../dialog/dialog-store";
 import { externalUrl, number, record, rows, statusLabel, text, type Frame } from "./explore-model";
@@ -19,7 +28,7 @@ export function Panel({ children, footer }: { children: React.ReactNode; footer?
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         <div className="min-w-0 space-y-3 p-3">{children}</div>
       </div>
-      {footer ? <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 border-t border-border p-2">{footer}</div> : null}
+      {footer ? <div className="min-w-0 shrink-0 p-2">{footer}</div> : null}
     </div>
   );
 }
@@ -44,25 +53,15 @@ function Label({ children }: { children: React.ReactNode }) {
 
 const SELECT = "h-8 w-full min-w-0 rounded-md border border-border bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
 
-/** 한 겹짜리 접기. 안에 또 접지 않는다. */
-function Fold({ title, children }: { title: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="min-w-0 overflow-hidden rounded-md border border-border">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-        className="flex w-full min-w-0 items-center justify-between gap-2 px-2.5 py-1.5 text-left text-[11px] font-medium outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60"
-      >
-        <span className="min-w-0 truncate">{title}</span>
-        <span aria-hidden="true" className="shrink-0 text-muted-foreground">
-          {open ? "−" : "+"}
-        </span>
-      </button>
-      {open ? <div className="min-w-0 space-y-2 border-t border-border p-2.5">{children}</div> : null}
-    </div>
-  );
+const LENGTH_CHOICES = [
+  { value: "8000", label: "짧게" },
+  { value: "20000", label: "보통" },
+  { value: "50000", label: "길게" }
+] as const;
+
+function lengthLabel(value: number) {
+  const short = LENGTH_CHOICES.find((entry) => Number(entry.value) === value)?.label ?? "보통";
+  return `본문 ${short}`;
 }
 
 function Capture({ frame }: { frame: Frame | null }) {
@@ -89,6 +88,8 @@ export function WebPanel({ connected }: { connected: boolean }) {
   const state = useWebExplore();
   const navigate = useDesktopNavigationStore((s) => s.setActivePage);
   const [notice, setNotice] = useState("");
+  const [lengthOpen, setLengthOpen] = useState(false);
+  const queryRef = useRef<HTMLInputElement>(null);
 
   const copy = async (value: string) => {
     try {
@@ -102,24 +103,37 @@ export function WebPanel({ connected }: { connected: boolean }) {
   return (
     <Panel
       footer={
-        <>
-          <Input
-            className="h-8 min-w-0 flex-1 text-xs"
-            type="search"
-            aria-label="찾을 내용이나 웹 주소"
-            placeholder="검색어 또는 https:// 주소"
-            value={state.input}
-            onChange={(event) => useWebExplore.setState({ input: event.target.value })}
-            onKeyDown={(event) => {
-              if (event.key !== "Enter") return;
-              if (event.nativeEvent.isComposing) return;
-              if (connected && state.input.trim()) state.search();
-            }}
-          />
-          <Button variant="primary" size="sm" disabled={!connected || !!state.pending || !state.input.trim()} onClick={() => state.search()}>
-            {state.pending ? "찾는 중" : "찾기"}
-          </Button>
-        </>
+        <div className="min-w-0 w-full space-y-1">
+          <ExtrasRow className="px-1">
+            <ExpandChoice
+              label={lengthLabel(state.maxChars)}
+              title="가져올 본문 길이"
+              open={lengthOpen}
+              options={LENGTH_CHOICES.filter((entry) => Number(entry.value) !== state.maxChars)}
+              onToggle={() => setLengthOpen((current) => !current)}
+              onSelect={(value) => {
+                useWebExplore.setState({ maxChars: Number(value) });
+                setLengthOpen(false);
+              }}
+            />
+          </ExtrasRow>
+          <CapsuleBar
+            leading={<RoundIcon icon={Search} label="검색어로 이동" onClick={() => queryRef.current?.focus()} />}
+            submitLabel={state.pending ? "찾는 중" : "찾기"}
+            submitDisabled={!connected || !!state.pending || !state.input.trim()}
+            onSubmit={() => state.search()}
+          >
+            <input
+              ref={queryRef}
+              className={CAPSULE_FIELD}
+              type="search"
+              aria-label="찾을 내용이나 웹 주소"
+              placeholder="검색어 또는 https:// 주소"
+              value={state.input}
+              onChange={(event) => useWebExplore.setState({ input: event.target.value })}
+            />
+          </CapsuleBar>
+        </div>
       }
     >
       {state.error ? <Note tone="error">{state.error}</Note> : null}
@@ -131,10 +145,13 @@ export function WebPanel({ connected }: { connected: boolean }) {
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <h2 className="min-w-0 flex-1 truncate text-xs font-semibold">페이지 본문</h2>
             <Button variant="outline" size="sm" onClick={() => void copy(state.document!.text)}>
-              복사
+              본문 복사
             </Button>
             <Button variant="ghost" size="sm" onClick={() => navigate("ask", { input: [state.document!.url, state.document!.text].join("\n\n") })}>
               질문에 쓰기
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => navigate("build", { input: [state.document!.url, state.document!.text].join("\n\n") })}>
+              빌드에 쓰기
             </Button>
           </div>
           {state.document.url ? <p className="min-w-0 break-all font-mono text-[10px] text-muted-foreground">{state.document.url}</p> : null}
@@ -197,17 +214,6 @@ export function WebPanel({ connected }: { connected: boolean }) {
         </section>
       ) : null}
 
-      <Fold title="페이지 읽기 설정">
-        <label className="block min-w-0 space-y-1">
-          <Label>가져올 본문 길이</Label>
-          <select className={SELECT} value={state.maxChars} onChange={(event) => useWebExplore.setState({ maxChars: Number(event.target.value) })}>
-            <option value={8000}>짧게 · 8,000자</option>
-            <option value={20000}>보통 · 20,000자</option>
-            <option value={50000}>길게 · 50,000자</option>
-          </select>
-        </label>
-      </Fold>
-
       {!state.results && !state.document && !state.pending ? <Note>찾을 내용을 아래에 넣고 「찾기」를 누르세요.</Note> : null}
     </Panel>
   );
@@ -233,22 +239,22 @@ export function BrowserPanel({ connected }: { connected: boolean }) {
   return (
     <Panel
       footer={
-        <>
-          <Input
-            className="h-8 min-w-0 flex-1 text-xs"
+        <CapsuleBar
+          leading={<RoundIcon icon={Globe} label="주소 입력" onClick={() => document.getElementById("explore-browser-url")?.focus()} />}
+          submitLabel="열기"
+          submitDisabled={!connected || busy || !pane.url.trim()}
+          onSubmit={() => state.run("browser", "open", { url: pane.url.trim() })}
+        >
+          <input
+            id="explore-browser-url"
+            className={CAPSULE_FIELD}
             type="url"
             aria-label="열 웹 주소"
             placeholder="https://"
             value={pane.url}
             onChange={(event) => state.patch("browser", { url: event.target.value })}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && connected && pane.url.trim()) state.run("browser", "open", { url: pane.url.trim() });
-            }}
           />
-          <Button variant="primary" size="sm" disabled={!connected || busy || !pane.url.trim()} onClick={() => state.run("browser", "open", { url: pane.url.trim() })}>
-            열기
-          </Button>
-        </>
+        </CapsuleBar>
       }
     >
       {pane.error ? <Note tone="error">{pane.error}</Note> : null}
@@ -276,7 +282,7 @@ export function BrowserPanel({ connected }: { connected: boolean }) {
               화면 캡처
             </Button>
             <Button variant="ghost" size="sm" disabled={!connected || busy} onClick={() => state.run("browser", "close", { targetId: result?.activeTargetId })}>
-              이 페이지 닫기
+              선택한 페이지 닫기
             </Button>
           </div>
         </div>
@@ -337,24 +343,22 @@ export function CanvasPanel({ connected }: { connected: boolean }) {
   return (
     <Panel
       footer={
-        <>
-          <Input
-            className="h-8 min-w-0 flex-1 text-xs"
+        <CapsuleBar
+          leading={<RoundIcon icon={Globe} label="캔버스 주소" onClick={() => document.getElementById("explore-canvas-url")?.focus()} />}
+          submitLabel="보기"
+          submitDisabled={!connected || busy || !externalUrl(pane.url)}
+          onSubmit={() => state.run("canvas", "navigate", { url: pane.url.trim() })}
+        >
+          <input
+            id="explore-canvas-url"
+            className={CAPSULE_FIELD}
             type="url"
             aria-label="캔버스에서 볼 주소"
             placeholder="https://"
             value={pane.url}
             onChange={(event) => state.patch("canvas", { url: event.target.value })}
           />
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={!connected || busy || !externalUrl(pane.url)}
-            onClick={() => state.run("canvas", "navigate", { url: pane.url.trim() })}
-          >
-            보기
-          </Button>
-        </>
+        </CapsuleBar>
       }
     >
       {pane.error ? <Note tone="error">{pane.error}</Note> : null}
@@ -365,7 +369,7 @@ export function CanvasPanel({ connected }: { connected: boolean }) {
           {visible ? "화면 숨기기" : "캔버스 열기"}
         </Button>
         <Button variant="outline" size="sm" disabled={!connected || busy || !visible} onClick={() => state.run("canvas", "snapshot", { maxWidth: state.width })}>
-          화면 캡처
+          화면 새로 캡처
         </Button>
         <Button variant="ghost" size="sm" disabled={!connected || busy} onClick={() => state.run("canvas", "status")}>
           상태 확인
@@ -377,7 +381,7 @@ export function CanvasPanel({ connected }: { connected: boolean }) {
           disabled={!connected || busy || !visible}
           onClick={() => void reset()}
         >
-          초기화
+          캔버스 초기화
         </Button>
       </div>
 
@@ -404,6 +408,7 @@ export function CanvasPanel({ connected }: { connected: boolean }) {
         </label>
       </div>
 
+      <Fold title="화면 만들기와 점검">
       <Fold title="JavaScript 실행">
         <Textarea
           rows={4}
@@ -417,13 +422,15 @@ export function CanvasPanel({ connected }: { connected: boolean }) {
           실행
         </Button>
         {state.evaluation !== null ? (
-          <pre className="max-h-40 min-w-0 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/40 p-2 font-mono text-[10px]">
-            {state.evaluation || "빈 문자열"}
-          </pre>
+          <section className="min-w-0" aria-label="JavaScript 실행 결과">
+            <pre className="max-h-40 min-w-0 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/40 p-2 font-mono text-[10px]">
+              {state.evaluation || "빈 문자열"}
+            </pre>
+          </section>
         ) : null}
       </Fold>
 
-      <Fold title="선언형 화면 (A2UI)">
+      <Fold title="선언형 UI">
         <Textarea
           rows={5}
           spellCheck={false}
@@ -441,6 +448,7 @@ export function CanvasPanel({ connected }: { connected: boolean }) {
             {JSON.stringify(pane.result?.actionEvents, null, 2)}
           </pre>
         ) : null}
+      </Fold>
       </Fold>
     </Panel>
   );
@@ -463,9 +471,11 @@ export function SessionPanel({ connected }: { connected: boolean }) {
   return (
     <Panel
       footer={
-        <Button variant="outline" size="sm" disabled={!connected || !!state.pending.list} onClick={state.refresh}>
-          다시 조회
-        </Button>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" disabled={!connected || !!state.pending.list} onClick={state.refresh}>
+            다시 조회
+          </Button>
+        </div>
       }
     >
       {state.error ? <Note tone="error">{state.error}</Note> : null}
@@ -499,7 +509,7 @@ export function SessionPanel({ connected }: { connected: boolean }) {
                 disabled={!!state.pending.message}
                 onClick={() => navigate(text(selected.scope) === "coding" ? "build" : "ask", { conversationId: state.selected })}
               >
-                이어서 하기
+                이 작업에서 계속하기
               </Button>
             ) : null}
           </div>
@@ -514,7 +524,7 @@ export function SessionPanel({ connected }: { connected: boolean }) {
             ))}
           </ul>
           {state.history.truncated === true ? <Note>최근 메시지만 보여 줍니다.</Note> : null}
-          <Fold title="이 작업에 메시지 남기기">
+          <Fold title="메시지 남기기">
             <Textarea
               rows={3}
               className="text-xs"
@@ -523,13 +533,13 @@ export function SessionPanel({ connected }: { connected: boolean }) {
               onChange={(event) => useSessionExplore.setState({ message: event.target.value })}
             />
             <Button variant="primary" size="sm" disabled={!connected || !!state.pending.message || !state.message.trim()} onClick={state.append}>
-              {state.pending.message ? "저장 중" : "남기기"}
+              {state.pending.message ? "저장 중" : "메시지 남기기"}
             </Button>
           </Fold>
         </section>
       ) : null}
 
-      <Fold title="새 에이전트 작업 맡기기">
+      <Fold title="새 에이전트 작업">
         <Textarea
           rows={4}
           className="text-xs"
@@ -537,6 +547,7 @@ export function SessionPanel({ connected }: { connected: boolean }) {
           value={state.task}
           onChange={(event) => useSessionExplore.setState({ task: event.target.value })}
         />
+        <Fold title="이름과 실행 설정">
         <div className="grid min-w-0 gap-2 sm:grid-cols-2">
           <label className="block min-w-0 space-y-1">
             <Label>작업 이름</Label>
@@ -569,6 +580,7 @@ export function SessionPanel({ connected }: { connected: boolean }) {
             />
           </label>
         </div>
+        </Fold>
         <label className="flex min-w-0 items-center gap-2 text-[11px]">
           <input type="checkbox" checked={state.thread} onChange={(event) => useSessionExplore.setState({ thread: event.target.checked })} />
           작업 문맥 이어 쓰기

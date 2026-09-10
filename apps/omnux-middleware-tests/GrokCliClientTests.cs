@@ -72,4 +72,22 @@ public sealed class GrokCliClientTests
         Assert.Equal("모의 응답", await client.GenerateTextAsync("요청 `문자열` $()", "grok-4.6", CancellationToken.None));
         Assert.False(Directory.Exists(temporaryDirectory));
     }
+
+    [Fact]
+    public async Task LogoutReportsSignedOutWithoutCallingAModel()
+    {
+        var seen = new List<string>();
+        using var client = new GrokCliClient("test-cli", (info, _, _) =>
+        {
+            seen.AddRange(info.ArgumentList);
+            Assert.Contains("logout", info.ArgumentList);
+            Assert.DoesNotContain("--prompt-file", info.ArgumentList);
+            Assert.DoesNotContain("--model", info.ArgumentList);
+            return Task.FromResult(new GrokCliProcessResult(0, "", ""));
+        });
+        Assert.True(await client.LogoutAsync(CancellationToken.None));
+        Assert.Equal("signed_out", client.LoginStatus.Mode);
+        Assert.False(client.LoginStatus.Authenticated);
+        Assert.Contains("logout", seen);
+    }
 }

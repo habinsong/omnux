@@ -79,9 +79,9 @@ public sealed class ChatRetryGuardPolicyTests
     }
 
     [Theory]
-    [InlineData("찾아봐", true)]
-    [InlineData("검색해줘", true)]
     [InlineData("look it up", true)]
+    [InlineData("search it", true)]
+    [InlineData("look up", true)]
     [InlineData("일반적인 긴 질문인데 약간 더 긴 문장이라서 vague 분류를 받지 않는다", false)]
     [InlineData("", false)]
     [InlineData(null, false)]
@@ -92,9 +92,9 @@ public sealed class ChatRetryGuardPolicyTests
 
     [Theory]
     [InlineData("", 4096)]
-    [InlineData("자세히 설명해줘", 4096)]
-    [InlineData("non-expert를 위한 가이드", 4096)]
-    [InlineData("요약해줘", 2048)]
+    [InlineData("explain this in detail", 4096)]
+    [InlineData("non-expert guide", 4096)]
+    [InlineData("summarize this", 2048)]
     [InlineData("compare A and B", 2048)]
     [InlineData("뭔가 평범한 짧은 질문", 3072)]
     public void ResolveSingleChatMaxOutputTokensReturnsExpectedBucket(string input, int expected)

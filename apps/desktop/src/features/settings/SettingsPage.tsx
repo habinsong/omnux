@@ -123,17 +123,17 @@ export function SettingsPage() {
         label: "모델·키",
         icon: Cpu,
         items: [
-          { key: "models-priority", label: "우선순위", render: () => <ModelPriorityCard onError={recordCardError} /> },
+          { key: "models-select", label: "모델 선택", render: () => <LlmModelSelectCard store={store} canRequest={connected} onError={recordCardError} /> },
           { key: "models-keys", label: "연동 키", render: () => <LlmKeysCard canRequest={connected} onError={recordCardError} /> },
           { key: "models-cli", label: "CLI 인증", render: () => <CliAuthCard store={store} canRequest={connected} onError={recordCardError} /> },
-          { key: "models-select", label: "모델 선택", render: () => <LlmModelSelectCard store={store} canRequest={connected} onError={recordCardError} /> },
+          { key: "models-priority", label: "우선순위", render: () => <ModelPriorityCard onError={recordCardError} /> },
           { key: "models-cerebras", label: "Cerebras", render: () => <CerebrasCard store={store} canRequest={connected} onError={recordCardError} /> },
           { key: "models-usage", label: "사용량", render: () => <LlmUsageCard store={store} onError={recordCardError} /> }
         ]
       },
       {
         key: "memory",
-        label: "메모리·백업",
+        label: "메모리",
         icon: Database,
         items: [
           { key: "memory-notes", label: "메모리 노트", render: () => <MemoryNotesCard store={store} canRequest={authorized} onError={recordCardError} /> },
@@ -155,7 +155,8 @@ export function SettingsPage() {
     [bridgeStatus, authStatus, authorized, connected, store, recordCardError]
   );
 
-  const [itemKey, setItemKey] = useState("models-keys");
+  const [itemKey, setItemKey] = useState("models-select");
+  const bodyRef = useRef<HTMLDivElement>(null);
   const flat = groups.flatMap((group) => group.items.map((item) => ({ ...item, groupKey: group.key })));
   const item = flat.find((entry) => entry.key === itemKey) || flat[0];
   const group = groups.find((entry) => entry.key === item.groupKey) || groups[0];
@@ -183,7 +184,10 @@ export function SettingsPage() {
         value={group.key}
         onChange={(id) => {
           const next = groups.find((entry) => entry.key === id);
-          if (next) setItemKey(next.items[0].key);
+          if (next) {
+            setItemKey(next.items[0].key);
+            bodyRef.current?.scrollTo({ top: 0 });
+          }
         }}
         label="설정 갈래"
       />
@@ -200,7 +204,12 @@ export function SettingsPage() {
               type="button"
               role="tab"
               aria-selected={entry.key === item.key}
-              onClick={() => setItemKey(entry.key)}
+              onClick={() => {
+                setItemKey(entry.key);
+                window.requestAnimationFrame(() => {
+                  document.getElementById(`settings-item-${entry.key}`)?.scrollIntoView({ block: "nearest" });
+                });
+              }}
               className={cn(
                 "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60",
                 entry.key === item.key ? "bg-primary/12 text-primary" : "text-muted-foreground hover:bg-accent"
@@ -212,9 +221,15 @@ export function SettingsPage() {
         </div>
       ) : null}
 
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-          <div className="min-w-0 p-3">{item.render()}</div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-card">
+        <div ref={bodyRef} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="min-w-0 space-y-6 p-3 pb-8">
+            {group.items.map((entry) => (
+              <div key={entry.key} id={`settings-item-${entry.key}`} className="scroll-mt-2">
+                {entry.render()}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </Screen>

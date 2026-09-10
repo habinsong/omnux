@@ -7,18 +7,18 @@ public sealed class SearchPromptPolicyTests
     [Fact]
     public void BuildWebNeedDecisionPromptRequiresJsonOnlyDecision()
     {
-        var prompt = SearchPromptPolicy.BuildWebNeedDecisionPrompt("오늘 NVIDIA 뉴스 알려줘");
+        var prompt = SearchPromptPolicy.BuildWebNeedDecisionPrompt("today NVIDIA news");
 
         Assert.Contains("JSON 한 줄만 출력", prompt);
         Assert.Contains("\"need_web\":true|false", prompt);
-        Assert.Contains("오늘 NVIDIA 뉴스 알려줘", prompt);
+        Assert.Contains("today NVIDIA news", prompt);
     }
 
     [Fact]
     public void BuildGeminiWebAnswerPromptIncludesSourceFocusAndTableRules()
     {
         var prompt = SearchPromptPolicy.BuildGeminiWebAnswerPrompt(
-            "CNN 주요 뉴스 표로 6건",
+            "CNN news table 6 items",
             "",
             selfDecideNeedWeb: false,
             allowMarkdownTable: true,
@@ -57,9 +57,9 @@ public sealed class SearchPromptPolicyTests
     }
 
     [Theory]
-    [InlineData("오늘 뉴스 알려줘", 10, 5, 1280)]
-    [InlineData("오늘 뉴스 8건 알려줘", 10, 5, 1280)]
-    [InlineData("표로 길게 비교해줘 abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstuvwxyz", 10, 5, 1280)]
+    [InlineData("today news", 10, 5, 1280)]
+    [InlineData("today news 8 items", 10, 5, 1280)]
+    [InlineData("compare in a table abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstuvwxyz abcdefghijklmnopqrstuvwxyz", 10, 5, 1280)]
     public void ResolveGeminiWebAnswerMaxOutputTokensUsesModeAndCount(
         string input,
         int newsDefault,
@@ -71,8 +71,8 @@ public sealed class SearchPromptPolicyTests
     }
 
     [Theory]
-    [InlineData("일반 URL 설명", 10, 5, 2048)]
-    [InlineData("URL 내용 8건 목록", 10, 5, 4096)]
+    [InlineData("plain URL description", 10, 5, 2048)]
+    [InlineData("URL contents 8 items list", 10, 5, 4096)]
     public void ResolveGeminiUrlContextMaxOutputTokensUsesLargerBudgetForStructuredAnswers(
         string input,
         int newsDefault,

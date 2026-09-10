@@ -225,8 +225,18 @@ export function formatDateTime(value: string): string {
   });
 }
 
-/** 언제 기준의 값인지 한 줄로. 연결이 끊겼으면 그 사실을 앞에 둔다. */
-export function describeFreshness(updatedAt: string, connected: boolean): string {
+/** 끊겼다가 다시 붙으면 이전 스냅샷을 현재 값처럼 두지 않는다. 조회 중인 칸은 그대로 둔다. */
+export function shouldReloadOnReconnect(
+  connected: boolean,
+  wasConnected: boolean,
+  status: LoadStatus
+): boolean {
+  return connected && !wasConnected && status !== "loading";
+}
+
+/** 언제 기준의 값인지 한 줄로. 조회 중이면 본문 스피너와 같은 말을 쓴다. */
+export function describeFreshness(updatedAt: string, connected: boolean, status: LoadStatus = "idle"): string {
+  if (status === "loading") return "조회 중";
   if (!updatedAt) return connected ? "아직 조회 전" : "연결 끊김";
   const at = formatDateTime(updatedAt);
   return connected ? `${at} 기준` : `연결 끊김 · ${at} 기준 이전 값`;

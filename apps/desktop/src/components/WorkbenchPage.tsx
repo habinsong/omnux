@@ -37,7 +37,7 @@ export function WorkbenchSection({ title, description, icon: Icon, summary, defa
   const [expanded, setExpanded] = useState(defaultOpen);
   const open = controlledOpen ?? expanded;
   return (
-    <section className="min-w-0 rounded-2xl border border-border bg-card/60">
+    <section className="min-w-0 rounded-md border border-border bg-card">
       <h2>
         <button
           type="button"
@@ -47,7 +47,7 @@ export function WorkbenchSection({ title, description, icon: Icon, summary, defa
             setExpanded(!open);
             onOpenChange?.(!open);
           }}
-          className="flex w-full min-w-0 items-center gap-3 rounded-2xl px-4 py-4 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-5 motion-reduce:transition-none"
+          className="flex w-full min-w-0 items-center gap-3 rounded-md px-4 py-4 text-left transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-5 motion-reduce:transition-none"
         >
           {Icon ? <Icon size={18} className="shrink-0 text-muted-foreground" aria-hidden="true" /> : null}
           <span className="min-w-0 flex-1">

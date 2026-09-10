@@ -55,7 +55,7 @@ function PanelRow({ panel, open, onToggle }: { panel: ScreenPanel; open: boolean
   return (
     <section
       className={cn(
-        "flex min-w-0 flex-col overflow-hidden rounded-xl border bg-card",
+        "flex min-w-0 flex-col overflow-hidden rounded-md border bg-card",
         open ? "min-h-0 flex-1" : "shrink-0",
         panel.alert ? "border-destructive/40" : "border-border"
       )}

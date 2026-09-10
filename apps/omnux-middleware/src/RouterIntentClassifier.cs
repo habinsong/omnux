@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace Omnux.Middleware;
 
 internal static class RouterIntentClassifier
@@ -41,14 +43,14 @@ internal static class RouterIntentClassifier
 
         if (normalized.StartsWith("/metrics", StringComparison.Ordinal)
             || normalized.Contains("status", StringComparison.Ordinal)
-            || normalized.Contains("로그", StringComparison.Ordinal))
+            || Regex.IsMatch(normalized, @"\blogs?\b", RegexOptions.CultureInvariant))
         {
             return RouterIntent.QuerySystem;
         }
 
         if (normalized.StartsWith("/code ", StringComparison.Ordinal)
             || normalized.Contains("script", StringComparison.Ordinal)
-            || normalized.Contains("파이썬", StringComparison.Ordinal))
+            || normalized.Contains("python", StringComparison.Ordinal))
         {
             return RouterIntent.DynamicCode;
         }

@@ -443,36 +443,8 @@ public sealed partial class CodingApplicationService
             return false;
         }
 
-        var text = (objective ?? string.Empty).ToLowerInvariant();
-        return ContainsAny(
-            text,
-            "직접 실행",
-            "실행해서",
-            "실행해",
-            "실행 시",
-            "실행시",
-            "실행 결과",
-            "실행결과",
-            "실행 후",
-            "실행후",
-            "run ",
-            "run해",
-            "동작 확인",
-            "동작하게",
-            "출력하는지",
-            "출력하게",
-            "출력되게",
-            "출력까지",
-            "검증해",
-            "검증해줘",
-            "확인해",
-            "확인해줘",
-            "검증까지",
-            "테스트까지",
-            "stdout",
-            "표준 출력",
-            "when run"
-        );
+        return CodingExpectedOutputPolicy.LooksLikeStdoutVerificationRequest(objective)
+               || CodingTaskSignalPolicy.LooksLikeProgramRunRequest(objective);
     }
 
     private static IReadOnlyList<string> CollectWorkspaceMaterializedFiles(string workspaceRoot)

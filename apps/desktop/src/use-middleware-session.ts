@@ -100,7 +100,7 @@ function handleServerMessage(message: ServerMessage) {
   }
 
   if (message.type === "otp_request_result") {
-    authStore.markOtpRequestResult(booleanValue(message.ok), stringValue(message.message) || "OTP 요청 결과를 받았다.");
+    authStore.markOtpRequestResult(booleanValue(message.ok), stringValue(message.message) || "로그인 코드를 보냈습니다");
     return;
   }
 
@@ -143,9 +143,9 @@ function handleServerMessage(message: ServerMessage) {
   }
 
   if (message.type === "error") {
-    const rawText = stringValue(message.message) || "미들웨어 WS 오류";
+    const rawText = stringValue(message.message) || "서버 오류";
     if (rawText.toLowerCase().includes("unauthorized")) {
-      authStore.markUnauthorized("세션 인증이 만료되었다. OTP 인증 후 다시 시도할 수 있다.");
+      authStore.markUnauthorized("로그인이 만료되었습니다. 다시 로그인해 주세요.");
       return;
     }
     const text = formatServerErrorMessage(message, rawText);
@@ -165,7 +165,7 @@ export function requestDesktopOtp() {
 export function submitDesktopOtp(otp: string, authTtlHours = 24) {
   const code = otp.trim();
   if (!code) {
-    useDesktopShellStore.getState().markBridgeStatus("error", "OTP 6자리를 입력해야 한다.");
+    useDesktopShellStore.getState().markBridgeStatus("error", "OTP 6자리를 입력해 주세요.");
     return;
   }
 
@@ -176,13 +176,13 @@ export function requestDesktopDoctorLast() {
   const auth = useDesktopAuthStore.getState().auth;
   const opsStore = useOpsPageStore.getState();
   if (auth.status !== "authenticated") {
-    opsStore.markDoctorError("인증 후 Doctor 보고서를 조회할 수 있다.");
+    opsStore.markDoctorError("로그인한 뒤에 진단 결과를 볼 수 있습니다.");
     return;
   }
 
   opsStore.markDoctorLoading();
   if (!requestDesktopOps.doctorLast()) {
-    opsStore.markDoctorError("Doctor 조회 요청을 전송하지 못했다.");
+    opsStore.markDoctorError("진단 결과를 불러오지 못했습니다.");
   }
 }
 
@@ -190,7 +190,7 @@ export function requestDesktopOpsSnapshot() {
   const auth = useDesktopAuthStore.getState().auth;
   const opsStore = useOpsPageStore.getState();
   if (auth.status !== "authenticated") {
-    opsStore.markOpsError("인증 후 운영 목록을 조회할 수 있다.");
+    opsStore.markOpsError("로그인한 뒤에 운영 목록을 볼 수 있습니다.");
     return;
   }
 
@@ -198,7 +198,7 @@ export function requestDesktopOpsSnapshot() {
   const planSent = requestDesktopOps.planList();
   const taskSent = requestDesktopOps.taskGraphList();
   if (!planSent || !taskSent) {
-    opsStore.markOpsError("운영 목록 조회 요청을 전송하지 못했다.");
+    opsStore.markOpsError("운영 목록을 불러오지 못했습니다.");
   }
 }
 
@@ -228,7 +228,7 @@ export function useMiddlewareSessionBridge() {
       if (reconnectAttempts >= DESKTOP_RECONNECT_POLICY.maxAttempts) {
         useDesktopShellStore.getState().markBridgeStatus(
           "error",
-          `데스크톱 WS 세션 브릿지 재연결 한도를 초과했다 (${wsUrl})`
+          `서버에 다시 연결하지 못했습니다 (${wsUrl})`
         );
         return;
       }
@@ -263,7 +263,7 @@ export function useMiddlewareSessionBridge() {
         if (!disposed && sessionSocket === socket) {
           reconnectAttempts = 0;
           useDesktopAuthStore.getState().markSessionPending();
-          useDesktopShellStore.getState().markBridgeStatus("connected", `데스크톱 WS 세션 브릿지 연결됨 (${wsUrl})`);
+          useDesktopShellStore.getState().markBridgeStatus("connected", `서버에 연결됨 (${wsUrl})`);
         }
       });
 
@@ -277,7 +277,7 @@ export function useMiddlewareSessionBridge() {
         } catch (error) {
           useDesktopShellStore.getState().markBridgeStatus(
             "error",
-            error instanceof Error ? error.message : "미들웨어 WS 메시지 파싱 실패"
+            error instanceof Error ? error.message : "서버 응답을 읽지 못했습니다"
           );
         }
       });

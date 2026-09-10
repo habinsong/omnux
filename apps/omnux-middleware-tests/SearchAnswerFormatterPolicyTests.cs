@@ -116,7 +116,7 @@ public sealed class SearchAnswerFormatterPolicyTests
     public void EnsureReadableWebAnswerKeepsRawComparisonWhenInputAsksForComparison()
     {
         var raw = "옵션 A는 빠르다. 옵션 B는 안정적이다.";
-        var normalized = SearchAnswerFormatterPolicy.EnsureReadableWebAnswerResponse(raw, "두 옵션 비교해줘", allowMarkdownTable: false);
+        var normalized = SearchAnswerFormatterPolicy.EnsureReadableWebAnswerResponse(raw, "compare the two options", allowMarkdownTable: false);
 
         Assert.Contains("옵션 A", normalized);
         Assert.Contains("옵션 B", normalized);
@@ -129,7 +129,7 @@ public sealed class SearchAnswerFormatterPolicyTests
             제목 | 요약 | 출처
             기사1 | 본문1 | Reuters
             """;
-        var normalized = SearchAnswerFormatterPolicy.EnsureReadableWebAnswerResponse(raw, "표로 보여줘", allowMarkdownTable: false);
+        var normalized = SearchAnswerFormatterPolicy.EnsureReadableWebAnswerResponse(raw, "show as a table", allowMarkdownTable: false);
 
         Assert.DoesNotContain("|---|", normalized);
     }

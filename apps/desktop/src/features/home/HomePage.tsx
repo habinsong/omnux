@@ -1,18 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ChevronUp,
+  ClipboardList,
   FolderGit2,
+  Hammer,
   History,
   Inbox,
   MessageSquare
 } from "lucide-react";
 import { useDesktopShellStore } from "../../shell-store";
 import { useDesktopAuthStore } from "../auth/auth-store";
-import { useUiLogStore, type ShellLogEntry } from "../ui-log/ui-log-store";
 import { useDesktopNavigationStore } from "../shell/navigation-store";
 import type { DesktopPageId } from "../shell/DesktopNavigation";
 import type { DesktopRoutePayload } from "../shell/navigation-store";
 import { useProjectsPageBridge, useProjectsStore, type ProjectItem } from "../projects/projects-store";
+import { useHomeRecentStore, type RecentItem, type RecentKind } from "./home-recent-store";
 import {
   Badge,
   Button,
@@ -25,20 +27,19 @@ import { HeroComposer } from "./HeroComposer";
 type QuickAction = {
   readonly id: string;
   readonly title: string;
-  readonly description: string;
   readonly page: DesktopPageId;
   readonly payload?: DesktopRoutePayload;
 };
 
 const QUICK_ACTION_ROWS: readonly (readonly QuickAction[])[] = [
   [
-    { id: "automate", title: "자동화", description: "반복 작업 연결", page: "automate", payload: { create: true } },
-    { id: "logic", title: "로직", description: "노드로 흐름 만들기", page: "logic" },
-    { id: "skills", title: "스킬", description: "작업 방식 정하기", page: "skills" }
+    { id: "automate", title: "자동화", page: "automate", payload: { create: true } },
+    { id: "logic", title: "로직", page: "logic" },
+    { id: "skills", title: "스킬", page: "skills" }
   ],
   [
-    { id: "planning", title: "계획", description: "목표를 작업으로 나누기", page: "planning" },
-    { id: "notebooks", title: "노트북", description: "기록과 결정 모으기", page: "notebooks" }
+    { id: "planning", title: "계획", page: "planning", payload: { create: true } },
+    { id: "notebooks", title: "노트", page: "notebooks" }
   ]
 ];
 
@@ -49,45 +50,53 @@ function greeting() {
   return "좋은 저녁이에요";
 }
 
-function formatLogTime(value: string) {
-  const parsed = new Date(value || "");
-  if (Number.isNaN(parsed.getTime())) return value || "-";
-  return parsed.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hour12: false });
-}
-
 function formatProjectTime(value: string) {
   const parsed = new Date(value || "");
   if (Number.isNaN(parsed.getTime())) return "등록됨";
   return parsed.toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
-function logTone(level: ShellLogEntry["level"]): "destructive" | "warning" | "success" {
-  if (level === "error") return "destructive";
-  if (level === "warn") return "warning";
-  return "success";
+function formatRecentTime(value: string) {
+  const parsed = new Date(value || "");
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+const KIND_LABEL: Record<RecentKind, string> = { ask: "질문", build: "빌드", plan: "작업" };
+const KIND_ICON: Record<RecentKind, typeof MessageSquare> = { ask: MessageSquare, build: Hammer, plan: ClipboardList };
+
+function recentPayload(item: RecentItem): DesktopRoutePayload {
+  if (item.kind === "plan") return { planId: item.id };
+  return {
+    conversationId: item.id,
+    ...(item.mode ? { mode: item.mode } : {}),
+    ...(item.project && item.project !== "기본" ? { projectName: item.project } : {})
+  };
 }
 
 /* ============================ 아래쪽 이어서/프로젝트 드로어 ============================ */
 
 function ContinueProjectsDrawer({
-  recentLogs,
+  recentItems,
   projects,
   onActivity,
   onProjects,
-  onOpenProject
+  onOpenProject,
+  onOpenRecent
 }: {
-  recentLogs: ShellLogEntry[];
+  recentItems: RecentItem[];
   projects: ProjectItem[];
   onActivity: () => void;
   onProjects: () => void;
   onOpenProject: (project: ProjectItem) => void;
+  onOpenRecent: (item: RecentItem) => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="flex shrink-0 justify-center px-4">
       <div
         className={cn(
-          "w-full max-w-[1080px] overflow-hidden rounded-t-2xl border border-border bg-card/85 shadow-[var(--shadow-card)] backdrop-blur-xl transition-[max-height] duration-300 ease-out",
+          "w-full overflow-hidden rounded-t-md border border-border bg-card transition-[max-height] duration-200 ease-out",
           open ? "max-h-[62vh]" : "max-h-[3.25rem]"
         )}
       >
@@ -100,9 +109,9 @@ function ContinueProjectsDrawer({
               <FolderGit2 size={15} className="text-primary" aria-hidden="true" /> 활성 프로젝트
             </span>
           </button>
-          <button type="button" onClick={onActivity} className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-foreground">모든 활동 보기</button>
-          <span className="text-border" aria-hidden="true">·</span>
-          <button type="button" onClick={onProjects} className="shrink-0 text-xs text-muted-foreground transition-colors hover:text-foreground">전체 보기</button>
+          <button type="button" onClick={onActivity} className="hidden shrink-0 text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline">활동</button>
+          <span className="hidden text-border sm:inline" aria-hidden="true">·</span>
+          <button type="button" onClick={onProjects} className="hidden shrink-0 text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline">프로젝트</button>
           <button
             type="button"
             onClick={() => setOpen((value) => !value)}
@@ -116,25 +125,31 @@ function ContinueProjectsDrawer({
         <div className="grid max-h-[calc(62vh-3.25rem)] grid-cols-1 gap-4 overflow-y-auto border-t border-border px-4 pb-4 pt-3 lg:grid-cols-2">
           <div className="min-w-0 space-y-1">
             <SectionLabel className="px-1 pb-1">이어서 작업하기</SectionLabel>
-            {recentLogs.map((log) => (
-              <button
-                key={log.id}
-                type="button"
-                onClick={onActivity}
-                className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors duration-200 hover:bg-accent"
-              >
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                  <MessageSquare size={15} aria-hidden="true" />
-                </span>
-                <span className="flex min-w-0 flex-col">
-                  <span className="truncate text-sm font-medium">{log.message}</span>
-                  <span className="truncate text-[11px] text-muted-foreground">{log.source} · {formatLogTime(log.createdAt)}</span>
-                </span>
-                <Badge tone={logTone(log.level)} className="ml-auto shrink-0">{log.level}</Badge>
-              </button>
-            ))}
-            {recentLogs.length === 0 ? (
-              <EmptyState icon={Inbox} title="아직 실행 기록이 없습니다" description="질문하거나 빌드를 실행하면 여기에 활동이 쌓입니다." />
+            {recentItems.map((item) => {
+              const Icon = KIND_ICON[item.kind];
+              return (
+                <button
+                  key={`${item.kind}-${item.id}`}
+                  type="button"
+                  onClick={() => onOpenRecent(item)}
+                  className="flex w-full items-center gap-3 rounded-md px-2 py-2 text-left transition-colors duration-200 hover:bg-accent"
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                    <Icon size={15} aria-hidden="true" />
+                  </span>
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate text-sm font-medium">{item.title}</span>
+                    <span className="truncate text-[11px] text-muted-foreground">
+                      {KIND_LABEL[item.kind]}
+                      {item.preview ? ` · ${item.preview}` : ""}
+                    </span>
+                  </span>
+                  <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">{formatRecentTime(item.updatedUtc)}</span>
+                </button>
+              );
+            })}
+            {recentItems.length === 0 ? (
+              <EmptyState icon={Inbox} title="아직 이어서 할 일이 없습니다" description="질문하거나 만들고 나면 그 자리가 여기에 남습니다." />
             ) : null}
           </div>
 
@@ -187,7 +202,8 @@ export function HomePage() {
   const navigate = useDesktopNavigationStore((state) => state.setActivePage);
   const bridgeStatus = useDesktopShellStore((state) => state.bridge.status);
   const authStatus = useDesktopAuthStore((state) => state.auth.status);
-  const logs = useUiLogStore((state) => state.logs);
+  const recentItems = useHomeRecentStore((state) => state.items);
+  const loadRecent = useHomeRecentStore((state) => state.load);
   const projects = useProjectsStore((state) => state.projects);
   const projectsLoading = useProjectsStore((state) => state.loading);
   const loadProjects = useProjectsStore((state) => state.loadProjects);
@@ -200,11 +216,17 @@ export function HomePage() {
     }
   }, [canRequest, loadProjects, projects.length, projectsLoading]);
 
-  const recentLogs = useMemo(() => logs.slice(0, 6), [logs]);
+  useEffect(() => {
+    if (canRequest) loadRecent();
+  }, [canRequest, loadRecent]);
 
   const openProject = (project: ProjectItem) => {
     touchProject(project);
     navigate("build", { projectKey: project.projectKey, projectName: project.name, projectPath: project.path });
+  };
+
+  const openRecent = (item: RecentItem) => {
+    navigate(item.kind === "ask" ? "ask" : item.kind === "build" ? "build" : "planning", recentPayload(item));
   };
 
   return (
@@ -214,7 +236,7 @@ export function HomePage() {
         <div className="my-auto w-full max-w-2xl space-y-6 xl:max-w-3xl xl:space-y-8">
         <section className="space-y-4 text-center">
           <h1 className="text-3xl font-semibold tracking-tight xl:text-4xl">
-            {greeting()}, habinsong
+            {greeting()}
           </h1>
           <HeroComposer />
         </section>
@@ -223,19 +245,15 @@ export function HomePage() {
 
           <div className="flex w-full flex-col items-center gap-2.5">
             {QUICK_ACTION_ROWS.map((row, rowIndex) => (
-              <div key={`quick-action-row-${rowIndex}`} className="flex flex-row flex-wrap justify-center gap-2.5">
+              <div key={`quick-action-row-${rowIndex}`} className="flex flex-row flex-wrap justify-center gap-2">
                 {row.map((item) => (
                     <button
                       key={item.id}
                       type="button"
                       onClick={() => navigate(item.page, item.payload || null)}
-                      className="group flex h-10 w-fit max-w-full min-w-0 items-center justify-center gap-2 rounded-full border border-border bg-card/60 px-3 text-center text-sm leading-none shadow-sm transition-all duration-300 hover:bg-card hover:scale-[1.03] hover:shadow-lg hover:text-[#6D5EF7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 dark:bg-white/8 dark:hover:bg-card"
+                      className="flex h-8 w-fit max-w-full min-w-0 items-center justify-center rounded-full px-3 text-sm leading-none text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
                     >
-                      <span className="flex min-w-0 items-center gap-1.5">
-                        <b className="shrink-0 font-semibold">{item.title}</b>
-                        <span className="shrink-0 text-muted-foreground transition-colors group-hover:text-[#6D5EF7]" aria-hidden="true">·</span>
-                        <span className="truncate text-muted-foreground transition-colors group-hover:text-[#6D5EF7]">{item.description}</span>
-                      </span>
+                      <span className="font-medium">{item.title}</span>
                     </button>
                 ))}
               </div>
@@ -247,11 +265,12 @@ export function HomePage() {
 
       {/* 아래쪽 peek 드로어 — 클릭하면 위로 슬라이드 */}
       <ContinueProjectsDrawer
-        recentLogs={recentLogs}
+        recentItems={recentItems}
         projects={projects}
         onActivity={() => navigate("activity")}
         onProjects={() => navigate("projects")}
         onOpenProject={openProject}
+        onOpenRecent={openRecent}
       />
 
     </div>

@@ -1,10 +1,12 @@
 import { useRef } from "react";
 import { useAskStore } from "../ask/ask-store";
 import { filesToVisionAttachments } from "../ask/ask-vision";
+import { useDesktopNavigationStore } from "../shell/navigation-store";
 import { ChatReferencePicker } from "./ChatReferencePicker";
 
 export function ChatResources({ canRequest }: { canRequest: boolean }) {
   const state = useAskStore();
+  const navigate = useDesktopNavigationStore((s) => s.setActivePage);
   const images = useRef<HTMLInputElement>(null);
   const busy = !canRequest || state.pending;
   return <div className="chat-fields">
@@ -47,6 +49,9 @@ export function ChatResources({ canRequest }: { canRequest: boolean }) {
         {!!state.visionFiles.length && <div><button className="chat-button" onClick={state.clearVisionPreflight}>점검 이미지 지우기</button></div>}
       </div></details>
       {!!state.conversationContext.compressionEvents.length && <details className="chat-fold"><summary>이전 대화의 요약</summary>{state.conversationContext.compressionEvents.map((entry, index) => <p key={index} className="chat-plain">{entry.preview}</p>)}</details>}
-      <details className="chat-fold"><summary>작성한 질문으로 작업 시작</summary><div className="chat-actions"><button className="chat-button" disabled={!state.input.trim()} onClick={state.createPlanFromInput}>작업으로 가져가기</button><button className="chat-button" disabled={!state.input.trim()} onClick={state.saveInputAsRoutine}>자동화로 가져가기</button></div></details>
+      <details className="chat-fold"><summary>작성한 질문으로 작업 시작</summary><div className="chat-actions"><button className="chat-button" disabled={!state.input.trim()} onClick={state.createPlanFromInput}>작업으로 가져가기</button><button className="chat-button" disabled={!state.input.trim()} onClick={state.saveInputAsRoutine}>자동화로 가져가기</button><button className="chat-button" disabled={!state.input.trim()} onClick={() => {
+        const project = state.metaDraft.project.trim();
+        navigate("build", { input: state.input, mode: state.chatMode, ...(project && project !== "기본" ? { projectName: project } : {}) });
+      }}>빌드로 가져가기</button></div></details>
   </div>;
 }

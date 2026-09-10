@@ -1539,8 +1539,8 @@ public sealed partial class CodingApplicationService
         }
 
         var normalizedInput = (contextualInput ?? string.Empty).ToLowerInvariant();
-        var uiHeavy = ContainsAny(normalizedInput, "ui", "ux", "layout", "frontend", "html", "css", "컴포넌트", "화면");
-        var reviewHeavy = ContainsAny(normalizedInput, "bug", "error", "fix", "debug", "test", "회귀", "검증", "오류", "테스트");
+        var uiHeavy = CodingTaskSignalPolicy.LooksLikeUiHeavy(normalizedInput);
+        var reviewHeavy = CodingTaskSignalPolicy.LooksLikeReviewHeavy(normalizedInput);
         var copilotPinned = modelByProvider.TryGetValue("copilot", out var copilotModel)
             && ProviderModelSelectionPolicy.IsPinnedCopilotModel("copilot", copilotModel, DefaultCopilotModel);
         var resolved = new Dictionary<string, string>(defaults, StringComparer.OrdinalIgnoreCase);

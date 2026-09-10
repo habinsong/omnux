@@ -7,7 +7,7 @@ const directory = path.join(root, "apps/desktop/src/features/automation-workspac
 const files = readdirSync(directory).filter(file => /\.(tsx?|css)$/.test(file));
 for (const file of files) {
   const source = readFileSync(path.join(directory, file), "utf8");
-  assert.doesNotMatch(source, /from\s+["'][^"']*(?:components\/|automate-store|\/automate\/|\/task-workspace\/)/, `${file}: 이전 화면을 재사용하지 않습니다.`);
+  assert.doesNotMatch(source, /from\s+["'][^"']*(?:automate-store|\/automate\/|\/task-workspace\/)/, `${file}: 이전 화면을 재사용하지 않습니다.`);
   assert.doesNotMatch(source, /\b(?:WorkbenchPage|WorkbenchSection|CardBoundary|ResponsivePanels)\b/);
 }
 const app = readFileSync(path.join(root,"apps/desktop/src/App.tsx"),"utf8");

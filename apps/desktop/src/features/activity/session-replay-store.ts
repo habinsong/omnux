@@ -144,7 +144,7 @@ export const useSessionReplayStore = create<SessionReplayState>((set, get) => ({
     const query = get().query;
     const identifiers = [query.conversationId, query.runId, query.agentId, query.groupId].map((value) => value.trim());
     if (!identifiers.some(Boolean)) {
-      set({ lastError: "conversation, run, agent, group 중 하나 이상을 입력하세요." });
+      set({ lastError: "대화·실행·작업자·그룹 중 하나의 ID를 넣으세요." });
       return;
     }
     set({ loading: true, lastError: "" });
@@ -158,7 +158,7 @@ export const useSessionReplayStore = create<SessionReplayState>((set, get) => ({
       includeTelemetry: query.includeTelemetry,
       includeAgentEvents: query.includeAgentEvents
     });
-    if (!ok) set({ loading: false, lastError: "세션 리플레이 요청을 전송하지 못했다." });
+    if (!ok) set({ loading: false, lastError: "기록을 불러오지 못했습니다." });
   },
   clear: () => set({ snapshot: null, lastError: "", loading: false })
 }));

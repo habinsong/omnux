@@ -5,7 +5,7 @@ namespace Omnux.Middleware;
 internal static class CodingExpectedOutputPolicy
 {
     private static readonly Regex OrderedExpectedOutputLineRegex = new(
-        @"(?<label>첫\s*줄|첫째\s*줄|1\s*번째\s*줄|1\s*줄|first\s+line|둘째\s*줄|두\s*번째\s*줄|2\s*번째\s*줄|2\s*줄|second\s+line)[^'""`\r\n]{0,64}['""`](?<value>[^'""`\r\n]{1,200})['""`]",
+        @"(?<label>first\s+line|second\s+line|line\s*[12]|[12](?:st|nd)?\s*line)[^'""`\r\n]{0,64}['""`](?<value>[^'""`\r\n]{1,200})['""`]",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
     );
 
@@ -18,6 +18,7 @@ internal static class CodingExpectedOutputPolicy
         }
 
         var lineOrdered = new SortedDictionary<int, string>();
+        var appearance = new List<string>();
         foreach (var rawLine in text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n'))
         {
             var line = rawLine.Trim();
@@ -32,13 +33,14 @@ internal static class CodingExpectedOutputPolicy
                 continue;
             }
 
+            appearance.Add(quoted[0]);
             var lowered = line.ToLowerInvariant();
-            if (!lineOrdered.ContainsKey(0) && ContainsAny(lowered, "첫 줄", "첫째 줄", "1번째 줄", "1 번째 줄", "first line"))
+            if (!lineOrdered.ContainsKey(0) && IsFirstLineCue(lowered))
             {
                 lineOrdered[0] = quoted[0];
             }
 
-            if (!lineOrdered.ContainsKey(1) && ContainsAny(lowered, "둘째 줄", "두번째 줄", "두 번째 줄", "2번째 줄", "2 번째 줄", "second line"))
+            if (!lineOrdered.ContainsKey(1) && IsSecondLineCue(lowered))
             {
                 lineOrdered[1] = quoted[^1];
             }
@@ -73,6 +75,11 @@ internal static class CodingExpectedOutputPolicy
                 .ToArray();
         }
 
+        if (appearance.Count >= 2)
+        {
+            return appearance.ToArray();
+        }
+
         foreach (var rawLine in text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n'))
         {
             var line = rawLine.Trim();
@@ -81,7 +88,7 @@ internal static class CodingExpectedOutputPolicy
                 continue;
             }
 
-            if (!ContainsAny(line.ToLowerInvariant(), "stdout", "표준 출력", "첫 줄", "둘째 줄", "first line", "second line"))
+            if (!HasStdoutCue(line.ToLowerInvariant()))
             {
                 continue;
             }
@@ -112,7 +119,10 @@ internal static class CodingExpectedOutputPolicy
                 continue;
             }
 
-            if (!ContainsAny(line.ToLowerInvariant(), "보이는 텍스트", "visible text", "innertext"))
+            var lowered = line.ToLowerInvariant();
+            if (!lowered.Contains("visible text", StringComparison.Ordinal)
+                && !lowered.Contains("innertext", StringComparison.Ordinal)
+                && !lowered.Contains("innerhtml", StringComparison.Ordinal))
             {
                 continue;
             }
@@ -129,17 +139,55 @@ internal static class CodingExpectedOutputPolicy
 
     public static int ResolveExpectedOutputLineIndex(string label)
     {
-        var normalized = (label ?? string.Empty).Trim().ToLowerInvariant();
-        return normalized switch
+        var normalized = Regex.Replace((label ?? string.Empty).Trim().ToLowerInvariant(), @"\s+", " ");
+        if (normalized is "first line" or "1st line" or "1 line" or "line 1" or "line1")
         {
-            "첫 줄" or "첫째 줄" or "1번째 줄" or "1 번째 줄" or "1 줄" or "first line" => 0,
-            "둘째 줄" or "두번째 줄" or "두 번째 줄" or "2번째 줄" or "2 번째 줄" or "2 줄" or "second line" => 1,
-            _ => -1
-        };
+            return 0;
+        }
+
+        if (normalized is "second line" or "2nd line" or "2 line" or "line 2" or "line2")
+        {
+            return 1;
+        }
+
+        return -1;
     }
 
-    private static bool ContainsAny(string text, params string[] patterns)
+    private static bool IsFirstLineCue(string lowered)
     {
-        return patterns.Any(pattern => text.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+        return lowered.Contains("first line", StringComparison.Ordinal)
+               || Regex.IsMatch(lowered, @"(?<![0-9])(?:line\s*1|1(?:st)?\s*line)(?![0-9])");
+    }
+
+    private static bool IsSecondLineCue(string lowered)
+    {
+        return lowered.Contains("second line", StringComparison.Ordinal)
+               || Regex.IsMatch(lowered, @"(?<![0-9])(?:line\s*2|2(?:nd)?\s*line)(?![0-9])");
+    }
+
+    public static bool LooksLikeStdoutVerificationRequest(string objective)
+    {
+        if (ExtractExpectedConsoleOutputLines(objective).Count > 0)
+        {
+            return true;
+        }
+
+        var text = CodingLanguagePolicy.ExtractLatestCodingRequestText(objective ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var lowered = text.ToLowerInvariant();
+        return HasStdoutCue(lowered)
+               || Regex.IsMatch(lowered, @"\b(?:run|execute)\b", RegexOptions.CultureInvariant);
+    }
+
+    private static bool HasStdoutCue(string lowered)
+    {
+        return lowered.Contains("stdout", StringComparison.Ordinal)
+               || lowered.Contains("print", StringComparison.Ordinal)
+               || lowered.Contains("echo", StringComparison.Ordinal)
+               || lowered.Contains("console.log", StringComparison.Ordinal);
     }
 }

@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Button, Input, Textarea, cn } from "../../components/ui/primitives";
+import { Button, Input, cn } from "../../components/ui/primitives";
+import { CAPSULE_FIELD, CapsuleCard, Fold } from "../../components/capsule/capsule";
 import { STATIC_MODEL_OPTIONS } from "../ask/model-registry";
 import { statusLabel, type Automation, type AutomationForm } from "./automation-model";
+import { useDesktopNavigationStore } from "../shell/navigation-store";
 import { useAutomationWorkspace } from "./automation-state";
 
 /* ============================================================================
@@ -14,9 +16,9 @@ import { useAutomationWorkspace } from "./automation-state";
 const SELECT =
   "h-8 w-full min-w-0 rounded-md border border-border bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
 
-export function Panel({ children, footer }: { children: React.ReactNode; footer?: React.ReactNode }) {
+export function Panel({ children, footer, ariaLabel }: { children: React.ReactNode; footer?: React.ReactNode; ariaLabel?: string }) {
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card" role={ariaLabel ? "region" : undefined} aria-label={ariaLabel}>
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">{children}</div>
       {footer ? <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 border-t border-border p-2">{footer}</div> : null}
     </div>
@@ -33,23 +35,7 @@ function Note({ tone = "muted", children }: { tone?: "muted" | "warn"; children:
   );
 }
 
-function Fold({ title, children }: { title: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="min-w-0 overflow-hidden rounded-md border border-border">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-        className="flex w-full min-w-0 items-center justify-between gap-2 px-2.5 py-1.5 text-left text-[11px] font-medium outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60"
-      >
-        <span className="min-w-0 truncate">{title}</span>
-        <span aria-hidden="true" className="shrink-0 text-muted-foreground">{open ? "−" : "+"}</span>
-      </button>
-      {open ? <div className="min-w-0 space-y-2 border-t border-border p-2.5">{children}</div> : null}
-    </div>
-  );
-}
+
 
 /* ---------- 목록 ---------- */
 
@@ -59,6 +45,7 @@ export function AutomationListPanel({ connected }: { connected: boolean }) {
 
   return (
     <Panel
+      ariaLabel="저장한 자동화"
       footer={
         <Button variant="outline" size="sm" disabled={!connected || Boolean(state.pending.list)} onClick={state.refresh}>
           다시 조회
@@ -70,6 +57,16 @@ export function AutomationListPanel({ connected }: { connected: boolean }) {
       ) : state.items.length === 0 ? (
         <p className="px-3 py-8 text-center text-xs text-muted-foreground">아직 자동화가 없습니다. 반복할 일을 하나 등록해 보세요.</p>
       ) : (
+        <div className="min-w-0">
+        <label className="block min-w-0 space-y-1 p-3">
+          <Label>자동화 선택</Label>
+          <select className={SELECT} value={state.selectedId} onChange={(event) => event.target.value ? state.select(event.target.value) : useAutomationWorkspace.setState({ selectedId: "", detail: null, selectedTime: null })}>
+            <option value="">선택해 주세요.</option>
+            {state.items.map((entry) => (
+              <option key={entry.id} value={entry.id}>{entry.title || "이름 없는 자동화"}</option>
+            ))}
+          </select>
+        </label>
         <ul className="min-w-0 divide-y divide-border">
           {state.items.map((item) => (
             <li key={item.id} className="flex min-w-0 items-center gap-2">
@@ -100,6 +97,7 @@ export function AutomationListPanel({ connected }: { connected: boolean }) {
             </li>
           ))}
         </ul>
+        </div>
       )}
     </Panel>
   );
@@ -117,6 +115,7 @@ export function AutomationFormPanel({ connected }: { connected: boolean }) {
 
   return (
     <Panel
+      ariaLabel={state.editId ? "자동화 편집" : "자동화 작성"}
       footer={
         <>
           <Button variant="primary" size="sm" disabled={!connected || busy} onClick={state.save}>
@@ -138,14 +137,16 @@ export function AutomationFormPanel({ connected }: { connected: boolean }) {
       <div className="min-w-0 space-y-3 p-3">
         <label className="block min-w-0 space-y-1">
           <Label>자동으로 할 일</Label>
-          <Textarea
-            rows={4}
-            className="text-xs"
-            disabled={busy}
-            value={form.request}
-            placeholder="매일 확인할 내용이나 반복할 작업을 적어 주세요."
-            onChange={(event) => patch({ request: event.target.value })}
-          />
+          <CapsuleCard>
+            <textarea
+              rows={4}
+              className={`${CAPSULE_FIELD} px-3 py-2.5 text-xs`}
+              disabled={busy}
+              value={form.request}
+              placeholder="무엇을 반복할까요?"
+              onChange={(event) => patch({ request: event.target.value })}
+            />
+          </CapsuleCard>
         </label>
 
         <div className="grid min-w-0 gap-2 sm:grid-cols-2">
@@ -185,20 +186,22 @@ export function AutomationFormPanel({ connected }: { connected: boolean }) {
                 const day = (index + 1) % 7;
                 const on = form.weekdays.includes(day);
                 return (
-                  <button
+                  <label
                     key={day}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() =>
-                      patch({ weekdays: on ? form.weekdays.filter((value) => value !== day) : [...form.weekdays, day].sort() })
-                    }
                     className={cn(
-                      "h-7 w-7 rounded-full text-[11px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60",
+                      "inline-flex h-7 items-center gap-1 rounded-full px-2 text-[11px] font-medium",
                       on ? "bg-primary/12 text-primary" : "text-muted-foreground hover:bg-accent"
                     )}
                   >
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={() =>
+                        patch({ weekdays: on ? form.weekdays.filter((value) => value !== day) : [...form.weekdays, day].sort() })
+                      }
+                    />
                     {name}
-                  </button>
+                  </label>
                 );
               })}
             </div>
@@ -305,6 +308,7 @@ export function AutomationFormPanel({ connected }: { connected: boolean }) {
 
 export function AutomationResultPanel({ item, connected }: { item: Automation; connected: boolean }) {
   const state = useAutomationWorkspace();
+  const navigate = useDesktopNavigationStore((value) => value.setActivePage);
   const latest = item.runs[0]?.timestamp;
   const selectedTime = state.selectedTime ?? latest;
   const record = item.runs.find((run) => run.timestamp === selectedTime);
@@ -322,6 +326,7 @@ export function AutomationResultPanel({ item, connected }: { item: Automation; c
 
   return (
     <Panel
+      ariaLabel="선택한 자동화"
       footer={
         <>
           <Button variant="primary" size="sm" disabled={!connected || changing || running} onClick={() => state.run(item)}>
@@ -337,6 +342,30 @@ export function AutomationResultPanel({ item, connected }: { item: Automation; c
       }
     >
       <div className="min-w-0 space-y-3 p-3">
+        <details className="min-w-0 overflow-hidden rounded-md border border-border">
+          <summary className="cursor-pointer list-none px-2.5 py-1.5 text-[11px] font-medium">저장한 자동화</summary>
+          <div className="min-w-0 space-y-2 border-t border-border p-2.5">
+            <label className="block min-w-0 space-y-1">
+              <Label>자동화 선택</Label>
+              <select
+                className={SELECT}
+                value={item.id}
+                onChange={(event) => {
+                  const id = event.target.value;
+                  if (id) state.select(id);
+                  else useAutomationWorkspace.setState({ selectedId: "", detail: null, selectedTime: null });
+                }}
+              >
+                <option value="">목록으로</option>
+                {state.items.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.title || "이름 없는 자동화"}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </details>
         <div className="min-w-0 space-y-0.5">
           <h2 className="min-w-0 truncate text-xs font-semibold">{item.title || "이름 없는 자동화"}</h2>
           <Note>
@@ -360,6 +389,19 @@ export function AutomationResultPanel({ item, connected }: { item: Automation; c
             <div className="markdown-body min-w-0 max-h-80 overflow-auto break-words rounded-md border border-border p-2 text-[11px]">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{detail.content || "저장된 결과가 없습니다."}</ReactMarkdown>
             </div>
+            {detail.content.trim() ? (
+              <div className="flex min-w-0 flex-wrap gap-1.5">
+                <Button variant="outline" size="sm" onClick={() => navigate("ask", { input: detail.content })}>
+                  질문으로 보내기
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => navigate("planning", { input: detail.content, create: true })}>
+                  작업으로 보내기
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => navigate("notebooks", { input: detail.content })}>
+                  노트로 보내기
+                </Button>
+              </div>
+            ) : null}
           </div>
         ) : record && !state.pending.detail ? (
           <div className="min-w-0 space-y-2 rounded-md border border-border p-2">
@@ -375,7 +417,7 @@ export function AutomationResultPanel({ item, connected }: { item: Automation; c
         <Fold title={`이전 실행 기록${item.runs.length ? ` · ${item.runs.length}` : ""}`}>
           {item.runs.length > 0 ? (
             <label className="block min-w-0 space-y-1">
-              <Label>실행 고르기</Label>
+              <Label>실행 선택</Label>
               <select className={SELECT} value={selectedTime ?? ""} disabled={!connected} onChange={(event) => state.read(Number(event.target.value))}>
                 {item.runs.map((run) => (
                   <option key={run.timestamp} value={run.timestamp}>

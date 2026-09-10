@@ -10,6 +10,7 @@ import {
   GripVertical,
   HardDrive,
   Keyboard,
+  Monitor,
   Moon,
   Play,
   Power,
@@ -17,7 +18,6 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
-  Sparkles,
   Star,
   Sun,
   Trash2,
@@ -88,7 +88,7 @@ function MemorySearchResultRow({ result, canRequest, loading, onOpen }: { result
   const lineLabel = result.startLine > 0 ? `L${result.startLine}-${result.endLine || result.startLine}` : "";
   const tier = result.memoryTier || "tier -";
   return (
-    <article className="rounded-md border border-border bg-card/60 px-2.5 py-2">
+    <article className="rounded-md border border-border bg-card px-2.5 py-2">
       <div className="flex items-start justify-between gap-2">
         <span className="min-w-0">
           <span className="block truncate text-xs font-medium">{result.path}</span>
@@ -143,7 +143,7 @@ export function DesktopPreferencesCard({ onError }: { onError: CardErrorHandler 
   const detailLevel = useDesktopPreferenceStore((state) => state.detailLevel);
   const setTheme = useDesktopPreferenceStore((state) => state.setTheme);
   const setDetailLevel = useDesktopPreferenceStore((state) => state.setDetailLevel);
-  const themeIcons: Record<ThemeMode, typeof Sparkles> = { glass: Sparkles, light: Sun, dark: Moon };
+  const themeIcons: Record<ThemeMode, typeof Sun> = { glass: Monitor, light: Sun, dark: Moon };
 
   return (
     <CardBoundary title="앱 표시" card="navigation" onError={onError}>
@@ -162,7 +162,7 @@ export function DesktopPreferencesCard({ onError }: { onError: CardErrorHandler 
                 type="button"
                 onClick={() => setTheme(item)}
                 className={cn(
-                  "flex min-w-0 items-center justify-center gap-1.5 rounded-md border px-2.5 py-2 text-xs font-medium transition-colors duration-200 active:scale-[0.98]",
+                  "flex min-w-0 items-center justify-center gap-1.5 rounded-md border px-2.5 py-2 text-xs font-medium transition-colors duration-200 ",
                   on ? "border-primary/40 bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground hover:bg-accent hover:text-foreground"
                 )}
               >
@@ -244,7 +244,7 @@ export function StartOnLaunchCard({ onError }: { onError: CardErrorHandler }) {
         onClick={() => void toggle()}
         disabled={!launchState.supported || pending || loading}
         className={cn(
-          "flex w-full min-w-0 items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors duration-200 active:scale-[0.98]",
+          "flex w-full min-w-0 items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors duration-200 ",
           effectiveEnabled ? "border-primary/40 bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground hover:bg-accent hover:text-foreground",
           (!launchState.supported || pending || loading) && "cursor-not-allowed opacity-60"
         )}
@@ -289,8 +289,7 @@ export function ModelPriorityCard({ onError }: { onError: CardErrorHandler }) {
     <CardBoundary title="모델 우선순위" card="middleware" onError={onError}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <b className="block text-sm">Provider priority</b>
-          <span className="block truncate text-xs text-muted-foreground">드래그해서 앱 전역 기본 모델 선호 순서를 저장합니다.</span>
+          <span className="block truncate text-xs text-muted-foreground">위에서부터 기본으로 씁니다.</span>
         </div>
         <Button variant="outline" size="sm" onClick={resetPriority}>
           <RotateCcw size={14} aria-hidden="true" /> 기본값
@@ -306,7 +305,7 @@ export function ModelPriorityCard({ onError }: { onError: CardErrorHandler }) {
             onDragOver={(event) => event.preventDefault()}
             onDrop={() => dropOn(provider)}
             className={cn(
-              "grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border bg-card/60 px-2.5 py-2 transition-colors duration-200",
+              "grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-md border bg-card px-2.5 py-2 transition-colors duration-200",
               dragging === provider ? "border-primary/50 bg-primary/10" : "border-border"
             )}
           >
@@ -330,9 +329,7 @@ export function ModelPriorityCard({ onError }: { onError: CardErrorHandler }) {
           </article>
         ))}
       </div>
-      <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-        세부 intent별 provider chain은 `라우팅 정책` 화면에서 override합니다. 이 순서는 Settings와 빠른 기본 선택에 쓰이는 전역 선호도입니다.
-      </p>
+      <p className="text-xs text-muted-foreground">작업별 순서는 라우팅에서 바꿉니다.</p>
     </CardBoundary>
   );
 }
@@ -401,7 +398,7 @@ export function SpeechSettingsCard({ onError }: { onError: CardErrorHandler }) {
           onClick={() => update("autoSpeak", !preferences.autoSpeak)}
           disabled={!supported}
           className={cn(
-            "flex min-w-0 items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors duration-200 active:scale-[0.98]",
+            "flex min-w-0 items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition-colors duration-200 ",
             preferences.autoSpeak ? "border-primary/40 bg-primary/10 text-primary" : "border-border bg-muted/30 text-muted-foreground hover:bg-accent hover:text-foreground"
           )}
         >
@@ -559,7 +556,7 @@ export function ShortcutPreferencesCard({ onError }: { onError: CardErrorHandler
                         type="button"
                         onClick={() => setCapturing(definition.action)}
                         className={cn(
-                          "min-w-[92px] rounded-md border px-2.5 py-1.5 text-center font-mono text-xs transition-colors duration-200 active:scale-[0.98]",
+                          "min-w-[92px] rounded-md border px-2.5 py-1.5 text-center font-mono text-xs transition-colors duration-200 ",
                           isCapturing ? "border-primary bg-primary/10 text-primary" : "border-border bg-card/70 text-foreground hover:bg-accent"
                         )}
                       >
@@ -634,7 +631,7 @@ export function GlobalPermissionsCard({ onError }: { onError: CardErrorHandler }
                     type="button"
                     onClick={() => setDefaultDecision(item.action, decision.decision)}
                     className={cn(
-                      "rounded px-2 py-1 text-xs font-medium transition-colors duration-200 active:scale-[0.98]",
+                      "rounded px-2 py-1 text-xs font-medium transition-colors duration-200 ",
                       on ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:bg-accent hover:text-foreground"
                     )}
                   >
@@ -657,7 +654,7 @@ export function GlobalPermissionsCard({ onError }: { onError: CardErrorHandler }
         {grants.length > 0 ? (
           <div className="max-h-48 space-y-1 overflow-y-auto">
             {grants.map((grant) => (
-              <div key={grant.key} className="grid gap-2 rounded-md border border-border bg-card/60 px-2.5 py-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <div key={grant.key} className="grid gap-2 rounded-md border border-border bg-card px-2.5 py-2 sm:grid-cols-[minmax(0,1fr)_auto]">
                 <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-2">
                     <Badge tone="success" className="shrink-0">{grant.action}</Badge>
@@ -751,20 +748,41 @@ export function DefaultProjectCard({ canRequest, onError }: { canRequest: boolea
 }
 
 export function CerebrasCard({ store, canRequest, onError }: { store: Store; canRequest: boolean; onError: CardErrorHandler }) {
+  const ids = store.cerebrasModels.items.map((item) => item.id).filter(Boolean);
+  const selected = store.cerebrasModels.selected || ids[0] || "";
   return (
     <CardBoundary title="Cerebras 카탈로그" card="middleware" onError={onError}>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <b className="block text-sm">Cerebras</b>
-          <span className="block truncate text-xs text-muted-foreground">현재 설정: {store.cerebrasModels.selected || "-"}</span>
+          <span className="block truncate text-xs text-muted-foreground">현재 설정: {selected || "-"}</span>
         </div>
         <Button variant="outline" size="sm" onClick={store.loadCerebrasModels} disabled={!canRequest || store.loading}>
-          {store.loading ? "조회 중..." : "모델 새로고침"}
+          {store.loading ? "조회 중…" : "모델 새로고침"}
         </Button>
       </div>
+      {ids.length > 0 ? (
+        <div className="flex min-w-0 flex-wrap gap-2">
+          <select
+            aria-label="Cerebras 기본 모델"
+            className="h-9 min-w-0 flex-1 rounded-md border border-input bg-transparent px-2 text-sm"
+            value={selected}
+            onChange={(event) => store.setLocalDefaultModel("cerebras", event.target.value)}
+          >
+            {ids.map((id) => (
+              <option key={id} value={id}>
+                {id}
+              </option>
+            ))}
+          </select>
+          <Button variant="primary" size="sm" disabled={!canRequest || !selected} onClick={() => store.setLocalDefaultModel("cerebras", selected)}>
+            적용
+          </Button>
+        </div>
+      ) : null}
       <div className="space-y-1">
         {store.cerebrasModels.items.map((item) => (
-          <article key={item.id} className="flex items-center justify-between rounded-md border border-border bg-card/60 px-2.5 py-2">
+          <article key={item.id} className="flex items-center justify-between rounded-md border border-border bg-card px-2.5 py-2">
             <span className="truncate font-mono text-xs">{item.id}</span>
             <small className="shrink-0 text-[11px] text-muted-foreground">{item.ownedBy || "owned_by -"}</small>
           </article>

@@ -9,8 +9,8 @@ public sealed class CodingExpectedOutputPolicyTests
     {
         var lines = CodingExpectedOutputPolicy.ExtractExpectedConsoleOutputLines(
             """
-            첫 줄은 "alpha"
-            둘째 줄은 "beta"
+            first line is "alpha"
+            second line is "beta"
             """
         );
 
@@ -31,7 +31,7 @@ public sealed class CodingExpectedOutputPolicyTests
     public void ExtractExpectedConsoleOutputLinesFallsBackToStdoutLineQuotedLiterals()
     {
         var lines = CodingExpectedOutputPolicy.ExtractExpectedConsoleOutputLines(
-            "stdout에는 \"token\"과 \"checksum\"이 나와야 한다"
+            "stdout must include \"token\" and \"checksum\""
         );
 
         Assert.Equal(new[] { "token", "checksum" }, lines);
@@ -56,11 +56,19 @@ public sealed class CodingExpectedOutputPolicyTests
     }
 
     [Fact]
+    public void LooksLikeStdoutVerificationRequestUsesStdoutCuesNotTranslatedVerbs()
+    {
+        Assert.True(CodingExpectedOutputPolicy.LooksLikeStdoutVerificationRequest("print 'ok' in main.py"));
+        Assert.True(CodingExpectedOutputPolicy.LooksLikeStdoutVerificationRequest("run the program"));
+        Assert.False(CodingExpectedOutputPolicy.LooksLikeStdoutVerificationRequest("실행해서 확인해줘"));
+    }
+
+    [Fact]
     public void ExtractVisibleTextRequirementLiteralsReadsVisibleTextLine()
     {
         var lines = CodingExpectedOutputPolicy.ExtractVisibleTextRequirementLiterals(
             """
-            visible text "Dashboard Ready"를 보여줘
+            visible text "Dashboard Ready"
             stdout "ignored"
             """
         );
@@ -69,9 +77,9 @@ public sealed class CodingExpectedOutputPolicyTests
     }
 
     [Theory]
-    [InlineData("첫 줄", 0)]
+    [InlineData("first line", 0)]
     [InlineData("second line", 1)]
-    [InlineData("세번째 줄", -1)]
+    [InlineData("third line", -1)]
     public void ResolveExpectedOutputLineIndexMapsKnownLabels(string label, int expected)
     {
         Assert.Equal(expected, CodingExpectedOutputPolicy.ResolveExpectedOutputLineIndex(label));

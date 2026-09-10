@@ -1,10 +1,11 @@
 import { PROVIDER_KEYS, PROVIDER_LABEL, STATIC_MODEL_OPTIONS } from "../ask/model-registry";
+import { readPreferredModels } from "../shell/preference-store";
 
 export type BuildMode = "single" | "orchestration" | "multi";
 export type ModelProvider = typeof PROVIDER_KEYS[number];
 export type BuildProvider = ModelProvider | "auto";
 export const providers = [{ value: "auto" as BuildProvider, label: "자동 선택" }, ...PROVIDER_KEYS.map(value => ({ value, label: PROVIDER_LABEL[value] }))];
-export const modeNames: Record<BuildMode, string> = { single: "한 모델로 만들기", orchestration: "여러 모델과 함께 만들기", multi: "결과 비교하기" };
+export const modeNames: Record<BuildMode, string> = { single: "싱글", orchestration: "오케스트레이션", multi: "멀티" };
 export const modelOptions = (provider: BuildProvider, catalogs: Partial<Record<ModelProvider, string[]>>) => provider === "auto" ? [] : catalogs[provider]?.length ? catalogs[provider]! : STATIC_MODEL_OPTIONS[provider] || [];
 export type Attachment = { name: string; mimeType: string; sizeBytes: number; dataBase64: string; isImage: boolean };
 export type Settings = { mode: BuildMode; provider: BuildProvider; models: Record<ModelProvider, string>; workers: Record<ModelProvider, string>; language: string; webSearch: boolean; think: boolean; title: string; project: string; projectKey: string; projectPath: string; memory: string[]; skill: string };
@@ -26,7 +27,8 @@ export const strings = (value: unknown) => list(value).map(text).filter(Boolean)
 export const mode = (value: unknown): BuildMode => value === "multi" || value === "orchestration" ? value : "single";
 export const statusName = (status: string) => ({ ok: "실행 완료", saved: "파일 저장됨", skipped: "실행하지 않음", error: "실행 실패", failed: "실패", timeout: "시간 초과", blocked: "실행 제한", incomplete: "작업 미완료", cancelled: "중단됨", canceled: "중단됨", running: "실행 중" } as Record<string, string>)[status] || status || "실행 전";
 export function initialSettings(): Settings {
-  return { mode: "single", provider: "auto", models: Object.fromEntries(PROVIDER_KEYS.map(provider => [provider, STATIC_MODEL_OPTIONS[provider]?.[0] || ""])) as Record<ModelProvider, string>, workers: Object.fromEntries(PROVIDER_KEYS.map(provider => [provider, "none"])) as Record<ModelProvider, string>, language: "auto", webSearch: false, think: false, title: "", project: "", projectKey: "", projectPath: "", memory: [], skill: "" };
+  const preferred = readPreferredModels();
+  return { mode: "single", provider: "auto", models: Object.fromEntries(PROVIDER_KEYS.map(provider => [provider, preferred[provider] || STATIC_MODEL_OPTIONS[provider]?.[0] || ""])) as Record<ModelProvider, string>, workers: Object.fromEntries(PROVIDER_KEYS.map(provider => [provider, "none"])) as Record<ModelProvider, string>, language: "auto", webSearch: false, think: false, title: "", project: "", projectKey: "", projectPath: "", memory: [], skill: "" };
 }
 export function execution(value: unknown): Execution {
   const row = object(value);

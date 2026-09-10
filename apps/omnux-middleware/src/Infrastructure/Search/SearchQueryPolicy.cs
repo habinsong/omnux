@@ -17,14 +17,57 @@ internal readonly record struct WebPreferenceHint(string Category, string Text);
 internal static class SearchQueryPolicy
 {
     private static readonly Regex RequestedCountRegex = new(
-        @"(?<!\d)(?<n>[1-9]\d?)\s*(개|건|가지|뉴스|news|items?|results?)",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase
+        @"(?<n>[1-9]\d?)\s*(?:items?|results?|news)\b|(?<n>[1-9]\d?)\s*\p{Lo}{1,3}(?!\p{L})",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
     );
 
     private static readonly Regex TopCountRegex = new(
-        @"(?:top|상위)\s*(?<n>[1-9]\d?)",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase
+        @"(?:^|[^\p{L}\d])top\s*(?<n>[1-9]\d?)\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
     );
+
+    private static readonly Regex NewsTokenRegex = new(
+        @"\b(?:news|headlines|breaking)\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+    );
+
+    private static readonly Regex ExplicitSearchRegex = new(
+        @"\b(?:web\s+search|search\s+for|look\s*up|lookup)\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+    );
+
+    private static readonly Regex UrlRegex = new(
+        @"https?://|www\.",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+    );
+
+    private static readonly Regex SiteOperatorRegex = new(
+        @"site\s*:\s*(?<domain>[A-Za-z0-9][A-Za-z0-9\.\-]*\.[A-Za-z]{2,})",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+    );
+
+    private static readonly Regex IsoDateRegex = new(
+        @"\b\d{4}-\d{2}-\d{2}\b",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant
+    );
+
+    private static readonly Regex SourceFocusRegex = new(
+        @"\b(?<focus>[A-Za-z][A-Za-z0-9.\-]{1,40})\b",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant
+    );
+
+    private static readonly Regex LanguageDirectiveRegex = new(
+        @"\b(?:reply|respond|answer|write)\s+in\s+[a-z]{2,20}\b|\b(?:english|korean)\b",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+    );
+
+    private static readonly HashSet<string> SourceFocusStopwords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "today", "yesterday", "latest", "recent", "breaking", "top", "news", "headlines",
+        "table", "search", "lookup", "web", "the", "and", "for", "from", "with", "this",
+        "that", "you", "please", "items", "results", "official", "item", "result",
+        "markdown", "list", "compare", "vs", "site", "http", "https", "www"
+    };
 
     public static SearchRequirementDecision BuildFastRequirementDecision(string input)
     {
@@ -137,43 +180,18 @@ internal static class SearchQueryPolicy
             return string.Empty;
         }
 
-        var match = Regex.Match(
-            normalized,
-            @"(?<focus>[A-Za-z0-9가-힣][A-Za-z0-9가-힣\.\-]{1,40})\s*(?:의\s*)?(?:주요\s*)?뉴스",
-            RegexOptions.CultureInvariant
-        );
-        if (!match.Success)
+        foreach (Match match in SourceFocusRegex.Matches(normalized))
         {
-            return string.Empty;
+            var focus = (match.Groups["focus"].Value ?? string.Empty).Trim();
+            if (focus.Length < 2 || SourceFocusStopwords.Contains(focus))
+            {
+                continue;
+            }
+
+            return focus;
         }
 
-        var focus = (match.Groups["focus"].Value ?? string.Empty).Trim();
-        if (focus.Length < 2)
-        {
-            return string.Empty;
-        }
-
-        var loweredFocus = focus.ToLowerInvariant();
-        if (loweredFocus is "오늘"
-            or "어제"
-            or "최근"
-            or "최신"
-            or "방금"
-            or "실시간"
-            or "주요"
-            or "뉴스"
-            or "헤드라인"
-            or "속보"
-            or "latest"
-            or "recent"
-            or "today"
-            or "breaking"
-            or "top")
-        {
-            return string.Empty;
-        }
-
-        return focus;
+        return string.Empty;
     }
 
     public static string ExtractSourceDomainHintFromInput(string input)
@@ -184,11 +202,7 @@ internal static class SearchQueryPolicy
             return string.Empty;
         }
 
-        var explicitSite = Regex.Match(
-            normalized,
-            @"site\s*:\s*(?<domain>[A-Za-z0-9][A-Za-z0-9\.\-]*\.[A-Za-z]{2,})",
-            RegexOptions.CultureInvariant | RegexOptions.IgnoreCase
-        );
+        var explicitSite = SiteOperatorRegex.Match(normalized);
         return explicitSite.Success
             ? NormalizeSourceDomainHint(explicitSite.Groups["domain"].Value)
             : string.Empty;
@@ -232,14 +246,9 @@ internal static class SearchQueryPolicy
         var sourceFocus = (decision.SourceFocus ?? string.Empty).Trim();
         if (sourceFocus.Length == 0)
         {
-            if (LooksLikeListOutputRequest(baseQuery))
+            if (LooksLikeListOutputRequest(baseQuery) && HasNewsToken(baseQuery) && !HasHeadlineExpansion(baseQuery))
             {
-                var lowered = baseQuery.ToLowerInvariant();
-                if (!ContainsAny(lowered, "latest", "breaking", "headlines", "top stories")
-                    && ContainsAny(lowered, "뉴스", "news", "헤드라인", "속보"))
-                {
-                    return $"{baseQuery} latest breaking headlines";
-                }
+                return $"{baseQuery} latest breaking headlines";
             }
 
             return baseQuery;
@@ -262,13 +271,9 @@ internal static class SearchQueryPolicy
             builder.Append(' ').Append(sourceDomain);
         }
 
-        if (LooksLikeListOutputRequest(baseQuery))
+        if (LooksLikeListOutputRequest(baseQuery) && !HasHeadlineExpansion(baseQuery))
         {
-            var lowered = baseQuery.ToLowerInvariant();
-            if (!ContainsAny(lowered, "official", "공식", "homepage", "top headlines", "top stories"))
-            {
-                builder.Append(' ').Append(sourceFocus).Append(" official top headlines");
-            }
+            builder.Append(' ').Append(sourceFocus).Append(" official top headlines");
         }
 
         return builder.ToString().Trim();
@@ -294,7 +299,7 @@ internal static class SearchQueryPolicy
             return "no";
         }
 
-        var compact = Regex.Replace(normalized, @"[^A-Z가-힣]", string.Empty);
+        var compact = Regex.Replace(normalized, @"[^A-Z]", string.Empty);
         if (compact.Contains("YES", StringComparison.Ordinal))
         {
             return "yes";
@@ -305,92 +310,34 @@ internal static class SearchQueryPolicy
             return "no";
         }
 
-        if (compact.Contains("필요", StringComparison.Ordinal) && !compact.Contains("불필요", StringComparison.Ordinal))
-        {
-            return "yes";
-        }
-
-        if (compact.Contains("불필요", StringComparison.Ordinal))
-        {
-            return "no";
-        }
-
         return string.Empty;
     }
 
     public static bool LooksLikeRealtimeQuestion(string input)
     {
         var normalized = (input ?? string.Empty).Trim().ToLowerInvariant();
-        if (normalized.Length == 0)
+        if (normalized.Length == 0 || LooksLikeLocalDateTimeQuestion(normalized))
         {
             return false;
         }
 
-        if (LooksLikeLocalDateTimeQuestion(normalized))
-        {
-            return false;
-        }
-
-        return ContainsAny(
-            normalized,
-            "최신",
-            "최근",
-            "오늘",
-            "어제",
-            "방금",
-            "실시간",
-            "지금",
-            "뉴스",
-            "속보",
-            "업데이트",
-            "변경점",
-            "릴리즈",
-            "출시",
-            "현재",
-            "latest",
-            "recent",
-            "today",
-            "yesterday",
-            "now",
-            "news",
-            "update",
-            "release",
-            "current"
-        );
+        return HasNewsToken(normalized)
+               || IsoDateRegex.IsMatch(normalized)
+               || ContainsAny(normalized, "today", "yesterday", "latest", "recent", "current")
+               || Regex.IsMatch(normalized, @"\b(?:update|release)s?\b", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     }
 
     public static bool LooksLikeExplicitWebLookupQuestion(string input)
     {
         var normalized = (input ?? string.Empty).Trim().ToLowerInvariant();
-        if (normalized.Length == 0)
+        if (normalized.Length == 0 || LooksLikeLocalDateTimeQuestion(normalized))
         {
             return false;
         }
 
-        if (LooksLikeLocalDateTimeQuestion(normalized))
-        {
-            return false;
-        }
-
-        return ContainsAny(
-                normalized,
-                "검색해서",
-                "검색해줘",
-                "검색해 줘",
-                "검색해봐",
-                "웹 검색",
-                "웹에서",
-                "인터넷에서",
-                "web search",
-                "search for",
-                "look up",
-                "lookup"
-            )
-            || Regex.IsMatch(
-                normalized,
-                @"\b(?:search|lookup)\b",
-                RegexOptions.CultureInvariant | RegexOptions.IgnoreCase
-            );
+        return SiteOperatorRegex.IsMatch(normalized)
+               || UrlRegex.IsMatch(normalized)
+               || ExplicitSearchRegex.IsMatch(normalized);
     }
 
     public static bool LooksLikeClearlyNonWebQuestion(string input)
@@ -401,8 +348,7 @@ internal static class SearchQueryPolicy
             return false;
         }
 
-        if (LooksLikeLocalDateTimeQuestion(normalized)
-            || LooksLikeConversationalFollowUp(normalized))
+        if (LooksLikeLocalDateTimeQuestion(normalized))
         {
             return true;
         }
@@ -413,23 +359,18 @@ internal static class SearchQueryPolicy
             return false;
         }
 
-        if (ContainsAny(
-                normalized,
-                "번역",
-                "translate",
-                "영작",
-                "영문",
-                "맞춤법",
-                "교정",
-                "다듬",
-                "rewrite",
-                "rephrase"))
+        if (LooksLikeConversationalFollowUp(normalized))
         {
             return true;
         }
 
-        if (ContainsAny(normalized, "코드", "code")
-            && ContainsAny(normalized, "설명", "해석", "리뷰", "explain", "review"))
+        if (ContainsAny(normalized, "translate", "rewrite", "rephrase"))
+        {
+            return true;
+        }
+
+        if (normalized.Contains("code", StringComparison.Ordinal)
+            && ContainsAny(normalized, "explain", "review"))
         {
             return true;
         }
@@ -439,11 +380,10 @@ internal static class SearchQueryPolicy
             return true;
         }
 
-        if (ContainsAny(normalized, "요약", "summary", "summarize", "정리"))
+        if (ContainsAny(normalized, "summary", "summarize"))
         {
             return normalized.Contains('\n')
                 || normalized.Contains("```", StringComparison.Ordinal)
-                || normalized.Contains("다음", StringComparison.Ordinal)
                 || normalized.Contains("\"", StringComparison.Ordinal);
         }
 
@@ -453,54 +393,20 @@ internal static class SearchQueryPolicy
     public static bool LooksLikeCasualOrIdentityQuestion(string input)
     {
         var normalized = (input ?? string.Empty).Trim().ToLowerInvariant();
-
         if (LooksLikeStandaloneFreshGreeting(normalized))
         {
             return true;
         }
 
-        if (normalized.Length <= 8)
+        if (ContainsAny(normalized, "who are you", "what can you do", "your name"))
         {
-            if (ContainsAny(normalized, "응", "어", "아니", "네", "예", "맞아", "그래", "음", "헐", "대박", "진짜", "뭐해", "ok", "ㅇㅇ", "ㅋㅋ", "ㅎㅎ", "ㅠㅠ", "ㅜㅜ", "너는?", "나도"))
-            {
-                return true;
-            }
+            return true;
         }
 
-        return ContainsAny(
-            normalized,
-            "할 수 있",
-            "할수 있",
-            "할 줄 아",
-            "할줄 아",
-            "뭐할 수",
-            "뭐 할수",
-            "뭐 할 수",
-            "너는 누구",
-            "당신은 누구",
-            "넌 누구",
-            "너는 뭐",
-            "넌 뭐",
-            "자기소개",
-            "안녕",
-            "반가워",
-            "반갑습니다",
-            "기능 알려",
-            "명령어",
-            "스킬 목록",
-            "무엇을 할",
-            "좋은 일이 없",
-            "피곤해",
-            "우울해",
-            "배고파",
-            "심심해",
-            "그렇네",
-            "수고",
-            "고마워",
-            "감사",
-            "잘자",
-            "잘가"
-        );
+        return !HasStructuredLookupSignal(normalized)
+               && normalized.Length > 0
+               && normalized.Length <= 8
+               && !normalized.Any(char.IsDigit);
     }
 
     public static bool LooksLikeStandaloneFreshGreeting(string input)
@@ -511,21 +417,13 @@ internal static class SearchQueryPolicy
             return false;
         }
 
+        if (HasStructuredLookupSignal(normalized) || normalized.Any(char.IsDigit) || normalized.Contains(' '))
+        {
+            return false;
+        }
+
         var compact = Regex.Replace(normalized, @"[\s\p{P}\p{S}]+", "");
-        return compact is
-            "ㅎㅇ" or
-            "ㅎㅇㅎㅇ" or
-            "하이" or
-            "안녕" or
-            "안녕하세요" or
-            "안녕하십니까" or
-            "안뇽" or
-            "안뇽하세요" or
-            "헬로" or
-            "hi" or
-            "hello" or
-            "hey" or
-            "yo";
+        return compact.Length is >= 1 and <= 10;
     }
 
     public static bool LooksLikeLocalDateTimeQuestion(string input)
@@ -538,60 +436,28 @@ internal static class SearchQueryPolicy
 
         if (ContainsAny(
                 normalized,
-                "시간복잡도",
                 "time complexity",
                 "runtime complexity",
-                "응답 시간",
-                "실행 시간",
                 "timeout",
-                "타임아웃",
-                "러닝타임"))
+                "execution time",
+                "response time"))
         {
             return false;
         }
 
-        if (ContainsAny(
-                normalized,
-                "지금 몇시",
-                "지금 몇 시",
-                "몇시야",
-                "몇 시야",
-                "현재 시간",
-                "현재 시각",
-                "지금 시간",
-                "로컬 시간",
-                "오늘 날짜",
-                "오늘 며칠",
-                "현재 날짜",
-                "로컬 날짜",
-                "무슨 요일",
-                "어느 요일",
-                "몇월 몇일",
-                "몇 월 몇 일",
-                "현재 타임존",
-                "현재 시간대",
-                "로컬 타임존",
-                "로컬 시간대",
-                "what time is it",
-                "current time",
-                "local time",
-                "today's date",
-                "today date",
-                "current date",
-                "what date is it",
-                "what day is it",
-                "current timezone",
-                "local timezone",
-                "time zone"))
-        {
-            return true;
-        }
-
-        return Regex.IsMatch(
+        return ContainsAny(
             normalized,
-            @"(?:^|\s)몇\s*시(?:야|예요|인가요|입니까)?(?:\?|$)|(?:^|\s)몇\s*일(?:이야|인가요|입니까)?(?:\?|$)",
-            RegexOptions.CultureInvariant | RegexOptions.IgnoreCase
-        );
+            "what time is it",
+            "current time",
+            "local time",
+            "today's date",
+            "today date",
+            "current date",
+            "what date is it",
+            "what day is it",
+            "current timezone",
+            "local timezone",
+            "time zone");
     }
 
     public static bool LooksLikeComparisonRequest(string input)
@@ -602,18 +468,8 @@ internal static class SearchQueryPolicy
             return false;
         }
 
-        return ContainsAny(
-            normalized,
-            "비교",
-            "차이",
-            "대비",
-            "vs",
-            "compare",
-            "difference",
-            "국가별",
-            "유형별",
-            "카테고리별"
-        );
+        return Regex.IsMatch(normalized, @"\bvs\b", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)
+               || ContainsAny(normalized, "compare", "difference", "compared");
     }
 
     public static bool LooksLikeListOutputRequest(string input)
@@ -626,7 +482,8 @@ internal static class SearchQueryPolicy
 
         return RequestedCountRegex.IsMatch(normalized)
             || TopCountRegex.IsMatch(normalized)
-            || ContainsAny(normalized, "뉴스", "news", "헤드라인", "속보", "목록", "리스트", "top");
+            || HasNewsToken(normalized)
+            || Regex.IsMatch(normalized, @"\blist\b", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     }
 
     public static bool LooksLikeTableRenderRequest(string input)
@@ -637,16 +494,7 @@ internal static class SearchQueryPolicy
             return false;
         }
 
-        return ContainsAny(
-            normalized,
-            "표로",
-            "표 형태",
-            "표형식",
-            "테이블",
-            "도표",
-            "table",
-            "tabular"
-        );
+        return ContainsAny(normalized, "table", "tabular");
     }
 
     public static IReadOnlyList<WebPreferenceHint> ExtractWebPreferenceHints(string text, bool fromMemoryNote)
@@ -723,18 +571,12 @@ internal static class SearchQueryPolicy
 
         return ContainsAny(
             lowered,
-            "말고",
-            "제외",
-            "빼고",
-            "아니고",
-            "반대로",
-            "다르게",
-            "바꿔",
-            "변경",
-            "무시",
-            "이번엔",
-            "이번에는"
-        );
+            "instead",
+            "except",
+            "ignore",
+            "override",
+            "this time",
+            " not ");
     }
 
     public static bool LooksLikeWebFormatDirective(string input)
@@ -747,23 +589,12 @@ internal static class SearchQueryPolicy
 
         return ContainsAny(
             lowered,
-            "형식",
-            "포맷",
-            "표로",
-            "표 형태",
-            "표형식",
-            "테이블",
             "table",
-            "불릿",
-            "번호",
-            "목록",
-            "리스트",
-            "한줄",
-            "줄바꿈",
+            "tabular",
             "markdown",
-            "마크다운",
-            "no.n"
-        );
+            "bullet",
+            "numbered",
+            "list format");
     }
 
     public static bool LooksLikeWebToneDirective(string input)
@@ -774,17 +605,7 @@ internal static class SearchQueryPolicy
             return false;
         }
 
-        return ContainsAny(
-            lowered,
-            "간결",
-            "짧게",
-            "자세히",
-            "길게",
-            "말투",
-            "존댓말",
-            "반말",
-            "톤"
-        );
+        return ContainsAny(lowered, "concise", "brief", "detailed", "tone", "formal", "casual");
     }
 
     public static bool LooksLikeWebLanguageDirective(string input)
@@ -795,13 +616,13 @@ internal static class SearchQueryPolicy
             return false;
         }
 
-        return ContainsAny(lowered, "한국어", "한글", "영어", "english", "korean");
+        return LanguageDirectiveRegex.IsMatch(lowered);
     }
 
     public static int ResolveWebDefaultCount(string input, int newsDefaultCount, int listDefaultCount)
     {
         var normalized = (input ?? string.Empty).Trim().ToLowerInvariant();
-        return ContainsAny(normalized, "뉴스", "news", "헤드라인", "속보")
+        return HasNewsToken(normalized)
             ? Math.Clamp(newsDefaultCount, 1, 20)
             : Math.Clamp(listDefaultCount, 1, 20);
     }
@@ -824,7 +645,7 @@ internal static class SearchQueryPolicy
             return 0.3d;
         }
 
-        if (ContainsAny(normalized, "비교", "차이", "요약", "정리", "compare", "difference", "summary"))
+        if (ContainsAny(normalized, "compare", "difference", "summary"))
         {
             return 0.5d;
         }
@@ -835,17 +656,18 @@ internal static class SearchQueryPolicy
     public static string ResolveSearchFreshnessForQuery(string input)
     {
         var normalized = (input ?? string.Empty).Trim().ToLowerInvariant();
-        if (ContainsAny(normalized, "오늘", "어제", "방금", "실시간", "today", "yesterday", "breaking"))
+        if (IsoDateRegex.IsMatch(normalized)
+            || ContainsAny(normalized, "today", "yesterday", "breaking"))
         {
             return "day";
         }
 
-        if (ContainsAny(normalized, "이번달", "한달", "month", "monthly"))
+        if (ContainsAny(normalized, "month", "monthly"))
         {
             return "month";
         }
 
-        if (ContainsAny(normalized, "올해", "연간", "year", "yearly"))
+        if (ContainsAny(normalized, "year", "yearly"))
         {
             return "year";
         }
@@ -856,9 +678,7 @@ internal static class SearchQueryPolicy
     public static int ResolveRequestedResultCountFromQuery(string input)
     {
         var normalized = (input ?? string.Empty).Trim().ToLowerInvariant();
-        var defaultCount = ContainsAny(normalized, "뉴스", "news", "헤드라인", "속보", "브리핑")
-            ? 10
-            : 5;
+        var defaultCount = HasNewsToken(normalized) ? 10 : 5;
         if (normalized.Length == 0)
         {
             return defaultCount;
@@ -902,107 +722,33 @@ internal static class SearchQueryPolicy
 
         if (ContainsAny(
                 normalized,
-                "그니까",
-                "그러니까",
-                "그래서",
-                "그럼",
-                "그러면",
-                "그래도",
-                "잘 돌아",
-                "잘 작동",
-                "잘 동작",
-                "잘 되",
-                "잘 될",
-                "잘 굴러",
-                "쓸만",
-                "쓸 만",
-                "괜찮",
-                "어때",
-                "어떨",
-                "어떤지",
-                "어떻게 생각",
-                "어떻게 봐",
-                "네 생각",
-                "네 의견",
-                "너 생각",
-                "너의 생각",
-                "당신 생각",
-                "당신의 생각",
-                "검토해",
-                "판단해",
-                "추천해",
-                "비교해",
                 "what do you think",
-                "would it work"))
+                "would it work",
+                "recommend",
+                "compare"))
         {
             return true;
         }
 
         return normalized.Length <= 60
-            && ContainsAny(normalized, "이거", "이건", "이게", "이걸", "그거", "그건", "그게", "그걸", "저거", "이 환경", "이 모델", "이 상황");
+            && Regex.IsMatch(normalized, @"\b(?:this|that)\b", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     }
 
     private static bool LooksLikeWebPreferenceLine(string line, bool fromMemoryNote)
     {
         var lowered = (line ?? string.Empty).Trim().ToLowerInvariant();
-        if (lowered.Length == 0)
-        {
-            return false;
-        }
-
-        if (lowered.Contains("http://", StringComparison.Ordinal)
-            || lowered.Contains("https://", StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        if (ContainsAny(lowered, "가격", "시세", "주가", "배럴", "달러", "환율", "정확한 날짜", "대기압", "수치"))
+        if (lowered.Length == 0 || UrlRegex.IsMatch(lowered))
         {
             return false;
         }
 
         if (!fromMemoryNote
-            && !ContainsAny(lowered, "항상", "앞으로", "이제부터", "매번", "선호", "기억", "기본"))
+            && !ContainsAny(lowered, "always", "prefer", "remember", "default"))
         {
             return false;
         }
 
-        return ContainsAny(
-            lowered,
-            "출처",
-            "매체",
-            "source",
-            "site:",
-            "형식",
-            "포맷",
-            "불릿",
-            "번호",
-            "목록",
-            "리스트",
-            "한줄",
-            "줄바꿈",
-            "간결",
-            "짧게",
-            "자세히",
-            "말투",
-            "존댓말",
-            "반말",
-            "한국어",
-            "한글",
-            "영어",
-            "english",
-            "korean",
-            "cnn",
-            "reuters",
-            "bbc",
-            "연합뉴스",
-            "뉴시스",
-            "kbs",
-            "mbc",
-            "sbs",
-            "건수",
-            "no.n"
-        ) || RequestedCountRegex.IsMatch(lowered) || TopCountRegex.IsMatch(lowered);
+        return ClassifyWebPreferenceCategory(lowered).Length > 0;
     }
 
     private static string ClassifyWebPreferenceCategory(string line)
@@ -1013,35 +759,52 @@ internal static class SearchQueryPolicy
             return string.Empty;
         }
 
-        if (ContainsAny(lowered, "출처", "매체", "source", "site:", "cnn", "reuters", "bbc", "연합뉴스", "뉴시스", "kbs", "mbc", "sbs"))
+        if (ContainsAny(lowered, "source", "site:")
+            || Regex.IsMatch(lowered, @"\b(?:cnn|reuters|bbc)\b", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase))
         {
             return "source";
         }
 
-        if (ContainsAny(lowered, "형식", "포맷", "불릿", "번호", "목록", "리스트", "한줄", "줄바꿈", "markdown", "마크다운", "no.n"))
+        if (LooksLikeWebFormatDirective(lowered))
         {
             return "format";
         }
 
-        if (ContainsAny(lowered, "간결", "짧게", "자세히", "길게", "말투", "존댓말", "반말", "톤"))
+        if (LooksLikeWebToneDirective(lowered))
         {
             return "tone";
         }
 
-        if (ContainsAny(lowered, "한국어", "한글", "영어", "english", "korean"))
+        if (LooksLikeWebLanguageDirective(lowered))
         {
             return "language";
         }
 
-        var hasCount = RequestedCountRegex.IsMatch(lowered)
-            || TopCountRegex.IsMatch(lowered)
-            || Regex.IsMatch(lowered, @"(?<!\d)\d{1,2}\s*(개|건)", RegexOptions.CultureInvariant);
-        if (hasCount && ContainsAny(lowered, "뉴스", "news", "헤드라인", "목록", "리스트", "건수"))
+        if (HasExplicitRequestedCountInQuery(lowered) && (HasNewsToken(lowered) || LooksLikeListOutputRequest(lowered)))
         {
             return "count";
         }
 
         return string.Empty;
+    }
+
+    private static bool HasNewsToken(string text) => NewsTokenRegex.IsMatch(text ?? string.Empty);
+
+    private static bool HasHeadlineExpansion(string text)
+    {
+        var lowered = (text ?? string.Empty).ToLowerInvariant();
+        return ContainsAny(lowered, "latest", "breaking", "headlines", "official", "top stories");
+    }
+
+    private static bool HasStructuredLookupSignal(string text)
+    {
+        var normalized = text ?? string.Empty;
+        return UrlRegex.IsMatch(normalized)
+               || SiteOperatorRegex.IsMatch(normalized)
+               || ExplicitSearchRegex.IsMatch(normalized)
+               || HasNewsToken(normalized)
+               || normalized.Contains('/')
+               || IsoDateRegex.IsMatch(normalized);
     }
 
     private static bool TryGetPropertyIgnoreCase(JsonElement element, string propertyName, out JsonElement value)

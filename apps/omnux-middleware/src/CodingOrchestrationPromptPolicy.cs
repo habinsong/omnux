@@ -17,7 +17,7 @@ internal static class CodingOrchestrationPromptPolicy
                 규칙:
                 - 코드 본문을 길게 쓰지 말고 실무 메모처럼 간결하게 정리
                 - 구현 단계가 바로 사용할 수 있게 파일/검증 포인트를 구체적으로 적기
-                - 한국어로 작성
+                - Write in the same language as the original request
 
                 원본 요청:
                 {input}

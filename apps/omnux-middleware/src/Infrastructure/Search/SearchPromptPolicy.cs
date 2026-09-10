@@ -59,7 +59,7 @@ internal static class SearchPromptPolicy
         var articleMode = urls.Count == 1 && SearchUrlContextPolicy.LooksLikeArticleUrl(primaryUrl);
 
         var builder = new StringBuilder();
-        builder.AppendLine("너는 URL 컨텍스트 기반 한국어 답변기다.");
+        builder.AppendLine("You are a URL-context assistant. Reply in the same language as the user.");
         builder.AppendLine("- 아래 참조 URL 내용이 1차 근거다.");
         if (includeGoogleSearch)
         {
@@ -75,7 +75,7 @@ internal static class SearchPromptPolicy
         builder.AppendLine("- 출처는 URL이 아닌 도메인명으로만 작성해라.");
         builder.AppendLine("- 출처 표기는 마지막 한 줄 형식으로만 작성: '출처: 도메인1, 도메인2'.");
         builder.AppendLine("- '출처 링크:' 섹션이나 URL 단독 줄을 만들지 마라.");
-        builder.AppendLine("- 문장 중간을 임의로 줄바꿈하지 말고 자연스러운 한국어 문장으로 정리해라.");
+        builder.AppendLine("- Do not insert arbitrary line breaks mid-sentence. Write natural sentences in the user's language.");
         builder.AppendLine("- 답변이 길어질 것 같으면 항목 수를 줄이고 요약해서 문장을 끝까지 완성해라.");
         builder.AppendLine("- 페이지의 제목, 목적, 핵심 내용, 중요한 세부사항이 무엇인지 요약하면서도 분명하게 드러내라.");
         builder.AppendLine("- 본문에서 임의의 '**' 강조를 남발하지 말고, 구조 라벨이나 항목 제목에만 제한적으로 사용해라.");
@@ -220,7 +220,7 @@ internal static class SearchPromptPolicy
         var comparisonMode = SearchQueryPolicy.LooksLikeComparisonRequest(normalizedInput);
 
         var builder = new StringBuilder();
-        builder.AppendLine("너는 최신 웹 근거 기반 한국어 답변기다.");
+        builder.AppendLine("You are a web-grounded assistant. Reply in the same language as the user.");
         builder.AppendLine("- 현재 사용자 입력을 최우선으로 따른다.");
         builder.AppendLine("- 선호 메모리가 있더라도 현재 입력과 충돌하면 즉시 무시한다.");
         builder.AppendLine("- 사실/수치/날짜/가격/사건 정보는 웹 근거만 사용하고 추정하지 마라.");
@@ -243,7 +243,7 @@ internal static class SearchPromptPolicy
         builder.AppendLine("- 출처는 URL이 아닌 매체명으로만 작성해라.");
         builder.AppendLine("- 출처 표기는 마지막 한 줄 형식으로만 작성: '출처: 매체1, 매체2, 매체3'.");
         builder.AppendLine("- '출처 링크:' 섹션이나 URL 단독 줄을 만들지 마라.");
-        builder.AppendLine("- 문장 중간을 임의로 줄바꿈하지 말고 자연스러운 한국어 문장으로 정리해라.");
+        builder.AppendLine("- Do not insert arbitrary line breaks mid-sentence. Write natural sentences in the user's language.");
         if (tableMode)
         {
             builder.AppendLine("- 사용자가 표를 요청했으므로 반드시 GitHub 마크다운 표로 작성해라.");

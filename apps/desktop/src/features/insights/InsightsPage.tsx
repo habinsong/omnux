@@ -17,6 +17,7 @@ import {
   describeLoad,
   formatDuration,
   formatTokens,
+  shouldReloadOnReconnect,
   summarizeCalls,
   type SliceId
 } from "./insights-view";
@@ -47,11 +48,23 @@ export function InsightsPage() {
   const [openPanel, setOpenPanel] = useState("");
   const [visible, setVisible] = useState(CALL_PAGE_SIZE);
   const requested = useRef<Set<SliceId>>(new Set());
+  const wasConnected = useRef(connected);
 
   const callState = slices.telemetry;
 
   useEffect(() => {
-    if (!connected || callState.status !== "idle") return;
+    const reconnected = shouldReloadOnReconnect(connected, wasConnected.current, callState.status);
+    wasConnected.current = connected;
+    if (!connected) {
+      requested.current.clear();
+      return;
+    }
+    if (reconnected) {
+      requested.current.clear();
+      load("telemetry");
+      return;
+    }
+    if (callState.status !== "idle") return;
     load("telemetry");
   }, [connected, callState.status, load]);
 
@@ -91,7 +104,7 @@ export function InsightsPage() {
   return (
     <Screen
       title="로그"
-      hint="모델 호출 기록과 환경 진단을 봅니다."
+      hint=""
       actions={
         tab === "calls" ? (
           <Button
@@ -121,7 +134,7 @@ export function InsightsPage() {
           visible={visible}
           onMore={() => setVisible((value) => value + CALL_PAGE_SIZE)}
           summaryLine={`${summary.total}건 · 실패 ${summary.problem} · 토큰 ${formatTokens(summary.totalTokens)} · 평균 ${formatDuration(summary.averageDurationMs)}`}
-          freshness={describeFreshness(callState.updatedAt, connected)}
+          freshness={describeFreshness(callState.updatedAt, connected, callState.status)}
           loading={callState.status === "loading"}
           error={callState.status === "failed" ? callState.error : ""}
           onRetry={() => load("telemetry")}

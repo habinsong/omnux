@@ -13,89 +13,17 @@ internal static class ConversationContextPolicy
             return false;
         }
 
-        if (ContainsAny(normalized, "아니", "그게 아니라", "그 말고", "말고", "라고", "라니까"))
-        {
-            return true;
-        }
-
         if (SearchQueryPolicy.LooksLikeCasualOrIdentityQuestion(normalized))
         {
             return false;
         }
 
-        if (ContainsAny(
-                normalized,
-                "이전",
-                "앞서",
-                "아까",
-                "방금",
-                "위에서",
-                "위 내용",
-                "최근 대화",
-                "대화 내용",
-                "메모리",
-                "기억",
-                "그 답변",
-                "그 내용",
-                "그거",
-                "그것",
-                "그걸",
-                "해당",
-                "이어서",
-                "계속",
-                "다시",
-                "더 자세히",
-                "웹검색해서 찾아",
-                "웹 검색해서 찾아",
-                "찾아봐",
-                "검색해봐",
-                "search it",
-                "look it up",
-                "그니까",
-                "그러니까",
-                "그래서",
-                "그럼",
-                "그러면",
-                "그래도",
-                "결국"))
+        if (HasContinuationCue(normalized) || LooksLikeStrongFollowupQuestion(normalized))
         {
             return true;
         }
 
-        if (LooksLikeStrongFollowupQuestion(normalized))
-        {
-            return true;
-        }
-
-        if (ContainsAny(
-                normalized,
-                "잘 돌아",
-                "잘 작동",
-                "잘 동작",
-                "잘 되",
-                "잘 될",
-                "잘 굴러",
-                "쓸만",
-                "쓸 만",
-                "괜찮",
-                "어때",
-                "어떨",
-                "어떤지",
-                "어떻게 생각",
-                "어떻게 봐",
-                "네 생각",
-                "네 의견",
-                "너 생각",
-                "너의 생각",
-                "당신 생각",
-                "당신의 생각",
-                "검토해",
-                "판단해",
-                "추천해",
-                "비교해",
-                "rec recommend",
-                "what do you think",
-                "would it work"))
+        if (LooksLikeJudgmentCue(normalized))
         {
             isAmbiguous = true;
             return true;
@@ -103,7 +31,7 @@ internal static class ConversationContextPolicy
 
         if (normalized.Length <= 60)
         {
-            if (ContainsAny(normalized, "그 ", "이 ", "저 ", "위 ", "앞 ", "방금", "아까", "이거", "저거", "이건", "그건", "이게", "이걸", "그걸"))
+            if (HasAnaphoricShape(normalized))
             {
                 return true;
             }
@@ -125,47 +53,14 @@ internal static class ConversationContextPolicy
             return false;
         }
 
-        if (ContainsAny(
-                text,
-                "왜 그렇게",
-                "왜 그런",
-                "왜?",
-                "근거는",
-                "예시는",
-                "장점은",
-                "단점은",
-                "차이는",
-                "문제는",
-                "해결책은",
-                "그 이유",
-                "그 원리",
-                "그 차이",
-                "더 쉽게",
-                "더 자세히",
-                "한 줄로",
-                "예시 들어",
-                "예시를 들어",
-                "그 기준",
-                "그 방식",
-                "방금 말한",
-                "위 답변"))
+        if (text.Length <= 40 && HasQuestionMark(text))
         {
             return true;
         }
 
-        return text.Length <= 40
-               && (text.StartsWith("왜", StringComparison.Ordinal)
-                   || text.StartsWith("그럼", StringComparison.Ordinal)
-                   || text.StartsWith("그러면", StringComparison.Ordinal)
-                   || text.StartsWith("그래서", StringComparison.Ordinal)
-                   || text.StartsWith("근데", StringComparison.Ordinal)
-                   || text.StartsWith("근데 ", StringComparison.Ordinal)
-                   || text.StartsWith("그건", StringComparison.Ordinal)
-                   || text.StartsWith("이건", StringComparison.Ordinal)
-                   || text.StartsWith("그게", StringComparison.Ordinal)
-                   || text.StartsWith("그걸", StringComparison.Ordinal)
-                   || text.StartsWith("그거", StringComparison.Ordinal)
-                   || text.StartsWith("그 부분", StringComparison.Ordinal));
+        return text.Length <= 48
+               && HasContinuationCue(text)
+               && (HasQuestionMark(text) || ContainsAny(text, "why", "how", "example", "detail"));
     }
 
     public static bool LooksLikeExplicitStandaloneQuestion(string input)
@@ -176,12 +71,7 @@ internal static class ConversationContextPolicy
             return false;
         }
 
-        if (LooksLikeStrongFollowupQuestion(text))
-        {
-            return false;
-        }
-
-        if (ContainsAny(text, "이전", "앞서", "아까", "방금", "그거", "그것", "그 답변", "해당", "이어서", "계속"))
+        if (LooksLikeStrongFollowupQuestion(text) || HasContinuationCue(text))
         {
             return false;
         }
@@ -197,15 +87,10 @@ internal static class ConversationContextPolicy
             return false;
         }
 
-        return ContainsAny(text, "뭐야", "무엇", "설명", "알려", "정리", "원리", "방법", "비교", "추천", "분석", "어떻게", "왜", "what", "how", "why", "explain");
+        return HasQuestionMark(text)
+               || ContainsAny(text, "what", "how", "why", "explain");
     }
 
-    /// <summary>
-    /// 직전 답변의 사실성·최신성·정확성·출처를 되묻는 확인성 후속 질문인지 판별한다.
-    /// 예: "최신 정보 가져온거야?", "이거 맞아?", "정확해?", "출처는?".
-    /// 이런 입력은 새 웹검색을 다시 돌리는 대신 직전 대화 맥락을 기준으로 답해야 한다.
-    /// 새 조회/검색을 명시적으로 요청("찾아줘", "검색해줘")하면 검증이 아니라 새 요청이므로 제외한다.
-    /// </summary>
     public static bool LooksLikeAnswerVerificationFollowUp(string input)
     {
         var text = NormalizeInput(input);
@@ -214,57 +99,13 @@ internal static class ConversationContextPolicy
             return false;
         }
 
-        if (ContainsAny(text, "찾아", "검색", "search", "look up", "lookup"))
+        if (ContainsAny(text, "search", "look up", "lookup"))
         {
             return false;
         }
 
-        return ContainsAny(
-            text,
-            "가져온거야",
-            "가져온 거야",
-            "가져온게",
-            "가져온 게",
-            "가져왔어",
-            "가져온 정보",
-            "최신 맞",
-            "최신이야",
-            "최신인",
-            "최신 정보야",
-            "최신 정보 가져",
-            "최신거야",
-            "최신 거야",
-            "업데이트된거",
-            "업데이트된 거",
-            "맞아",
-            "맞나",
-            "맞지",
-            "맞음",
-            "정확해",
-            "정확한거",
-            "정확한 거",
-            "정확히 맞",
-            "확실해",
-            "확실한거",
-            "확실한 거",
-            "사실이야",
-            "사실인",
-            "사실 맞",
-            "진짜야",
-            "진짜임",
-            "진짜인",
-            "진짜 맞",
-            "출처가",
-            "출처는",
-            "출처 어디",
-            "출처 뭐",
-            "근거가",
-            "근거는",
-            "확인한거",
-            "확인한 거",
-            "확인했어",
-            "검증된",
-            "검증했어");
+        return HasQuestionMark(text)
+               && ExtractContextTokens(text).Count <= 4;
     }
 
     public static bool HasMeaningfulTokenOverlap(
@@ -324,11 +165,43 @@ internal static class ConversationContextPolicy
         }
 
         return token is
-            "이" or "그" or "저" or "것" or "거" or "수" or "좀" or "왜" or "뭐" or "무엇" or
-            "모델" or "설명" or "대해" or "대한" or "관련" or "알려줘" or "해줘" or "줘" or
-            "답변" or "질문" or "요청" or "다음" or "현재" or "오늘" or "최신" or "정보" or
             "the" or "a" or "an" or "and" or "or" or "to" or "of" or "for" or "with" or "in" or
             "on" or "about" or "what" or "why" or "how" or "is" or "are" or "it" or "this" or "that";
+    }
+
+    private static bool HasContinuationCue(string text)
+    {
+        return ContainsAny(
+            text,
+            "previous",
+            "continue",
+            "again",
+            "instead",
+            "look it up",
+            "search it",
+            "that answer",
+            "this answer"
+        );
+    }
+
+    private static bool LooksLikeJudgmentCue(string text)
+    {
+        if (ContainsAny(text, "what do you think", "would it work", "recommend", "compare"))
+        {
+            return true;
+        }
+
+        return Regex.Matches(text, @"(?<![a-z0-9])[a-z]{1,4}\d[a-z0-9]{0,4}(?![a-z0-9])").Count >= 2;
+    }
+
+    private static bool HasAnaphoricShape(string text)
+    {
+        return ContainsAny(text, "this ", "that ", " those ", " it ", "them");
+    }
+
+    private static bool HasQuestionMark(string text)
+    {
+        return text.Contains('?', StringComparison.Ordinal) || text.Contains('？', StringComparison.Ordinal);
     }
 
     private static string NormalizeInput(string input)

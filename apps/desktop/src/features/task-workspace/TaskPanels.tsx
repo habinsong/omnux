@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Badge, Button, Input, Textarea, cn } from "../../components/ui/primitives";
+import { CAPSULE_FIELD, CapsuleCard, Fold } from "../../components/capsule/capsule";
 import { statusTone } from "../../components/ui/status-tone";
 import { useDesktopNavigationStore } from "../shell/navigation-store";
 import { statusText, type EditableRunStep, type PlanForm, type PlanView, type RunView } from "./task-workspace-model";
@@ -14,9 +15,9 @@ import { useTaskWorkspace } from "./task-workspace-state";
 const SELECT =
   "h-8 w-full min-w-0 rounded-md border border-border bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/60";
 
-export function Panel({ children, footer }: { children: React.ReactNode; footer?: React.ReactNode }) {
+export function Panel({ children, footer, ariaLabel }: { children: React.ReactNode; footer?: React.ReactNode; ariaLabel?: string }) {
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card" role={ariaLabel ? "region" : undefined} aria-label={ariaLabel}>
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">{children}</div>
       {footer ? <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 border-t border-border p-2">{footer}</div> : null}
     </div>
@@ -31,29 +32,13 @@ function Note({ children }: { children: React.ReactNode }) {
   return <p className="min-w-0 break-words text-[11px] text-muted-foreground">{children}</p>;
 }
 
-function Fold({ title, children }: { title: string; children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="min-w-0 overflow-hidden rounded-md border border-border">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-        className="flex w-full min-w-0 items-center justify-between gap-2 px-2.5 py-1.5 text-left text-[11px] font-medium outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/60"
-      >
-        <span className="min-w-0 truncate">{title}</span>
-        <span aria-hidden="true" className="shrink-0 text-muted-foreground">{open ? "−" : "+"}</span>
-      </button>
-      {open ? <div className="min-w-0 space-y-2 border-t border-border p-2.5">{children}</div> : null}
-    </div>
-  );
-}
+
 
 function Checklist({ title, values }: { title: string; values: string[] }) {
   if (values.length === 0) return null;
   return (
     <div className="min-w-0 space-y-0.5">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+      <p className="text-[10px] font-medium text-muted-foreground">{title}</p>
       <ul className="min-w-0 list-inside list-disc space-y-0.5">
         {values.map((value, index) => (
           <li key={index} className="min-w-0 break-words text-[11px]">
@@ -134,16 +119,19 @@ export function TaskComposerPanel({ connected }: { connected: boolean }) {
       <div className="min-w-0 space-y-3 p-3">
         <label className="block min-w-0 space-y-1">
           <Label>만들고 싶은 결과</Label>
-          <Textarea
-            rows={5}
-            className="text-xs"
-            autoFocus
-            disabled={busy}
-            value={draft.objective}
-            placeholder="무엇을 만들거나 고칠지 적어 주세요."
-            onChange={(event) => patch({ objective: event.target.value })}
-          />
+          <CapsuleCard>
+            <textarea
+              rows={4}
+              className={`${CAPSULE_FIELD} px-3 py-2.5 text-xs`}
+              autoFocus
+              disabled={busy}
+              value={draft.objective}
+              placeholder="무엇을 만들까요?"
+              onChange={(event) => patch({ objective: event.target.value })}
+            />
+          </CapsuleCard>
         </label>
+        <Fold title="조건과 계획 방식">
         <label className="block min-w-0 space-y-1">
           <Label>지켜야 할 조건</Label>
           <Textarea
@@ -162,6 +150,7 @@ export function TaskComposerPanel({ connected }: { connected: boolean }) {
             <option value="interview">요구사항을 더 자세히 정리</option>
           </select>
         </label>
+        </Fold>
       </div>
     </Panel>
   );
@@ -181,6 +170,7 @@ export function TaskPlanPanel({ plan, connected }: { plan: PlanView; connected: 
   if (editing) {
     return (
       <Panel
+        ariaLabel="선택한 계획"
         footer={
           <>
             <Button variant="primary" size="sm" disabled={!connected || busy} onClick={state.savePlan}>
@@ -219,6 +209,7 @@ export function TaskPlanPanel({ plan, connected }: { plan: PlanView; connected: 
 
   return (
     <Panel
+      ariaLabel="선택한 계획"
       footer={
         <>
           {plan.status !== "running" ? (
@@ -251,7 +242,7 @@ export function TaskPlanPanel({ plan, connected }: { plan: PlanView; connected: 
         <Checklist title="지켜야 할 조건" values={plan.constraints} />
 
         <div className="min-w-0 space-y-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">단계 {plan.steps.length}개</p>
+          <p className="text-[10px] font-medium text-muted-foreground">단계 {plan.steps.length}개</p>
           <ol className="min-w-0 divide-y divide-border rounded-md border border-border">
             {plan.steps.map((step, index) => {
               const id = step.id || String(index);
@@ -285,7 +276,7 @@ export function TaskPlanPanel({ plan, connected }: { plan: PlanView; connected: 
 
         {plan.review ? (
           <div className="min-w-0 space-y-2 rounded-md border border-border p-2.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">검토 결과</p>
+            <p className="text-[10px] font-medium text-muted-foreground">검토 결과</p>
             <p className="min-w-0 whitespace-pre-wrap break-words text-[11px]">{plan.review.summary}</p>
             <Checklist title="발견한 내용" values={plan.review.findings} />
             <Checklist title="주의할 점" values={plan.review.risks} />
@@ -367,45 +358,28 @@ export function TaskRunPanel({ run, connected }: { run: RunView; connected: bool
 
   return (
     <Panel
+      ariaLabel="실행 작업"
       footer={
-        running ? (
+        <>
+        {running ? (
           <Button variant="outline" size="sm" disabled={!connected || busy || state.cancelingRun === run.id} onClick={state.stopRun}>
             {state.cancelingRun === run.id ? "중단 요청 중…" : "작업 중단"}
           </Button>
-        ) : (
-          <>
+        ) : null}
             {run.status !== "completed" ? (
               <Button
                 variant="primary"
                 size="sm"
-                disabled={!connected || busy}
-                onClick={() => (run.attempts.length ? state.request("mutation", "task_resume", { graphId: run.id }) : start())}
+                disabled={!connected}
+                onClick={() => (run.attempts.length || running || run.status === "canceled" || run.status === "cancelled" ? state.request("mutation", "task_resume", { graphId: run.id }) : start())}
               >
-                {run.attempts.length ? "남은 작업 이어가기" : "실행 시작"}
+                {run.attempts.length || running || run.status === "canceled" || run.status === "cancelled" ? "남은 작업 이어가기" : "실행 시작"}
               </Button>
             ) : null}
             <Button variant="outline" size="sm" disabled={!connected || busy} onClick={start}>
               처음부터 실행
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={busy}
-              onClick={() =>
-                useTaskWorkspace.setState({
-                  editingSteps: run.steps.map((step) => ({
-                    ...step,
-                    dependencies: [...step.dependencies],
-                    skills: [...step.skills],
-                    tools: [...step.tools]
-                  }))
-                })
-              }
-            >
-              단계 편집
-            </Button>
           </>
-        )
       }
     >
       <div className="min-w-0 space-y-3 p-3">
@@ -425,8 +399,17 @@ export function TaskRunPanel({ run, connected }: { run: RunView; connected: bool
         </div>
 
         {running ? <Note>{run.steps.find((step) => step.status === "running")?.title || "다음 단계를 준비하고 있습니다."}</Note> : null}
+        <h2 className="text-xs font-semibold">결과</h2>
 
-        <ol className="min-w-0 divide-y divide-border rounded-md border border-border">
+        {state.output?.stdout ? (
+          <pre aria-label="프로그램 출력" className="max-h-40 min-w-0 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/40 p-2 font-mono text-[10px]">
+            {state.output.stdout}
+          </pre>
+        ) : null}
+
+        <details className="min-w-0 overflow-hidden rounded-md border border-border">
+          <summary className="cursor-pointer list-none px-2.5 py-1.5 text-[11px] font-medium">진행 상세</summary>
+          <ol className="task-run-steps min-w-0 divide-y divide-border border-t border-border">
           {run.steps.map((step, index) => {
             const open = openStep === step.id;
             return (
@@ -442,6 +425,9 @@ export function TaskRunPanel({ run, connected }: { run: RunView; connected: bool
                     {step.title}
                   </button>
                   <Badge tone={statusTone(step.status)}>{statusText(step.status)}</Badge>
+                  <Button variant="outline" size="sm" disabled={!connected} onClick={() => { state.readOutput(step.id); useTaskWorkspace.setState({ outputFocus: true }); }}>
+                    {step.error ? "오류 확인" : "결과 보기"}
+                  </Button>
                 </div>
                 {open ? (
                   <div className="min-w-0 space-y-2 px-2.5 pb-2.5">
@@ -456,7 +442,7 @@ export function TaskRunPanel({ run, connected }: { run: RunView; connected: bool
                       </pre>
                     ) : null}
                     <div className="flex min-w-0 flex-wrap gap-1.5">
-                      <Button variant="outline" size="sm" disabled={!connected} onClick={() => state.readOutput(step.id)}>
+                      <Button variant="outline" size="sm" disabled={!connected} onClick={() => { state.readOutput(step.id); useTaskWorkspace.setState({ outputFocus: true }); }}>
                         {step.error ? "오류 확인" : "결과 보기"}
                       </Button>
                       {["failed", "canceled"].includes(step.status) ? (
@@ -486,6 +472,29 @@ export function TaskRunPanel({ run, connected }: { run: RunView; connected: bool
             );
           })}
         </ol>
+        </details>
+        <details className="min-w-0 overflow-hidden rounded-md border border-border">
+          <summary className="cursor-pointer list-none px-2.5 py-1.5 text-[11px] font-medium">실행 설정</summary>
+          <div className="min-w-0 space-y-2 border-t border-border p-2.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={busy}
+              onClick={() =>
+                useTaskWorkspace.setState({
+                  editingSteps: run.steps.map((step) => ({
+                    ...step,
+                    dependencies: [...step.dependencies],
+                    skills: [...step.skills],
+                    tools: [...step.tools]
+                  }))
+                })
+              }
+            >
+              단계 편집
+            </Button>
+          </div>
+        </details>
       </div>
     </Panel>
   );
@@ -509,24 +518,42 @@ export function TaskOutputPanel({ run }: { run: RunView | null }) {
 
   return (
     <Panel
+      ariaLabel="선택한 단계 출력"
       footer={
-        output?.conversationId ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              useDesktopNavigationStore.getState().setActivePage("build", { conversationId: output.conversationId, mode: "orchestration" })
-            }
-          >
-            이 작업 파일 열기
-          </Button>
-        ) : null
+        <>
+          {output?.conversationId ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                useDesktopNavigationStore.getState().setActivePage("build", { conversationId: output.conversationId, mode: "orchestration" })
+              }
+            >
+              이 작업 파일 열기
+            </Button>
+          ) : null}
+          {output?.resultOutput?.trim() ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                const text = useTaskWorkspace.getState().output?.resultOutput?.trim();
+                if (text) useDesktopNavigationStore.getState().setActivePage("ask", { input: text });
+              }}
+            >
+              질문으로 보내기
+            </Button>
+          ) : null}
+        </>
       }
     >
       <div className="min-w-0 space-y-3 p-3">
-        <h3 className="min-w-0 truncate text-xs font-semibold">{selected?.title || state.outputStep}</h3>
+        <h3 className="min-w-0 truncate text-xs font-semibold">결과</h3>
+        <p className="min-w-0 truncate text-[11px] text-muted-foreground">{selected?.title || state.outputStep}</p>
 
-        {attempts.length > 1 ? (
+        <details className="min-w-0 overflow-hidden rounded-md border border-border">
+          <summary className="cursor-pointer list-none px-2.5 py-1.5 text-[11px] font-medium">이전 실행 결과</summary>
+          <div className="min-w-0 space-y-2 border-t border-border p-2.5">
           <label className="block min-w-0 space-y-1">
             <Label>실행 기록</Label>
             <select
@@ -542,7 +569,8 @@ export function TaskOutputPanel({ run }: { run: RunView | null }) {
               ))}
             </select>
           </label>
-        ) : null}
+          </div>
+        </details>
 
         {state.pending.output ? (
           <Note>출력을 읽고 있습니다.</Note>
@@ -655,7 +683,7 @@ function TaskStepEditor({ connected }: { connected: boolean }) {
         {steps.map((step, index) => {
           const open = openId === step.id;
           return (
-            <li key={step.id} className="min-w-0">
+            <li key={step.id} className="min-w-0" role="region" aria-label={`실행 단계 ${index + 1}`}>
               <button
                 type="button"
                 aria-expanded={open}
@@ -699,32 +727,36 @@ function TaskStepEditor({ connected }: { connected: boolean }) {
                           .map((candidate) => {
                             const on = step.dependencies.includes(candidate.id);
                             return (
-                              <button
+                              <label
                                 key={candidate.id}
-                                type="button"
-                                aria-pressed={on}
-                                disabled={busy}
-                                onClick={() =>
-                                  update(step.id, {
-                                    dependencies: on
-                                      ? step.dependencies.filter((id) => id !== candidate.id)
-                                      : [...step.dependencies, candidate.id]
-                                  })
-                                }
                                 className={cn(
-                                  "max-w-full truncate rounded-full px-2.5 py-1 text-[11px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/60",
+                                  "inline-flex max-w-full items-center gap-1 truncate rounded-full px-2.5 py-1 text-[11px] font-medium",
                                   on ? "bg-primary/12 text-primary" : "text-muted-foreground hover:bg-accent"
                                 )}
                               >
+                                <input
+                                  type="checkbox"
+                                  disabled={busy}
+                                  checked={on}
+                                  onChange={() =>
+                                    update(step.id, {
+                                      dependencies: on
+                                        ? step.dependencies.filter((id) => id !== candidate.id)
+                                        : [...step.dependencies, candidate.id]
+                                    })
+                                  }
+                                />
                                 {candidate.title || "이름 없는 단계"}
-                              </button>
+                              </label>
                             );
                           })}
                       </div>
                     )}
                   </div>
 
-                  <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+                  <details className="min-w-0 overflow-hidden rounded-md border border-border">
+                    <summary className="cursor-pointer list-none px-2.5 py-1.5 text-[11px] font-medium">필요한 스킬과 도구</summary>
+                    <div className="grid min-w-0 gap-2 border-t border-border p-2.5 sm:grid-cols-2">
                     <label className="block min-w-0 space-y-1">
                       <Label>스킬</Label>
                       <Input
@@ -744,6 +776,7 @@ function TaskStepEditor({ connected }: { connected: boolean }) {
                       />
                     </label>
                   </div>
+                  </details>
 
                   <Button
                     variant="ghost"

@@ -92,12 +92,12 @@ function main() {
   assertIncludes(quality, "EvaluateCodingQualityGate", "quality gate evaluator");
   assertIncludes(quality, "quality_failed", "quality failed status");
   assertIncludes(codingWorkerSelectionPolicy, "SelectBest", "best worker selection through policy");
-  assertIncludes(quality, "테트리스 요구사항 누락", "tetris requirement failure");
+  assertIncludes(quality, "tetris requirement missing", "tetris requirement failure");
   assertIncludes(quality, "TODO/placeholder/미구현", "dummy implementation gate");
 
   assertIncludes(profiles, "OMNI_HEADLESS_TEST=1", "headless prompt rule");
   assertIncludes(profiles, "Pygame을 요구하거나 적합하면 pygame 기반 구현을 우선하라", "pygame prompt rule");
-  assertIncludes(profiles, "10x20 보드", "tetris prompt rule");
+  assertIncludes(profiles, "10x20 board", "tetris prompt rule");
   assertIncludes(profiles, "React/Vite 요청은 package.json", "react vite prompt rule");
   assertIncludes(profiles, "프로젝트 프로파일은", "project profile prompt rule");
   assertIncludes(profiles, "case \"typescript\"", "typescript prompt rule");

@@ -5,12 +5,14 @@ import { ScreenTabs, type ScreenTab } from "../../components/screen/ScreenTabs";
 import { Button } from "../../components/ui/primitives";
 import { useDesktopAuthStore } from "../auth/auth-store";
 import { useDesktopShellStore } from "../../shell-store";
-import { useDesktopNavigationStore } from "../shell/navigation-store";
+import { useDesktopNavigationStore, workModeFromRoute } from "../shell/navigation-store";
+import { useBuildNotebookSave } from "./build-notebook-save";
 import { BuildComposer, BuildReferences } from "./BuildComposer";
 import { BuildResultPanel } from "./BuildResultPanel";
 import { BuildSettings } from "./BuildSettings";
 import { busyBuild, useBuildWorkspace } from "./build-state";
 import { modeNames } from "./build-model";
+import { useHomeRecentStore } from "../home/home-recent-store";
 import "./build-workspace.css";
 
 /* ============================================================================
@@ -28,7 +30,9 @@ export function BuildWorkspacePage() {
   const authenticated = useDesktopAuthStore((value) => value.auth.status === "authenticated");
   const connected = online && authenticated;
   const navigation = useDesktopNavigationStore();
+  const notebook = useBuildNotebookSave();
   const dialog = useRef<HTMLDialogElement>(null);
+  const attachRule = useRef(false);
   const [tab, setTab] = useState<TabId>("build");
 
   useEffect(() => {
@@ -42,13 +46,20 @@ export function BuildWorkspacePage() {
       state.fresh();
     }
     if (payload.input) useBuildWorkspace.setState({ input: payload.input });
+    const nextMode = workModeFromRoute(payload.mode);
+    if (nextMode && !payload.conversationId && !useBuildWorkspace.getState().activeId) {
+      useBuildWorkspace.getState().patchSettings({ mode: nextMode });
+      if (nextMode !== "single") useBuildWorkspace.setState({ settingsOpen: true });
+    }
     if (payload.conversationId && connected) state.open(payload.conversationId);
     if (payload.projectName || payload.projectKey) {
+      attachRule.current = true;
       state.patchSettings({
         project: payload.projectName || payload.projectKey || "",
         projectKey: payload.projectKey || "",
         projectPath: payload.projectPath || ""
       });
+      if (connected) state.loadReferences();
     }
     if (!payload.conversationId || connected) navigation.clearRoutePayload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -63,6 +74,15 @@ export function BuildWorkspacePage() {
   useEffect(() => {
     if (state.settingsOpen) setTab("settings");
   }, [state.settingsOpen]);
+
+  useEffect(() => {
+    if (!attachRule.current || !state.memory.some((note) => note.name === "작업 규칙.md")) return;
+    if (!state.settings.memory.includes("작업 규칙.md")) {
+      state.patchSettings({ memory: [...state.settings.memory, "작업 규칙.md"] });
+    }
+    attachRule.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.memory, state.settings.memory]);
 
   // 기록 탭을 열 때만 목록을 읽는다. 필요 없는 요청을 미리 보내지 않는다.
   useEffect(() => {
@@ -82,8 +102,9 @@ export function BuildWorkspacePage() {
 
   return (
     <Screen
+      surface="build-workspace"
       title="빌드"
-      hint={state.settings.projectKey ? state.settings.project || state.settings.projectKey : "필요한 결과를 만들고 실행합니다."}
+      hint={state.settings.projectKey ? state.settings.project || state.settings.projectKey : ""}
       actions={
         <>
           {running ? (
@@ -106,43 +127,59 @@ export function BuildWorkspacePage() {
         </>
       }
       notice={
-        !connected ? (
-          <ScreenNotice tone="warning">서버에 연결하면 작업을 시작할 수 있습니다. 작성한 내용은 그대로 둡니다.</ScreenNotice>
-        ) : state.error ? (
+        state.error ? (
           <ScreenNotice tone="danger">{state.error}</ScreenNotice>
+        ) : !connected ? (
+          <ScreenNotice tone="warning">서버에 연결하면 작업을 시작할 수 있습니다. 작성한 내용은 그대로 둡니다.</ScreenNotice>
         ) : running ? (
           <ScreenNotice>{state.cancelPending ? "작업을 중단하고 있습니다." : state.progress || "작업 중입니다."}</ScreenNotice>
         ) : state.pending.detail ? (
           <ScreenNotice>저장된 결과를 불러오고 있습니다.</ScreenNotice>
+        ) : notebook.notice ? (
+          <ScreenNotice tone={notebook.failed ? "danger" : "info"}>{notebook.notice}</ScreenNotice>
         ) : null
       }
     >
-      <ScreenTabs tabs={tabs} value={tab} onChange={(id) => setTab(id as TabId)} label="빌드 보기 종류" />
+      <ScreenTabs
+        tabs={tabs}
+        value={tab}
+        onChange={(id) => {
+          setTab(id as TabId);
+          if (id !== "settings" && useBuildWorkspace.getState().settingsOpen) useBuildWorkspace.setState({ settingsOpen: false });
+        }}
+        label="빌드 보기 종류"
+      />
 
-      {tab === "build" ? (
-        <div className="build-workspace flex min-h-0 min-w-0 flex-1 flex-col gap-2" data-surface="build-workspace">
+      <div className="build-workspace flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+        {tab === "build" ? (
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+            <BuildThread />
             <BuildResultPanel connected={connected} />
           </div>
-          <div className="min-w-0 shrink-0">
-            <BuildComposer connected={connected} />
-          </div>
-        </div>
-      ) : (
-        <div className="build-workspace flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card" data-surface="build-workspace">
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-            <div className="min-w-0 p-3">
-              {tab === "settings" ? (
-                <BuildSettings connected={connected} />
-              ) : tab === "references" ? (
-                <BuildReferences connected={connected} />
-              ) : (
-                <BuildHistory connected={connected} />
-              )}
+        ) : (
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-md border border-border bg-card">
+            <div className="min-h-0 h-full overflow-y-auto overflow-x-hidden">
+              {state.currentResult ? (
+                <div className="min-w-0 p-3">
+                  <BuildResultPanel connected={connected} />
+                </div>
+              ) : null}
+              <div className="min-w-0 p-3">
+                {tab === "settings" ? (
+                  <BuildSettings connected={connected} />
+                ) : tab === "references" ? (
+                  <BuildReferences connected={connected} />
+                ) : (
+                  <BuildHistory connected={connected} />
+                )}
+              </div>
             </div>
           </div>
+        )}
+        <div className="min-w-0 shrink-0">
+          <BuildComposer connected={connected} />
         </div>
-      )}
+      </div>
 
       <dialog
         ref={dialog}
@@ -179,6 +216,29 @@ export function BuildWorkspacePage() {
   );
 }
 
+function BuildThread() {
+  const state = useBuildWorkspace();
+  const messages = state.active?.messages ?? [];
+  const pendingUser = state.pending.run && state.submitted?.input ? state.submitted.input : "";
+  if (messages.length === 0 && !pendingUser) {
+    return <BuildEmptyContinue />;
+  }
+  return (
+    <div className="build-thread" aria-label="빌드 대화">
+      {messages.map((message, index) => (
+        <p key={index} className="build-bubble" data-role={message.role === "user" ? "user" : "ai"}>
+          {message.text}
+        </p>
+      ))}
+      {pendingUser && !messages.some((message) => message.role === "user" && message.text === pendingUser) ? (
+        <p className="build-bubble" data-role="user">
+          {pendingUser}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 /** 저장한 빌드 목록과 이 빌드의 요청 기록. */
 function BuildHistory({ connected }: { connected: boolean }) {
   const state = useBuildWorkspace();
@@ -194,7 +254,7 @@ function BuildHistory({ connected }: { connected: boolean }) {
         </p>
       ) : null}
       <label>
-        저장한 빌드
+        빌드 선택
         <select disabled={!connected || busy || drafting} value={state.activeId} onChange={(event) => state.open(event.target.value)}>
           <option value="">선택해 주세요.</option>
           {state.items.map((item) => (
@@ -235,6 +295,30 @@ function BuildHistory({ connected }: { connected: boolean }) {
           </ol>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function BuildEmptyContinue() {
+  const recent = useHomeRecentStore((state) => state.items);
+  const items = recent.filter((item) => item.kind === "build").slice(0, 3);
+  const open = useBuildWorkspace((state) => state.open);
+  if (items.length === 0) {
+    return <p className="px-3 py-6 text-center text-xs text-muted-foreground">아직 주고받은 요청이 없습니다.</p>;
+  }
+  return (
+    <div className="min-w-0 space-y-2 px-3 py-4">
+      <p className="text-center text-xs text-muted-foreground">아직 이 칸은 비어 있습니다. 아래에서 이어서 열 수 있습니다.</p>
+      <ul className="mx-auto flex max-w-md min-w-0 flex-col gap-1">
+        {items.map((item) => (
+          <li key={item.id} className="min-w-0">
+            <button type="button" className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-accent" onClick={() => open(item.id)}>
+              <span className="min-w-0 flex-1 truncate font-medium">{item.title}</span>
+              {item.preview ? <span className="hidden min-w-0 max-w-[40%] truncate text-muted-foreground sm:inline">{item.preview}</span> : null}
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

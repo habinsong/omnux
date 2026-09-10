@@ -36,7 +36,7 @@ function AudioSpectrum({ playing }: { playing: boolean }) {
         <div
           // eslint-disable-next-line react/no-array-index-key
           key={i}
-          className="w-1 bg-primary rounded-t-[1px] transition-all duration-150"
+          className="w-1 bg-primary rounded-t-[1px] transition-[height] duration-150"
           style={{ height: `${height}%` }}
         />
       ))}
@@ -371,7 +371,7 @@ export function MediaWidget() {
         }}
         {...pointerHandlers}
         aria-label={open ? "미디어 제어 닫기" : "미디어 제어 열기"}
-        className="flex h-24 w-12 shrink-0 cursor-grab flex-col items-center justify-center gap-1 rounded-l-xl border border-r-0 border-border bg-card/60 backdrop-blur-md shadow-sm transition-colors hover:bg-accent active:cursor-grabbing"
+        className="flex h-24 w-12 shrink-0 cursor-grab flex-col items-center justify-center gap-1 rounded-l-md border border-r-0 border-border bg-card transition-colors hover:bg-accent active:cursor-grabbing"
       >
         <span className="relative block h-[18px] w-[18px]" aria-hidden="true">
           <Music size={18} className="absolute inset-0 text-muted-foreground/30" />
@@ -388,7 +388,7 @@ export function MediaWidget() {
         "flex w-[17rem] flex-col overflow-hidden p-0 rounded-tl-none border-l-0 transition-[height] duration-300 ease-out",
         open ? "h-[218px]" : "h-[96px]"
       )}>
-        <div className="flex-1 min-w-0 p-3 bg-card/60 backdrop-blur-md h-full flex flex-col">
+        <div className="flex-1 min-w-0 p-3 bg-card h-full flex flex-col">
           {/* 헤더 및 스펙트럼 */}
           <div className="flex items-center justify-between mb-3 gap-2">
             <span className="truncate text-sm font-semibold">현재 재생 중</span>
@@ -402,7 +402,7 @@ export function MediaWidget() {
                 <img src={artUrl} alt="Album Art" className="absolute inset-0 w-full h-full object-cover" />
               ) : (
                 <>
-                  <div className="absolute inset-0 bg-gradient-to-br from-violet-500 to-indigo-500 opacity-80" />
+                  <div className="absolute inset-0 bg-muted" />
                   <Music className="absolute inset-0 m-auto text-white/50" size={24} />
                 </>
               )}
@@ -463,7 +463,7 @@ export function MediaWidget() {
               type="button"
               onClick={() => void runControl("toggle")}
               disabled={!mediaData || controlPending}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-transform active:scale-95 hover:bg-primary/90"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-transform  hover:bg-primary/90"
               aria-label={playing ? "일시정지" : "재생"}
             >
               {playing ? <Pause size={18} className="fill-current" /> : <Play size={18} className="fill-current ml-0.5" />}

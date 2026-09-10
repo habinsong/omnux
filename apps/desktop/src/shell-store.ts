@@ -118,7 +118,7 @@ export const useDesktopShellStore = create<DesktopShellState>((set) => ({
   },
   markWaiting: () =>
     set((state) => {
-      recordShellLog("info", ".NET 미들웨어 연결 대기 상태로 전환했다.");
+      recordShellLog("info", "서버 연결을 기다리는 중");
       return {
         middleware: syncMiddlewareStatus(state.middleware, "waiting", null),
         runtime: syncRuntimeContract(
@@ -132,7 +132,7 @@ export const useDesktopShellStore = create<DesktopShellState>((set) => ({
     }),
   markConnected: () =>
     set((state) => {
-      recordShellLog("info", ".NET 미들웨어 WebSocket 연결 상태를 확인했다.");
+      recordShellLog("info", "서버에 연결됨");
       return {
         middleware: syncMiddlewareStatus(state.middleware, "connected", null),
         runtime: syncRuntimeContract(state.runtime, "connected", 0, new Date().toISOString(), null)
@@ -162,7 +162,7 @@ export const useDesktopShellStore = create<DesktopShellState>((set) => ({
         state.runtime.reconnectPolicy.initialDelayMs * Math.max(nextAttempts, 1),
         state.runtime.reconnectPolicy.maxDelayMs
       );
-      recordShellLog("info", `다음 재연결을 ${Math.round(delay / 1000)}초 후로 예약했다.`, "runtime");
+      recordShellLog("info", `잠시 후 다시 연결합니다 (${Math.round(delay / 1000)}초)`, "runtime");
       return {
         middleware: syncMiddlewareStatus(state.middleware, "waiting", null),
         runtime: syncRuntimeContract(state.runtime, "waiting", nextAttempts, state.runtime.lastProbeAt, null)
@@ -198,7 +198,7 @@ export const useDesktopShellStore = create<DesktopShellState>((set) => ({
     set((state) => {
       const changed = state.runtime.wsUrl !== endpoint.wsUrl;
       if (changed) {
-        recordShellLog("info", `gateway endpoint를 ${endpoint.wsUrl}로 전환했다.`, "runtime");
+        recordShellLog("info", `연결 주소가 바뀌었습니다: ${endpoint.wsUrl}`, "runtime");
       }
       return {
         middleware: {
@@ -217,10 +217,10 @@ export const useDesktopShellStore = create<DesktopShellState>((set) => ({
     set((state) => {
       const message =
         status === "ok"
-          ? "WebSocket ping/pong probe를 통과했다."
+          ? "서버 연결을 확인했습니다"
           : status === "not_ready"
-            ? `미들웨어가 아직 준비되지 않았다.${detail ? ` (${detail})` : ""}`
-            : `runtime probe에 실패했다.${detail ? ` (${detail})` : ""}`;
+            ? `서버가 아직 준비되지 않았습니다.${detail ? ` (${detail})` : ""}`
+            : `서버 상태 확인에 실패했습니다.${detail ? ` (${detail})` : ""}`;
       const runtimePhase: DesktopRuntimePhase =
         status === "ok" ? "connected" : status === "not_ready" ? "waiting" : "error";
       const runtimeError = status === "ok" ? null : (detail || "runtime probe failed");
@@ -250,7 +250,7 @@ export const useDesktopShellStore = create<DesktopShellState>((set) => ({
         state.runtime.reconnectPolicy.initialDelayMs * Math.max(nextAttempts, 1),
         state.runtime.reconnectPolicy.maxDelayMs
       );
-      recordShellLog("info", `다음 재연결을 ${Math.round(delay / 1000)}초 후로 예약했다.`, "runtime");
+      recordShellLog("info", `잠시 후 다시 연결합니다 (${Math.round(delay / 1000)}초)`, "runtime");
       return {
         middleware: syncMiddlewareStatus(state.middleware, "waiting", null),
         runtime: syncRuntimeContract(

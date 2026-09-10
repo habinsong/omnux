@@ -81,43 +81,36 @@ internal static class CodingExecutionSafetyPolicy
         {
             return ContainsAny(
                 text,
-                "게임",
                 "game",
-                "슈팅",
                 "shooter",
                 "shooting",
                 "tetris",
                 "pong",
                 "snake",
-                "비행기",
                 "tkinter",
                 "pygame",
                 "arcade",
                 "sprite",
                 "animation",
-                "애니메이션",
-                "그래픽",
                 "graphic",
                 "gui",
                 "window",
-                "창",
                 "mainloop",
                 "canvas",
                 "keyboard",
-                "키보드",
-                "마우스"
+                "mouse"
             );
         }
 
         if (language is "javascript" or "typescript" or "react-vite")
         {
             return (isFrontendLikeCodingTask?.Invoke(objective ?? string.Empty, language) ?? false)
-                   || ContainsAny(text, "canvas", "animation", "sprite", "dom", "browser", "브라우저");
+                   || ContainsAny(text, "canvas", "animation", "sprite", "dom", "browser");
         }
 
         if (language == "bash")
         {
-            return ContainsAny(text, "watch", "tail -f", "server", "serve", "dev server", "실시간", "대기");
+            return ContainsAny(text, "watch", "tail -f", "server", "serve", "dev server");
         }
 
         return false;

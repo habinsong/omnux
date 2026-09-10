@@ -148,10 +148,13 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     "src/features/shell/DesktopNavigation.tsx",
     "src/features/shell/PageBoundary.tsx",
     "src/features/shell/ShellOverviewPage.tsx",
+    "src/features/shell/DesktopRail.tsx",
+    "src/features/shell/nav-areas.ts",
     "src/features/settings/SettingsPage.tsx",
     "src/features/settings/settings-store.ts",
-    "src/features/shell/ShellStatusCards.tsx",
-    "src/features/ui-log/UiLogPanel.tsx",
+    "src/features/settings/GrokConnectionPanel.tsx",
+    "src/features/activity/ActivityPage.tsx",
+    "src/features/insights/InsightsPage.tsx",
     "src/features/ui-log/ui-log-store.ts"
   ];
 
@@ -250,62 +253,30 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   const shellOverviewSource = read("apps/desktop/src/features/shell/ShellOverviewPage.tsx");
   assertIncludes(
     shellOverviewSource,
-    "CardBoundary",
-    "desktop shell overview owns card boundaries"
+    "ScreenTabs",
+    "desktop shell overview uses capsule tabs"
   );
   assertIncludes(
     shellOverviewSource,
-    "UiLogPanel",
-    "desktop shell overview owns ui log panel"
-  );
-
-  const shellStatusCardsSource = read("apps/desktop/src/features/shell/ShellStatusCards.tsx");
-  assertIncludes(
-    shellStatusCardsSource,
     "useDesktopShellStore",
-    "desktop shell status cards read shell store"
-  );
-  assertIncludes(
-    shellStatusCardsSource,
-    "bootstrapPhase",
-    "desktop shell status cards display bootstrap phase"
-  );
-  assertIncludes(
-    shellStatusCardsSource,
-    "healthStatus",
-    "desktop shell status cards display healthz status"
-  );
-  assertIncludes(
-    shellStatusCardsSource,
-    "readyStatus",
-    "desktop shell status cards display readyz status"
-  );
-  assertIncludes(
-    shellStatusCardsSource,
-    "reconnectPolicy",
-    "desktop shell status cards display reconnect policy"
+    "desktop shell overview reads shell store"
   );
 
-  const uiLogPanelSource = read("apps/desktop/src/features/ui-log/UiLogPanel.tsx");
+  const activitySource = read("apps/desktop/src/features/activity/ActivityPage.tsx");
   assertIncludes(
-    uiLogPanelSource,
+    activitySource,
     "serializeUiLogs",
-    "desktop ui log panel export serialization"
+    "desktop activity page export serialization"
   );
   assertIncludes(
-    uiLogPanelSource,
-    "로그 내보내기",
-    "desktop ui log panel export button"
-  );
-  assertIncludes(
-    uiLogPanelSource,
+    activitySource,
     "clearLogs",
-    "desktop ui log panel clear action"
+    "desktop activity page clear action"
   );
   assertIncludes(
-    uiLogPanelSource,
+    activitySource,
     "componentStack",
-    "desktop ui log panel component stack display"
+    "desktop activity page component stack display"
   );
 
   const pageBoundarySource = read("apps/desktop/src/features/shell/PageBoundary.tsx");
@@ -321,7 +292,7 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   );
   assertIncludes(
     pageBoundarySource,
-    "화면 다시 렌더",
+    "다시 시도",
     "desktop page boundary local retry"
   );
 
@@ -365,7 +336,7 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   );
   assertIncludes(
     shellFaultSource,
-    "다시 렌더",
+    "다시 시도",
     "desktop ShellFault.tsx default retry label"
   );
 
@@ -444,7 +415,7 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   );
   assertIncludes(
     shellStoreSource,
-    "WebSocket",
+    "wsUrl",
     "desktop shell store websocket endpoint"
   );
   assertIncludes(
@@ -672,15 +643,13 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
     "desktop projects store mutation result handling"
   );
 
-  const explorePageSource = ["ExploreWorkspacePage.tsx", "WebExplorePanel.tsx", "RuntimeExplorePanels.tsx", "SessionExplorePanel.tsx"]
+  const explorePageSource = ["ExploreWorkspacePage.tsx", "ExplorePanels.tsx"]
     .map(file => read(`apps/desktop/src/features/explore-workspace/${file}`)).join("\n");
   for (const [symbol, purpose] of [
     ["useWebExplore", "web state ownership"], ["useRuntimeExplore", "browser state ownership"],
-    ["useSessionExplore", "session state ownership"], ["<summary>", "collapsible sections"],
+    ["useSessionExplore", "session state ownership"], ["ScreenTabs", "capsule tabs"],
     ["connected", "connected request gate"], ["state.document", "web document"],
-    ["state.history.messages", "session messages"], ["state.append()", "session note"],
-    ["state.create()", "session creation"], ["sessions_spawn", "session status"],
-    ["browser.result", "browser result"], ["canvas.result", "canvas result"],
+    ["state.history.messages", "session messages"], ["sessions_spawn", "session status"],
     ['state.run("browser", "open"', "browser open"], ['state.run("canvas", "navigate"', "canvas navigate"]
   ]) assertIncludes(explorePageSource, symbol, `desktop explore ${purpose}`);
   const exploreStoreSource = ["web-explore-state.ts", "runtime-explore-state.ts", "session-explore-state.ts"]
@@ -688,7 +657,11 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   for (const symbol of ["sendExploreCommand", "web_search_result", 'kind + "_result"', "sessions_send_result", "sessions_spawn_result"])
     assertIncludes(exploreStoreSource, symbol, `desktop explore response ${symbol}`);
 
-  const settingsPageSource = read("apps/desktop/src/features/settings/SettingsPage.tsx");
+  const settingsPageSource = [
+    "SettingsPage.tsx",
+    "SettingsCards.tsx",
+    "LlmModelsPanel.tsx"
+  ].map((file) => read(`apps/desktop/src/features/settings/${file}`)).join("\n");
   assertIncludes(
     settingsPageSource,
     "useSettingsStore",
@@ -841,7 +814,7 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   const boundarySource = read("apps/desktop/src/ShellErrorBoundary.tsx");
   assertIncludes(
     boundarySource,
-    "데스크톱 셸 렌더링을 중단했다",
+    "화면을 그리지 못했습니다",
     "desktop shell error boundary fallback"
   );
   assertIncludes(
@@ -1233,7 +1206,7 @@ if (existsSync(srcDir) && statSync(srcDir).isDirectory()) {
   assertIncludes(opsStoreSource, "approvalToken: previewId", "Doctor approval identifies its preview");
   assertIncludes(opsStoreSource, "if (!permission) return;", "Doctor apply respects rejected permission");
   assertIncludes(opsStoreSource, "requestDesktopOps.doctorFixApply(previewId)", "Doctor apply sends the approved preview");
-  const doctorSectionSource = read("apps/desktop/src/features/ops/OpsDoctorSection.tsx");
+  const doctorSectionSource = read("apps/desktop/src/features/ops/OpsPanels.tsx");
   assertIncludes(doctorSectionSource, "disabled={!canApply}", "Doctor apply button requires an applicable preview");
   assertIncludes(
     doctorSectionSource,

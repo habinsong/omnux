@@ -34,10 +34,23 @@ export function TaskWorkspacePage() {
   }, [connected]);
 
   useEffect(() => {
-    if (typeof route?.input === "string") {
-      useTaskWorkspace.setState((current) => ({ composer: true, draft: { ...current.draft, objective: route.input! } }));
+    if (!route) return;
+    const conversationId = String(route.conversationId || "").trim();
+    const planId = String(route.planId || "").trim();
+    if (planId) {
+      useTaskWorkspace.getState().openPlan(planId);
+    } else if (typeof route.input === "string") {
+      useTaskWorkspace.setState((current) => ({
+        composer: true,
+        draft: { ...current.draft, objective: route.input! },
+        ...(conversationId ? { sourceConversationId: conversationId } : {})
+      }));
+    } else if (route.create) {
+      useTaskWorkspace.setState({ composer: true, ...(conversationId ? { sourceConversationId: conversationId } : {}) });
+    } else if (conversationId) {
+      useTaskWorkspace.setState({ sourceConversationId: conversationId });
     }
-    if (route) clearRoute();
+    clearRoute();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeVersion]);
 
@@ -68,8 +81,8 @@ export function TaskWorkspacePage() {
     if (state.run) setTab("run");
   }, [state.run?.id]);
   useEffect(() => {
-    if (state.outputStep) setTab("output");
-  }, [state.outputStep]);
+    if (state.outputFocus && state.run) setTab("run");
+  }, [state.outputFocus, state.run]);
 
   const newTask = () => {
     useTaskWorkspace.setState({
@@ -82,7 +95,8 @@ export function TaskWorkspacePage() {
       outputStep: "",
       editingPlan: null,
       editingSteps: null,
-      notice: null
+      notice: null,
+      sourceConversationId: ""
     });
   };
 
@@ -99,6 +113,7 @@ export function TaskWorkspacePage() {
 
   return (
     <Screen
+      surface="tasks"
       title="작업"
       hint="계획을 세우고 단계별로 실행한 뒤 결과까지 확인합니다."
       actions={
@@ -123,7 +138,10 @@ export function TaskWorkspacePage() {
       ) : active === "plan" && state.plan ? (
         <TaskPlanPanel plan={state.plan} connected={connected} />
       ) : active === "run" && state.run ? (
-        <TaskRunPanel run={state.run} connected={connected} />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto">
+          <TaskRunPanel run={state.run} connected={connected} />
+          {state.outputStep ? <TaskOutputPanel run={state.run} /> : null}
+        </div>
       ) : active === "output" ? (
         <TaskOutputPanel run={state.run} />
       ) : (

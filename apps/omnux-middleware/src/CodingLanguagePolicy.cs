@@ -40,100 +40,19 @@ internal static class CodingLanguagePolicy
 
     public static string ResolveExplicitObjectiveLanguage(string? objective)
     {
-        var text = ExtractLatestCodingRequestText(WebUtility.HtmlDecode(objective ?? string.Empty)).ToLowerInvariant();
+        var text = ExtractLatestCodingRequestText(WebUtility.HtmlDecode(objective ?? string.Empty));
         if (string.IsNullOrWhiteSpace(text))
         {
             return string.Empty;
         }
 
-        if (ContainsAny(text, "파이썬", "python"))
+        var fromPath = LanguageFromRequestedPaths(text);
+        if (!string.IsNullOrWhiteSpace(fromPath) && fromPath != "auto")
         {
-            return "python";
+            return fromPath;
         }
 
-        if (ContainsAny(text, "react", "vite", "리액트"))
-        {
-            return "react-vite";
-        }
-
-        if (ContainsAny(text, "typescript", "타입스크립트", "tsx"))
-        {
-            return "typescript";
-        }
-
-        if (ContainsAny(text, "자바스크립트", "javascript", "node.js", "nodejs"))
-        {
-            return "javascript";
-        }
-
-        if (ContainsAny(text, "c#", "csharp", "dotnet", "asp.net"))
-        {
-            return "csharp";
-        }
-
-        if (ContainsAny(text, "c++", "cpp"))
-        {
-            return "cpp";
-        }
-
-        if (ContainsAny(text, "html"))
-        {
-            return "html";
-        }
-
-        if (ContainsAny(text, "css"))
-        {
-            return "css";
-        }
-
-        if (ContainsAny(text, "코틀린", "kotlin", "안드로이드"))
-        {
-            return "kotlin";
-        }
-
-        if (ContainsAny(text, "golang", " go ", "go언어", "go 언어"))
-        {
-            return "go";
-        }
-
-        if (ContainsAny(text, "rust", "러스트", "cargo"))
-        {
-            return "rust";
-        }
-
-        if (ContainsAny(text, "php", "laravel"))
-        {
-            return "php";
-        }
-
-        if (ContainsAny(text, "ruby", "rails"))
-        {
-            return "ruby";
-        }
-
-        if (ContainsAny(text, "swift", "스위프트"))
-        {
-            return "swift";
-        }
-
-        if (Regex.IsMatch(text, @"(?<![a-z])java(?!script)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
-            || Regex.IsMatch(text, @"자바(?!스크립트)", RegexOptions.CultureInvariant)
-            || ContainsAny(text, "spring"))
-        {
-            return "java";
-        }
-
-        if (ContainsAny(text, "c언어", "gcc", "clang"))
-        {
-            return "c";
-        }
-
-        if (ContainsAny(text, "bash", "shell", "쉘"))
-        {
-            return "bash";
-        }
-
-        return string.Empty;
+        return MatchLanguageToken(text);
     }
 
     public static string ResolveInitialCodingLanguage(string? languageHint, string objective)
@@ -145,83 +64,7 @@ internal static class CodingLanguagePolicy
         }
 
         var explicitLanguage = ResolveExplicitObjectiveLanguage(objective);
-        if (!string.IsNullOrWhiteSpace(explicitLanguage))
-        {
-            return explicitLanguage;
-        }
-
-        var text = ExtractLatestCodingRequestText(WebUtility.HtmlDecode(objective ?? string.Empty)).ToLowerInvariant();
-        if (ContainsAny(text, "react", "vite", "리액트"))
-        {
-            return "react-vite";
-        }
-
-        if (ContainsAny(text, "typescript", "타입스크립트", "tsx"))
-        {
-            return "typescript";
-        }
-
-        if (ContainsAny(text, "html", "css", "javascript", "js", "ui", "웹", "frontend", "vue", "next", "클론"))
-        {
-            return "html";
-        }
-
-        if (ContainsAny(text, "c#", "dotnet", "asp.net"))
-        {
-            return "csharp";
-        }
-
-        if (ContainsAny(text, "kotlin", "안드로이드"))
-        {
-            return "kotlin";
-        }
-
-        if (ContainsAny(text, "golang", " go ", "go언어", "go 언어"))
-        {
-            return "go";
-        }
-
-        if (ContainsAny(text, "rust", "러스트", "cargo"))
-        {
-            return "rust";
-        }
-
-        if (ContainsAny(text, "php", "laravel"))
-        {
-            return "php";
-        }
-
-        if (ContainsAny(text, "ruby", "rails"))
-        {
-            return "ruby";
-        }
-
-        if (ContainsAny(text, "swift", "스위프트"))
-        {
-            return "swift";
-        }
-
-        if (ContainsAny(text, "java", "spring"))
-        {
-            return "java";
-        }
-
-        if (ContainsAny(text, "c++", "cpp"))
-        {
-            return "cpp";
-        }
-
-        if (ContainsAny(text, " c ", " gcc ", "clang", "c언어"))
-        {
-            return "c";
-        }
-
-        if (ContainsAny(text, "bash", "shell", "스크립트"))
-        {
-            return "bash";
-        }
-
-        return "auto";
+        return string.IsNullOrWhiteSpace(explicitLanguage) ? "auto" : explicitLanguage;
     }
 
     public static string GuessLanguageFromPath(string path, string fallback)
@@ -330,8 +173,82 @@ internal static class CodingLanguagePolicy
         return text;
     }
 
-    private static bool ContainsAny(string text, params string[] patterns)
+    private static readonly Regex RequestedPathRegex = new(
+        @"(?:(?:[A-Za-z]:)?[\\/])?(?:[\w.-]+[\\/])*(?:[\w.-]+\.)+(?:json|html|java|tsx|jsx|mjs|cjs|cpp|cxx|hpp|htm|css|txt|md|py|ts|js|cs|kt|kts|sh|cc|hh|h|c|go|rs|php|rb|swift|yml|yaml|toml|xml|csproj|sln|gradle|svelte|vue)(?![A-Za-z0-9._-])",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+    );
+
+    private static readonly (Regex Pattern, string Language)[] LanguageTokenPatterns =
     {
-        return patterns.Any(pattern => text.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+        (Token("python3"), "python"),
+        (Token("python"), "python"),
+        (Token("javascript"), "javascript"),
+        (Token(@"node\.js"), "javascript"),
+        (Token("nodejs"), "javascript"),
+        (Token("typescript"), "typescript"),
+        (Token("react-vite"), "react-vite"),
+        (Token("react"), "react-vite"),
+        (Token("vite"), "react-vite"),
+        (Token("csharp"), "csharp"),
+        (Token(@"asp\.net"), "csharp"),
+        (Token("dotnet"), "csharp"),
+        (Token("c#"), "csharp"),
+        (Token("kotlin"), "kotlin"),
+        (Token("golang"), "go"),
+        (Token("rust"), "rust"),
+        (Token("cargo"), "rust"),
+        (Token("laravel"), "php"),
+        (Token("php"), "php"),
+        (Token("rails"), "ruby"),
+        (Token("ruby"), "ruby"),
+        (Token("swift"), "swift"),
+        (Token("spring"), "java"),
+        (Token("java(?!script)"), "java"),
+        (Token("html"), "html"),
+        (Token("css"), "css"),
+        (Token("bash"), "bash"),
+        (Token("shell"), "bash"),
+        (Token("clang"), "c"),
+        (Token("gcc"), "c"),
+        (Token(@"c\+\+"), "cpp"),
+        (Token("cpp"), "cpp"),
+        (Token(@"(?<![a-z])go(?![a-z])"), "go"),
+        (Token(@"(?<![a-z])c(?![a-z+#])"), "c")
+    };
+
+    private static Regex Token(string body)
+    {
+        return new Regex(
+            $@"(?<![a-z0-9])(?:{body})(?![a-z0-9])",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
+        );
+    }
+
+    private static string LanguageFromRequestedPaths(string text)
+    {
+        foreach (Match match in RequestedPathRegex.Matches(text ?? string.Empty))
+        {
+            var language = GuessLanguageFromPath(match.Value, "auto");
+            if (!string.IsNullOrWhiteSpace(language) && language != "auto")
+            {
+                return language;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static string MatchLanguageToken(string text)
+    {
+        var lowered = (text ?? string.Empty).ToLowerInvariant();
+        foreach (var (pattern, language) in LanguageTokenPatterns)
+        {
+            if (pattern.IsMatch(lowered))
+            {
+                return language;
+            }
+        }
+
+        return string.Empty;
     }
 }

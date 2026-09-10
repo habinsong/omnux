@@ -31,7 +31,7 @@ export function ScreenTabs({
   /** 스크린 리더용 묶음 이름. */
   label: string;
 }) {
-  if (tabs.length === 0) return null;
+  if (tabs.length < 2) return null;
 
   return (
     <div
@@ -55,22 +55,24 @@ export function ScreenTabs({
             key={tab.id}
             type="button"
             role="tab"
+            aria-label={tab.label}
             aria-selected={selected}
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(tab.id)}
             className={cn(
-              "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium",
+              "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium",
               "transition-colors duration-150 outline-none",
               "focus-visible:ring-2 focus-visible:ring-ring/60",
               selected
-                ? "border-primary/50 bg-primary/12 text-primary"
-                : "border-border bg-card/60 text-muted-foreground hover:bg-accent hover:text-foreground"
+                ? "bg-primary/15 text-primary"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground"
             )}
           >
             {Icon ? <Icon size={13} aria-hidden="true" className="shrink-0" /> : null}
             <span className="whitespace-nowrap">{tab.label}</span>
             {tab.badge ? (
               <span
+                aria-hidden="true"
                 className={cn(
                   "shrink-0 rounded-full px-1.5 text-[10px] tabular-nums",
                   tab.alert ? "bg-destructive/15 text-destructive" : "bg-muted text-muted-foreground"

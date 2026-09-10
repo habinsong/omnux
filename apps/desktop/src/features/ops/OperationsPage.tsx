@@ -77,7 +77,7 @@ export function OperationsPage() {
   return (
     <Screen
       title="상태"
-      hint="연결과 인증을 먼저 보여줍니다. 나머지는 탭에서 골라 여세요."
+      hint=""
       notice={
         !connected ? (
           <ScreenNotice tone="warning">연결되지 않았거나 인증되지 않았습니다. 아래 칸은 조회할 수 없습니다.</ScreenNotice>
@@ -209,7 +209,7 @@ function ConnectionPanel() {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
       {!live ? (
         <p className="shrink-0 border-b border-border bg-warning/10 px-3 py-2 text-[11px] text-warning">
-          실시간 연결이 끊겼습니다. 아래 미들웨어·healthz·readyz 는 지금 상태가 아니라 마지막으로 확인한 값입니다.
+          실시간 연결이 끊겼습니다. 아래는 마지막으로 확인한 값입니다.
         </p>
       ) : null}
       {middleware.lastError || runtime.lastError ? (

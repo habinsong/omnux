@@ -71,7 +71,7 @@ export function ActivityPage() {
   return (
     <Screen
       title="활동"
-      hint="이 데스크톱 세션에서 남긴 기록과 저장된 세션 타임라인입니다."
+      hint="지금 세션에서 일어난 일과, 저장해 둔 흐름입니다."
       actions={
         tab === "session" ? (
           <>
@@ -104,7 +104,7 @@ export function ActivityPage() {
       }
       notice={
         counts.error > 0 ? (
-          <ScreenNotice tone="danger">오류 {counts.error}건이 있습니다. 아래에서 확인하세요.</ScreenNotice>
+          <ScreenNotice tone="danger">오류 {counts.error}건. 아래에서 보세요.</ScreenNotice>
         ) : null
       }
     >
@@ -177,7 +177,7 @@ function SessionLog({
 
       {total >= MAX_UI_LOGS ? (
         <p className="shrink-0 border-t border-border px-3 py-1.5 text-[11px] text-muted-foreground">
-          최근 {MAX_UI_LOGS}건까지만 보관합니다. 이전 기록은 이미 지워졌습니다.
+          최근 {MAX_UI_LOGS}건만 남겨 둡니다. 그 이전은 지워집니다.
         </p>
       ) : null}
     </div>
@@ -232,6 +232,15 @@ function EntryRow({ entry }: { entry: Entry }) {
             }
           >
             <Wrench size={12} aria-hidden="true" /> 빌드로 넘기기
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() =>
+              useDesktopNavigationStore.getState().setActivePage("ask", { input: buildHandoff(entry) })
+            }
+          >
+            질문으로 넘기기
           </Button>
         </div>
       ) : null}
@@ -296,9 +305,19 @@ function TimelinePanel({ connected }: { connected: boolean }) {
         <Button variant="primary" size="md" className="shrink-0" onClick={submit} disabled={!canRun}>
           {loading ? <Spinner size={14} /> : null} 조회
         </Button>
+        {kind === "conversation" && id.trim() && snapshot ? (
+          <Button
+            variant="outline"
+            size="md"
+            className="shrink-0"
+            onClick={() => useDesktopNavigationStore.getState().setActivePage("ask", { conversationId: id.trim() })}
+          >
+            이 대화 열기
+          </Button>
+        ) : null}
       </div>
 
-      {!connected ? <ScreenNotice tone="warning">연결된 뒤에 조회할 수 있습니다.</ScreenNotice> : null}
+      {!connected ? <ScreenNotice tone="warning">서버에 연결하면 조회할 수 있습니다.</ScreenNotice> : null}
       {lastError ? <ScreenNotice tone="danger">{lastError}</ScreenNotice> : null}
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
@@ -314,10 +333,10 @@ function TimelinePanel({ connected }: { connected: boolean }) {
         <div className="min-h-0 flex-1 overflow-y-auto">
           {snapshot === null ? (
             <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-              대화·실행·작업자·그룹 중 하나의 ID 를 넣으면 그 흐름을 시간순으로 봅니다.
+              대화·실행·작업자·그룹 중 하나의 ID를 넣으면 그 흐름을 시간순으로 봅니다.
             </p>
           ) : events.length === 0 ? (
-            <p className="px-3 py-6 text-center text-xs text-muted-foreground">해당 ID 의 기록이 없습니다.</p>
+            <p className="px-3 py-6 text-center text-xs text-muted-foreground">그 ID의 기록이 없습니다.</p>
           ) : (
             <ul className="divide-y divide-border">
               {shown.map((event, index) => (

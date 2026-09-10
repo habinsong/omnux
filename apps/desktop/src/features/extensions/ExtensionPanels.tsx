@@ -393,7 +393,7 @@ export function ApprovalsPanel() {
     <Shell>
       {error ? <p className="border-b border-border bg-destructive/10 px-3 py-2 text-[11px] text-destructive">{error}</p> : null}
 
-      <p className="border-b border-border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <p className="border-b border-border px-3 py-1.5 text-[10px] font-medium text-muted-foreground">
         기다리는 중 {pending.length}건
       </p>
       {pending.length === 0 ? (
@@ -432,7 +432,7 @@ export function ApprovalsPanel() {
         </Rows>
       )}
 
-      <p className="border-y border-border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <p className="border-y border-border px-3 py-1.5 text-[10px] font-medium text-muted-foreground">
         허용해 둔 것 {grants.length}건
       </p>
       {grants.length === 0 ? (
@@ -638,7 +638,7 @@ export function PluginsPanel() {
         </ul>
       ) : null}
 
-      <p className="border-b border-border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <p className="border-b border-border px-3 py-1.5 text-[10px] font-medium text-muted-foreground">
         찾는 폴더 {roots.length}곳
       </p>
       {roots.length === 0 ? (
@@ -661,7 +661,7 @@ export function PluginsPanel() {
         </ul>
       )}
 
-      <p className="border-y border-border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+      <p className="border-y border-border px-3 py-1.5 text-[10px] font-medium text-muted-foreground">
         플러그인 {plugins.length}개
       </p>
       {plugins.length === 0 ? (

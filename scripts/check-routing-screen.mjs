@@ -153,7 +153,8 @@ check("저장은 바뀐 것이 있을 때만 눌린다", () => {
 
 check("입력칸 열두 개를 한 번에 펼치지 않는다", () => {
   const page = routingSources.get("RoutingPolicyPage.tsx");
-  assert.ok(page.includes("<Accordion"), "접이식 목록을 쓴다");
+  assert.ok(page.includes("ScreenTabs"), "캡슐 탭을 쓴다");
+  assert.ok(page.includes("openKey"), "줄을 골라 연다");
   assert.ok(!page.includes("CardBoundary"), "이전 카드 묶음을 쓰지 않는다");
 });
 

@@ -27,7 +27,7 @@ export const SETTINGS_ALIASES: Record<string, string> = {
   external: "int-external",
   lan: "int-external",
   keys: "models-keys",
-  models: "models-keys",
+  models: "models-select",
   priority: "models-priority",
   "model-priority": "models-priority",
   "models-priority": "models-priority",

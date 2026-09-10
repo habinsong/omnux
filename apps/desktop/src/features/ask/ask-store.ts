@@ -6,6 +6,7 @@ import { EMPTY_META_DRAFT } from "./ask-normalization";
 import type { AskState } from "./ask-types";
 import { STREAM_RESET } from "./ask-session-helpers";
 import { DEFAULT_MODEL_CATALOGS, DEFAULT_SELECTED_MODELS, DEFAULT_WORKER_MODELS } from "./ask-defaults";
+import { readPreferredModels } from "../shell/preference-store";
 import { createAskHistoryActions } from "./ask-history-actions";
 import { createAskMemoryActions } from "./ask-memory-actions";
 import { createAskRetrievalActions } from "./ask-retrieval-actions";
@@ -28,7 +29,7 @@ export const useAskStore = create<AskState>((set, get) => ({
   provider: "groq",
   summaryProvider: "gemini",
   modelCatalogs: { ...DEFAULT_MODEL_CATALOGS },
-  selectedModels: { ...DEFAULT_SELECTED_MODELS },
+  selectedModels: { ...DEFAULT_SELECTED_MODELS, ...readPreferredModels() },
   workerModels: { ...DEFAULT_WORKER_MODELS },
   thinkPlus: false,
   webSearchEnabled: true,

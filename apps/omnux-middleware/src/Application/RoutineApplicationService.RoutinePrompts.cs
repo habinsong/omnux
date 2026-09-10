@@ -22,7 +22,7 @@ public sealed partial class RoutineApplicationService
                     - 출력: 반드시 PLAN 섹션 + LANGUAGE 선언 + 단일 코드블록.
                     - 가장 중요: 스케줄은 루틴 엔진이 이미 처리한다. 코드 안에서 현재 시각/요일/날짜를 다시 확인하거나 대기하지 마라.
                     - 금지: cron 등록, while true, sleep 기반 무한 대기, CURRENT_HOUR/CURRENT_MINUTE/DAY_OF_WEEK 계산, datetime.now()로 실행 여부 판단.
-                    - 실행 방식: 코드가 호출되면 즉시 작업을 수행하고 결과를 stdout에 완결된 한국어 텍스트로 남긴다.
+                    - 실행 방식: 코드가 호출되면 즉시 작업을 수행하고 결과를 stdout에 사용자가 쓴 언어와 같은 완결된 텍스트로 남긴다.
                     - 결과 품질: 표준 출력은 비워두지 말고, 핵심 결과/요약/실패 원인을 사람이 읽을 수 있게 출력한다.
                     - 제약: macOS/Linux 모두 동작 가능한 방식 우선, 외부 의존 최소화.
                     - 보안: 파괴적 명령 금지, 사용자 경로 외 쓰기 금지, 민감정보 출력 금지.

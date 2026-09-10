@@ -223,7 +223,7 @@ function CanvasPanel({ connected }: { connected: boolean }) {
   const loadingGraph = useLogicStore((state) => state.loadingGraph);
   const selectedGraphId = useLogicStore((state) => state.selectedGraphId);
   const store = useLogicStore;
-  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [nodePaletteOpen, setNodePaletteOpen] = useState(false);
 
   if (loadingGraph) {
     return (
@@ -250,13 +250,13 @@ function CanvasPanel({ connected }: { connected: boolean }) {
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
       <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-1.5 border-b border-border p-2">
         <div className="relative">
-          <Button variant="outline" size="sm" onClick={() => setPaletteOpen((open) => !open)}>
+          <Button variant="outline" size="sm" onClick={() => setNodePaletteOpen((open) => !open)}>
             <Plus size={12} aria-hidden="true" /> 노드
           </Button>
-          {paletteOpen ? (
+          {nodePaletteOpen ? (
             <NodePalette
               onAdd={(type) => store.getState().addNode(type)}
-              onClose={() => setPaletteOpen(false)}
+              onClose={() => setNodePaletteOpen(false)}
             />
           ) : null}
         </div>

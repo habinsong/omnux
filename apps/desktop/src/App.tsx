@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { HomePage } from "./features/home/HomePage";
+import { useHomeRecentBridge } from "./features/home/home-recent-store";
 import { ActivityPage } from "./features/activity/ActivityPage";
 import { ChatWorkspacePage } from "./features/chat-workspace/ChatWorkspacePage";
 import { useAskPageBridge } from "./features/ask/ask-store";
@@ -32,8 +33,6 @@ import { DesktopTopBar } from "./features/shell/DesktopTopBar";
 import { CommandPalette } from "./features/shell/CommandPalette";
 import { PageBoundary } from "./features/shell/PageBoundary";
 import { ShellOverviewPage } from "./features/shell/ShellOverviewPage";
-import { ResourceUsageDrawer } from "./features/shell/ResourceUsageDrawer";
-import { MediaWidget } from "./features/shell/MediaWidget";
 import { SettingsPage } from "./features/settings/SettingsPage";
 import { DesktopDialogHost } from "./features/dialog/DesktopDialogHost";
 import { DesktopToastHost } from "./features/toast/DesktopToastHost";
@@ -77,6 +76,7 @@ function App() {
   useTaskWorkspaceSession();
   useAutomationWorkspaceSession();
   useExtensionPageBridge();
+  useHomeRecentBridge();
 
   const activePage = useDesktopNavigationStore((state) => state.activePage);
   const setActivePage = useDesktopNavigationStore((state) => state.setActivePage);
@@ -194,7 +194,7 @@ function App() {
       {mobileNav ? (
         <div
           className={cn(
-            "fixed inset-y-0 right-0 z-30 bg-white/35 backdrop-blur-sm lg:hidden dark:bg-white/10",
+            "fixed inset-y-0 right-0 z-30 bg-background/80 lg:hidden",
             "left-14"
           )}
           onClick={() => setMobileNav(false)}
@@ -204,7 +204,7 @@ function App() {
       {/* Sidebar (§2.3 GNB) */}
       <aside
         className={cn(
-          "relative z-40 flex h-full shrink-0 overflow-hidden border-r border-border bg-card text-card-foreground shadow-[var(--shadow-card)] backdrop-blur-xl backdrop-saturate-150 transition-transform duration-200 ease-out",
+          "relative z-40 flex h-full shrink-0 overflow-hidden border-r border-border bg-card text-card-foreground transition-transform duration-200 ease-out",
           "w-14 max-lg:fixed max-lg:inset-y-0 max-lg:left-0",
           isHome ? "max-lg:w-14" : "max-lg:w-[316px] max-lg:max-w-full",
           mobileNav ? "max-lg:translate-x-0" : "max-lg:-translate-x-full"
@@ -230,22 +230,20 @@ function App() {
         />
 
         {!isHome ? (
-          <>
-            <div className="relative z-10 hidden min-h-0 w-[260px] flex-col gap-2 px-[24px] pt-[32px] max-lg:flex">
-              <div className="flex items-center gap-2 px-2 pb-4">
-                <AreaIcon size={20} className="shrink-0 text-primary" aria-hidden="true" />
-                <span className="truncate text-[17px] font-semibold tracking-tight">{activeAreaDef.label}</span>
-              </div>
-              <DesktopNavigation
-                pages={areaPages}
-                activePage={activePage}
-                onSelectPage={(page) => {
-                  setActivePage(page);
-                  setMobileNav(false);
-                }}
-              />
+          <div className="relative z-10 hidden min-h-0 w-[260px] flex-col gap-2 px-6 pt-8 max-lg:flex">
+            <div className="flex items-center gap-2 px-2 pb-4">
+              <AreaIcon size={20} className="shrink-0 text-primary" aria-hidden="true" />
+              <span className="truncate text-[17px] font-semibold tracking-tight">{activeAreaDef.label}</span>
             </div>
-          </>
+            <DesktopNavigation
+              pages={areaPages}
+              activePage={activePage}
+              onSelectPage={(page) => {
+                setActivePage(page);
+                setMobileNav(false);
+              }}
+            />
+          </div>
         ) : null}
       </aside>
 
@@ -260,15 +258,8 @@ function App() {
           }}
         />
 
-        {subPanelOpen && !isHome && (
-          <div
-            className={cn(
-              "z-30 hidden transition-transform duration-200 ease-out lg:block",
-              "absolute top-14 h-fit",
-              "lg:left-0 lg:w-[260px] lg:pt-[32px] lg:px-[24px] lg:bg-transparent",
-              "translate-x-0"
-            )}
-          >
+        {subPanelOpen && !isHome ? (
+          <div className="absolute left-0 top-14 z-30 hidden h-fit w-[260px] bg-transparent px-6 pt-8 lg:block">
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2 px-2 pb-4">
                 <AreaIcon size={20} className="shrink-0 text-primary" aria-hidden="true" />
@@ -283,7 +274,7 @@ function App() {
               />
             </div>
           </div>
-        )}
+        ) : null}
 
         <div
           className={cn(
@@ -299,7 +290,7 @@ function App() {
               isHome
                 ? "h-full"
                 : fixedScreen
-                  ? "flex h-full w-full min-w-0 flex-col p-3 sm:p-5"
+                  ? "flex h-full w-full min-w-0 flex-col p-3 sm:p-4"
                   : "flex min-h-full w-full min-w-0 flex-col p-4 sm:p-6"
             }
           >
@@ -308,8 +299,6 @@ function App() {
         </div>
         <DesktopDialogHost />
         <DesktopToastHost />
-        {isHome ? <ResourceUsageDrawer /> : null}
-        {isHome ? <MediaWidget /> : null}
         <CommandPalette open={commandPaletteOpen} pages={pages} onClose={() => setCommandPaletteOpen(false)} />
       </main>
     </div>

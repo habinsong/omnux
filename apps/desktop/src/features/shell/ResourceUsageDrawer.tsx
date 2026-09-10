@@ -196,7 +196,7 @@ export function ResourceUsageDrawer() {
         }}
         {...pointerHandlers}
         aria-label={open ? "리소스 사용량 접기" : "리소스 사용량 펼치기"}
-        className="flex h-24 w-12 shrink-0 cursor-grab flex-col items-center justify-center gap-1 rounded-l-xl border border-r-0 border-border bg-card/60 backdrop-blur-md shadow-sm transition-colors hover:bg-accent active:cursor-grabbing"
+        className="flex h-24 w-12 shrink-0 cursor-grab flex-col items-center justify-center gap-1 rounded-l-md border border-r-0 border-border bg-card transition-colors hover:bg-accent active:cursor-grabbing"
       >
         <ResourceFillIcon percent={resourceFillPercent} />
         {open ? <ChevronRight size={14} className="text-muted-foreground mt-1" aria-hidden="true" /> : <ChevronLeft size={14} className="text-muted-foreground mt-1" aria-hidden="true" />}
@@ -206,7 +206,7 @@ export function ResourceUsageDrawer() {
         "flex w-[17rem] flex-col overflow-hidden p-0 rounded-tl-none border-l-0 transition-[height] duration-300 ease-out",
         open ? "h-[210px]" : "h-[96px]"
       )}>
-        <div className="min-w-0 flex-1 p-3 bg-card/60 backdrop-blur-md h-full">
+        <div className="min-w-0 flex-1 p-3 bg-card h-full">
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="truncate text-sm font-semibold">리소스 사용량</span>
             <Button variant="ghost" size="sm" className="h-9 w-9 shrink-0 p-0" onClick={() => { setManualRefreshing(true); loadMetrics(); setTimeout(() => setManualRefreshing(false), 600); }} disabled={!canRequest || manualRefreshing} aria-label="갱신">

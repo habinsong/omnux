@@ -13,7 +13,7 @@ internal static class ChatRetryGuardPolicy
             return false;
         }
 
-        var isNewsRequest = ContainsAny(normalizedInput, "뉴스", "news", "헤드라인", "속보", "브리핑");
+        var isNewsRequest = ContainsAny(normalizedInput, "news", "headline", "briefing");
         if (isNewsRequest)
         {
             return false;
@@ -21,12 +21,10 @@ internal static class ChatRetryGuardPolicy
 
         var looksLikeNewsAnswer = ContainsAny(
             normalizedOutput,
-            "요청하신 소식",
-            "주요 뉴스",
-            "뉴스 10건",
-            "뉴스 5건",
-            "오늘 주요 뉴스",
-            "no.1 제목"
+            "headline",
+            "no.1",
+            "top stories",
+            "news briefing"
         );
         if (!looksLikeNewsAnswer)
         {
@@ -38,26 +36,22 @@ internal static class ChatRetryGuardPolicy
             normalizedInput,
             "llm",
             "large language model",
-            "언어 모델",
-            "컨텍스트",
             "context window",
-            "토큰",
+            "token",
             "api",
-            "비용",
-            "가격",
-            "요금"
+            "price",
+            "pricing",
+            "cost"
         );
         var hasLlmPricingSignalsInOutput = ContainsAny(
             normalizedOutput,
             "llm",
-            "언어 모델",
-            "컨텍스트",
             "context window",
-            "토큰",
+            "token",
             "api",
-            "비용",
-            "가격",
-            "요금"
+            "price",
+            "pricing",
+            "cost"
         );
         if (asksLlmPricing && !hasLlmPricingSignalsInOutput)
         {
@@ -80,8 +74,6 @@ internal static class ChatRetryGuardPolicy
             "gpt oss",
             "openai",
             "llm",
-            "언어 모델",
-            "오픈 웨이트",
             "open weight",
             "moe",
             "mixture-of-experts",
@@ -90,12 +82,12 @@ internal static class ChatRetryGuardPolicy
 
     public static bool LooksLikeUnrequestedP2SAnswer(string normalizedInput, string normalizedOutput)
     {
-        if (ContainsAny(normalizedInput, "p2s", "print-to-shape", "3d 프린팅", "3d printing"))
+        if (ContainsAny(normalizedInput, "p2s", "print-to-shape", "3d printing"))
         {
             return false;
         }
 
-        return ContainsAny(normalizedOutput, "p2s", "print-to-shape", "3d 프린팅", "3d printing");
+        return ContainsAny(normalizedOutput, "p2s", "print-to-shape", "3d printing");
     }
 
     public static string BuildOffTopicGuardMessage(string input)
@@ -114,21 +106,7 @@ internal static class ChatRetryGuardPolicy
             return false;
         }
 
-        return ContainsAny(
-            normalized,
-            "웹검색해서 찾아",
-            "웹 검색해서 찾아",
-            "웹검색해",
-            "웹 검색해",
-            "검색해서 찾아",
-            "찾아봐",
-            "찾아 줘",
-            "찾아줘",
-            "검색해봐",
-            "검색해 줘",
-            "검색해줘",
-            "look it up",
-            "search it");
+        return ContainsAny(normalized, "look it up", "look up", "lookup", "search it", "search this");
     }
 
     public static int ResolveSingleChatMaxOutputTokens(string input)
@@ -139,19 +117,7 @@ internal static class ChatRetryGuardPolicy
             return 4096;
         }
 
-        if (ContainsAny(
-                normalized,
-                "자세",
-                "상세",
-                "깊게",
-                "설명",
-                "가이드",
-                "분석",
-                "원리",
-                "기술",
-                "비전공자",
-                "non-expert",
-                "explain"))
+        if (ContainsAny(normalized, "non-expert", "explain", "detail", "guide", "analysis"))
         {
             return 4096;
         }
@@ -161,7 +127,7 @@ internal static class ChatRetryGuardPolicy
             return 3072;
         }
 
-        if (ContainsAny(normalized, "요약", "정리", "summary", "compare", "비교"))
+        if (ContainsAny(normalized, "summary", "summarize", "compare"))
         {
             return 2048;
         }

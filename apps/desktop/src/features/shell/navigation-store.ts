@@ -11,12 +11,22 @@ export type DesktopRoutePayload = {
   projectName?: string;
   projectPath?: string;
   conversationId?: string;
+  planId?: string;
   openAttachmentPanel?: boolean;
   scheduleKind?: "daily" | "weekly" | "monthly";
   scheduleTime?: string;
   scheduleWeekdays?: number[];
   scheduleDayOfMonth?: number;
 };
+
+export type RouteWorkMode = "single" | "orchestration" | "multi";
+
+/** 화면 이동 payload의 mode를 Ask/Build가 쓰는 작업 방식으로 맞춘다. */
+export function workModeFromRoute(mode?: string): RouteWorkMode | undefined {
+  if (mode === "compare") return "multi";
+  if (mode === "single" || mode === "orchestration" || mode === "multi") return mode;
+  return undefined;
+}
 
 // 데스크톱 활성 페이지와 route payload를 보관하는 작은 네비게이션 store.
 // presentation 전용이며, payload는 홈/팔레트/프로젝트에서 목적지 페이지 초안으로만 소비한다.

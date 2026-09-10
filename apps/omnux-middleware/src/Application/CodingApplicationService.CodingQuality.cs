@@ -225,28 +225,28 @@ public sealed partial class CodingApplicationService
             failed.Add("게임 요청이 print-only 시뮬레이션에 가깝습니다.");
         }
 
-        if (ContainsAny(objectiveText.ToLowerInvariant(), "tetris", "테트리스"))
+        if (ContainsAny(objectiveText.ToLowerInvariant(), "tetris"))
         {
             var checks = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                ["10x20 보드"] = @"cols\s*=\s*10|rows\s*=\s*20|10\s*,\s*20|board",
-                ["블록/피스 정의"] = @"shape|tetromino|piece|block|블록",
-                ["회전"] = @"rotat|회전",
-                ["충돌"] = @"collid|collision|충돌|valid_position|check_",
-                ["라인 클리어"] = @"line.*clear|clear.*line|remove.*line|라인",
-                ["점수"] = @"score|점수",
-                ["레벨"] = @"level|레벨",
-                ["게임오버"] = @"game_over|game over|게임\s*오버"
+                ["10x20 board"] = @"cols\s*=\s*10|rows\s*=\s*20|10\s*,\s*20|board",
+                ["piece shapes"] = @"shape|tetromino|piece|block",
+                ["rotation"] = @"rotat",
+                ["collision"] = @"collid|collision|valid_position|check_",
+                ["line clear"] = @"line.*clear|clear.*line|remove.*line",
+                ["score"] = @"score",
+                ["level"] = @"level",
+                ["game over"] = @"game_over|game over"
             };
             foreach (var (label, pattern) in checks)
             {
                 if (Regex.IsMatch(mergedSource, pattern, RegexOptions.IgnoreCase))
                 {
-                    passed.Add($"테트리스 요구사항 확인: {label}");
+                    passed.Add($"tetris requirement ok: {label}");
                 }
                 else
                 {
-                    failed.Add($"테트리스 요구사항 누락: {label}");
+                    failed.Add($"tetris requirement missing: {label}");
                 }
             }
         }
@@ -327,7 +327,7 @@ public sealed partial class CodingApplicationService
                 {
                     passed.Add(".NET 프로젝트 파일 확인");
                 }
-                else if (ContainsAny(objectiveText.ToLowerInvariant(), "nuget", "프로젝트", "project", "asp.net"))
+                else if (CodingTaskSignalPolicy.LooksLikeCsharpProjectRequest(objectiveText))
                 {
                     failed.Add("C# 프로젝트 요청인데 .csproj가 없습니다.");
                 }
@@ -358,14 +358,12 @@ public sealed partial class CodingApplicationService
 
     private static bool LooksLikeBrowserAppObjective(string objectiveText)
     {
-        var text = (objectiveText ?? string.Empty).ToLowerInvariant();
-        return ContainsAny(text, "react", "vite", "canvas", "browser", "브라우저", "프론트", "frontend", "html", "css", "웹앱");
+        return CodingTaskSignalPolicy.LooksLikeBrowserApp(objectiveText);
     }
 
     private static bool LooksLikeCliObjective(string objectiveText)
     {
-        var text = (objectiveText ?? string.Empty).ToLowerInvariant();
-        return ContainsAny(text, "cli", "command line", "명령줄", "커맨드", "인자", "argument", "stdin", "표준 입력");
+        return CodingTaskSignalPolicy.LooksLikeCli(objectiveText);
     }
 
     private static string BuildCodingQualityGateSummary(bool ok, int score, IReadOnlyList<string> passed, IReadOnlyList<string> failed)

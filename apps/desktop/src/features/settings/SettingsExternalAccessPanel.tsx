@@ -20,7 +20,7 @@ export function SettingsExternalAccessPanel({ canRequest, onError }: { canReques
         <Badge tone={store.enabled ? "success" : "outline"} className="shrink-0">{store.enabled ? "외부 접속 허용" : "로컬 전용"}</Badge>
       </div>
 
-      <label className={cn("flex items-start gap-3 rounded-md border border-border bg-card/60 px-3 py-2.5", disabled && "opacity-60")}>
+      <label className={cn("flex items-start gap-3 rounded-md border border-border bg-card px-3 py-2.5", disabled && "opacity-60")}>
         <button
           type="button"
           role="switch"
@@ -33,7 +33,7 @@ export function SettingsExternalAccessPanel({ canRequest, onError }: { canReques
             disabled ? "cursor-not-allowed" : "cursor-pointer"
           )}
         >
-          <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all duration-200", store.enabled ? "left-[18px]" : "left-0.5")} />
+          <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white transition-[left] duration-200", store.enabled ? "left-[18px]" : "left-0.5")} />
         </button>
         <span className="min-w-0">
           <span className="block text-sm font-medium">{store.enabled ? "외부접속 활성" : "외부접속 비활성"}</span>
@@ -49,7 +49,7 @@ export function SettingsExternalAccessPanel({ canRequest, onError }: { canReques
         </div>
         {store.enabled && store.urls.length > 0 ? (
           store.urls.map((url) => (
-            <div key={url} className="flex items-center justify-between gap-2 rounded-md border border-border bg-card/60 px-2.5 py-2">
+            <div key={url} className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-2">
               <code className="min-w-0 truncate font-mono text-xs">{url}</code>
               <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2" onClick={() => navigator.clipboard?.writeText(url)} title="주소 복사">복사</Button>
             </div>

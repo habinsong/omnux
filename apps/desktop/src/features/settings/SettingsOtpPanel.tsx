@@ -18,7 +18,7 @@ function clampTtlHours(raw: string): number {
 
 function MiniStat({ label, value, tone }: { label: string; value: string; tone: "success" | "warning" | "outline" }) {
   return (
-    <div className="rounded-md border border-border bg-card/60 p-3">
+    <div className="rounded-md border border-border bg-card p-3">
       <div className="truncate text-xs text-muted-foreground">{label}</div>
       <div className="mt-1 flex items-center gap-2">
         <Badge tone={tone}>{value}</Badge>

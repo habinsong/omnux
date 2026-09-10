@@ -178,7 +178,7 @@ public sealed partial class CommandService
         // 활성 스킬이 있으면 출력 톤·형식 규칙은 스킬에 양보한다.
         // 사실 정확성 규칙(1~5,7)은 유지하되, 형식 관련 8번은 스킬 우선으로 대체.
         var styleRule = string.IsNullOrWhiteSpace(activeSkillName)
-            ? "8. 답변은 한국어, 결론 먼저, 군더더기 없이. 출처는 핵심만 짧게(또는 생략)."
+            ? "8. Reply in the same language as the user. Lead with the conclusion. Keep it short. Cite only what matters."
             : $"8. 출력 형식·말투·길이·구성은 활성 스킬(`{activeSkillName}`) 지침을 최우선으로 따르세요. 위 참고 자료는 사실 근거로만 사용하며, Think+ 자체의 톤 규칙은 적용하지 마세요.";
 
         return $@"[Think+ 참고 자료 — 시작]

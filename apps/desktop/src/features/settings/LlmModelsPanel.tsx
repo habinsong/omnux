@@ -6,6 +6,9 @@ import type { ShellCard } from "../../shell-store";
 import { useSettingsStore } from "./settings-store";
 import { useProviderCredentialsStore, type ProviderCredentialCard } from "./settings-provider-credentials-store";
 import { Badge, Button, Input, cn } from "../../components/ui/primitives";
+import { mergeModelOptions, STATIC_MODEL_OPTIONS } from "../ask/ask-models";
+import { DEFAULT_SELECTED_MODELS } from "../ask/ask-defaults";
+import { MODEL_PROVIDER_KIND, MODEL_PROVIDER_LABEL, useDesktopPreferenceStore, type ModelProviderId } from "../shell/preference-store";
 
 type CardErrorHandler = (card: ShellCard, message: string, componentStack?: string | null) => void;
 type Store = ReturnType<typeof useSettingsStore.getState>;
@@ -49,8 +52,14 @@ function ModelSelect({
         {models.selected ? <Badge tone="primary" className="max-w-[220px] truncate font-mono">{models.selected}</Badge> : <Badge tone="outline">미설정</Badge>}
       </div>
       <div className="flex min-w-0 flex-wrap gap-2">
-        <select className={SELECT_CLASS} value={choice} onChange={(event) => setChoice(event.target.value)} disabled={models.items.length === 0}>
-          {models.items.length === 0 ? <option value="">모델 없음 - 새로고침</option> : null}
+        <select
+          aria-label={label}
+          className={SELECT_CLASS}
+          value={choice}
+          onChange={(event) => setChoice(event.target.value)}
+          disabled={models.items.length === 0}
+        >
+          {models.items.length === 0 ? <option value="">모델 없음. 새로고침</option> : null}
           {models.items.map((model) => (
             <option key={model} value={model}>{model}</option>
           ))}
@@ -74,7 +83,7 @@ function ProviderKeyCard({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className={cn("min-w-0 rounded-md border bg-card/60 p-3 transition-colors duration-200", card.set ? "border-primary/30" : "border-border")}>
+    <label className={cn("min-w-0 rounded-md border bg-card p-3 transition-colors duration-200", card.set ? "border-primary/30" : "border-border")}>
       <div className="flex items-start justify-between gap-2">
         <span className="min-w-0">
           <span className="block truncate text-sm font-semibold">{card.label}</span>
@@ -108,7 +117,7 @@ function CliStatusRow({
 }) {
   const ready = /완료|인증|logged|ready/i.test(status);
   return (
-    <article className="rounded-md border border-border bg-card/60 p-3">
+    <article className="rounded-md border border-border bg-card p-3">
       <div className="flex items-start justify-between gap-3">
         <span className="min-w-0">
           <b className="block truncate text-sm">{title}</b>
@@ -133,8 +142,7 @@ export function LlmKeysCard({ canRequest, onError }: { canRequest: boolean; onEr
     <CardBoundary title="LLM 연동 키" card="operations" onError={onError}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">Provider API keys</p>
-          <p className="truncate text-xs text-muted-foreground">비어 있는 입력은 기존 저장값을 유지하고, 저장 시 키체인 또는 0600 보안 저장소에 반영합니다.</p>
+          <p className="truncate text-xs text-muted-foreground">빈 칸은 저장된 키를 유지합니다.</p>
         </div>
         <Badge tone={hasStoredKey ? "success" : "warning"} className="shrink-0">{credentials.cards.filter((card) => card.set).length} / {credentials.cards.length}</Badge>
       </div>
@@ -143,7 +151,7 @@ export function LlmKeysCard({ canRequest, onError }: { canRequest: boolean; onEr
           <ProviderKeyCard key={card.id} card={card} disabled={secretDisabled} onChange={(value) => credentials.setInput(card.id, value)} />
         ))}
       </div>
-      <label className={cn("flex items-start gap-2 rounded-md border border-border bg-card/60 px-3 py-2", secretDisabled && "opacity-60")}>
+      <label className={cn("flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2", secretDisabled && "opacity-60")}>
         <input
           type="checkbox"
           className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
@@ -206,13 +214,66 @@ export function CliAuthCard({ store, canRequest, onError }: { store: Store; canR
   );
 }
 
+const MODEL_SELECT_ROWS: Array<{
+  id: ModelProviderId;
+  persist: "server" | "app";
+}> = [
+  { id: "groq", persist: "server" },
+  { id: "gemini", persist: "app" },
+  { id: "cerebras", persist: "app" },
+  { id: "nvidia", persist: "app" },
+  { id: "copilot", persist: "server" },
+  { id: "codex", persist: "app" },
+  { id: "grok", persist: "app" }
+];
+
+function catalogFor(store: Store, id: ModelProviderId): { selected: string; items: string[] } {
+  if (id === "cerebras") {
+    return { selected: store.cerebrasModels.selected, items: store.cerebrasModels.items.map((item) => item.id) };
+  }
+  if (id === "groq") return store.groqModels;
+  if (id === "copilot") return store.copilotModels;
+  if (id === "gemini") return store.geminiModels;
+  if (id === "nvidia") return store.nvidiaModels;
+  if (id === "codex") return store.codexModels;
+  return store.grokModels;
+}
+
 // ── 세부 항목: 모델 선택 ────────────────────────────────────────
 export function LlmModelSelectCard({ store, canRequest, onError }: { store: Store; canRequest: boolean; onError: CardErrorHandler }) {
+  const preferred = useDesktopPreferenceStore((state) => state.preferredModels);
   return (
     <CardBoundary title="LLM 모델 선택" card="middleware" onError={onError}>
-      <ModelSelect label="Groq" models={store.groqModels} canRequest={canRequest} onApply={store.setGroqModel} onRefresh={store.loadLlmServices} />
-      <div className="border-t border-border" />
-      <ModelSelect label="Copilot" models={store.copilotModels} canRequest={canRequest} onApply={store.setCopilotModel} onRefresh={store.loadLlmServices} />
+      <p className="text-xs text-muted-foreground">
+        Groq·Copilot은 서버 기본값입니다. 나머지는 이 앱의 질문·빌드 작성칸 기본 모델로 저장합니다.
+      </p>
+      {MODEL_SELECT_ROWS.map((row, index) => {
+        const catalog = catalogFor(store, row.id);
+        const fallback = DEFAULT_SELECTED_MODELS[row.id];
+        const items = mergeModelOptions(row.id, catalog.items, preferred[row.id] ? [preferred[row.id]!] : undefined, fallback ? [fallback] : undefined, STATIC_MODEL_OPTIONS[row.id]);
+        const selected = catalog.selected || preferred[row.id] || fallback || items[0] || "";
+        return (
+          <div key={row.id} className={cn(index > 0 && "border-t border-border pt-3")}>
+            <div className="mb-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <span>{MODEL_PROVIDER_KIND[row.id]}</span>
+              <span aria-hidden="true">·</span>
+              <span>{row.persist === "server" ? "서버 기본값" : "앱 기본값"}</span>
+            </div>
+            <ModelSelect
+              label={MODEL_PROVIDER_LABEL[row.id]}
+              models={{ selected, items }}
+              canRequest={canRequest}
+              onApply={(model) => {
+                if (row.id === "groq") store.setGroqModel(model);
+                else if (row.id === "copilot") store.setCopilotModel(model);
+                else store.setLocalDefaultModel(row.id, model);
+              }}
+              onRefresh={store.loadLlmServices}
+            />
+          </div>
+        );
+      })}
+      {store.llmMessage ? <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">{store.llmMessage}</p> : null}
     </CardBoundary>
   );
 }
@@ -223,12 +284,12 @@ export function LlmUsageCard({ store, onError }: { store: Store; onError: CardEr
     <CardBoundary title="API 사용량 / Copilot Premium" card="logs" onError={onError}>
       {store.llmUsage ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="rounded-md border border-border bg-card/60 p-3">
+          <div className="rounded-md border border-border bg-card p-3">
             <div className="truncate text-xs text-muted-foreground">Gemini 누적 토큰</div>
             <div className="mt-0.5 font-mono text-lg font-semibold tabular-nums">{store.llmUsage.geminiTotalTokens.toLocaleString()}</div>
             <div className="truncate text-[11px] text-muted-foreground">추정 비용 ${store.llmUsage.geminiCostUsd}</div>
           </div>
-          <div className="rounded-md border border-border bg-card/60 p-3">
+          <div className="rounded-md border border-border bg-card p-3">
             <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
               <span className="truncate">Copilot Premium</span>
               <Badge tone={store.llmUsage.copilotAvailable ? "success" : "outline"} className="shrink-0">{store.llmUsage.copilotPlan}</Badge>

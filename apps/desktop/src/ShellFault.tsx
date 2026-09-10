@@ -8,7 +8,7 @@ type ShellFaultProps = {
   retryLabel?: string;
 };
 
-export function ShellFault({ label, stack, onRetry, retryLabel = "다시 렌더" }: ShellFaultProps) {
+export function ShellFault({ label, stack, onRetry, retryLabel = "다시 시도" }: ShellFaultProps) {
   return (
     <div role="alert" className="space-y-3 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm">
       <div className="flex items-start gap-2">

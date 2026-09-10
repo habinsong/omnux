@@ -564,7 +564,7 @@ public sealed class CodexCliWrapper
                 - 파일 생성/수정/삭제 금지
                 - 도구 호출/브라우저 제어 금지
                 - 진행 로그, 사고과정, 메타 설명 금지
-                - 최종 답변만 한국어로 작성
+                - Write the final answer in the same language as the user
 
                 [사용자 요청]
                 {input}

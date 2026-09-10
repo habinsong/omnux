@@ -256,9 +256,11 @@ assert(
 );
 assert(
   utils.includes("SearchQueryPolicy.LooksLikeStandaloneFreshGreeting") &&
-    searchQueryPolicy.includes("\"ㅎㅇ\"") &&
-    searchQueryPolicy.includes("\"hello\""),
-  "대화탭은 'ㅎㅇ' 같은 독립 인사를 최근 대화 맥락 주입에서 제외해야 합니다."
+    searchQueryPolicy.includes("LooksLikeStandaloneFreshGreeting") &&
+    searchQueryPolicy.includes("HasStructuredLookupSignal") &&
+    !searchQueryPolicy.includes("\"ㅎㅇ\"") &&
+    !searchQueryPolicy.includes("안녕하세요"),
+  "대화탭은 독립 인사를 짧은 입력·숫자/URL/경로 없음 같은 구조 신호로 구분해야 합니다."
 );
 assert(
   telegramConversation.includes("TelegramConversationContextPolicy.BuildFollowupAwareInput") &&

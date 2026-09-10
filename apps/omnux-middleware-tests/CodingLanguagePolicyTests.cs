@@ -27,11 +27,12 @@ public sealed class CodingLanguagePolicyTests
     }
 
     [Theory]
-    [InlineData("앱을 파이썬으로 만들어줘", "python")]
+    [InlineData("write a python app", "python")]
     [InlineData("React Vite 화면 구현", "react-vite")]
-    [InlineData("자바스크립트로 CLI 작성", "javascript")]
-    [InlineData("자바 스프링 예제", "java")]
-    [InlineData("javascript 예제", "javascript")]
+    [InlineData("javascript CLI", "javascript")]
+    [InlineData("spring example", "java")]
+    [InlineData("create main.py", "python")]
+    [InlineData("src/App.tsx screen", "typescript")]
     public void ResolveExplicitObjectiveLanguageDetectsRequestedLanguage(string objective, string expected)
     {
         Assert.Equal(expected, CodingLanguagePolicy.ResolveExplicitObjectiveLanguage(objective));
@@ -42,17 +43,23 @@ public sealed class CodingLanguagePolicyTests
     {
         Assert.Equal(
             "typescript",
-            CodingLanguagePolicy.ResolveInitialCodingLanguage("ts", "파이썬으로 만들어줘")
+            CodingLanguagePolicy.ResolveInitialCodingLanguage("ts", "write a python app")
         );
     }
 
     [Theory]
-    [InlineData("UI 웹 페이지 클론 만들어줘", "html")]
-    [InlineData("러스트 CLI 만들어줘", "rust")]
-    [InlineData("별도 힌트 없음", "auto")]
+    [InlineData("rust CLI", "rust")]
+    [InlineData("no language hint here", "auto")]
     public void ResolveInitialCodingLanguageFallsBackToObjectiveSignals(string objective, string expected)
     {
         Assert.Equal(expected, CodingLanguagePolicy.ResolveInitialCodingLanguage("auto", objective));
+    }
+
+    [Fact]
+    public void ResolveExplicitObjectiveLanguageUsesPathNotTranslatedLanguageNames()
+    {
+        Assert.Equal("python", CodingLanguagePolicy.ResolveExplicitObjectiveLanguage("main.py에 프로그램을 만들어줘"));
+        Assert.Equal(string.Empty, CodingLanguagePolicy.ResolveExplicitObjectiveLanguage("파이썬으로 만들어줘"));
     }
 
     [Theory]
@@ -71,7 +78,7 @@ public sealed class CodingLanguagePolicyTests
         var language = CodingLanguagePolicy.ResolveFinalResultLanguage(
             "javascript",
             "auto",
-            "html/css/js 웹 페이지 만들어줘",
+            "html/css/js page",
             new[] { "/tmp/work/script.js" }
         );
 

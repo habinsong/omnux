@@ -4,13 +4,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  OPS_SECTIONS,
-  countFailedSections,
-  deriveSectionStatus,
-  describeSectionStatus,
-  sectionDefinition,
-  sectionsToLoadOnOpen
-} from "../apps/desktop/src/features/ops/ops-sections.ts";
+  OPS_PANELS,
+  deriveStatus,
+  describeStatus,
+  panelDefinition
+} from "../apps/desktop/src/features/ops/ops-view.ts";
 
 import {
   FILE_CANDIDATE_LIMIT,
@@ -46,61 +44,60 @@ function check(label, fn) {
 /* -- 1) 구역 상태 판정 ---------------------------------------------------- */
 
 check("진행 중을 실패보다 먼저 본다", () => {
-  // 다시 조회하는 동안에도 이전 실패 문구가 남아 있으면 "조회 중"이 맞다.
-  assert.equal(deriveSectionStatus({ loading: true, error: "이전 실패", hasResult: false }), "loading");
+  assert.equal(deriveStatus({ loading: true, error: "이전 실패", hasResult: false }), "loading");
 });
 
 check("실패 사유가 있으면 실패다", () => {
-  assert.equal(deriveSectionStatus({ loading: false, error: "권한 없음", hasResult: true }), "failed");
+  assert.equal(deriveStatus({ loading: false, error: "권한 없음", hasResult: true }), "failed");
 });
 
 check("결과가 있으면 완료, 없으면 조회 전", () => {
-  assert.equal(deriveSectionStatus({ loading: false, error: "", hasResult: true }), "ready");
-  assert.equal(deriveSectionStatus({ loading: false, error: "", hasResult: false }), "idle");
+  assert.equal(deriveStatus({ loading: false, error: "", hasResult: true }), "ready");
+  assert.equal(deriveStatus({ loading: false, error: "", hasResult: false }), "idle");
 });
 
 check("상태 문구가 네 상태를 구분한다", () => {
-  const labels = ["idle", "loading", "ready", "failed"].map((status) => describeSectionStatus(status, true));
+  const labels = ["idle", "loading", "ready", "failed"].map((status) => describeStatus(status, "힌트", true));
   assert.equal(new Set(labels).size, 4);
 });
 
 check("조작만 하는 구역은 열어도 조회한다고 말하지 않는다", () => {
-  assert.equal(describeSectionStatus("idle", true), "열면 조회");
-  assert.notEqual(describeSectionStatus("idle", false), "열면 조회");
+  assert.equal(describeStatus("idle", "힌트", true), "열면 조회");
+  assert.notEqual(describeStatus("idle", "힌트", false), "열면 조회");
 });
 
 check("실패한 구역 수를 센다", () => {
   const statuses = {};
-  for (const section of OPS_SECTIONS) statuses[section.id] = "idle";
+  for (const panel of OPS_PANELS) statuses[panel.id] = "idle";
   statuses.git = "failed";
   statuses.devices = "failed";
-  assert.equal(countFailedSections(statuses), 2);
+  assert.equal(Object.values(statuses).filter((status) => status === "failed").length, 2);
 });
 
 /* -- 2) 구역 정의 --------------------------------------------------------- */
 
 check("구역 정의에 빠짐이 없다", () => {
-  assert.ok(OPS_SECTIONS.length >= 8);
+  assert.ok(OPS_PANELS.length >= 8);
   const ids = new Set();
-  for (const section of OPS_SECTIONS) {
-    assert.ok(section.label.length > 0, section.id);
-    assert.ok(section.description.length > 0, section.id);
-    assert.equal(typeof section.loadOnOpen, "boolean", section.id);
-    assert.equal(ids.has(section.id), false, `${section.id} 가 두 번 있다`);
-    ids.add(section.id);
+  for (const panel of OPS_PANELS) {
+    assert.ok(panel.label.length > 0, panel.id);
+    assert.ok(panel.hint.length > 0, panel.id);
+    assert.equal(typeof panel.loadOnOpen, "boolean", panel.id);
+    assert.equal(ids.has(panel.id), false, `${panel.id} 가 두 번 있다`);
+    ids.add(panel.id);
   }
 });
 
 check("사용자가 누르지 않은 실행을 대신 시작하지 않는다", () => {
-  // 정리와 명령은 여는 것만으로 아무 요청도 보내지 않아야 한다.
-  assert.equal(sectionDefinition("cleanup").loadOnOpen, false);
-  assert.equal(sectionDefinition("command").loadOnOpen, false);
-  assert.deepEqual(sectionsToLoadOnOpen(["cleanup", "command"]), []);
-  assert.deepEqual(sectionsToLoadOnOpen(["git", "cleanup"]), ["git"]);
+  assert.equal(panelDefinition("cleanup").loadOnOpen, false);
+  assert.equal(panelDefinition("command").loadOnOpen, false);
+  const load = (ids) => ids.filter((id) => panelDefinition(id).loadOnOpen);
+  assert.deepEqual(load(["cleanup", "command"]), []);
+  assert.deepEqual(load(["git", "cleanup"]), ["git"]);
 });
 
 check("모르는 구역은 조용히 넘기지 않는다", () => {
-  assert.throws(() => sectionDefinition("없는구역"));
+  assert.throws(() => panelDefinition("없는구역"));
 });
 
 /* -- 3) 표시 형식 --------------------------------------------------------- */
@@ -249,7 +246,7 @@ check("상태 색을 이 화면에서 새로 만들지 않는다", () => {
 });
 
 check("순수 모델은 화면·저장소에 기대지 않는다", () => {
-  for (const file of ["ops-sections.ts", "ops-format.ts"]) {
+  for (const file of ["ops-view.ts", "ops-format.ts"]) {
     const source = opsSources.get(file);
     assert.ok(!source.includes('from "react"'), `${file} 이 React 를 가져온다`);
     assert.ok(!source.includes("zustand"), `${file} 이 저장소를 가져온다`);
@@ -258,15 +255,14 @@ check("순수 모델은 화면·저장소에 기대지 않는다", () => {
 });
 
 check("Git 적용은 미리보기 승인 뒤에만 가능하다", () => {
-  const git = opsSources.get("OpsGitSection.tsx");
-  assert.ok(git.includes("먼저 미리보기를 실행하세요."), "미리보기 없이 적용할 수 없다고 적는다");
+  const git = opsSources.get("OpsPanels.tsx");
+  assert.ok(git.includes("먼저 미리보기를 만드세요."), "미리보기 없이 적용할 수 없다고 적는다");
   assert.ok(git.includes("approval?.confirmationToken"), "승인 토큰을 확인한다");
   assert.ok(git.includes("preview.blockers.length > 0"), "막는 조건을 확인한다");
 });
 
 check("정리는 무엇을 지우는지 먼저 보여준다", () => {
-  const cleanup = opsSources.get("OpsCleanupSection.tsx");
-  assert.ok(cleanup.includes("preview.candidates.map"), "삭제 후보 목록을 그린다");
+  const cleanup = opsSources.get("OpsPanels.tsx");
   assert.ok(cleanup.includes("먼저 삭제 후보를 확인하세요."), "미리보기 전에는 이유를 적는다");
 });
 

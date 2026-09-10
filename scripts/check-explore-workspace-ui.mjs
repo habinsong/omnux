@@ -67,7 +67,7 @@ async (page) => {
   const root=page.locator('[data-surface="explore"]');await root.waitFor();
   async function layout(state,width) {
     await page.setViewportSize({width,height:1000});await page.screenshot({path:`output/playwright/explore-fresh-${state}-${width}.png`,animations:'disabled'});
-    const geometry=await root.evaluate(el=>{const r=el.getBoundingClientRect(),p=el.parentElement.getBoundingClientRect();return{left:r.left-p.left,right:p.right-r.right,overflow:document.documentElement.scrollWidth>innerWidth+1,outside:[...el.querySelectorAll('input,select,textarea,button,summary,img')].filter(node=>node.getClientRects().length&&(()=>{const b=node.getBoundingClientRect();return b.left < -1||b.right>innerWidth+1;})()).map(node=>node.getAttribute('aria-label')||node.textContent.slice(0,40))};});
+    const geometry=await root.evaluate(el=>{const r=el.getBoundingClientRect(),p=el.parentElement.getBoundingClientRect();return{left:r.left-p.left,right:p.right-r.right,overflow:document.documentElement.scrollWidth>innerWidth+1,outside:[...el.querySelectorAll('input,select,textarea,button,summary,img')].filter(node=>{if(!node.getClientRects().length)return false;const b=node.getBoundingClientRect();if(!(b.left<-1||b.right>innerWidth+1))return false;let parent=node.parentElement;while(parent&&parent!==el){const ox=getComputedStyle(parent).overflowX;if(ox==='auto'||ox==='scroll')return false;parent=parent.parentElement;}return true;}).map(node=>node.getAttribute('aria-label')||node.textContent.slice(0,40))};});
     if(geometry.overflow||geometry.outside.length||Math.abs(geometry.left-geometry.right)>1)throw Error(JSON.stringify({state,width,...geometry}));layouts.push({state,width,...geometry});
   }
   for(const width of [1440,768,390,320])await layout('empty',width);
@@ -84,15 +84,15 @@ async (page) => {
   send(socketRef,{requestId:'explore-stale'},'error',{requestType:'web_search',message:'관련 없는 오류'});await page.waitForFunction(()=>!!window.__webExplore.getState().pending);
   await page.evaluate(()=>window.__exploreNavigation.getState().setActivePage('ask'));send(socketRef,heldSearch,'web_search_result',searchResult(heldSearch));await page.waitForFunction(()=>!window.__webExplore.getState().pending);
   await page.evaluate(()=>window.__exploreNavigation.getState().setActivePage('explore'));await root.getByRole('region',{name:'검색 결과',exact:true}).waitFor();
-  const browserFold=root.locator('summary').filter({hasText:/^브라우저$/});await browserFold.focus();await browserFold.press('Enter');
+  await page.getByRole('tab',{name:'브라우저',exact:true}).click();
   await root.getByRole('textbox',{name:'열 웹 주소',exact:true}).fill('https://example.com/browser');holdBrowser=true;await root.getByRole('button',{name:'열기',exact:true}).click();await page.waitForFunction(()=>!!window.__runtimeExplore.getState().browser.pending);const opening=heldBrowser;
   await page.evaluate(()=>window.__exploreNavigation.getState().setActivePage('ask'));send(socketRef,opening,'browser_result',browserResult(opening));holdBrowser=false;
   await page.waitForFunction(()=>!window.__runtimeExplore.getState().browser.pending&&!!window.__runtimeExplore.getState().browser.frame);
-  await page.evaluate(()=>window.__exploreNavigation.getState().setActivePage('explore'));await browserFold.click();
+  await page.evaluate(()=>window.__exploreNavigation.getState().setActivePage('explore'));await page.getByRole('tab',{name:'브라우저',exact:true}).click();
   await root.getByRole('combobox',{name:'열린 페이지',exact:true}).selectOption('first');await page.waitForFunction(()=>!window.__runtimeExplore.getState().browser.pending&&window.__runtimeExplore.getState().browser.result.activeTargetId==='first');
   for(const width of [1440,768,390,320])await layout('browser',width);
   await root.getByRole('button',{name:'선택한 페이지 닫기',exact:true}).click();await page.waitForFunction(()=>!window.__runtimeExplore.getState().browser.pending&&window.__runtimeExplore.getState().browser.result.tabs.length===1);
-  await browserFold.click();const canvasFold=root.locator('summary').filter({hasText:/^캔버스$/});await canvasFold.click();
+  await page.getByRole('tab',{name:'캔버스',exact:true}).click();
   await root.getByRole('button',{name:'캔버스 열기',exact:true}).click();await page.waitForFunction(()=>!window.__runtimeExplore.getState().canvas.pending&&!!window.__runtimeExplore.getState().canvas.frame);
   for(const width of [1440,768,390,320])await layout('canvas',width);
   await root.getByRole('button',{name:'화면 숨기기',exact:true}).click();await page.waitForFunction(()=>window.__runtimeExplore.getState().canvas.result.visible===false&&!window.__runtimeExplore.getState().canvas.pending);
@@ -107,8 +107,8 @@ async (page) => {
   await root.locator('summary').filter({hasText:/^선언형 UI$/}).click();await root.getByRole('textbox',{name:'A2UI JSONL',exact:true}).fill('{"version":"v0.9.1","createSurface":{"surfaceId":"test","catalogId":"https://a2ui.org/specification/v0_9_1/catalogs/basic/catalog.json"}}');await root.getByRole('button',{name:'화면에 적용',exact:true}).click();await page.waitForFunction(()=>!window.__runtimeExplore.getState().canvas.pending&&window.__runtimeExplore.getState().canvas.result.a2uiRevision===1);
   for(const width of [1440,768,390,320])await layout('canvas-tools',width);
   await root.getByRole('button',{name:'캔버스 초기화',exact:true}).click();const dialog=page.getByRole('dialog',{name:'캔버스 초기화',exact:true});await dialog.waitFor();await layout('dialog',320);await dialog.getByRole('button',{name:'취소',exact:true}).click();if(requests.some(m=>m.action==='a2ui_reset'))throw Error('취소한 초기화가 실행됐습니다.');
-  await root.getByRole('button',{name:'캔버스 초기화',exact:true}).click();await dialog.getByRole('button',{name:'초기화',exact:true}).click();await page.waitForFunction(()=>!window.__runtimeExplore.getState().canvas.pending&&window.__runtimeExplore.getState().canvas.result.a2uiRevision===0);await canvasFold.click();
-  const sessionsFold=root.locator('summary').filter({hasText:/^작업 기록과 에이전트$/});await sessionsFold.click();await page.waitForFunction(()=>window.__sessionExplore.getState().items.length===2&&!window.__sessionExplore.getState().pending.list);
+  await root.getByRole('button',{name:'캔버스 초기화',exact:true}).click();await dialog.getByRole('button',{name:'초기화',exact:true}).click();await page.waitForFunction(()=>!window.__runtimeExplore.getState().canvas.pending&&window.__runtimeExplore.getState().canvas.result.a2uiRevision===0);
+  await page.getByRole('tab',{name:'기록',exact:true}).click();await page.waitForFunction(()=>window.__sessionExplore.getState().items.length===2&&!window.__sessionExplore.getState().pending.list);
   await root.getByRole('combobox',{name:'저장된 작업',exact:true}).selectOption('session-one');await page.waitForFunction(()=>!!window.__sessionExplore.getState().history&&!window.__sessionExplore.getState().pending.history);
   rejectRead=true;await root.getByRole('combobox',{name:'저장된 작업',exact:true}).selectOption('session-two');await root.getByRole('alert').filter({hasText:'모의 이력 조회 실패'}).waitFor();if(await page.evaluate(()=>window.__sessionExplore.getState().selected)!=='session-one')throw Error('조회 실패로 이전 작업을 잃었습니다.');
   await root.locator('summary').filter({hasText:/^메시지 남기기$/}).click();const message=root.getByRole('textbox',{name:'이 작업에 남길 메시지',exact:true});await message.fill('보존할 후속 메시지');await root.getByRole('button',{name:'메시지 남기기',exact:true}).click();await root.getByRole('alert').filter({hasText:'모의 메시지 저장 실패'}).waitFor();if(await message.inputValue()!=='보존할 후속 메시지')throw Error('저장 실패로 메시지가 지워졌습니다.');

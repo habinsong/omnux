@@ -58,7 +58,7 @@ internal static class PlanningPromptPolicy
             : "fast";
 
         return $"""
-                한국어로만 답하라.
+                Write title, steps, and descriptions in the same language as the user objective.
                 너의 역할은 omnux Planner다.
                 아래 목표를 실제 구현 가능한 작업 계획으로 분해하라.
                 과도한 설명 없이 바로 실행 가능한 단계만 작성하라.
@@ -97,7 +97,7 @@ internal static class PlanningPromptPolicy
     public static string BuildPlanReviewPrompt(WorkPlan plan, string systemContext)
     {
         var builder = new StringBuilder();
-        builder.AppendLine("한국어로만 답하라.");
+        builder.AppendLine("Write the review in the same language as the plan objective.");
         builder.AppendLine("너의 역할은 omnux Reviewer다.");
         builder.AppendLine("아래 계획에서 빠진 검증, 위험, 범위 누락만 짚어라.");
         builder.AppendLine("200자 이내의 짧은 리뷰 요약만 출력하라.");

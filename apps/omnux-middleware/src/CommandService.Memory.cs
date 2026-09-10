@@ -117,7 +117,7 @@ public sealed partial class CommandService
         var model = ResolveModel(provider, preferredModel);
         var summaryPrompt = $"""
                             아래는 한 대화방의 전체 로그입니다.
-                            나중에 컨텍스트로 재사용할 수 있도록 한국어 메모리 노트로 압축하세요.
+                            Compress into a memory note in the same language as the source, so it can be reused as context later.
                             형식 규칙:
                             - 불릿 중심
                             - 최대 25줄

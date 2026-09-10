@@ -37,8 +37,15 @@
 .build-workspace textarea { line-height: 1.7; resize: vertical; }
 .build-workspace input[type=checkbox] { width: 17px; height: 17px; flex: 0 0 17px; accent-color: var(--build-ink); }
 .build-workspace fieldset { min-width: 0; border: 0; margin: 0; padding: 0; }
+.build-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .build-sheet { min-width: 0; border: 1px solid var(--build-line); border-radius: 16px; background: var(--build-paper); }
-.build-composer, .build-result-body { display: grid; gap: 20px; min-width: 0; padding: var(--build-padding); }
+.build-compose { min-width: 0; }
+.build-composer { display: block; min-width: 0; padding: 0; }
+.build-workspace .build-composer textarea, .build-workspace .build-compose textarea { min-height: 24px; max-height: 96px; width: auto; flex: 1 1 auto; resize: none; line-height: 1.5; border-radius: 0; padding: 0; background: transparent; border: 0; }
+.build-thread { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 8px 4px 12px; }
+.build-bubble { max-width: min(78%, 520px); padding: 8px 12px; border-radius: 16px 16px 16px 4px; background: var(--build-paper); border: 1px solid var(--build-line); align-self: flex-start; white-space: pre-wrap; font-size: 15px; line-height: 1.45; }
+.build-bubble[data-role=user] { align-self: flex-end; background: var(--muted); color: var(--foreground); border: 1px solid var(--border); border-radius: 16px 16px 4px 16px; }
+.build-result-body { display: grid; gap: 20px; min-width: 0; padding: var(--build-padding); }
 .build-result-heading { padding: var(--build-padding); border-bottom: 1px solid var(--build-line); }
 .build-workspace .build-form-fields { display: grid; min-width: 0; gap: 18px; }
 .build-field-columns { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,210px),1fr)); gap: 16px; min-width: 0; }

@@ -78,7 +78,7 @@ export const useDesktopAuthStore = create<DesktopAuthState>((set) => ({
     })),
   markAuthRequired: (sessionId, telegramConfigured, remoteDashboardClient) =>
     set((state) => {
-      useUiLogStore.getState().recordLog("info", "미들웨어가 OTP 인증을 요구했다.", { source: "auth" });
+      useUiLogStore.getState().recordLog("info", "로그인이 필요합니다", { source: "auth" });
       return {
         auth: {
           ...state.auth,
@@ -116,9 +116,9 @@ export const useDesktopAuthStore = create<DesktopAuthState>((set) => ({
 
       const message = payload.ok
         ? payload.resumed
-          ? "서버 인증 세션으로 연결을 복구했다."
-          : "OTP 인증을 완료했다."
-        : "OTP 인증에 실패했다.";
+          ? "이전 로그인으로 다시 연결했습니다"
+          : "로그인했습니다"
+        : "로그인에 실패했습니다";
       if (payload.ok) {
         useUiLogStore.getState().clearAuthFailureLogs();
       }
@@ -137,7 +137,7 @@ export const useDesktopAuthStore = create<DesktopAuthState>((set) => ({
         }
       };
     }),
-  markUnauthorized: (message = "인증 세션이 만료되었다.") =>
+  markUnauthorized: (message = "로그인이 만료되었습니다") =>
     set((state) => {
       clearLegacyAuthSession();
       useUiLogStore.getState().recordLog("warn", message, { source: "auth" });

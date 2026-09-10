@@ -7,13 +7,25 @@ import { buildPlanObjectiveFromMessage } from "./ask-session-helpers";
 export function createAskHandoffActions(set: AskSet, get: () => AskState): Pick<AskState, "saveInputAsRoutine" | "createPlanFromInput" | "runActionSuggestion" | "saveMessageToNotebook" | "createPlanFromMessage"> {
   const navigate = (page: "planning" | "automate", input: string) => {
     if (!input.trim()) return;
-    useDesktopNavigationStore.getState().setActivePage(page, { input, create: true });
+    const conversationId = get().activeConversationId || undefined;
+    useDesktopNavigationStore.getState().setActivePage(page, {
+      input,
+      create: true,
+      ...(page === "planning" && conversationId ? { conversationId } : {})
+    });
   };
   return {
     saveInputAsRoutine: () => navigate("automate", get().input.trim()),
     createPlanFromInput: () => navigate("planning", get().input.trim()),
     runActionSuggestion: suggestion => {
-      if (suggestion.kind === "plan") navigate("planning", suggestion.prompt);
+      if (suggestion.kind === "plan") {
+        const conversationId = get().activeConversationId || undefined;
+        useDesktopNavigationStore.getState().setActivePage("planning", {
+          input: suggestion.prompt,
+          create: true,
+          ...(conversationId ? { conversationId } : {})
+        });
+      }
       else if (suggestion.kind === "routine") {
         useDesktopNavigationStore.getState().setActivePage("automate", {
           input: suggestion.prompt, create: true,

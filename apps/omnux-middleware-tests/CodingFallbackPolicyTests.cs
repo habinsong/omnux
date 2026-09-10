@@ -8,7 +8,7 @@ public sealed class CodingFallbackPolicyTests
     public void BuildCodeOnlyPromptIncludesLanguageProjectAndRules()
     {
         var prompt = CodingFallbackPolicy.BuildCodeOnlyPrompt(
-            "hello.py 파일 하나에 'ok' 출력",
+            "hello.py one file print 'ok'",
             "python",
             "python-script",
             new[] { "- Python rule" }
@@ -115,6 +115,10 @@ public sealed class CodingFallbackPolicyTests
         );
 
         Assert.Equal(new[] { "src/app.js", "main.py" }, paths);
+        Assert.Equal(
+            new[] { "solution.py" },
+            CodingFallbackPolicy.ExtractRequestedCodingPaths("solution.py로 만들어줘", "python")
+        );
     }
 
     [Fact]
@@ -134,9 +138,18 @@ public sealed class CodingFallbackPolicyTests
     [Fact]
     public void ExtractExpectedConsoleOutputIgnoresPaths()
     {
-        var output = CodingFallbackPolicy.ExtractExpectedConsoleOutput("main.py 파일에서 'ok'를 출력");
+        var output = CodingFallbackPolicy.ExtractExpectedConsoleOutput("main.py print 'ok'");
 
         Assert.Equal("ok", output);
+    }
+
+    [Theory]
+    [InlineData("create main.py that prints 'hello'", "hello")]
+    [InlineData("crea main.py con 'hola'", "hola")]
+    [InlineData("main.py에 'bonjour'", "bonjour")]
+    public void ExtractExpectedConsoleOutputUsesQuotedLiteralsInAnyLanguage(string objective, string expected)
+    {
+        Assert.Equal(expected, CodingFallbackPolicy.ExtractExpectedConsoleOutput(objective));
     }
 
     [Fact]

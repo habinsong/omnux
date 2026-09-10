@@ -47,10 +47,10 @@ export class PageBoundary extends Component<PageBoundaryProps, PageBoundaryState
       return (
         <section className="p-2">
           <ShellFault
-            label={`${this.props.page} 화면 렌더 실패: ${this.state.message}`}
+            label={`${this.props.page} 화면을 그리지 못했습니다: ${this.state.message}`}
             stack={this.state.componentStack}
             onRetry={this.retry}
-            retryLabel="화면 다시 렌더"
+            retryLabel="다시 시도"
           />
         </section>
       );

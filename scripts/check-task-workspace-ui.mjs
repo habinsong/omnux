@@ -61,7 +61,7 @@ async (page) => {
     await page.screenshot({path:`output/playwright/task-fresh-${state}-${width}.png`,animations:'disabled'});
     const geometry=await root.evaluate(element=>{
       const r=element.getBoundingClientRect(),p=element.parentElement.getBoundingClientRect();
-      return {left:r.left-p.left,right:p.right-r.right,overflow:document.documentElement.scrollWidth>innerWidth+1,outside:[...element.querySelectorAll('button,input,select,textarea')].filter(node=>node.getClientRects().length&&(()=>{const b=node.getBoundingClientRect();return b.left < -1 || b.right>innerWidth+1;})()).map(node=>node.textContent.slice(0,40))};
+      return {left:r.left-p.left,right:p.right-r.right,overflow:document.documentElement.scrollWidth>innerWidth+1,outside:[...element.querySelectorAll('button,input,select,textarea')].filter(node=>{if(!node.getClientRects().length)return false;const b=node.getBoundingClientRect();if(!(b.left<-1||b.right>innerWidth+1))return false;let parent=node.parentElement;while(parent&&parent!==element){const ox=getComputedStyle(parent).overflowX;if(ox==='auto'||ox==='scroll')return false;parent=parent.parentElement;}return true;}).map(node=>node.textContent.slice(0,40))};
     });
     if(geometry.overflow||geometry.outside.length||Math.abs(geometry.left-geometry.right)>1)throw Error(JSON.stringify({state,width,...geometry}));
     layouts.push({state,width,...geometry});

@@ -8,7 +8,7 @@ public sealed class CodingQualityBriefPolicyTests
     public void BuildIncludesLanguageRequestedFilesAndExpectedStdout()
     {
         var brief = CodingQualityBriefPolicy.Build(
-            "main.py 파일에서 'ok'를 출력",
+            "main.py print 'ok'",
             "python",
             (_, _) => false,
             (_, _) => false

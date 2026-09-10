@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Bot, Code2, FileText, FolderGit2, Keyboard, KeyRound, MessageSquare, Moon, Search, Settings2, Share2, ShieldCheck, Sparkles, Sun, Volume2, X } from "lucide-react";
+import { Bot, ClipboardList, Code2, FileText, FolderGit2, GitCompare, Keyboard, KeyRound, MessageSquare, Monitor, Moon, Search, Settings2, Share2, ShieldCheck, StickyNote, Sun, Volume2, X } from "lucide-react";
 import { Badge, Button, IconButton, Input, cn } from "../../components/ui/primitives";
 import { ASK_PROVIDER_OPTIONS, useAskStore, type AskModelProvider, type AskProvider } from "../ask/ask-store";
 import { modelOptionsForProvider } from "../ask/ask-models";
@@ -52,7 +52,7 @@ function buildPageActions(pages: DesktopPageDefinition[]): PaletteAction[] {
       group: "페이지",
       label: `${page.label} 열기`,
       description: page.description,
-      icon: page.icon || Sparkles,
+      icon: page.icon || Search,
       page: page.id,
       keywords: [page.id, page.label, page.description]
     }));
@@ -75,12 +75,12 @@ function buildQuickActions(query: string): PaletteAction[] {
     {
       id: "quick-compare",
       group: "빠른 시작",
-      label: "모델 비교로 열기",
-      description: text ? "입력한 문장을 multi 비교 모드로 넘깁니다." : "Ask의 모델 비교 모드를 엽니다.",
-      icon: Sparkles,
+      label: "멀티로 열기",
+      description: text ? "입력한 문장을 멀티로 보냅니다." : "질문 화면을 멀티로 엽니다.",
+      icon: GitCompare,
       page: "ask",
       payload: { ...queryPayload, mode: "compare" },
-      keywords: ["compare", "multi", "비교", "모델"]
+      keywords: ["compare", "multi", "멀티", "오케스트레이션", "모델"]
     },
     {
       id: "quick-file",
@@ -111,6 +111,26 @@ function buildQuickActions(query: string): PaletteAction[] {
       page: "automate",
       payload: { ...queryPayload, create: true },
       keywords: ["automate", "routine", "자동화", "루틴", "예약"]
+    },
+    {
+      id: "quick-plan",
+      group: "빠른 시작",
+      label: text ? "작업으로 보내기" : "새 작업 시작",
+      description: text ? "입력한 문장으로 새 계획을 엽니다." : "작업 화면에서 새 계획을 엽니다.",
+      icon: ClipboardList,
+      page: "planning",
+      payload: { ...queryPayload, create: true },
+      keywords: ["plan", "planning", "task", "작업", "계획"]
+    },
+    {
+      id: "quick-note",
+      group: "빠른 시작",
+      label: text ? "노트로 보내기" : "노트 열기",
+      description: text ? "입력한 문장을 노트 초안으로 넘깁니다." : "프로젝트 노트를 엽니다.",
+      icon: StickyNote,
+      page: "notebooks",
+      payload: queryPayload,
+      keywords: ["notebook", "note", "노트", "기록"]
     }
   ];
 }
@@ -122,7 +142,7 @@ function buildPreferenceActions(setTheme: (theme: ThemeMode) => void, setDetailL
       group: "환경설정",
       label: "테마를 글래스로 전환",
       description: "기본 글래스 테마를 적용합니다.",
-      icon: Sparkles,
+      icon: Monitor,
       run: () => setTheme("glass"),
       keywords: ["theme", "glass", "테마", "글래스", "appearance"]
     },
@@ -409,14 +429,14 @@ export function CommandPalette({ open, pages, onClose }: CommandPaletteProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/35 px-4 pt-[12vh] backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 px-4 pt-[12vh]"
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <section
-        className="w-full max-w-2xl overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-2xl shadow-primary/10"
+        className="w-full max-w-2xl overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-md"
         role="dialog"
         aria-modal="true"
         aria-label="명령 팔레트"
@@ -442,7 +462,7 @@ export function CommandPalette({ open, pages, onClose }: CommandPaletteProps) {
                 runAction(activeAction);
               }
             }}
-            placeholder="페이지, 작업, 모델 비교, 자동화 만들기"
+            placeholder="페이지, 작업, 멀티, 자동화"
             className="h-10 border-0 px-0 focus-visible:ring-0"
             aria-label="명령 검색"
           />
@@ -453,7 +473,7 @@ export function CommandPalette({ open, pages, onClose }: CommandPaletteProps) {
         <div className="max-h-[58vh] overflow-y-auto p-2">
           {Object.entries(grouped).map(([group, groupActions]) => (
             <div key={group} className="py-1">
-              <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              <div className="px-2 py-1 text-[11px] font-medium text-muted-foreground">
                 {group}
               </div>
               <div className="space-y-0.5">
@@ -468,7 +488,7 @@ export function CommandPalette({ open, pages, onClose }: CommandPaletteProps) {
                       onMouseEnter={() => setActiveIndex(index)}
                       onClick={() => runAction(action)}
                       className={cn(
-                        "flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left transition-colors duration-200 active:scale-[0.99]",
+                        "flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left transition-colors duration-200 ",
                         active ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/70 hover:text-foreground"
                       )}
                     >

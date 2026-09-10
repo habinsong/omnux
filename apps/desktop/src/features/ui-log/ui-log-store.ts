@@ -34,7 +34,7 @@ const UI_LOG_SCHEMA_VERSION = 1;
 export const MAX_UI_LOGS = 25;
 const MAX_LOGS = MAX_UI_LOGS;
 // v2: 부팅 race/secrets 폴백 등 이전 버전의 stale warn/error 잔재를 1회 폐기하기 위해 키를 올린다.
-const LOG_STORAGE_KEY = "omnux-desktop-ui-logs-v2";
+const LOG_STORAGE_KEY = "omnux-desktop-ui-logs-v3";
 
 function createLog(
   level: ShellLogLevel,
@@ -56,7 +56,7 @@ function pushLog(logs: ShellLogEntry[], entry: ShellLogEntry): ShellLogEntry[] {
 }
 
 function isOtpAuthFailureLog(log: ShellLogEntry): boolean {
-  return log.source === "auth" && log.level === "error" && log.message.includes("OTP 인증에 실패");
+  return log.source === "auth" && log.level === "error" && log.message.includes("로그인에 실패");
 }
 
 function normalizeSavedLog(item: ShellLogEntry): ShellLogEntry | null {
@@ -147,11 +147,7 @@ function readInitialLogs(): ShellLogEntry[] {
     return restored;
   }
 
-  return [
-    createLog("info", ".NET 미들웨어 WebSocket 연결은 React store 경계를 통해서만 상태화한다.", { source: "middleware" }),
-    createLog("info", "Tauri Rust 셸은 dev bootstrap 또는 bundle externalBin으로 .NET 미들웨어를 시작한다.", { source: "runtime" }),
-    createLog("info", "런타임 부트 계약은 healthz/readyz 표시와 WebSocket ping/pong probe로 상태화한다.", { source: "runtime" })
-  ];
+  return [];
 }
 
 export function serializeUiLogs(logs: ShellLogEntry[]): string {

@@ -7,7 +7,7 @@ const directory=path.join(root,"apps/desktop/src/features/build-workspace");
 const files=readdirSync(directory).filter(file=>/\.(tsx?|css)$/.test(file));
 for(const file of files){
   const source=readFileSync(path.join(directory,file),"utf8");
-  assert.doesNotMatch(source,/from\s+["'][^"']*(?:components\/|\/build\/|\/task-workspace\/|\/automation-workspace\/)/,`${file}: 기존 화면을 가져오지 않습니다.`);
+  assert.doesNotMatch(source,/from\s+["'][^"']*(?:\/build\/BuildPage|\/task-workspace\/|\/automation-workspace\/)/,`${file}: 기존 화면을 가져오지 않습니다.`);
   assert.doesNotMatch(source,/\b(?:WorkbenchPage|WorkbenchSection|CardBoundary|ResponsivePanels|useBuildStore)\b/);
 }
 const app=readFileSync(path.join(root,"apps/desktop/src/App.tsx"),"utf8");

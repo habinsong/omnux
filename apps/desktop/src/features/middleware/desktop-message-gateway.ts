@@ -367,12 +367,12 @@ function flushTrailingReadOnlyRequests(): void {
 
 export function sendDesktopRequest(payload: { type: string } & Record<string, unknown>): boolean {
   if (!DESKTOP_ALLOWED_REQUESTS.has(payload.type)) {
-    useDesktopShellStore.getState().markBridgeStatus("error", "데스크톱 WS 게이트웨이에 등록되지 않은 요청이다.");
+    useDesktopShellStore.getState().markBridgeStatus("error", "이 요청은 보낼 수 없습니다.");
     return false;
   }
 
   if (!DESKTOP_PUBLIC_REQUESTS.has(payload.type) && useDesktopAuthStore.getState().auth.status !== "authenticated") {
-    useDesktopShellStore.getState().markBridgeStatus("error", "인증 후 데스크톱 WS 요청을 보낼 수 있다.");
+    useDesktopShellStore.getState().markBridgeStatus("error", "로그인한 뒤에 요청할 수 있습니다.");
     return false;
   }
 
@@ -380,7 +380,7 @@ export function sendDesktopRequest(payload: { type: string } & Record<string, un
     if (queueReadOnlyRequest(payload)) {
       return true;
     }
-    useDesktopShellStore.getState().markBridgeStatus("error", "데스크톱 WS 브릿지가 연결되지 않았다.");
+    useDesktopShellStore.getState().markBridgeStatus("error", "서버와 연결되어 있지 않습니다.");
     return false;
   }
 

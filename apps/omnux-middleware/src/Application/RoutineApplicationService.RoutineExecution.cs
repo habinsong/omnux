@@ -826,7 +826,7 @@ public sealed partial class RoutineApplicationService
             builder.AppendLine("- 파일 다운로드, 로그인 시도, 데스크톱 전체 제어, 운영체제 조작은 금지한다.");
         }
         builder.AppendLine("- 실패하면 어디에서 막혔는지 명확히 설명한다.");
-        builder.AppendLine("- 최종 답변은 한국어로 작성한다.");
+        builder.AppendLine("- Write the final answer in the same language as the user.");
         builder.AppendLine();
         builder.AppendLine($"시작 URL: {startUrl}");
         builder.AppendLine($"도구 프로필: {BuildRoutineToolProfileLabel(toolProfile)}");
@@ -870,7 +870,7 @@ public sealed partial class RoutineApplicationService
         builder.AppendLine(request);
         builder.AppendLine();
         builder.AppendLine("응답 형식:");
-        builder.AppendLine("1. 먼저 사용자가 바로 읽을 수 있는 최종 결과를 완결된 한국어로 작성한다.");
+        builder.AppendLine("1. First write a complete final result the user can read, in the same language they used.");
         builder.AppendLine("2. 마지막에는 아래 메타 블록을 정확히 추가한다.");
         builder.AppendLine("[ROUTINE_AGENT_META]");
         builder.AppendLine("final_url: <최종으로 확인한 URL 또는 ->");

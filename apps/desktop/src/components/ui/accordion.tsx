@@ -116,7 +116,7 @@ function AccordionRow({ item, index, expanded, onToggle, onKeyDown, registerRef 
     <div
       className={cn(
         "min-w-0 overflow-hidden rounded-lg border border-border bg-card text-card-foreground",
-        "shadow-[var(--shadow-card)] backdrop-blur-xl backdrop-saturate-150",
+        "bg-card",
         item.tone === "destructive" && "border-destructive/50",
         item.tone === "warning" && "border-warning/50",
         item.disabled && "opacity-60"

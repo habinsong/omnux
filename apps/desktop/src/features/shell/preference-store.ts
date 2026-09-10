@@ -36,6 +36,7 @@ type PreferenceState = {
   detailLevel: DetailLevel;
   startOnLaunchPreference: boolean;
   modelProviderPriority: ModelProviderId[];
+  preferredModels: Partial<Record<ModelProviderId, string>>;
   shortcuts: ShortcutPreferences;
   setTheme: (theme: ThemeMode) => void;
   cycleTheme: () => void;
@@ -44,6 +45,8 @@ type PreferenceState = {
   setModelProviderPriority: (priority: ModelProviderId[]) => void;
   moveModelProvider: (provider: ModelProviderId, targetProvider: ModelProviderId) => void;
   resetModelProviderPriority: () => void;
+  setPreferredModel: (provider: ModelProviderId, model: string) => void;
+  resetPreferredModels: () => void;
   setShortcut: (action: ShortcutAction, shortcut: string) => void;
   resetShortcut: (action: ShortcutAction) => void;
   resetShortcuts: () => void;
@@ -115,6 +118,7 @@ const THEME_STORAGE_KEY = "omnux-theme";
 const DETAIL_STORAGE_KEY = "omnux-detail-level";
 const START_ON_LAUNCH_STORAGE_KEY = "omnux-start-on-launch-preference";
 const MODEL_PRIORITY_STORAGE_KEY = "omnux-model-provider-priority-v1";
+const PREFERRED_MODELS_STORAGE_KEY = "omnux-preferred-models-v1";
 const SHORTCUT_STORAGE_KEY = "omnux-desktop-shortcuts-v1";
 const MODIFIER_KEYS = new Set(["control", "ctrl", "shift", "alt", "option", "meta", "cmd", "command", "mod"]);
 const KEY_LABELS: Record<string, string> = {
@@ -335,6 +339,32 @@ function saveModelProviderPriority(next: ModelProviderId[]) {
   }
 }
 
+export function readPreferredModels(): Partial<Record<ModelProviderId, string>> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(PREFERRED_MODELS_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    const next: Partial<Record<ModelProviderId, string>> = {};
+    for (const provider of MODEL_PROVIDER_ORDER) {
+      const value = parsed[provider];
+      if (typeof value === "string" && value.trim()) next[provider] = value.trim();
+    }
+    return next;
+  } catch {
+    return {};
+  }
+}
+
+function savePreferredModels(next: Partial<Record<ModelProviderId, string>>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(PREFERRED_MODELS_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    return;
+  }
+}
+
 export function getPreferredModelProvider(priority?: ModelProviderId[]): ModelProviderId {
   return normalizeModelProviderPriority(priority || readStoredModelProviderPriority())[0] || MODEL_PROVIDER_ORDER[0];
 }
@@ -344,6 +374,7 @@ export const useDesktopPreferenceStore = create<PreferenceState>((set, get) => (
   detailLevel: readStoredDetail(),
   startOnLaunchPreference: readStoredStartOnLaunchPreference(),
   modelProviderPriority: readStoredModelProviderPriority(),
+  preferredModels: readPreferredModels(),
   shortcuts: readStoredShortcuts(),
   setTheme: (theme) => {
     applyDesktopTheme(theme);
@@ -380,6 +411,18 @@ export const useDesktopPreferenceStore = create<PreferenceState>((set, get) => (
   resetModelProviderPriority: () => {
     saveModelProviderPriority(MODEL_PROVIDER_ORDER);
     set({ modelProviderPriority: MODEL_PROVIDER_ORDER });
+  },
+  setPreferredModel: (provider, model) => {
+    const value = model.trim();
+    const next = { ...get().preferredModels };
+    if (value) next[provider] = value;
+    else delete next[provider];
+    savePreferredModels(next);
+    set({ preferredModels: next });
+  },
+  resetPreferredModels: () => {
+    savePreferredModels({});
+    set({ preferredModels: {} });
   },
   setShortcut: (action, shortcut) => {
     const normalized = normalizeShortcut(shortcut);

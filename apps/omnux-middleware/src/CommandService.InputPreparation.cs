@@ -1879,7 +1879,7 @@ public sealed partial class CommandService
         var builder = new StringBuilder();
         builder.AppendLine("너는 URL 컨텍스트 전처리 요약기다.");
         builder.AppendLine("- 제공된 URL 내용만 사용해 후속 LLM이 참고할 요약 블록을 만들어라.");
-        builder.AppendLine("- 한국어.");
+        builder.AppendLine("- Use the same language as the user request.");
         builder.AppendLine("- 최대 8줄.");
         builder.AppendLine("- 군더더기 서론/결론/출처 링크 섹션 금지.");
         builder.AppendLine("- 사실, 수치, 핵심 규칙, 중요한 예제 위주로만 정리해라.");
@@ -1979,7 +1979,7 @@ public sealed partial class CommandService
         return $"""
                 첨부된 이미지/파일을 먼저 해석한 뒤 아래 사용자 요청을 처리하기 위한 핵심 정보만 요약하세요.
                 출력 규칙:
-                - 한국어
+                - Same language as the user request
                 - 최대 8줄
                 - 관찰 사실/수치/텍스트를 우선
                 - 불확실하면 추정이라고 명시

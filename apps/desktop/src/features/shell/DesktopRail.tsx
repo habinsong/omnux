@@ -30,8 +30,8 @@ function RailButton({
       aria-current={active ? "page" : undefined}
       onClick={onClick}
       className={cn(
-        "relative flex h-10 w-10 items-center justify-center rounded-lg transition-all duration-200 ease-out",
-        "active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
+        "relative flex h-10 w-10 items-center justify-center rounded-md transition-colors duration-150",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
         active ? "bg-primary/12 text-primary" : "text-muted-foreground hover:bg-accent hover:text-foreground"
       )}
     >

@@ -45,11 +45,11 @@ public sealed partial class CodingApplicationService
         }
 
         var singleFile = IsExplicitSingleFileSimpleTask(objective, language, requestedPaths);
-        var apiLike = ContainsAny(text, "api", "rest", "서버", "backend", "백엔드", "http server", "web server");
-        var cliLike = ContainsAny(text, "cli", "command line", "명령줄", "커맨드", "인자", "stdin", "옵션");
-        var libraryLike = ContainsAny(text, "라이브러리", "library", "패키지", "package", "모듈", "module", "sdk");
-        var testLike = ContainsAny(text, "테스트", "test", "unit test", "pytest", "jest", "테스트 포함");
-        var dataLike = ContainsAny(text, "데이터", "csv", "분석", "pandas", "시각화", "차트");
+        var apiLike = ContainsAny(text, "api", "rest", "backend", "http server", "web server");
+        var cliLike = CodingTaskSignalPolicy.LooksLikeCli(text);
+        var libraryLike = ContainsAny(text, "library", "package", "module", "sdk");
+        var testLike = ContainsAny(text, "test", "unit test", "pytest", "jest");
+        var dataLike = ContainsAny(text, "csv", "pandas", "chart");
         var gameLike = IsGameLikeCodingTask(objective ?? string.Empty, language);
         var frontendLike = IsFrontendLikeCodingTask(objective ?? string.Empty, language);
 
@@ -90,22 +90,19 @@ public sealed partial class CodingApplicationService
         var expectedOutputLines = CodingExpectedOutputPolicy.ExtractExpectedConsoleOutputLines(text);
         var pathCount = requestedPaths?.Count ?? 0;
         var singleFileIntent = CodingFallbackPolicy.HasSingleFileIntent(text)
-            || ContainsAny(text, "single file", "one file", "파일 하나", "파일 한개", "단일 파일");
+            || ContainsAny(text, "single file", "one file", "1 file");
         var simpleStdout = expectedOutputLines.Count > 0
-            || ContainsAny(text, "출력", "print", "echo", "stdout");
+            || ContainsAny(text, "print", "echo", "stdout", "console.log");
         var projectSignals = ContainsAny(
             text,
-            "프로젝트",
             "project",
-            "웹앱",
             "web app",
             "api",
-            "서버",
-            "게임",
-            "테스트",
-            "패키지",
-            "라이브러리",
-            "여러 파일",
+            "server",
+            "game",
+            "test",
+            "package",
+            "library",
             "multiple files",
             "multi-file"
         );

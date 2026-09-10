@@ -41,7 +41,7 @@ export function ShellOverviewPage() {
   return (
     <Screen
       title="셸"
-      hint="창과 연결, 부팅만 봅니다. 모델과 작업은 여기서 다루지 않습니다."
+      hint=""
       actions={
         <>
           <Button variant="outline" size="sm" onClick={markWaiting}>

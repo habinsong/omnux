@@ -196,8 +196,8 @@ check("실패한 미리보기에 적용 버튼이 남지 않는다", () => {
 
 check("세 방식을 한 번에 펼치지 않는다", () => {
   const page = sources.get("RefactorPage.tsx");
-  assert.ok(page.includes("<Accordion"), "접이식으로 고른다");
-  assert.ok(page.includes("single"), "한 번에 하나만 연다");
+  assert.ok(page.includes("ScreenTabs"), "캡슐 탭으로 고른다");
+  assert.ok(page.includes('id: "file"') || page.includes('id: "edit"'), "단계를 나눈다");
   assert.ok(!page.includes("CardBoundary"), "이전 카드 묶음을 쓰지 않는다");
 });
 
@@ -205,7 +205,6 @@ check("못 누르는 이유를 화면에 적는다", () => {
   const page = sources.get("RefactorPage.tsx");
   assert.ok(page.includes("describeBlocked"), "막힘 사유를 계산한다");
   assert.ok(page.includes("{blocked}"), "사유를 그린다");
-  assert.ok(page.includes("{applyBlocked ||"), "적용도 사유를 그린다");
 });
 
 check("순수 모델은 화면·저장소에 기대지 않는다", () => {

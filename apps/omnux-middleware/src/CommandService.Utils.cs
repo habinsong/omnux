@@ -443,7 +443,7 @@ public sealed partial class CommandService
             {
                 var model = ResolveModel(provider, SanitizeMaintenanceModel(preferredProvider, preferredModel));
                 var prompt = $"""
-                            아래 대화의 제목을 한국어 한 문장으로 만들어라.
+                            Make a one-sentence title for the conversation below, in the same language as the messages.
                             조건:
                             - 최대 28자
                             - 불필요한 따옴표/머리말 금지
@@ -519,7 +519,7 @@ public sealed partial class CommandService
         var model = ResolveModel(provider, SanitizeMaintenanceModel(preferredProvider, preferredModel));
         var summaryPrompt = $"""
                             다음은 길어진 대화의 이전 구간입니다.
-                            이후 대화 이어가기에 필요한 핵심 맥락만 유지해서 한국어로 압축 요약하세요.
+                            Keep only the context needed to continue, compressed in the same language as the conversation.
                             반드시 포함:
                             1) 사용자 목표
                             2) 결정된 기술 선택/제약

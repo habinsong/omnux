@@ -27,7 +27,8 @@ internal static class TelegramConversationContextPolicy
               {anchorTurn.Assistant}
               """;
 
-        if (SearchQueryPolicy.LooksLikeExplicitWebLookupQuestion(normalized) && IsWeakFollowupInput(normalized))
+        if ((SearchQueryPolicy.LooksLikeExplicitWebLookupQuestion(normalized) || IsSearchAlias(normalized))
+            && IsWeakFollowupInput(normalized))
         {
             return $"""
                     [직전 주제]
@@ -154,6 +155,11 @@ internal static class TelegramConversationContextPolicy
             return true;
         }
 
+        return IsSearchAlias(normalized);
+    }
+
+    private static bool IsSearchAlias(string normalized)
+    {
         return normalized is "검색해서 말해"
             or "검색해줘"
             or "검색해 줘"

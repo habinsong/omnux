@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Code2, FolderGit2, MessageSquare, Plus, RefreshCcw, Star, Trash2 } from "lucide-react";
+import { Code2, FolderGit2, MessageSquare, Plus, RefreshCcw, Star, StickyNote, Trash2 } from "lucide-react";
 import { Screen, ScreenNotice } from "../../components/screen/Screen";
 import { ScreenTabs, type ScreenTab } from "../../components/screen/ScreenTabs";
 import { Badge, Button, Input, Spinner, Textarea, cn } from "../../components/ui/primitives";
@@ -118,9 +118,14 @@ function ProjectList({
   const navigate = useDesktopNavigationStore((state) => state.setActivePage);
   const store = useProjectsStore;
 
-  const go = (page: "ask" | "build", project: ProjectItem) => {
+  const go = (page: "ask" | "build" | "notebooks" | "planning", project: ProjectItem) => {
     store.getState().touchProject(project);
-    navigate(page, { projectKey: project.projectKey, projectName: project.name, projectPath: project.path });
+    navigate(page, {
+      projectKey: project.projectKey,
+      projectName: project.name,
+      projectPath: project.path,
+      ...(page === "planning" ? { create: true } : {})
+    });
   };
 
   if (projects.length === 0) {
@@ -180,6 +185,9 @@ function ProjectList({
                       </Button>
                       <Button variant="outline" size="sm" onClick={() => go("build", project)}>
                         <Code2 size={12} aria-hidden="true" /> 빌드
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => go("notebooks", project)}>
+                        <StickyNote size={12} aria-hidden="true" /> 노트
                       </Button>
                       <Button variant="ghost" size="sm" onClick={() => onEdit(project)}>
                         수정
@@ -264,7 +272,7 @@ function ProjectForm({ connected, selected, onDone }: { connected: boolean; sele
                   onClick={() => store.getState().setFormValue("color", color)}
                   className={cn(
                     "h-7 w-7 rounded-full outline-none transition-transform focus-visible:ring-2 focus-visible:ring-ring/60",
-                    form.color === color ? "scale-110 ring-2 ring-primary ring-offset-2 ring-offset-card" : "hover:scale-105"
+                    form.color === color ? "ring-2 ring-primary ring-offset-2 ring-offset-card" : ""
                   )}
                   style={{ backgroundColor: color }}
                 />

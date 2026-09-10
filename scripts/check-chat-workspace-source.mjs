@@ -7,7 +7,7 @@ const directory = path.join(root, "apps/desktop/src/features/chat-workspace");
 const files = readdirSync(directory).filter(file => /\.(tsx?|css)$/.test(file));
 for (const file of files) {
   const source = readFileSync(path.join(directory, file), "utf8");
-  assert.doesNotMatch(source, /from\s+["'][^"']*(?:components\/|\/AskPage|\/AskThread|\/AskMessages|\/AskHistoryPanel|\/AskSettingsPanel|\/AskResourcesPanel|\/MarkdownMessage)/, `${file}: 이전 화면을 가져오지 않습니다.`);
+  assert.doesNotMatch(source, /from\s+["'][^"']*(?:\/AskPage|\/AskThread|\/AskMessages|\/AskHistoryPanel|\/AskSettingsPanel|\/AskResourcesPanel|\/MarkdownMessage)/, `${file}: 이전 화면을 가져오지 않습니다.`);
   assert.doesNotMatch(source, /\b(?:WorkbenchPage|WorkbenchSection|CardBoundary|ResponsivePanels)\b/);
 }
 assert.equal(existsSync(path.join(root, "apps/desktop/src/features/ask/AskPage.tsx")), false);

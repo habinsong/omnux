@@ -8,7 +8,7 @@ type CardErrorHandler = (card: ShellCard, message: string, componentStack?: stri
 
 function SecretStat({ label, value, ready, badge }: { label: string; value: string; ready: boolean; badge?: string }) {
   return (
-    <div className="rounded-md border border-border bg-card/60 p-3">
+    <div className="rounded-md border border-border bg-card p-3">
       <div className="flex items-center justify-between gap-2">
         <span className="truncate text-xs text-muted-foreground">{label}</span>
         <Badge tone={ready ? "success" : "outline"}>{badge || (ready ? "저장됨" : "미설정")}</Badge>
@@ -63,7 +63,7 @@ export function SettingsTelegramPanel({ canRequest, onError }: { canRequest: boo
         </label>
       </div>
 
-      <label className={cn("flex items-start gap-2 rounded-md border border-border bg-card/60 px-3 py-2", disabled && "opacity-60")}>
+      <label className={cn("flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2", disabled && "opacity-60")}>
         <input
           type="checkbox"
           className="mt-0.5 h-4 w-4 shrink-0 accent-primary"

@@ -164,37 +164,37 @@ export const LOGIC_NODE_DEFS: Record<string, LogicNodeTypeDef> = {
     sourcePorts: ["main"], bindablePorts: ["template"], defaultSize: { width: 232, height: 140 }
   },
   chat_single: {
-    type: "chat_single", label: "한 모델로 답변", category: "ai",
-    description: "한 모델에게 바로 질문해 답을 받습니다.",
+    type: "chat_single", label: "Chat 싱글", category: "ai",
+    description: "싱글 모드로 질문합니다.",
     fields: chatFields(), sourcePorts: ["main"], bindablePorts: ["input"], defaultSize: { width: 260, height: 180 }
   },
   chat_orchestration: {
-    type: "chat_orchestration", label: "역할 나눠 답변", category: "ai",
-    description: "초안·검토처럼 역할을 나눠 답을 만듭니다.",
-    fields: [...chatFields(), field("summaryProvider", "요약 공급자", "select", { options: PROVIDER_OPTIONS, default: "" })],
+    type: "chat_orchestration", label: "Chat 오케스트레이션", category: "ai",
+    description: "오케스트레이션으로 답을 만듭니다.",
+    fields: [...chatFields(), field("summaryProvider", "요약할 제공자", "select", { options: PROVIDER_OPTIONS, default: "" })],
     sourcePorts: ["main"], bindablePorts: ["input"], defaultSize: { width: 270, height: 200 }
   },
   chat_multi: {
-    type: "chat_multi", label: "여러 답변 비교", category: "ai",
-    description: "여러 모델의 답을 받아 비교·요약합니다.",
-    fields: [field("input", "질문 / 프롬프트", "textarea", { rows: 4, placeholder: "여러 모델로 비교할 질문" }), field("summaryProvider", "요약 공급자", "select", { options: PROVIDER_OPTIONS, default: "" }), field("memoryNotes", "메모리 노트", "text", {})],
+    type: "chat_multi", label: "Chat 멀티", category: "ai",
+    description: "멀티로 여러 모델에게 물어봅니다.",
+    fields: [field("input", "물어볼 내용", "textarea", { rows: 4, placeholder: "여러 모델에게 물어볼 내용" }), field("summaryProvider", "요약할 제공자", "select", { options: PROVIDER_OPTIONS, default: "" }), field("memoryNotes", "메모리 노트", "text", {})],
     sourcePorts: ["main"], bindablePorts: ["input"], defaultSize: { width: 270, height: 180 }
   },
   coding_single: {
-    type: "coding_single", label: "한 모델로 구현", category: "ai",
-    description: "한 모델로 코드를 작성·실행합니다.",
+    type: "coding_single", label: "Coding 싱글", category: "ai",
+    description: "싱글 모드로 코드를 짜고 실행합니다.",
     fields: codingFields(), sourcePorts: ["main"], bindablePorts: ["input"], defaultSize: { width: 260, height: 180 }
   },
   coding_orchestration: {
-    type: "coding_orchestration", label: "역할 나눠 구현", category: "ai",
-    description: "역할을 나눠 코드를 구현합니다.",
-    fields: [...codingFields(), field("summaryProvider", "요약 공급자", "select", { options: PROVIDER_OPTIONS, default: "" })],
+    type: "coding_orchestration", label: "Coding 오케스트레이션", category: "ai",
+    description: "오케스트레이션으로 코드를 짭니다.",
+    fields: [...codingFields(), field("summaryProvider", "요약할 제공자", "select", { options: PROVIDER_OPTIONS, default: "" })],
     sourcePorts: ["main"], bindablePorts: ["input"], defaultSize: { width: 270, height: 200 }
   },
   coding_multi: {
-    type: "coding_multi", label: "구현안 비교", category: "ai",
-    description: "여러 구현안을 비교합니다.",
-    fields: [field("input", "구현 요청", "textarea", { rows: 4 }), field("language", "언어", "text", { placeholder: "auto" }), field("summaryProvider", "요약 공급자", "select", { options: PROVIDER_OPTIONS, default: "" })],
+    type: "coding_multi", label: "Coding 멀티", category: "ai",
+    description: "멀티로 구현을 받아서 고릅니다.",
+    fields: [field("input", "구현 요청", "textarea", { rows: 4 }), field("language", "언어", "text", { placeholder: "auto" }), field("summaryProvider", "요약할 제공자", "select", { options: PROVIDER_OPTIONS, default: "" })],
     sourcePorts: ["main"], bindablePorts: ["input"], defaultSize: { width: 270, height: 180 }
   },
   routine_run: {

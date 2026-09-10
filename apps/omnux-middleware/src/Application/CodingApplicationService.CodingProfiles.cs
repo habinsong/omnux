@@ -312,20 +312,16 @@ public sealed partial class CodingApplicationService
             text,
             "ui",
             "ux",
-            "웹",
             "web",
-            "페이지",
             "page",
-            "랜딩",
             "landing",
             "html",
             "css",
             "frontend",
-            "프론트",
             "react",
             "canvas",
             "vite",
-            "브라우저"
+            "browser"
         );
 
         return (lang is "html" or "css" or "javascript" or "typescript" or "react-vite" || frontendSignals) && !backendSignals;
@@ -341,7 +337,7 @@ public sealed partial class CodingApplicationService
         }
 
         var explicitLanguage = CodingLanguagePolicy.ResolveExplicitObjectiveLanguage(objective);
-        var gameSignals = ContainsAny(text, "게임", "game", "arcade", "슈팅", "shooter", "shooting", "platformer", "tetris", "pong", "snake", "벽돌깨기", "비행기");
+        var gameSignals = ContainsAny(text, "game", "arcade", "shooter", "shooting", "platformer", "tetris", "pong", "snake");
         if (!gameSignals)
         {
             return false;
@@ -357,7 +353,7 @@ public sealed partial class CodingApplicationService
             return explicitLanguage is "html" or "javascript" or "typescript" or "react-vite" or "css" or "python";
         }
 
-        return ContainsAny(text, "웹", "web", "canvas", "브라우저", "html", "파이썬", "python", "pygame");
+        return ContainsAny(text, "web", "canvas", "browser", "html", "python", "pygame");
     }
 
     private bool ShouldUseOneShotMode(CodingExecutionProfile profile, string objective, string languageHint)
@@ -506,9 +502,9 @@ public sealed partial class CodingApplicationService
                     lines.Add("- 단순 print 반복이나 턴제 로그 출력으로 끝내지 말고 실제 입력 처리, 렌더링, 상태 갱신이 있는 게임 루프를 구현하라");
                     lines.Add("- headless 검증을 위해 OMNI_HEADLESS_TEST=1이면 초기화, 핵심 객체 생성, 짧은 프레임 루프 후 종료하라");
                     lines.Add("- 일반 실행에서는 OMNI_HEADLESS_TEST 분기가 작동하지 않아야 하며 실제 게임 창과 메인 루프가 실행되어야 한다");
-                    if (ContainsAny(objective.ToLowerInvariant(), "tetris", "테트리스"))
+                    if (ContainsAny(objective.ToLowerInvariant(), "tetris"))
                     {
-                        lines.Add("- 테트리스류 게임은 10x20 보드, 블록 형태, 이동/회전, 충돌, 라인 클리어, 점수, 레벨, 게임오버 로직을 실제 코드로 포함하라");
+                        lines.Add("- tetris-like games must include a 10x20 board, piece shapes, move/rotate, collision, line clear, score, level, and game-over logic in real code");
                     }
                 }
                 break;

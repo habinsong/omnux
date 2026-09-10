@@ -23,7 +23,18 @@ function ReplyActions({ text, message, index, canRequest }: { text: string; mess
   const navigate = useDesktopNavigationStore(s => s.setActivePage);
   const [copyResult, setCopyResult] = useState("");
   const key = `${state.activeConversationId}-${index}-${message.model}`;
-  const transfer = (page: "planning" | "automate" | "build" | "ask") => navigate(page, { input: text, ...(page === "automate" ? { create: true } : {}), ...(page === "ask" ? { mode: "compare" } : {}) });
+  const transfer = (page: "planning" | "automate" | "build" | "ask") => {
+    const project = state.metaDraft.project.trim();
+    navigate(page, {
+      input: text,
+      ...((page === "automate" || page === "planning") ? { create: true } : {}),
+      ...(page === "ask" ? { mode: "compare" } : {}),
+      ...(page === "planning" && state.activeConversationId ? { conversationId: state.activeConversationId } : {}),
+      ...(page === "build"
+        ? { mode: state.chatMode, ...(project && project !== "기본" ? { projectName: project } : {}) }
+        : {})
+    });
+  };
   return <div className="chat-reply-actions">
     <div className="chat-actions"><button className="chat-button chat-quiet" aria-label="답변 복사" onClick={async () => {
       try { await navigator.clipboard.writeText(text); setCopyResult("복사했습니다."); }
@@ -36,7 +47,7 @@ function ReplyActions({ text, message, index, canRequest }: { text: string; mess
       <button className="chat-button" onClick={() => transfer("planning")}>작업으로 보내기</button>
       <button className="chat-button" onClick={() => transfer("build")}>빌드로 보내기</button>
       <button className="chat-button" onClick={() => transfer("automate")}>자동화로 보내기</button>
-      <button className="chat-button" disabled={state.pending} onClick={() => transfer("ask")}>모델 비교</button>
+      <button className="chat-button" disabled={state.pending} onClick={() => transfer("ask")}>멀티로</button>
       <button className="chat-button" disabled={!canRequest || saving} onClick={() => state.saveMessageToNotebook(index, text, message.meta)}>{saving ? "저장 중" : "노트에 저장"}</button>
       {message.actionSuggestions?.map((suggestion, i) => <button key={i} className="chat-button" disabled={!canRequest || state.pending} onClick={() => state.runActionSuggestion(suggestion)}>{suggestion.label}</button>)}
     </div></details>
@@ -79,13 +90,12 @@ export function ChatTranscript({ canRequest }: { canRequest: boolean }) {
       const element = event.currentTarget; follow.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
     }}>
       {state.messages.map((message, index) => <article className="chat-message" data-role={message.role} key={`${state.activeConversationId}-${index}`}>
-        <p className="chat-speaker">{message.role === "user" ? "나" : message.role === "system" ? "안내" : "답변"}</p>
         {message.role === "ai" ? <ChatMarkdown text={message.text} /> : <p className="chat-plain">{message.text}</p>}
         {message.role === "ai" && <><ReplyActions message={message} text={message.text} index={index} canRequest={canRequest} /><ReplyDetails message={message} /></>}
       </article>)}
-      {state.streamingActive && <article className="chat-message" aria-busy="true"><p className="chat-speaker">답변 작성 중</p>{state.streamingText ? <ChatMarkdown text={state.streamingText} /> : <p className="chat-muted">응답을 기다리고 있습니다.</p>}</article>}
+      {state.streamingActive && <article className="chat-message" data-role="ai" aria-busy="true">{state.streamingText ? <ChatMarkdown text={state.streamingText} /> : <p className="chat-muted">응답을 기다리고 있습니다.</p>}</article>}
     </div>
-    {comparison && <details className="chat-fold chat-comparison"><summary>모델별 답변</summary><div className="chat-fields">
+    {comparison && <details className="chat-fold chat-comparison"><summary>멀티 결과</summary><div className="chat-fields">
       <label>살펴볼 답변<select value={selected} onChange={event => setSelected(Number(event.target.value))}>{state.multiResult!.providers.map((provider, index) => <option key={`${provider.key}-${index}`} value={index}>{provider.label} · {provider.model}</option>)}</select></label>
       <ChatMarkdown text={comparison.text} />
       <ReplyActions text={comparison.text} message={{ ...state.messages[state.messages.length - 1], model: comparison.model }} index={state.messages.length - 1} canRequest={canRequest} />

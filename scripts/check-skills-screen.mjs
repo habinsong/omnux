@@ -171,7 +171,7 @@ check("두 칸 배치를 쓰지 않는다", () => {
   const page = sources.get("SkillsPage.tsx");
   assert.ok(!page.includes("ResponsivePanels"), "목록과 편집기를 동시에 띄우지 않는다");
   assert.ok(!page.includes("CardBoundary"), "이전 카드 묶음을 쓰지 않는다");
-  assert.ok(page.includes("<Accordion"), "줄을 열어 편집한다");
+  assert.ok(page.includes("ScreenTabs"), "캡슐 탭으로 범위를 나눈다");
   assert.ok(!page.includes("h-[calc(100vh"), "화면 높이를 고정하지 않는다");
 });
 

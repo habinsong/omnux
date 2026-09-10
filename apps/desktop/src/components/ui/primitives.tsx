@@ -11,7 +11,7 @@ import type { LucideIcon } from "lucide-react";
 /* ============================================================================
    OMNUX UI Primitives
    UIUX_design.md 강제 규약: Tailwind 토큰만 사용, 인라인 스타일 금지,
-   절제된 모션(duration-200 ease-out, active:scale), 우아한 포커스 링.
+   토큰만 쓰고, 장식 글래스/글로우/호버 스케일은 쓰지 않는다.
    하드코딩 HEX 없이 시맨틱 토큰(bg-card, text-foreground, border-border 등)만.
    ============================================================================ */
 
@@ -27,19 +27,16 @@ type ButtonSize = "sm" | "md" | "lg" | "icon";
 
 const BUTTON_BASE =
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium " +
-  "transition-all duration-200 ease-out outline-none cursor-pointer select-none " +
+  "transition-colors duration-150 outline-none cursor-pointer select-none " +
   "focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2 focus-visible:ring-offset-background " +
-  "active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50";
+  "disabled:pointer-events-none disabled:opacity-50";
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary:
-    "bg-primary text-primary-foreground shadow-sm hover:brightness-110 hover:-translate-y-px",
-  secondary:
-    "bg-secondary text-secondary-foreground border border-border hover:bg-accent hover:-translate-y-px",
+  primary: "bg-primary text-primary-foreground hover:opacity-90",
+  secondary: "bg-secondary text-secondary-foreground border border-border hover:bg-accent",
   ghost: "text-muted-foreground hover:bg-accent hover:text-foreground",
-  outline:
-    "border border-border bg-transparent text-foreground hover:bg-accent hover:-translate-y-px",
-  destructive: "bg-destructive text-destructive-foreground shadow-sm hover:brightness-110"
+  outline: "border border-border bg-transparent text-foreground hover:bg-accent",
+  destructive: "bg-destructive text-destructive-foreground hover:opacity-90"
 };
 
 const BUTTON_SIZES: Record<ButtonSize, string> = {
@@ -90,8 +87,7 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        // Glass: 반투명 bg-card + backdrop-blur + lg-edge(엣지 라이팅). Light/Dark: 토큰 불투명 → shadow/glow.
-        "relative rounded-lg border border-border bg-card text-card-foreground shadow-[var(--shadow-card)] backdrop-blur-xl backdrop-saturate-150 lg-edge",
+        "relative rounded-md border border-border bg-card text-card-foreground",
         className
       )}
       {...props}
@@ -152,12 +148,9 @@ const DOT_TONES: Record<DotTone, string> = {
   offline: "bg-destructive"
 };
 
-export function StatusDot({ tone = "idle", pulse = false }: { tone?: DotTone; pulse?: boolean }) {
+export function StatusDot({ tone = "idle", pulse: _pulse = false }: { tone?: DotTone; pulse?: boolean }) {
   return (
     <span className="relative inline-flex h-2 w-2 shrink-0">
-      {pulse ? (
-        <span className={cn("absolute inline-flex h-full w-full animate-ping rounded-full opacity-60", DOT_TONES[tone])} />
-      ) : null}
       <span className={cn("relative inline-flex h-2 w-2 rounded-full", DOT_TONES[tone])} />
     </span>
   );
@@ -190,7 +183,7 @@ export function SectionLabel({ className, ...props }: HTMLAttributes<HTMLDivElem
   return (
     <div
       className={cn(
-        "text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground",
+        "text-xs font-medium text-muted-foreground",
         className
       )}
       {...props}

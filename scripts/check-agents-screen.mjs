@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  AGENT_SECTIONS,
+  AGENT_TABS,
   AGENT_SLICE_IDS,
   agentRequestId,
   agentSliceForMessage,
@@ -16,7 +16,7 @@ import {
   markAgentFailed,
   markAgentLoading,
   markAgentReady
-} from "../apps/desktop/src/features/agents/agents-sections.ts";
+} from "../apps/desktop/src/features/agents/agents-view.ts";
 
 import { statusLabel, statusTone } from "../apps/desktop/src/components/ui/status-tone.ts";
 
@@ -94,11 +94,11 @@ check("실패한 구역 수를 센다", () => {
 });
 
 check("구역 정의에 빠짐이 없다", () => {
-  assert.equal(AGENT_SECTIONS.length, AGENT_SLICE_IDS.length);
-  for (const section of AGENT_SECTIONS) {
+  assert.equal(AGENT_TABS.length, AGENT_SLICE_IDS.length);
+  for (const section of AGENT_TABS) {
     assert.ok(AGENT_SLICE_IDS.includes(section.id), section.id);
     assert.ok(section.label.length > 0, section.id);
-    assert.ok(section.description.length > 0, section.id);
+    assert.ok(section.hint.length > 0, section.id);
   }
 });
 
@@ -201,12 +201,12 @@ check("쓰기 버튼은 못 누르는 이유를 적는다", () => {
 });
 
 check("순수 모델은 화면·저장소에 기대지 않는다", () => {
-  const source = agentSources.get("agents-sections.ts");
+  const source = agentSources.get("agents-view.ts");
   assert.ok(!source.includes('from "react"'));
   assert.ok(!source.includes("zustand"));
   const valueImports = [...source.matchAll(/^import (?!type )[^\n]*from "([^"]+)"/gm)].map((m) => m[1]);
   for (const specifier of valueImports) {
-    assert.equal(specifier, "../middleware/slice-state.ts", `agents-sections 가 ${specifier} 를 가져온다`);
+    assert.equal(specifier, "../middleware/slice-state.ts", `agents-view 가 ${specifier} 를 가져온다`);
   }
 });
 

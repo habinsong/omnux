@@ -34,16 +34,16 @@ internal static class CodingFallbackPolicy
     private static readonly Regex JsonPathFieldRegex = new("\"path\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"", RegexOptions.Compiled | RegexOptions.Singleline);
     private static readonly Regex DomainRegex = new(@"([a-z0-9][a-z0-9-]*\.[a-z]{2,})", RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private static readonly Regex RequestedCodingPathRegex = new(
-        @"(?<path>(?:(?:[A-Za-z]:)?[\\/])?(?:[\w.-]+[\\/])*(?:[\w.-]+\.)+(?:json|html|java|tsx|jsx|mjs|cjs|cpp|cxx|hpp|htm|css|txt|md|py|ts|js|cs|kt|kts|sh|cc|hh|h|c|go|rs|php|rb|swift|yml|yaml|toml|xml|csproj|sln|gradle|svelte|vue))(?![\w.-])",
+        @"(?<path>(?:(?:[A-Za-z]:)?[\\/])?(?:[\w.-]+[\\/])*(?:[\w.-]+\.)+(?:json|html|java|tsx|jsx|mjs|cjs|cpp|cxx|hpp|htm|css|txt|md|py|ts|js|cs|kt|kts|sh|cc|hh|h|c|go|rs|php|rb|swift|yml|yaml|toml|xml|csproj|sln|gradle|svelte|vue))(?![A-Za-z0-9._-])",
         RegexOptions.Compiled | RegexOptions.IgnoreCase
     );
     private static readonly Regex ExpectedOutputAfterQuotedRegex = new(
-        "['\\\"`](?<value>[^'\\\"`\\r\\n]{1,160})['\\\"`]\\s*(?:를|을)?\\s*(?:출력|print|echo|표시)",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase
+        "['\\\"`](?<value>[^'\\\"`\\r\\n]{1,160})['\\\"`][^'\\\"`\\r\\n]{0,24}(?:print|echo|stdout|console(?:\\.log)?)",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
     );
     private static readonly Regex ExpectedOutputBeforeQuotedRegex = new(
-        "(?:출력|print|echo|표시)[^'\\\"`\\r\\n]{0,32}['\\\"`](?<value>[^'\\\"`\\r\\n]{1,160})['\\\"`]",
-        RegexOptions.Compiled | RegexOptions.IgnoreCase
+        "(?:print|echo|stdout|console(?:\\.log)?)[^'\\\"`\\r\\n]{0,32}['\\\"`](?<value>[^'\\\"`\\r\\n]{1,160})['\\\"`]",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant
     );
     private static readonly Regex GenericQuotedTextRegex = new(
         "['\\\"`](?<value>[^'\\\"`\\r\\n]{1,160})['\\\"`]",
@@ -468,7 +468,7 @@ internal static class CodingFallbackPolicy
             ? SanitizePathSegment(domainMatch.Groups[1].Value)
             : objectiveText.Contains("naver", StringComparison.OrdinalIgnoreCase)
                 ? "naver.com"
-                : objectiveText.Contains("clone", StringComparison.OrdinalIgnoreCase) || objectiveText.Contains("클론", StringComparison.OrdinalIgnoreCase)
+                : objectiveText.Contains("clone", StringComparison.OrdinalIgnoreCase)
                     ? "web-clone"
                     : "task";
 
@@ -526,21 +526,13 @@ internal static class CodingFallbackPolicy
             }
         }
 
-        if (ContainsAny(text.ToLowerInvariant(), "출력", "print", "echo", "표시"))
-        {
-            var fallbackCandidate = GenericQuotedTextRegex.Matches(text)
-                .Select(match => match.Groups["value"].Value.Trim())
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Where(value => !LooksLikeRequestedCodingPath(value))
-                .Where(IsLikelyExpectedOutputLiteral)
-                .LastOrDefault();
-            if (!string.IsNullOrWhiteSpace(fallbackCandidate))
-            {
-                return fallbackCandidate;
-            }
-        }
-
-        return string.Empty;
+        var fallbackCandidate = GenericQuotedTextRegex.Matches(text)
+            .Select(match => match.Groups["value"].Value.Trim())
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Where(value => !LooksLikeRequestedCodingPath(value))
+            .Where(IsLikelyExpectedOutputLiteral)
+            .LastOrDefault();
+        return fallbackCandidate ?? string.Empty;
     }
 
     public static bool LooksLikeRequestedCodingPath(string value)
@@ -579,18 +571,14 @@ internal static class CodingFallbackPolicy
 
     public static bool HasSingleFileIntent(string objective)
     {
-        var text = (objective ?? string.Empty).ToLowerInvariant();
-        return ContainsAny(
-            text,
-            "파일 하나",
-            "파일 한개",
-            "파일 1개",
-            "한 파일",
-            "single file",
-            "single-file",
-            "one file",
-            "하나만"
-        );
+        var text = objective ?? string.Empty;
+        if (ExtractRequestedCodingPaths(text, "auto").Count == 1)
+        {
+            return true;
+        }
+
+        var lowered = text.ToLowerInvariant();
+        return ContainsAny(lowered, "single file", "single-file", "one file", "1 file");
     }
 
     public static string NormalizeGeneratedActionPath(string? path)

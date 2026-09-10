@@ -9,13 +9,14 @@ import { useAskStore } from "../ask/ask-store";
 import { normalizeConversation } from "../ask/ask-normalization";
 import { useAskNotebookSave } from "../ask/ask-notebook-save";
 import { isSpeechSupported, useSpeechStore } from "../ask/ask-speech";
-import { useDesktopNavigationStore } from "../shell/navigation-store";
+import { useDesktopNavigationStore, workModeFromRoute } from "../shell/navigation-store";
 import { requestConfirmDialog } from "../dialog/dialog-store";
 import { ChatComposer } from "./ChatComposer";
 import { ChatHistory } from "./ChatHistory";
 import { ChatOptions } from "./ChatOptions";
 import { ChatResources } from "./ChatResources";
 import { ChatTranscript } from "./ChatTranscript";
+import { useHomeRecentStore } from "../home/home-recent-store";
 import "./chat-workspace.css";
 
 /* ============================================================================
@@ -37,6 +38,7 @@ export function ChatWorkspacePage() {
   const [incoming, setIncoming] = useState<Record<string, unknown> | null>(null);
   const [tab, setTab] = useState<TabId>("chat");
   const lastSpoken = useRef("");
+  const attachRule = useRef(false);
   const autoSpeak = useSpeechStore((s) => s.autoSpeak);
   const focus = () => document.getElementById("chat-request")?.focus();
 
@@ -51,13 +53,18 @@ export function ChatWorkspacePage() {
 
   const applyIncoming = (payload: Record<string, unknown>) => {
     const current = useAskStore.getState();
-    if (typeof payload.conversationId === "string") current.openConversation(normalizeConversation({ id: payload.conversationId, scope: "chat" }));
-    const mode = payload.mode === "compare" ? "multi" : payload.mode;
-    if (mode === "single" || mode === "multi" || mode === "orchestration") {
-      if (mode !== current.chatMode) current.setChatMode(mode);
+    const conversationId = typeof payload.conversationId === "string" ? payload.conversationId.trim() : "";
+    const mode = workModeFromRoute(typeof payload.mode === "string" ? payload.mode : undefined);
+    if (conversationId) {
+      current.openConversation(normalizeConversation({ id: conversationId, scope: "chat", mode: mode || current.chatMode }));
+    } else if (mode && mode !== current.chatMode) {
+      current.setChatMode(mode);
     }
     if (typeof payload.input === "string") current.setInput(payload.input);
-    if (payload.projectName || payload.projectKey) current.patchMetaDraft({ project: String(payload.projectName || payload.projectKey) });
+    if (payload.projectName || payload.projectKey) {
+      current.patchMetaDraft({ project: String(payload.projectName || payload.projectKey) });
+      attachRule.current = true;
+    }
     if (payload.openAttachmentPanel || payload.mode === "file") current.setAttachmentPanelOpen(true);
     setIncoming(null);
     setTab("chat");
@@ -78,6 +85,15 @@ export function ChatWorkspacePage() {
     else if (state.sidePanel === "memory" || state.sidePanel === "context") setTab("resources");
     else if (state.sidePanel === "info") setTab("history");
   }, [state.sidePanel]);
+
+  useEffect(() => {
+    if (!attachRule.current) return;
+    const rule = state.memoryNotes.find((note) => note.name === "작업 규칙.md");
+    if (!rule) return;
+    if (!state.selectedMemoryNotes.includes(rule.name)) state.toggleMemoryNote(rule.name);
+    attachRule.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.memoryNotes, state.selectedMemoryNotes]);
 
   const newConversation = async () => {
     if (state.pending || state.readingFiles) return;
@@ -123,20 +139,21 @@ export function ChatWorkspacePage() {
     { id: "history", label: "기록", icon: History }
   ];
 
-  const notice = !canRequest ? (
-    <ScreenNotice tone="warning">서버에 연결하면 질문을 보낼 수 있습니다. 작성한 내용은 그대로 둡니다.</ScreenNotice>
+  const notice = incoming ? (
+    <ScreenNotice tone="info">다른 화면에서 전달받은 요청이 있습니다. 「가져오기」를 누르면 작성칸에 넣습니다.</ScreenNotice>
   ) : state.lastError ? (
     <ScreenNotice tone="danger">{state.lastError}</ScreenNotice>
+  ) : !canRequest ? (
+    <ScreenNotice tone="warning">서버에 연결하면 질문을 보낼 수 있습니다. 작성한 내용은 그대로 둡니다.</ScreenNotice>
   ) : notebook.notice ? (
     <ScreenNotice tone={notebook.failed ? "danger" : "info"}>{notebook.notice}</ScreenNotice>
-  ) : incoming ? (
-    <ScreenNotice tone="info">다른 화면에서 전달받은 요청이 있습니다. 「가져오기」를 누르면 작성칸에 넣습니다.</ScreenNotice>
   ) : null;
 
   return (
     <Screen
+      surface="chat"
       title="질문"
-      hint="궁금한 내용을 묻고, 답변을 다음 작업으로 이어 갑니다."
+      hint=""
       actions={
         <>
           {incoming ? (
@@ -156,7 +173,7 @@ export function ChatWorkspacePage() {
               disabled={!!state.input.trim() || !!state.attachments.length}
               onClick={() => {
                 const failed = state.failedSubmission;
-                if (failed) useAskStore.setState({ input: failed.text, attachments: failed.attachments, failedSubmission: null });
+                if (failed) useAskStore.setState({ input: failed.text, attachments: failed.attachments, failedSubmission: null, lastError: null });
                 setTab("chat");
                 focus();
               }}
@@ -173,36 +190,62 @@ export function ChatWorkspacePage() {
     >
       <ScreenTabs tabs={tabs} value={tab} onChange={(id) => setTab(id as TabId)} label="질문 보기 종류" />
 
-      {tab === "chat" ? (
-        <div className="chat-workspace flex min-h-0 min-w-0 flex-1 flex-col gap-2" data-surface="chat">
-          {state.messages.length > 0 || state.pending ? (
-            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+      <div className="chat-workspace flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+        {tab === "chat" ? (
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+            {state.messages.length > 0 || state.pending ? (
               <ChatTranscript canRequest={canRequest} />
-            </div>
-          ) : (
-            <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center rounded-xl border border-dashed border-border bg-card/40 p-4 text-center text-xs text-muted-foreground">
-              아직 주고받은 말이 없습니다. 아래에 질문을 적어 보내세요.
-            </div>
-          )}
-          <div className="min-w-0 shrink-0">
-            <ChatComposer canRequest={canRequest} />
+            ) : (
+              <AskEmptyContinue />
+            )}
           </div>
-        </div>
-      ) : (
-        <div className="chat-workspace flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card" data-surface="chat">
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-            <div className="min-w-0 p-3">
-              {tab === "models" ? (
-                <ChatOptions canRequest={canRequest} />
-              ) : tab === "resources" ? (
-                <ChatResources canRequest={canRequest} />
-              ) : (
-                <ChatHistory canRequest={canRequest} />
-              )}
+        ) : (
+          <div className="min-h-0 min-w-0 flex-1 overflow-hidden rounded-md border border-border bg-card">
+            <div className="min-h-0 h-full overflow-y-auto overflow-x-hidden">
+              <div className="min-w-0 p-3">
+                {tab === "models" ? (
+                  <ChatOptions canRequest={canRequest} />
+                ) : tab === "resources" ? (
+                  <ChatResources canRequest={canRequest} />
+                ) : (
+                  <ChatHistory canRequest={canRequest} />
+                )}
+              </div>
             </div>
           </div>
+        )}
+        <div className="min-w-0 shrink-0">
+          <ChatComposer canRequest={canRequest} />
         </div>
-      )}
+      </div>
     </Screen>
+  );
+}
+
+function AskEmptyContinue() {
+  const recent = useHomeRecentStore((state) => state.items);
+  const items = recent.filter((item) => item.kind === "ask").slice(0, 3);
+  const open = useAskStore((state) => state.openConversation);
+  if (items.length === 0) {
+    return <p className="px-3 py-6 text-center text-xs text-muted-foreground">아직 주고받은 말이 없습니다.</p>;
+  }
+  return (
+    <div className="min-w-0 space-y-2 px-3 py-4">
+      <p className="text-center text-xs text-muted-foreground">아직 이 칸은 비어 있습니다. 아래에서 이어서 열 수 있습니다.</p>
+      <ul className="mx-auto flex max-w-md min-w-0 flex-col gap-1">
+        {items.map((item) => (
+          <li key={item.id} className="min-w-0">
+            <button
+              type="button"
+              className="flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-accent"
+              onClick={() => open(normalizeConversation({ id: item.id, scope: "chat", mode: item.mode, title: item.title }))}
+            >
+              <span className="min-w-0 flex-1 truncate font-medium">{item.title}</span>
+              {item.preview ? <span className="hidden min-w-0 max-w-[40%] truncate text-muted-foreground sm:inline">{item.preview}</span> : null}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

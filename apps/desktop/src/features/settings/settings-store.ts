@@ -4,7 +4,13 @@ import { requestDesktopSettings, subscribeDesktopMessages, type DesktopServerMes
 import { requestDesktopLlm, type LlmCredentialInput } from "../middleware/llm-gateway";
 import { requestDesktopMemory } from "../middleware/memory-gateway";
 import { requestConfirmDialog, requestPromptDialog } from "../dialog/dialog-store";
+import { useDesktopPreferenceStore, type ModelProviderId } from "../shell/preference-store";
+import { useAskStore } from "../ask/ask-store";
+import { useBuildWorkspace } from "../build-workspace/build-state";
 import { normalizeMemoryIndexStatus, normalizeMemorySearchResults, type MemoryIndexStatus, type MemorySearchResultItem } from "./settings-memory";
+
+type Catalog = { selected: string; items: string[] };
+const EMPTY_CATALOG: Catalog = { selected: "", items: [] };
 
 type MemoryNoteItem = {
   name: string;
@@ -38,8 +44,12 @@ type SettingsState = {
   syncDraft: SyncConfigDraft;
   cloudSyncMessage: string;
   cerebrasModels: { selected: string; items: Array<{ id: string; ownedBy: string; created: string }> };
-  groqModels: { selected: string; items: string[] };
-  copilotModels: { selected: string; items: string[] };
+  groqModels: Catalog;
+  copilotModels: Catalog;
+  geminiModels: Catalog;
+  nvidiaModels: Catalog;
+  codexModels: Catalog;
+  grokModels: Catalog;
   copilotStatus: { text: string; detail: string };
   codexStatus: { text: string; detail: string };
   llmUsage: {
@@ -79,6 +89,7 @@ type SettingsState = {
   refreshCliStatus: () => void;
   setGroqModel: (model: string) => void;
   setCopilotModel: (model: string) => void;
+  setLocalDefaultModel: (provider: Exclude<ModelProviderId, "groq" | "copilot">, model: string) => void;
   startCopilotLogin: () => void;
   startCodexLogin: () => void;
   logoutCodex: () => void;
@@ -104,8 +115,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   syncDraft: { gistId: "", gitHubToken: "" },
   cloudSyncMessage: "",
   cerebrasModels: { selected: "", items: [] },
-  groqModels: { selected: "", items: [] },
-  copilotModels: { selected: "", items: [] },
+  groqModels: { ...EMPTY_CATALOG },
+  copilotModels: { ...EMPTY_CATALOG },
+  geminiModels: { ...EMPTY_CATALOG },
+  nvidiaModels: { ...EMPTY_CATALOG },
+  codexModels: { ...EMPTY_CATALOG },
+  grokModels: { ...EMPTY_CATALOG },
   copilotStatus: { text: "조회 전", detail: "-" },
   codexStatus: { text: "조회 전", detail: "-" },
   llmUsage: null,
@@ -298,6 +313,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ llmMessage: "" });
     requestDesktopLlm.groqModels();
     requestDesktopLlm.copilotModels();
+    requestDesktopLlm.geminiModels();
+    requestDesktopLlm.nvidiaModels();
+    requestDesktopLlm.codexModels();
+    requestDesktopLlm.grokModels();
+    requestDesktopLlm.cerebrasModels();
     requestDesktopLlm.copilotStatus();
     requestDesktopLlm.codexStatus();
     requestDesktopLlm.usageStats();
@@ -309,11 +329,29 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
   setGroqModel: (model) => {
     if (!model.trim()) return;
+    useDesktopPreferenceStore.getState().setPreferredModel("groq", model);
+    applyPreferredToSessions("groq", model);
     if (!requestDesktopLlm.setGroqModel(model)) set({ llmMessage: "Groq 모델 적용 요청을 전송하지 못했다." });
   },
   setCopilotModel: (model) => {
     if (!model.trim()) return;
+    useDesktopPreferenceStore.getState().setPreferredModel("copilot", model);
+    applyPreferredToSessions("copilot", model);
     if (!requestDesktopLlm.setCopilotModel(model)) set({ llmMessage: "Copilot 모델 적용 요청을 전송하지 못했다." });
+  },
+  setLocalDefaultModel: (provider, model) => {
+    const value = model.trim();
+    if (!value) return;
+    useDesktopPreferenceStore.getState().setPreferredModel(provider, value);
+    applyPreferredToSessions(provider, value);
+    const label =
+      provider === "gemini" ? "Gemini" : provider === "cerebras" ? "Cerebras" : provider === "nvidia" ? "NVIDIA NIM" : provider === "codex" ? "Codex" : "Grok";
+    if (provider === "cerebras") {
+      set({ cerebrasModels: { ...get().cerebrasModels, selected: value }, llmMessage: `${label} 모델을 ${value}로 적용했습니다.` });
+      return;
+    }
+    const key = `${provider}Models` as "geminiModels" | "nvidiaModels" | "codexModels" | "grokModels";
+    set({ [key]: { ...get()[key], selected: value }, llmMessage: `${label} 모델을 ${value}로 적용했습니다.` });
   },
   startCopilotLogin: () => {
     if (!requestDesktopLlm.startCopilotLogin()) set({ llmMessage: "Copilot 로그인 요청을 전송하지 못했다." });
@@ -346,6 +384,19 @@ function normalizeModelIds(value: unknown): string[] {
   return value
     .map((item) => (typeof item === "string" ? item : String((item as Record<string, unknown>)?.id || (item as Record<string, unknown>)?.model || "")))
     .filter(Boolean);
+}
+
+function applyPreferredToSessions(provider: ModelProviderId, model: string) {
+  useAskStore.getState().setSelectedModel(provider, model);
+  const build = useBuildWorkspace.getState();
+  build.patchSettings({ models: { ...build.settings.models, [provider]: model } });
+}
+
+function mergeCatalog(current: Catalog, message: DesktopServerMessage): Catalog {
+  return {
+    items: normalizeModelIds(message.items),
+    selected: String(message.selected || current.selected || "")
+  };
 }
 
 function statusText(installed: boolean, authenticated: boolean, mode: string): string {
@@ -506,6 +557,22 @@ export function useSettingsPageBridge() {
     }
     if (message.type === "copilot_models") {
       useSettingsStore.setState({ copilotModels: { selected: String(message.selected || ""), items: normalizeModelIds(message.items) } });
+      return;
+    }
+    if (message.type === "gemini_models") {
+      useSettingsStore.setState({ geminiModels: mergeCatalog(useSettingsStore.getState().geminiModels, message) });
+      return;
+    }
+    if (message.type === "nvidia_models") {
+      useSettingsStore.setState({ nvidiaModels: mergeCatalog(useSettingsStore.getState().nvidiaModels, message) });
+      return;
+    }
+    if (message.type === "codex_models") {
+      useSettingsStore.setState({ codexModels: mergeCatalog(useSettingsStore.getState().codexModels, message) });
+      return;
+    }
+    if (message.type === "grok_models") {
+      useSettingsStore.setState({ grokModels: mergeCatalog(useSettingsStore.getState().grokModels, message) });
       return;
     }
     if (message.type === "copilot_status") {

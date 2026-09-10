@@ -7,6 +7,7 @@ import { useDesktopAuthStore } from "../auth/auth-store";
 import { useDesktopNavigationStore } from "../shell/navigation-store";
 import { useDesktopShellStore } from "../../shell-store";
 import { useAutomationWorkspace } from "./automation-state";
+import { emptyAutomationForm } from "./automation-model";
 import { AutomationFormPanel, AutomationListPanel, AutomationResultPanel } from "./AutomationPanels";
 
 /* ============================================================================
@@ -67,7 +68,9 @@ export function AutomationWorkspacePage() {
     if (state.editor) setTab("editor");
   }, [state.editor]);
   useEffect(() => {
-    if (state.selectedId && !state.editor) setTab("result");
+    if (state.editor) return;
+    if (state.selectedId) setTab("result");
+    else setTab("list");
   }, [state.selectedId, state.editor]);
 
   const tabs: ScreenTab[] = [
@@ -81,14 +84,38 @@ export function AutomationWorkspacePage() {
 
   return (
     <Screen
+      surface="automation"
       title="자동화"
       hint="반복할 일과 시간을 정해 두면 그때마다 알아서 실행합니다."
       actions={
-        !state.editor ? (
-          <Button variant="primary" size="sm" disabled={!connected || Boolean(state.pending.change)} onClick={state.create}>
-            <Plus size={14} aria-hidden="true" /> 새 자동화
-          </Button>
-        ) : null
+        <>
+          {state.error?.includes("작성 중인 자동화") ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const payload = useDesktopNavigationStore.getState().routePayload;
+                const request = payload?.input?.trim() || "";
+                useAutomationWorkspace.setState({
+                  editor: true,
+                  editId: null,
+                  selectedId: "",
+                  form: { ...emptyAutomationForm(), request },
+                  error: "",
+                  preview: null
+                });
+                useDesktopNavigationStore.getState().clearRoutePayload();
+              }}
+            >
+              취소
+            </Button>
+          ) : null}
+          {!state.editor ? (
+            <Button variant="primary" size="sm" disabled={!connected || Boolean(state.pending.change)} onClick={state.create}>
+              <Plus size={14} aria-hidden="true" /> 새 자동화
+            </Button>
+          ) : null}
+        </>
       }
       notice={
         !connected ? (

@@ -7,7 +7,7 @@ const directory = path.join(root, "apps/desktop/src/features/explore-workspace")
 const files = readdirSync(directory).filter(file => /\.(tsx?|css)$/.test(file));
 for (const file of files) {
   const source = readFileSync(path.join(directory, file), "utf8");
-  assert.doesNotMatch(source, /from\s+["'][^"']*(?:components\/|\/explore\/)/, `${file}: 이전 화면을 가져오지 않습니다.`);
+  assert.doesNotMatch(source, /from\s+["'][^"']*(?:\/explore\/ExplorePage)/, `${file}: 이전 화면을 가져오지 않습니다.`);
   assert.doesNotMatch(source, /\b(?:WorkbenchPage|WorkbenchSection|CardBoundary|ResponsivePanels|useExploreStore)\b/);
 }
 assert.equal(existsSync(path.join(root, "apps/desktop/src/features/explore/ExplorePage.tsx")), false);

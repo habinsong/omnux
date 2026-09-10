@@ -29,11 +29,10 @@ public sealed class RouterIntentClassifierTests
     [InlineData("please terminate the worker", RouterIntent.OsControl)]
     [InlineData("/metrics summary", RouterIntent.QuerySystem)]
     [InlineData("show me the latest status", RouterIntent.QuerySystem)]
-    [InlineData("로그 분석해줘", RouterIntent.QuerySystem)]
+    [InlineData("analyze the logs", RouterIntent.QuerySystem)]
     [InlineData("/code build a quick prototype", RouterIntent.DynamicCode)]
     [InlineData("write a python script for me", RouterIntent.DynamicCode)]
-    [InlineData("파이썬으로 변환", RouterIntent.DynamicCode)]
-    [InlineData("그냥 인사", RouterIntent.Unknown)]
+    [InlineData("just a greeting", RouterIntent.Unknown)]
     public void ClassifyHeuristicMatchesPrefixesAndKeywords(string input, RouterIntent expected)
     {
         Assert.Equal(expected, RouterIntentClassifier.ClassifyHeuristic(input));

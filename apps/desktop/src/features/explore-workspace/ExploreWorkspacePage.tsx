@@ -53,6 +53,7 @@ export function ExploreWorkspacePage() {
 
   return (
     <Screen
+      surface="explore"
       title="탐색"
       hint="자료를 찾고, 웹 화면과 지난 작업을 확인합니다."
       notice={!ready ? <ScreenNotice tone="warning">서버에 연결하면 자료를 찾고 도구를 쓸 수 있습니다.</ScreenNotice> : null}

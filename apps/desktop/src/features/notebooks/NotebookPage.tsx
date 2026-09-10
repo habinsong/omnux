@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { FileDown, PenLine, RefreshCcw, Send, Sparkles } from "lucide-react";
+import { FileDown, PenLine, RefreshCcw, Send, Type } from "lucide-react";
 import { Screen, ScreenNotice } from "../../components/screen/Screen";
 import { ScreenTabs, type ScreenTab } from "../../components/screen/ScreenTabs";
 import { Button, Input, Spinner, Textarea, cn } from "../../components/ui/primitives";
 import { useDesktopShellStore } from "../../shell-store";
 import { useDesktopAuthStore } from "../auth/auth-store";
+import { useDesktopNavigationStore } from "../shell/navigation-store";
 import { useNotebookPageBridge, useNotebookStore } from "./notebook-store";
 import {
   NOTEBOOK_DOCUMENTS,
@@ -33,7 +34,6 @@ export function NotebookPage() {
   const authStatus = useDesktopAuthStore((state) => state.auth.status);
   const connected = bridgeStatus === "connected" && authStatus === "authenticated";
 
-  const snapshot = useNotebookStore((state) => state.snapshot);
   const snapshotProject = useNotebookStore((state) => state.snapshotProject);
   const loaded = useNotebookStore((state) => state.loaded);
   const loading = useNotebookStore((state) => state.loading);
@@ -42,6 +42,9 @@ export function NotebookPage() {
   const lastError = useNotebookStore((state) => state.lastError);
   const lastMessage = useNotebookStore((state) => state.lastMessage);
   const store = useNotebookStore;
+  const route = useDesktopNavigationStore((state) => state.routePayload);
+  const routeVersion = useDesktopNavigationStore((state) => state.routeVersion);
+  const clearRoute = useDesktopNavigationStore((state) => state.clearRoutePayload);
 
   const [tab, setTab] = useState<TabId>("write");
   const loadedOnce = useRef(false);
@@ -52,14 +55,34 @@ export function NotebookPage() {
     store.getState().load();
   }, [connected, store]);
 
+  useEffect(() => {
+    if (!route) return;
+    const input = typeof route.input === "string" ? route.input : "";
+    const projectKey = String(route.projectKey || "").trim();
+    const focus = String(route.focus || "").trim();
+    if (projectKey) {
+      store.getState().setProjectKeyDraft(projectKey);
+      if (connected) store.getState().load();
+    }
+    if (input.trim()) {
+      const current = store.getState();
+      if (current.appendText.trim()) current.applyDraft(current.appendKind, input);
+      else current.setAppendText(input);
+      setTab("write");
+    } else if (focus === "learnings" || focus === "decisions" || focus === "verification" || focus === "handoff") {
+      setTab(focus);
+    }
+    clearRoute();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeVersion]);
+
   const projectChanged = loaded && snapshotProject !== projectKeyDraft.trim();
 
   const tabs: ScreenTab[] = [
     { id: "write", label: "남기기", icon: PenLine },
     ...NOTEBOOK_DOCUMENTS.map((definition) => ({
       id: definition.field,
-      label: definition.label,
-      badge: snapshot[definition.field].exists ? undefined : "없음"
+      label: definition.label
     }))
   ];
 
@@ -69,7 +92,7 @@ export function NotebookPage() {
       hint="정한 것, 확인한 것, 넘길 것을 프로젝트별로 남깁니다."
       actions={
         <>
-          <Button variant="outline" size="sm" onClick={() => store.getState().load()} disabled={!connected || loading}>
+          <Button variant="outline" size="sm" className="max-sm:hidden" onClick={() => store.getState().load()} disabled={!connected || loading}>
             {loading ? <Spinner size={14} /> : <RefreshCcw size={14} aria-hidden="true" />} 다시 조회
           </Button>
           <Button variant="primary" size="sm" onClick={() => store.getState().createHandoff()} disabled={!connected || pending}>
@@ -91,24 +114,19 @@ export function NotebookPage() {
         ) : null
       }
     >
-      <div className="flex min-w-0 shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
-        <label className="flex min-w-0 flex-1 items-center gap-2 text-[11px]">
-          <span className="shrink-0 text-muted-foreground">프로젝트</span>
-          <Input
-            className="h-8 min-w-0 flex-1 text-xs"
-            value={projectKeyDraft}
-            aria-label="프로젝트 기준"
-            placeholder="비우면 기본 프로젝트"
-            onChange={(event) => store.getState().setProjectKeyDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") store.getState().load();
-            }}
-          />
-        </label>
-        <Button variant="outline" size="sm" className="shrink-0" onClick={() => store.getState().load()} disabled={!connected || loading}>
-          이 프로젝트로 보기
-        </Button>
-      </div>
+      <label className="flex min-w-0 shrink-0 items-center gap-2 text-[11px]">
+        <span className="shrink-0 text-muted-foreground">프로젝트</span>
+        <Input
+          className="h-8 min-w-0 flex-1 text-xs"
+          value={projectKeyDraft}
+          aria-label="프로젝트 기준"
+          placeholder="비우면 기본 프로젝트"
+          onChange={(event) => store.getState().setProjectKeyDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") store.getState().load();
+          }}
+        />
+      </label>
 
       <ScreenTabs tabs={tabs} value={tab} onChange={(id) => setTab(id as TabId)} label="노트 보기 종류" />
 
@@ -164,7 +182,7 @@ function WritePanel({ connected }: { connected: boolean }) {
           {pending ? <Spinner size={12} /> : <Send size={12} aria-hidden="true" />} {kindLabel(appendKind)}에 남기기
         </Button>
         <Button variant="outline" size="sm" onClick={() => store.getState().insertTemplate(appendKind)}>
-          <Sparkles size={12} aria-hidden="true" /> 서식
+          <Type size={12} aria-hidden="true" /> 서식
         </Button>
         {appendText.trim().length > 0 ? (
           <Button variant="ghost" size="sm" onClick={() => store.getState().setAppendText("")}>
@@ -181,6 +199,7 @@ function DocumentPanel({ field }: { field: NotebookField }) {
   const document = useNotebookStore((state) => state.snapshot[field]);
   const loaded = useNotebookStore((state) => state.loaded);
   const store = useNotebookStore;
+  const navigate = useDesktopNavigationStore((state) => state.setActivePage);
   const definition = NOTEBOOK_DOCUMENTS.find((entry) => entry.field === field);
   const truncation = describeTruncation(document);
 
@@ -209,18 +228,32 @@ function DocumentPanel({ field }: { field: NotebookField }) {
         )}
       </div>
 
-      {definition?.kind ? (
+      {definition?.kind || document.content ? (
         <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 border-t border-border p-2">
-          <Button size="sm" variant="outline" onClick={() => store.getState().setAppendKind(definition.kind as NotebookKind)}>
-            여기에 남기기
-          </Button>
-          {document.content ? (
+          {definition?.kind ? (
+            <Button size="sm" variant="outline" onClick={() => store.getState().setAppendKind(definition.kind as NotebookKind)}>
+              여기에 남기기
+            </Button>
+          ) : (
+            <p className="min-w-0 flex-1 text-[11px] text-muted-foreground">이어보기 문서는 위의 「이어보기 만들기」로 만듭니다.</p>
+          )}
+          {definition?.kind && document.content ? (
             <Button
               size="sm"
               variant="ghost"
               onClick={() => store.getState().applyDraft(definition.kind as NotebookKind, document.content)}
             >
               지금 내용을 초안으로
+            </Button>
+          ) : null}
+          {document.content ? (
+            <Button size="sm" variant="ghost" onClick={() => navigate("ask", { input: document.content })}>
+              질문으로 쓰기
+            </Button>
+          ) : null}
+          {document.content ? (
+            <Button size="sm" variant="ghost" onClick={() => navigate("planning", { input: document.content, create: true })}>
+              작업으로 쓰기
             </Button>
           ) : null}
         </div>

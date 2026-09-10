@@ -2204,7 +2204,7 @@ public sealed partial class CommandService
                             규칙:
                             - 공통점이 거의 없으면 [공통 핵심]에 "공통점 없음"이라고 적으세요.
                             - 부분 차이가 없으면 [부분 차이]에 "의미 있는 차이 없음"이라고 적으세요.
-                            - 한국어로 간결하게 작성하세요.
+                            - Write in the same language as the user. Keep it short.
                             """;
         var resolvedSummaryProvider = ResolveProviderForAggregation(
             TaskCategory.GeneralChat,
@@ -2338,7 +2338,7 @@ public sealed partial class CommandService
                 1) 네 역할 관점에 집중해서 답변한다.
                 2) 다른 워커가 맡을 만한 설명을 장황하게 반복하지 않는다.
                 3) 확실하지 않으면 단정 대신 보수적으로 표현한다.
-                4) 한국어로 간결하게 작성한다.
+                4) Write in the same language as the user. Keep it short.
 
                 출력 형식:
                 - 첫 줄: 역할 관점 결론 1문장

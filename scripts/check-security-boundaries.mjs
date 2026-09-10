@@ -295,7 +295,10 @@ const wsConversationMemoryWsResponses = read("apps/omnux-middleware/src/WsConver
 const conversationApplicationService = read("apps/omnux-middleware/src/Application/ConversationApplicationService.cs");
 const conversationApplicationServiceBackupTests = read("apps/omnux-middleware-tests/ConversationApplicationServiceBackupTests.cs");
 const desktopSettingsStore = read("apps/desktop/src/features/settings/settings-store.ts");
-const desktopSettingsPage = read("apps/desktop/src/features/settings/SettingsPage.tsx");
+const desktopSettingsPage = [
+  "SettingsPage.tsx",
+  "SettingsCards.tsx"
+].map((file) => read(`apps/desktop/src/features/settings/${file}`)).join("\n");
 const memoryApplicationService = read("apps/omnux-middleware/src/Application/MemoryApplicationService.cs");
 const sandboxExecutor = read("apps/omnux-sandbox/executor.py");
 const stateDoc = read("docs/환경변수_및_상태파일.md");

@@ -2202,7 +2202,7 @@ export function useGitAutomationBridge() {
         return;
       }
       if (message.type === "error") {
-        const rawMessageText = stringFromUnknown(message.message) || "Operations 요청 처리 중 오류가 발생했다.";
+        const rawMessageText = stringFromUnknown(message.message) || "운영 요청을 처리하지 못했습니다.";
         const messageText = formatOpsErrorMessage(message, rawMessageText);
         if (isRateLimitedMessage(rawMessageText)) {
           useOpsPageStore.setState((state) => {

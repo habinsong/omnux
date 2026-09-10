@@ -35,9 +35,9 @@ export function DesktopDialogHost() {
   const dialogWidth = request.kind === "permission" ? "max-w-2xl" : "max-w-md";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" role="presentation" onClick={() => settleDesktopDialog(null)}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="presentation" onClick={() => settleDesktopDialog(null)}>
       <form
-        className={cn("w-full space-y-4 rounded-xl border border-border bg-popover p-5 text-popover-foreground shadow-2xl shadow-primary/10", dialogWidth)}
+        className={cn("w-full space-y-4 rounded-xl border border-border bg-popover p-5 text-popover-foreground shadow-md", dialogWidth)}
         role="dialog"
         aria-modal="true"
         aria-labelledby="desktop-dialog-title"
