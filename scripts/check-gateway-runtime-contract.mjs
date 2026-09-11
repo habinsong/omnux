@@ -406,6 +406,15 @@ function waitForPong(url) {
   });
 }
 
+// 미들웨어는 격리 HOME 으로 띄우므로 Playwright 가 받은 실제 브라우저 캐시를 명시해 넘긴다.
+function resolvePlaywrightBrowsersPath() {
+  if (process.env.PLAYWRIGHT_BROWSERS_PATH) return process.env.PLAYWRIGHT_BROWSERS_PATH;
+  const home = os.homedir();
+  if (process.platform === "darwin") return path.join(home, "Library", "Caches", "ms-playwright");
+  if (process.platform === "win32") return path.join(process.env.LOCALAPPDATA || path.join(home, "AppData", "Local"), "ms-playwright");
+  return path.join(process.env.XDG_CACHE_HOME || path.join(home, ".cache"), "ms-playwright");
+}
+
 async function main() {
   const port = await findFreePort();
   const externalHost = findNonLoopbackIPv4();
@@ -457,6 +466,7 @@ async function main() {
         OMNUX_CANVAS_TOOL_MODE: "auto",
         OMNUX_BROWSER_HEADLESS: "true",
         OMNUX_BROWSER_CHANNEL: "",
+        PLAYWRIGHT_BROWSERS_PATH: resolvePlaywrightBrowsersPath(),
         // 여러 기능을 한 연결에서 연속 검사한다. 제품 기본 요청 제한은 변경하지 않는다.
         OMNUX_WS_COMMANDS_PER_MINUTE: "300",
         OMNUX_DASHBOARD_INDEX: desktopIndexPath,
