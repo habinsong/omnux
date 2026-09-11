@@ -44,6 +44,7 @@ import { useMiddlewareBootstrapEvents } from "./use-middleware-bootstrap-events"
 import { useMiddlewareRuntimeProbe } from "./use-middleware-runtime-probe";
 import { useMiddlewareSessionBridge } from "./use-middleware-session";
 import { cn } from "./components/ui/primitives";
+import { useMediaQuery } from "./hooks/useMediaQuery";
 import {
   Home,
   LayoutDashboard,
@@ -86,6 +87,7 @@ function App() {
   const cycleTheme = useDesktopPreferenceStore((state) => state.cycleTheme);
   const activityBadge = useUiLogStore((state) => Math.min(state.logs.length, 99));
   const [mobileNav, setMobileNav] = useState(false);
+  const narrowLayout = useMediaQuery("(max-width: 1023px)");
   const [subPanelOpen, setSubPanelOpen] = useState(true);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
 
@@ -201,8 +203,9 @@ function App() {
           aria-hidden="true"
         />
       ) : null}
-      {/* Sidebar (§2.3 GNB) */}
+      {/* Sidebar (§2.3 GNB). 좁은 폭에서 닫힌 서랍은 화면 밖에 있으므로 inert 로 Tab 포커스를 막는다. */}
       <aside
+        inert={narrowLayout && !mobileNav}
         className={cn(
           "relative z-40 flex h-full shrink-0 overflow-hidden border-r border-border bg-card text-card-foreground transition-transform duration-200 ease-out",
           "w-14 max-lg:fixed max-lg:inset-y-0 max-lg:left-0",
