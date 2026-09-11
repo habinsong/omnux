@@ -99,6 +99,14 @@ normalize_tool_path() {
     append_path_if_dir "$HOME/.local/bin"
     append_path_if_dir "$HOME/.npm-global/bin"
     append_path_if_dir "$HOME/.dotnet/tools"
+    # setup 이 공식 설치 스크립트로 넣은 사용자 로컬 .NET SDK 가 배포판 dotnet 보다 앞선다.
+    if [ -x "$HOME/.dotnet/dotnet" ]; then
+      export DOTNET_ROOT="$HOME/.dotnet"
+      case ":${PATH:-}:" in
+        *":$HOME/.dotnet:"*) ;;
+        *) PATH="$HOME/.dotnet${PATH:+:$PATH}" ;;
+      esac
+    fi
   fi
 
   append_path_if_dir "/opt/homebrew/bin"
@@ -588,10 +596,6 @@ linux_packages_for_command() {
     apt-get:pkg-config) printf '%s\n' pkg-config ;;
     dnf:pkg-config|yum:pkg-config|zypper:pkg-config) printf '%s\n' pkgconf-pkg-config ;;
     pacman:pkg-config|apk:pkg-config) printf '%s\n' pkgconf ;;
-
-    apt-get:dotnet|dnf:dotnet|yum:dotnet|zypper:dotnet) printf '%s\n' dotnet-sdk-9.0 ;;
-    pacman:dotnet) printf '%s\n' dotnet-sdk ;;
-    apk:dotnet) printf '%s\n' dotnet9-sdk ;;
     *) return 1 ;;
   esac
 }
@@ -654,6 +658,40 @@ install_linux_packages_if_command_missing() {
 
   install_linux_packages "$manager" "${packages[@]}"
   command_exists "$command_name" || fail "$command_name 설치 후에도 PATH에서 찾지 못했습니다. 터미널을 다시 열거나 PATH를 확인하세요."
+}
+
+DOTNET_SDK_CHANNEL="9.0"
+
+dotnet_sdk_ready() {
+  command_exists dotnet || return 1
+  dotnet --list-sdks 2>/dev/null | grep -q "^${DOTNET_SDK_CHANNEL}\."
+}
+
+# 배포판 저장소는 .NET 9 SDK 를 기본으로 싣지 않는 경우가 많고(Ubuntu 는 PPA, Debian 은 MS 저장소 필요),
+# dotnet 명령이 있어도 다른 버전 SDK 뿐일 수 있다. 그래서 Linux 는 SDK 버전을 직접 확인하고,
+# 없으면 Microsoft 공식 설치 스크립트로 ~/.dotnet 에 sudo 없이 설치한다.
+ensure_linux_dotnet_sdk() {
+  if dotnet_sdk_ready; then
+    return 0
+  fi
+
+  local install_dir="$HOME/.dotnet"
+  local installer
+  installer="$(mktemp)"
+  info ".NET SDK ${DOTNET_SDK_CHANNEL} 설치 중: ${install_dir} (dotnet-install.sh)"
+  if ! curl -fsSL https://dot.net/v1/dotnet-install.sh -o "$installer"; then
+    rm -f "$installer"
+    fail "dotnet-install.sh 를 내려받지 못했습니다. 네트워크를 확인하세요."
+  fi
+  if ! bash "$installer" --channel "$DOTNET_SDK_CHANNEL" --install-dir "$install_dir"; then
+    rm -f "$installer"
+    fail ".NET SDK ${DOTNET_SDK_CHANNEL} 설치에 실패했습니다."
+  fi
+  rm -f "$installer"
+
+  normalize_tool_path
+  dotnet_sdk_ready || fail ".NET SDK ${DOTNET_SDK_CHANNEL} 설치 후에도 찾지 못했습니다: ${install_dir}"
+  info "omnux 명령은 ${install_dir} 를 자동으로 씁니다. 셸에서 dotnet 을 직접 쓰려면 프로필에 추가하세요: export DOTNET_ROOT=\"${install_dir}\" PATH=\"${install_dir}:\$PATH\""
 }
 
 linux_tauri_pkg_config_ok() {
@@ -804,7 +842,7 @@ run_setup() {
       install_linux_packages_if_command_missing python3
       install_linux_packages_if_command_missing sqlite3
       install_linux_packages_if_command_missing curl
-      install_linux_packages_if_command_missing dotnet
+      ensure_linux_dotnet_sdk
       install_linux_tauri_dependencies
       # 파이썬 GUI/게임/과학 모듈 (tkinter, pygame, matplotlib 등)
       info "파이썬 추가 모듈 설치 중"

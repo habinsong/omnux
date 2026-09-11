@@ -25,6 +25,8 @@ This is the shortest path from clone to running app.
 
 This single command checks dependencies, builds the middleware, runs `npm test`, and registers the launcher. If the setup marker is missing, the first `omnux` start also attempts automatic setup.
 
+Many Linux distribution repositories do not ship `.NET SDK 9` by default. When SDK 9 is missing, setup installs it into `~/.dotnet` with Microsoft's official `dotnet-install.sh` (no sudo), and the `omnux` command picks up that path automatically.
+
 Windows:
 
 ```powershell

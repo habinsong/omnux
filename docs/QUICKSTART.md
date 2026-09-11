@@ -34,6 +34,8 @@ omnux shutdown
 
 처음 클론한 저장소에서는 `./scripts/omnux setup`을 먼저 실행한다. setup은 필수 도구 확인/설치, 미들웨어 빌드, `npm test`, 실행기 등록을 처리한다. setup marker가 없으면 `omnux` 첫 실행 때 자동 setup도 시도한다.
 
+Linux 배포판 저장소에는 `.NET SDK 9`가 기본으로 없는 경우가 많다. setup은 SDK 9가 없으면 Microsoft 공식 `dotnet-install.sh`로 `~/.dotnet`에 sudo 없이 설치하고, `omnux` 명령은 그 경로를 자동으로 쓴다.
+
 수동 실행은 두 단계다.
 
 ```bash

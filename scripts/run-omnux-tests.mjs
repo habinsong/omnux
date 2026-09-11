@@ -1,8 +1,12 @@
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+// 배포판 Node 는 TypeScript 타입 제거 없이 빌드되기도 한다. 그때만 .ts 변환 로더를 붙인다.
+const nodeTypeScriptArgs = process.features.typescript
+  ? []
+  : ["--import", pathToFileURL(path.join(repoRoot, "scripts", "typescript-loader.mjs")).href];
 
 function toRelative(filePath) {
   return path.relative(repoRoot, filePath) || ".";
@@ -10,7 +14,7 @@ function toRelative(filePath) {
 
 function runStep(label, command, args) {
   process.stdout.write(`\n[test] ${label}\n`);
-  const result = spawnSync(command, args, {
+  const result = spawnSync(command, command === "node" ? [...nodeTypeScriptArgs, ...args] : args, {
     cwd: repoRoot,
     stdio: "inherit",
     env: process.env
