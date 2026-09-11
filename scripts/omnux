@@ -909,6 +909,10 @@ run_setup() {
   info "Node 의존성 설치"
   (cd "$REPO_ROOT" && npm ci)
 
+  # 탐색 브라우저 도구가 쓰는 Chromium. 사용자 캐시(~/.cache/ms-playwright 등)에 sudo 없이 받는다.
+  info "Playwright Chromium 설치"
+  (cd "$REPO_ROOT" && npx playwright install chromium)
+
   info ".NET 빌드"
   (cd "$REPO_ROOT" && dotnet build apps/omnux-middleware/Omnux.Middleware.csproj)
 
