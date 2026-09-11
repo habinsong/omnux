@@ -1,7 +1,8 @@
 import { chromium } from "playwright";
 import { mkdirSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
-const scratch = process.env.OMNUX_LAUNCH_SCRATCH || "/var/folders/xb/b4975z4x7c18yq8vf53qjcjr0000gn/T/grok-goal-c16810818bbb/implementer";
+const scratch = process.env.OMNUX_LAUNCH_SCRATCH || fileURLToPath(new URL("../output/playwright/viewport-fit", import.meta.url));
 const url = process.env.OMNUX_DESKTOP_URL || "http://127.0.0.1:1420/";
 const widths = [1440, 768, 390, 320];
 const pages = [

@@ -1,5 +1,5 @@
 import { chromium } from "playwright";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { fileURLToPath } from "node:url";
@@ -17,6 +17,11 @@ const checks = [
 
 mkdirSync(scratch, { recursive: true });
 mkdirSync(path.join(root, "output/playwright"), { recursive: true });
+// 질문/빌드 화면 검사가 첨부하는 정적 픽스처. output/ 은 git 추적 밖이라 새 클론에는 없다.
+const attachmentFixture = path.join(root, "output/playwright/build-fresh-attachment.txt");
+if (!existsSync(attachmentFixture)) {
+  writeFileSync(attachmentFixture, "첨부 파일의 내용을 빌드 요청에서 확인합니다.\n");
+}
 
 async function loadCheck(file) {
   const source = readFileSync(path.join(root, "scripts", file), "utf8");
