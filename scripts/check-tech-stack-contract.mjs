@@ -112,7 +112,7 @@ assertIncludes(techStack, "이전 브랜드명은 역사 문맥이나 마이그�
 assertIncludes(techStack, "구 접두사 기반 루트 alias, Electron/Codex legacy alias, 새 런타임 shortcut은 다시 만들지 않는다.", "legacy alias 재생성 금지");
 assertIncludes(techStack, "호환 alias가 필요하면 임시 shim으로만 추가하고", "호환 alias 임시 shim 조건");
 assertNotIncludes(techStack, "C#와 Rust를 같은 계층에 섞는다", "언어 책임 경계는 혼합을 권장하지 않는다");
-assertIncludes(englishTechStack, "Updated: 2026-09-07", "영문 기술 스택 업데이트 날짜");
+assertIncludes(englishTechStack, "Updated: 2026-09-12", "영문 기술 스택 업데이트 날짜");
 assertIncludes(englishTechStack, "Desktop shell", "영문 데스크톱 셸 문서");
 assertIncludes(englishTechStack, "Rust owns only the app shell and window lifecycle.", "영문 Rust 책임 경계");
 assertIncludes(englishTechStack, "New business logic and state orchestration belong to the .NET 9 middleware by default.", "영문 비즈니스 로직 책임 경계");

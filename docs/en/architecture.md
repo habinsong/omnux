@@ -2,17 +2,15 @@
 
 [한국어](../아키텍처_흐름.md) · [English](./architecture.md)
 
-Updated: 2026-06-05
+Updated: 2026-09-12
 
-omnux ties small components together with WebSocket and file-based state stores. The key insight is that the desktop app, web dashboard, and Telegram bot all pass through the same command layer — they don't behave as separate products.
+omnux ties small components together with WebSocket and file-based state stores. The desktop app and the Telegram bot don't behave as separate products; both pass through the same command layer.
 
 ```mermaid
 flowchart LR
   User[User] --> Desktop[Desktop App<br/>Tauri + React]
-  User --> Dashboard[Web Dashboard]
   User --> Telegram[Telegram Bot]
   Desktop --> WS[WebSocket Gateway]
-  Dashboard --> WS
   Telegram --> Command[CommandService]
   WS --> Command
   Command --> Router[LLM Router]
@@ -22,6 +20,7 @@ flowchart LR
   Router --> Cerebras[Cerebras]
   Router --> Copilot[Copilot CLI]
   Router --> Codex[Codex]
+  Router --> Grok[Grok CLI]
   Command --> State[~/.omnux]
   Command --> Workspace[workspace/]
   Command --> Sandbox[Python sandbox]
@@ -32,156 +31,136 @@ flowchart LR
 | Location | Tech | Role |
 |---|---|---|
 | `apps/omnux-middleware` | .NET 9, AOT | WebSocket/HTTP server, Telegram, routing, state persistence, metrics/guarded kill, domain orchestration |
-| `apps/desktop` | Tauri v2 + React 19 + TypeScript + Tailwind CSS v4 | Desktop frontend. Zustand state management, 10 core screens, 3-tier theme |
-| `apps/omnux-dashboard` | HTML/CSS/JavaScript | Static web dashboard (legacy). Primary interface before Phase 5 |
+| `apps/desktop` | Tauri v2 + React 19 + TypeScript + Tailwind CSS v4 | Desktop frontend. Zustand state, 18 screens in 6 areas, 3 themes |
 | `apps/omnux-sandbox` | Python | Code execution sandbox. Memory/CPU limits, minimal env vars |
-| `workspace/` | — | Coding, routine, logic, and task graph artifacts |
+| `workspace/` | — | Build, routine, logic, and task graph artifacts |
 | `~/.omnux` | JSON + Markdown | Persistent state: settings, conversations, routines, plans, notebooks |
 
 ## Request Flow
 
-1. A request comes from the desktop app, web dashboard, or Telegram.
+1. A request comes from the desktop app or Telegram.
 2. The WebSocket Gateway or Telegram loop hands it to the same CommandService.
 3. CommandService dispatches through SlashCommandRouter to domain handlers.
 4. Handlers delegate to their domain's ApplicationService.
-5. If an LLM is needed, LlmRouter selects the provider and fallback chain.
-6. Results are recorded in conversation history, execution folders, runtime logs, and notebook documents.
+5. If an LLM is needed, LlmRouter picks the provider and fallback chain.
+6. Results land in conversation history, execution folders, runtime logs, and notebook documents.
 
-## Internal Structure: Command Routing Layer
+## Command Routing Layer
 
-### SlashCommandRouter (AOT-safe)
-
-Since `PublishAot=true` prevents reflection-based DI, handlers are assembled manually in `Program.cs`.
+`PublishAot=true` rules out reflection-based DI, so handlers are assembled by hand in `Program.cs`.
 
 ```
 ExecuteNormalizedCommandRoutingAsync (router)
   → SlashCommandRouter.TryHandleAsync(ctx)
       → StaticSlashCommandHandler       (static help/usage)
       → CoreRuntimeSlashCommandHandler  (/metrics, /kill)
-      → DoctorSlashCommandHandler       (depends: IDoctorApplicationService)
-      → NotebookSlashCommandHandler     (depends: INotebookApplicationService)
+      → DoctorSlashCommandHandler
+      → NotebookSlashCommandHandler
       → HandoffSlashCommandHandler
       → PlanSlashCommandHandler
       → TaskSlashCommandHandler
       → MemorySlashCommandHandler
-      → ChannelSettingsSlashCommandHandler (/talk, /code, /profile, /mode etc.)
+      → ChannelSettingsSlashCommandHandler (/talk, /code, /profile, /mode, ...)
       → LlmControlSlashCommandHandler     (/llm)
-      → RoutineSlashCommandHandler        (depends: IRoutineApplicationService)
-      → CodingSlashCommandHandler         (depends: ICodingApplicationService)
+      → RoutineSlashCommandHandler
+      → CodingSlashCommandHandler
   → (miss) non-slash natural language / Telegram chat/intent fallback
 ```
 
 Each handler depends only on its own domain ApplicationService, not on CommandService private state.
 
-### ApplicationService Layer
+### ApplicationService
 
-`src/Application/` (75 files) contains domain services.
+Domain services live in `src/Application/`.
 
 | Domain | Service | Role |
 |---|---|---|
-| Coding | `CodingApplicationService` (12 partial) | Single/orchestration/multi execution, validation, profiles |
-| Routines | `RoutineApplicationService` (14 partial) | Creation, execution, scheduler, generation strategies, validation |
+| Coding | `CodingApplicationService` (partial) | Single/orchestration/multi runs, validation, profiles |
+| Routines | `RoutineApplicationService` (partial) | Creation, execution, scheduler, validation |
 | Conversations | `ConversationApplicationService` | CRUD, backup, compression |
 | Memory | `MemoryApplicationService` | Note CRUD, search |
-| LLM Control | `LlmControlApplicationService`, `LlmSettingsApplicationService` | Model/provider switching |
-| Doctor | `DoctorApplicationService` | Environment diagnostics, fix preview/apply |
-| Plans | `PlanApplicationService` | Plan create/review/approve/run |
-| Task Graph | `TaskGraphApplicationService` | Graph execution/state |
+| LLM control | `LlmControlApplicationService`, `LlmSettingsApplicationService` | Model/provider switching |
+| Doctor | `DoctorApplicationService` | Environment diagnostics, fix preview |
+| Plans / Task graph | `PlanApplicationService`, `TaskGraphApplicationService` | Plan create/review/approve/run, graph execution |
 | Notebooks | `NotebookApplicationService` | Learnings/decisions/verification/handoff |
 | Refactoring | `RefactorApplicationService` | Safe Refactor |
 | Projects | `ProjectApplicationService` | Project CRUD |
-| Agent Comms | `AgentCommunicationApplicationService` | Messages/board/lifecycle |
-| Telemetry | `TelemetryApplicationService` | LLM call tracking |
-| Git Automation | `GitAutomationApplicationService` | Snapshot, preview/apply |
-| Session Replay | `SessionReplayApplicationService` | Timeline playback |
-| Others | SemanticSearch, Mcp, Terminal, Rag, GitTimeMachine, SelfImprovement, CommitLearning, LocalLlm, ClipboardVision, etc. |
+| Agent comms | `AgentCommunicationApplicationService` | Messages/board/lifecycle |
+| Others | Telemetry, GitAutomation, SessionReplay, SemanticSearch, Mcp, Terminal, Rag, LocalLlm, ClipboardVision, and more |
 
-### WebSocket Dispatcher Layer
+### WebSocket Dispatchers
 
-`Ws*CommandDispatcher` (30 files) handles domain-specific WebSocket commands. All requests from the web dashboard and desktop app pass through this layer.
+`Ws*CommandDispatcher` (30 files) handle domain-specific WebSocket commands. Every desktop request passes through this layer.
 
 ### Policy Classes
 
-`CommandService` and `LlmRouter` serve only as entry points and orchestrators. Pure decision/parsing/prompt-assembly logic is extracted into unit-testable policy classes.
+`CommandService` and `LlmRouter` are entry points only. Decisions, parsing, and prompt assembly live in unit-testable policy classes.
 
 - Search: `SearchQueryPolicy`, `SearchUrlContextPolicy`, `SearchPromptPolicy`, `SearchAnswerFormatterPolicy`
-- Coding: `CodingLanguagePolicy`, `CodingPromptPolicy`, `CodingFallbackPolicy`, `CodingExecutionSafetyPolicy`, `CodingWorkerSelectionPolicy`
-- Chat/Telegram: `ChatRetryGuardPolicy`, `TelegramNaturalCommandPolicy`, `TelegramResponseFormatterPolicy`
+- Coding: `CodingLanguagePolicy`, `CodingPromptPolicy`, `CodingFallbackPolicy`, `CodingExecutionSafetyPolicy`, `CodingTaskSignalPolicy`
+- Chat/Telegram: `ChatRetryGuardPolicy`, `AssistantReplyPolicy`, `TelegramNaturalCommandPolicy`, `TelegramResponseFormatterPolicy`
 - Routines/Logic: `RoutineSchedulePolicy`, `LogicGraphValidationPolicy`, `LogicTemplateResolver`, `LogicLeafNodeExecutor`
 - Providers: `OpenAiCompatibleProtocol`, `ProviderResponseParser`, `GeminiCitationParser`, `GroqRateLimitHeaderParser`, `ProviderTimeoutPolicy`
-- Natural Language: `NaturalCommandValidationPolicy`, `NaturalCommandInterpretationPolicy`, `NaturalCommandDeterministicPolicy`
-- Others: `RemoteLimitedMessagePolicy`, `UniversalCodeExecutionSafetyPolicy`, `AdaptiveContextCompressionPolicy`, `PromptCachePolicy`, `ModelRoutingReadinessPolicy`, `RagRetrievalPreflightPolicy`, `MemoryTierPolicy`
+- Others: `RemoteLimitedMessagePolicy`, `UniversalCodeExecutionSafetyPolicy`, `AdaptiveContextCompressionPolicy`, `PromptCachePolicy`, `RagRetrievalPreflightPolicy`, `MemoryTierPolicy`
 
-Each policy has unit tests under `apps/omnux-middleware-tests`, and `scripts/check-security-boundaries.mjs` verifies contracts.
+Policies have unit tests in `apps/omnux-middleware-tests`, and `scripts/check-security-boundaries.mjs` verifies the contracts.
 
-## Desktop Frontend Architecture
-
-### Structure
+## Desktop Frontend
 
 ```
 src/
-  App.tsx              — Page registry/routing
-  shell-store.ts       — Shell global state (auth, connection, logs)
-  ShellErrorBoundary   — Full render failure fallback
-  CardBoundary         — Per-card render failure isolation
-  features/            — 24 domain directories
-    ask/               — Chat (store + page + gateway)
-    build/             — Coding execution
-    logic/             — Logic graphs
-    explore/           — Web search, sessions, browser/canvas
-    automate/          — Routine CRUD + creation wizard
-    ...                — Same structure per domain
-  middleware-contract.ts — WS type contracts
+  App.tsx                   — Screen registry
+  shell-store.ts            — Shell global state (auth, connection, logs)
+  middleware-contract.ts    — Middleware port / WS address contract
   use-middleware-session.ts — WS session bridge
-  desktop-message-gateway.ts — Per-page WS routing
+  features/
+    shell/                  — Rail, sub-panel, top bar, command palette, area map (nav-areas.ts)
+    middleware/             — desktop-message-gateway and other WS gateway helpers
+    chat-workspace/         — Ask
+    build-workspace/        — Build
+    automation-workspace/   — Automate
+    explore-workspace/      — Explore
+    task-workspace/         — Tasks
+    ...                     — Per-screen directories
+  components/               — ui/primitives, screen, capsule
 ```
 
-### Communication
+1. React opens a `ws://127.0.0.1:41880/ws/` session through `use-middleware-session`.
+2. Server messages are dispatched to screen stores through `desktop-message-gateway`.
+3. Screens hand UI input to the gateway; field-name translation and the request allow-list live there. No business logic.
 
-1. Desktop React opens a middleware WebSocket session via `use-middleware-session`.
-2. Server messages are dispatched to page stores through `desktop-message-gateway`.
-3. Pages pass UI input to the gateway; field name translation is handled by the gateway.
-4. The gateway only handles allowed-request allow-lists and payload translation — no business logic.
+Design rules:
 
-### Design System
-
-- Tailwind CSS v4 semantic tokens
-- 3-tier theme: Glass (default, translucent+blur), Light (off-white+shadows), Dark (warm dark+glow)
-- Primitives: `src/components/ui/primitives.tsx` (Button, Card, Badge, Input, Textarea, EmptyState, Spinner)
-- `window.alert/confirm/prompt` forbidden — custom Dialog used instead
-- `dangerouslySetInnerHTML` forbidden — `react-markdown` used instead
-- Inline styles forbidden — Tailwind classes only
+- Tailwind CSS v4 semantic tokens, 3 themes: Light (default), Glass, Dark
+- No `window.alert/confirm/prompt`; use the custom Dialog
+- No `dangerouslySetInnerHTML`; use `react-markdown`
 
 ### Desktop Shell Boundary
 
-The Tauri Rust backend handles only the app shell (window management).
+The Tauri Rust shell owns only the app shell.
 
-- Allowed: window create/close, deep links, open external, .NET middleware sidecar bootstrap
+- Allowed: window management, autostart, media info, .NET middleware bootstrap (`dotnet run` in dev, sidecar in release)
 - Forbidden: LLM, coding, routines, refactoring, logic, routing, direct `~/.omnux` access, direct provider/API calls
 
 ## Security Boundaries
 
-- Secrets are isolated via environment variables, `*_FILE` paths, secure store, and Keychain paths.
-- Remote clients auto-enter limited mode without OTP, but must pass a WebSocket message allowlist. Only read-oriented state queries are allowed; execution actions like chat/coding/routine/logic graph execution are blocked.
-- WebSocket enforces Origin checks, pre-auth message allowlists, command rate limits, and a default 16MB message cap.
-- `/api/local-image` only allows routine asset paths. Attachments exceeding count/size limits are rejected.
-- Dashboard static files are served byte-for-byte, returning `304 Not Modified` for conditional requests based on `ETag`/`Last-Modified`.
-- Markdown rendering disables raw HTML with safe fallback.
-- Safe Refactor re-checks file state just before apply. Coding execution supports workspace rollback.
-- JSON state file writes take per-file `.lock` leases and replace atomically. Valid previous files are kept as `.bak`. Corrupt JSON triggers backup verification and recovery attempts.
-- Startup memory index sync failures don't block middleware startup.
-- Coding execution creates per-run folders. Local code execution is allowed only when `OMNUX_ENABLE_DYNAMIC_CODE=true`.
-- The Python sandbox is a local trusted-code execution limiter, not an OS-level security sandbox.
-- Agent spawning is protected by JSON queue + token bucket + circuit breaker + cost cap.
+- Secrets are split across environment variables, `*_FILE` paths, the secure store (`~/.config/omnux/secrets.json`, 0600), and the macOS Keychain.
+- Remote clients enter limited mode without OTP, but still pass a WebSocket message allowlist.
+- WebSocket enforces Origin checks, a pre-auth message allowlist, command rate limits, and a default 16MB message cap.
+- `/api/local-image` allows only routine asset paths. Attachments over the count/size limits are rejected.
+- Static files served by the middleware are returned byte-for-byte, with `304 Not Modified` for `ETag`/`Last-Modified` conditional requests.
+- Markdown rendering disables raw HTML.
+- Safe Refactor re-checks file state right before apply. Coding runs support workspace rollback.
+- JSON state writes take a per-file `.lock` lease and replace atomically. The previous valid file is kept as `.bak`.
+- Coding runs get their own folder, and local code execution is allowed only when `OMNUX_ENABLE_DYNAMIC_CODE=true`. The shell is picked as zsh → bash → sh, whichever exists.
+- The Python sandbox limits local trusted code; it is not an OS-level security sandbox.
 
-## Remote Limited Mode Permission Table
-
-Remote clients connect through LAN access enabled locally. This path does not request OTP and enters limited mode automatically.
+## Remote Limited Mode Permissions
 
 | Category | Status | Details |
 |---|---|---|
-| Read features | Allowed | Settings state, conversation list/detail, memory note list/read/search, context/skills/commands lists, notebook reads, project list |
-| Models/routing | Partially allowed | Routing policy get/save/reset, last routing decision, model list, model selection |
+| Read features | Allowed | Settings state, conversation list/detail, memory note list/read/search, context/skills/commands lists, notebooks, project list |
+| Models/routing | Partly allowed | Routing policy get/save/reset, last routing decision, model list, model selection |
 | Work execution | Blocked | Chat/coding/routine/logic graph execution, task graph execution, refactor apply, tool execution |
 | Auth | Blocked | OTP request, stored auth-token resume, Copilot/Codex CLI auth status, login, logout |
 | Secret settings | Blocked | Telegram credential save/delete/test, LLM API key save/delete |

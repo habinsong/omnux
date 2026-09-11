@@ -2,9 +2,9 @@
 
 [한국어](./README.md) · [English](./en/README.md)
 
-업데이트 기준: 2026-06-05
+업데이트 기준: 2026-09-12
 
-이 폴더는 omnux를 실제로 설치하고 운영할 때 필요한 문서만 앞에 둔다. v1.0.6 기준 Tauri 데스크톱 앱, .NET 9 미들웨어, 10개 핵심 화면, 3-tier 테마, 6개 LLM provider, 외부접속 제한 모드, 스킬 sticky 동작, 루틴/텔레그램 흐름을 현재 기준으로 맞췄다.
+omnux를 설치하고 쓰고 운영할 때 필요한 문서만 앞에 둔다. v1.0.6 기준 Tauri 데스크톱 앱(6개 영역, 18개 화면), .NET 9 미들웨어, 7개 LLM provider, 외부접속 제한 모드, macOS/Linux setup을 반영한다.
 
 ## 빠르게 볼 문서
 
@@ -30,6 +30,6 @@
 | 수동 회귀 체크리스트 | [열기](./OMNUX_실환경_수동_최종회귀_체크리스트.md) | [Open](./en/manual-regression-checklist.md) |
 | Gemini 검색 전환 기록 | [열기](./GEMINI_SEARCH_RETRIEVER_INTEGRATION_PLAN.md) | [Open](./en/gemini-search-retriever-integration-plan.md) |
 
-## 스크린샷 자산
+## 스크린샷
 
-README와 기능 문서에서 쓰는 이미지는 `docs/assets/readme/` 아래에 있다. `social-preview.png`는 GitHub/social 카드용이므로 기능 문서 갱신 대상에서 제외한다.
+`docs/assets/readme/`의 이미지는 리뉴얼 전 화면이다. 현재 화면은 `node scripts/audit-all-screens.mjs`로 `output/playwright/audit/all/`에 새로 찍는다.

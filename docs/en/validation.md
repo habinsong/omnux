@@ -2,81 +2,61 @@
 
 [한국어](../검증_가이드.md) · [English](./validation.md)
 
-Updated: 2026-06-05
+Updated: 2026-09-12
 
-If you changed functionality, verify at minimum with the following steps.
+After changing a feature, check at least the following.
 
-## Basic Validation
+## Basic Checks
 
-| Command | Expected Result |
+| Command | Expected result |
 |---|---|
-| `python3 apps/omnux-sandbox/executor.py --code "print('ok')"` | Prints `ok` |
-| `dotnet build apps/omnux-middleware/Omnux.Middleware.csproj` | Middleware build succeeds |
-| `npm test` | Repository hygiene, security boundaries, screen/contract tests pass |
-| `./scripts/omnux setup` | macOS/Linux dependency check/install, build, validation, launcher registration |
-| `curl -s http://127.0.0.1:8080/readyz` | Ready status |
-| `dotnet run --project apps/omnux-middleware/Omnux.Middleware.csproj -- doctor --json` | Doctor JSON output |
+| `npm test` | Repository hygiene, contracts, middleware build/unit tests, gateway runtime, and sandbox pass (`[test] ok`) |
+| `./scripts/omnux setup` | Dependency check/install, build, `npm test`, launcher registration |
+| `curl -s http://127.0.0.1:41880/readyz` | `"ready":true` |
+| `dotnet run --project apps/omnux-middleware/Omnux.Middleware.csproj -- doctor --json` | Pure JSON doctor report |
 
-Windows basic validation:
+On Windows, use `.\scripts\omnux.ps1 setup`.
 
-```powershell
-.\scripts\omnux.ps1 setup
-```
+## npm test Steps
 
-## Desktop App Validation
+`scripts/run-omnux-tests.mjs` runs these in order and stops at the first failure.
+
+| Group | Scripts |
+|---|---|
+| Shared catalog | `apps/shared/audit-renewal.test.mjs`, `apps/shared/model-registry.test.mjs`, `apps/shared/generate-cs-registry.js --check` |
+| Repository/boundaries | `check-repo-hygiene`, `check-core-daemon-boundary-contract`, `check-desktop-shell-boundary-contract`, `check-security-boundaries`, `check-extension-wiring-contract`, `check-tech-stack-contract` |
+| Screen models | `check-activity-screen`, `check-insights-screen`, `check-operations-screen`, `check-routing-screen`, `check-agents-screen`, `check-review-screen`, `check-skills-screen` |
+| Workspace sources | `check-build/chat/explore/automation/task-workspace-source`, `check-renewal-screens`, `check-ui-slop` |
+| Runtime contracts | `check-coding-python-game-contract`, `check-browser-intent-contract`, `check-chat-telegram-contract` |
+| .NET | Middleware build, `apps/omnux-middleware-tests` unit tests |
+| Gateway | `check-gateway-runtime-contract` (isolated middleware + Playwright Chromium) |
+| Sandbox | `apps/omnux-sandbox/executor.py` smoke |
+
+Screen model checks import `.ts` files directly. On a Node build without TypeScript type stripping (such as Ubuntu's distribution package), the runner adds `scripts/typescript-loader.mjs` automatically.
+
+## Desktop Checks
 
 ```bash
-# Vite build
 npm run build --prefix apps/desktop
-
-# Tauri dev mode (middleware must be running first)
-npm run tauri dev --prefix apps/desktop
+omnux
 ```
 
-The desktop app requires a middleware WebSocket connection (default `ws://127.0.0.1:8080`). Make sure the middleware is running first.
+`omnux` starts vite (1420) and the Tauri shell, and the shell starts the middleware (41880).
 
-## Screenshot Validation
+## Screen Checks (Playwright)
 
-```bash
-file docs/assets/readme/dashboard-desktop-1920x1080.png \
-  docs/assets/readme/dashboard-chat-tab.png \
-  docs/assets/readme/dashboard-coding-tab.png \
-  docs/assets/readme/dashboard-mobile-closed-390x844.png \
-  docs/assets/readme/dashboard-mobile-composer-390x844.png.png
-```
-
-There are currently 13 README PNGs under `docs/assets/readme/`. `social-preview.png` is for social preview only.
-
-## Contract Check Scripts
-
-There are 16 contract check scripts under `scripts/`. `npm test` runs them all, but you can run individual scripts when narrowing scope.
+Run `npm test` once first (it creates the gateway fixtures), then run these while vite answers on `127.0.0.1:1420`. Start it with `omnux` or `OMNUX_DESKTOP_UI_HOST=127.0.0.1 npm run dev --prefix apps/desktop`. On macOS, the default `localhost` binds only to IPv6.
 
 | Script | What it checks |
 |---|---|
-| `check-tech-stack-contract.mjs` | Tech stack contract |
-| `check-repo-hygiene.mjs` | Repository hygiene |
-| `check-security-boundaries.mjs` | Security boundary contract |
-| `check-frontend-contracts.mjs` | Frontend type contracts |
-| `check-ws-contracts.mjs` | WebSocket message contracts |
-| `check-desktop-contracts.mjs` | Desktop screen contracts |
-| `check-dashboard-contracts.mjs` | Dashboard screen contracts |
-| `check-middleware-contracts.mjs` | Middleware internal contracts |
+| `run-workspace-ui-checks.mjs` | Ask/Build/Automate/Explore/Tasks screen flows |
+| `check-desktop-launch.mjs` | First launch and relaunch |
+| `check-viewport-fit.mjs` | Fit at 1440/768/390/320 widths |
+| `check-provider-model-defaults.mjs` | Model defaults in Settings |
+| `audit-all-screens.mjs` | Horizontal overflow and screenshots for every screen |
 
-Before and after Phase 5 changes, pass `npm test`. When narrowing scope, run at minimum `check-tech-stack-contract` and `check-repo-hygiene` together.
+Screenshots and logs are written under `output/playwright/`.
 
-## Manual Regression Checks
+## Manual Regression
 
-- **Home**: Active Projects, Continue, Recent Activity, Resource Usage cards
-- **Ask**: Single/orchestration/multi LLM switching, markdown rendering, Think+ toggle, RAG preflight, Vision, Token usage
-- **Build**: Execution folder creation, recent result restore, orchestration/multi mode, rollback snapshot
-- **Logic**: Graph save/run/delete, output creation, recovery candidate lookup
-- **Explore**: Web search, URL fetch, session management, agent spawn, Browser/Canvas
-- **Automate**: Routine CRUD, immediate execution, scheduled status, creation wizard, Telegram delivery
-- **Projects**: Project CRUD, representative project designation, Touch refresh
-- **Settings**: Memory/Backup, Models/Services, remote access toggle, sensitive settings blocking, provider status
-- **Operations**: Doctor diagnostics, Git Automation snapshot/preview/apply, Plan/Task read-only
-- **Activity**: Event timeline, Session Replay
-- **Insights**: Telemetry, Semantic Search Readiness, Local LLM, Git Time Machine, Commit Learning, Self Improvement, MCP, Terminal, Routing Policy
-- **Agents**: Agent Bus, Multi-Agent Trace, Watchdog, Worktree
-- **Theme**: Glass/Light/Dark switching
-- **Security boundaries**: Unauthenticated WebSocket request rejection, remote limited mode auto-entry, remote OTP request blocking, remote auth/secret/external-access setting blocking with distinct messages, remote chat/coding/routine/logic graph execution blocking, remote read-oriented views and model/routing settings allowed, WebSocket Origin check, routine image preview path restriction, attachment count/size excess rejection, Markdown raw HTML blocking
+Before a release, follow the [manual regression checklist](./manual-regression-checklist.md).

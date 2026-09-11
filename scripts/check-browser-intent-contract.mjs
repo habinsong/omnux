@@ -34,7 +34,7 @@ assert.match(browserTool, /OMNUX_BROWSER_TOOL_MODE"\) \?\? "auto"/, "BrowserTool
 assert.doesNotMatch(browserTool, /ExecuteStubAction|ExecuteAutoAction/, "가짜 브라우저 성공 폴백을 재도입하면 안 됩니다.");
 assert.match(browserTool, /_host\.Execute\(/, "브라우저 intent가 실제 실행기로 전달되어야 합니다.");
 assert.match(usage, /네이버 열어줘/, "사용법 문서의 대화 탭 브라우저 예시 누락");
-assert.match(usage, /코딩 탭에서도 `네이버 열어줘`/, "사용법 문서의 코딩 탭 브라우저 예시 누락");
+assert.match(usage, /빌드에서도 `네이버 열어줘`/, "사용법 문서의 빌드(코딩) 브라우저 예시 누락");
 assert.match(toolGuide, /일반 사용자는 대화 탭이나 코딩 탭에 자연어로 입력한다/, "도구 패널 문서의 실제 사용 경로 설명 누락");
 
 console.log("[check-browser-intent-contract] ok");

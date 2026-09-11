@@ -2,7 +2,7 @@
 
 <div align="center">
 
-**A local-first AI workbench that connects chat, coding, runs, routines, refactoring, notebooks, Telegram, and provider routing into one practical workflow.**
+**A local-first AI workbench that connects chat, coding, runs, routines, refactoring, notes, Telegram, and provider routing into one practical workflow.**
 
 [한국어](./README.md) · [English](./README.en.md)
 
@@ -14,114 +14,49 @@
 
 </div>
 
-Updated: 2026-05-21
+Updated: 2026-09-12
 
-omnux is not just another chat UI. It is a local-first AI workbench that keeps conversations, coding runs, generated files, validation logs, routines, logic graphs, notebooks, Safe Refactor previews, and Telegram control in the same operational flow.
-
-It does not assume that one expensive model or one expensive machine is the answer. You can use Groq, Gemini, Cerebras, NVIDIA NIM, Copilot, and Codex from the same Tauri desktop UI, then keep the result as files, logs, previews, and recoverable run snapshots.
+omnux keeps conversations, build runs, generated files, validation logs, routines, logic graphs, notes, Safe Refactor previews, and Telegram control in one flow. Use Groq, Gemini, Cerebras, NVIDIA NIM, Copilot, Codex, and Grok from the same Tauri desktop app, and keep the results as files, logs, and run snapshots.
 
 > Start here: [Quickstart](./docs/en/quickstart.md).
 
 ## Why it exists
 
-A lot of AI tools look good until the first answer is over. Then the trail disappears.
-
-- Generated files and commands are hard to find later.
-- The Tauri desktop UI and the Telegram bot do not share the same capabilities.
-- Coding output is hard to rerun, compare, or inspect.
-- Refactoring often means overwriting a file without a real preview.
-- Scheduled jobs, chat context, search, and handoff notes live in separate places.
-
-omnux turns those loose pieces into a working loop.
-
 | Common problem | omnux approach |
 |---|---|
-| Chat and execution are separate | Conversations, coding results, and logs stay connected |
-| Provider comparison is messy | Single, orchestration, and multi-LLM modes work in chat and coding |
-| Desktop UI and Telegram drift apart | Both use the same CommandService layer |
-| Refactoring feels risky | Preview, stale validation, and guarded apply |
+| Chat and execution are separate | Conversations, build results, and logs stay connected |
+| Provider comparison is messy | Single, orchestration, and multi modes work in Ask and Build |
+| Desktop and Telegram drift apart | Both use the same CommandService |
+| Refactoring feels risky | Preview first, re-check right before apply |
 | Ops state is unclear | `/healthz`, `/readyz`, and `doctor --json` |
 
-## Screenshots
+## Screens
 
-### Full dashboard
-
-![omnux dashboard](docs/assets/readme/dashboard-desktop-1920x1080.png)
-
-### Core screens
-
-| Chat | Coding |
+| Area | Screens |
 |---|---|
-| ![Chat tab](docs/assets/readme/dashboard-chat-tab.png) | ![Coding tab](docs/assets/readme/dashboard-coding-tab.png) |
-
-| Safe Refactor | Routines |
-|---|---|
-| ![Safe Refactor](docs/assets/readme/dashboard-safe-refactor.png) | ![Routines tab](docs/assets/readme/dashboard-routines-tab.png) |
-
-| Logic Graph | Notebooks |
-|---|---|
-| ![Logic tab](docs/assets/readme/dashboard-logic-tab.png) | ![Notebooks tab](docs/assets/readme/dashboard-notebooks-tab.png) |
-
-| Plans | Skills |
-|---|---|
-| ![Plans tab](docs/assets/readme/dashboard-plans-tab.png) | ![Skills tab](docs/assets/readme/dashboard-skills-tab.png) |
-
-| Settings | Mobile closed |
-|---|---|
-| ![Settings tab](docs/assets/readme/dashboard-settings-tab.png) | ![Mobile closed](docs/assets/readme/dashboard-mobile-closed-390x844.png) |
-
-| Mobile composer open |
-|---|
-| ![Mobile composer open](docs/assets/readme/dashboard-mobile-composer-390x844.png.png) |
-
-## What works today
-
-- **Chat**: single model, orchestration, multi-LLM comparison, Think+, URL/search/memory context, TTS
-- **Coding**: single completion loop, orchestration loop, multi-provider independent runs, preview and rerun support
-- **Search**: Gemini grounding, query rewrite, evidence pack, guard, cache fallback
-- **Routines**: natural-language routine creation, immediate/scheduled runs, browser agent, Telegram delivery
-- **Logic Graph**: connect chat, coding, routines, and tools on a node canvas
-- **Notebooks**: learnings, decisions, verification notes, and handoff documents
-- **Safe Refactor**: anchor edits, LSP rename, ast-grep replacement with preview and guarded apply
-- **Skills**: project/global `SKILL.md` files, sticky activation, shared chat and Telegram behavior, single-skill guard, and quick aliases
-- **Remote Tauri UI**: LAN access toggle with no OTP prompt for remote clients; read-oriented views, routing policy, and model selection remain available while chat, coding, routines, logic graph execution, auth, secrets, and external-access settings stay blocked
-
-## Recent updates
-
-- **Security boundaries**: remote Tauri UI OTP requests stay blocked, while remote sessions enter limited mode automatically. The permission table, categorized remote-block messages, WebSocket Origin checks, pre-auth message allowlists, local image path limits, attachment count/size rejection, and Markdown raw HTML blocking are documented and covered by the test contract.
+| Home | Home |
+| Workspace | Ask, Build, Automate, Explore, Review |
+| Projects | Projects, Tasks, Notes |
+| Engine | Agents, Tools, Extensions, Routing, Rules |
+| Monitor | Activity, Logs, Status |
+| Settings | Settings |
 
 ## Quick start
 
-macOS/Linux global launcher:
-
 ```bash
-omnux setup
+./scripts/omnux setup
 omnux
 omnux shutdown
 ```
 
-From a fresh checkout, run `./scripts/omnux setup` first. It checks or installs dependencies, builds the middleware, runs `npm test`, and registers the launcher. A first `omnux` start also attempts automatic setup if the setup marker is missing.
+On macOS (Homebrew) and Linux (apt/dnf/pacman/zypper/apk), setup prepares the required tools, .NET SDK 9, Rust, and Playwright Chromium, builds, runs `npm test`, and registers the `omnux` command. `omnux` opens the desktop app, which starts the middleware with it. Use `omnux start` for the middleware only. On Windows, use `.\scripts\omnux.ps1 setup`.
 
-Manual run:
-
-```bash
-dotnet run --project apps/omnux-middleware/Omnux.Middleware.csproj
-```
-
-Windows:
-
-```powershell
-.\scripts\omnux.ps1 setup
-dotnet run --project apps\omnux-middleware\Omnux.Middleware.csproj
-```
-
-Open:
-
-- Tauri UI: [http://127.0.0.1:1420/](http://127.0.0.1:1420/)
-- Remote UI: `http://<LAN-IP>:1420/`
-- Middleware API/WS: [http://127.0.0.1:41880/](http://127.0.0.1:41880/)
-- Health: [http://127.0.0.1:41880/healthz](http://127.0.0.1:41880/healthz)
-- Ready: [http://127.0.0.1:41880/readyz](http://127.0.0.1:41880/readyz)
+| Target | Address |
+|---|---|
+| Desktop UI (dev mode) | `http://127.0.0.1:1420/` |
+| Remote UI | `http://<LAN-IP>:1420/` |
+| Middleware API / WebSocket | `http://127.0.0.1:41880/`, `ws://127.0.0.1:41880/ws/` |
+| health / ready | `http://127.0.0.1:41880/healthz`, `/readyz` |
 
 ## Providers
 
@@ -133,26 +68,8 @@ Open:
 | `nvidia` | NVIDIA NIM | OpenAI-compatible `https://integrate.api.nvidia.com/v1` |
 | `copilot` | Copilot | `gh`/`copilot` CLI |
 | `codex` | Codex | `codex` CLI or API key |
+| `grok` | Grok | `grok` CLI |
 
 ## Documentation
 
-| Korean | English |
-|---|---|
-| [5분 시작](./docs/QUICKSTART.md) | [English](./docs/en/quickstart.md) |
-| [사용법](./docs/사용법_빠른시작.md) | [English](./docs/en/usage.md) |
-| [아키텍처](./docs/아키텍처_흐름.md) | [English](./docs/en/architecture.md) |
-| [기술 스택](./docs/기술스택_정리.md) | [English](./docs/en/tech-stack.md) |
-| [환경변수와 상태 파일](./docs/환경변수_및_상태파일.md) | [English](./docs/en/environment-and-state.md) |
-| [검증](./docs/검증_가이드.md) | [English](./docs/en/validation.md) |
-| [디렉터리](./docs/디렉터리_가이드.md) | [English](./docs/en/directory-guide.md) |
-| [AGENTS와 스킬](./docs/AGENTS_AND_SKILLS.md) | [English](./docs/en/agents-and-skills.md) |
-| [NVIDIA NIM](./docs/nvidia-nim-provider.md) | [English](./docs/en/nvidia-nim-provider.md) |
-| [Safe Refactor](./docs/SAFE_REFACTORING.md) | [English](./docs/en/safe-refactoring.md) |
-| [Doctor](./docs/DOCTOR.md) | [English](./docs/en/doctor.md) |
-| [도구 통합 패널](./docs/도구_통합_패널_사용_가이드.md) | [English](./docs/en/tool-integration-panel.md) |
-| [노트북과 이어보기](./docs/NOTEBOOKS_AND_HANDOFF.md) | [English](./docs/en/notebooks-and-handoff.md) |
-| [계획과 Task Graph](./docs/PLANNING_AND_TASKS.md) | [English](./docs/en/planning-and-tasks.md) |
-| [정리 기준](./docs/CLEANUP.md) | [English](./docs/en/cleanup.md) |
-| [토큰과 메모리 초기화](./docs/토큰_메모리_초기화_가이드.md) | [English](./docs/en/token-memory-reset.md) |
-| [수동 회귀 체크리스트](./docs/OMNUX_실환경_수동_최종회귀_체크리스트.md) | [English](./docs/en/manual-regression-checklist.md) |
-| [Gemini 검색 전환 기록](./docs/GEMINI_SEARCH_RETRIEVER_INTEGRATION_PLAN.md) | [English](./docs/en/gemini-search-retriever-integration-plan.md) |
+See the [documentation index](./docs/en/README.md) for usage, architecture, tech stack, validation, and environment docs.

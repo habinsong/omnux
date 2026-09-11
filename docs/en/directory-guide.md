@@ -2,66 +2,63 @@
 
 [한국어](../디렉터리_가이드.md) · [English](./directory-guide.md)
 
-Updated: 2026-06-05
+Updated: 2026-09-12
 
-The canonical layout uses `apps/`, `docs/`, and `workspace/`. Old alias paths at the root may still exist, but new code goes in canonical paths only.
+The canonical layout is `apps/`, `docs/`, and `workspace/`. New code goes in canonical paths only.
 
 ## Root
 
 | Path | Description |
 |---|---|
 | `apps/omnux-middleware/` | .NET 9 middleware. WebSocket/HTTP, Telegram, routing, domain orchestration |
+| `apps/omnux-middleware-tests/` | .NET unit tests |
 | `apps/desktop/` | Tauri v2 desktop app. React 19 + TypeScript + Tailwind CSS v4 |
-| `apps/omnux-dashboard/` | Static web dashboard (legacy) |
 | `apps/omnux-sandbox/` | Python executor (`executor.py`) |
-| `apps/omnux-middleware-tests/` | .NET unit tests (148 files) |
-| `apps/.runtime/` | App runtime state |
-| `docs/` | Korean docs and `docs/en/` English docs |
-| `docs/assets/readme/` | Screenshots for README and feature docs |
-| `workspace/` | Work artifacts |
-| `scripts/` | `omnux setup/start/shutdown`, Windows `omnux.ps1`, contract check scripts (16) |
+| `apps/shared/` | Model registry (`model-registry.json`) and C# generator |
+| `docs/` | Korean docs, `docs/en/` English docs |
+| `scripts/` | `omnux` launcher, Windows `omnux.ps1`, contract/screen check scripts |
 | `deploy/` | macOS/Linux deployment templates |
-| `.omni/skills/` | User-defined AI skills (`SKILL.md` files) |
+| `.omni/skills/` | Project skills (`SKILL.md`) |
+| `workspace/` | Work artifacts (not tracked by git) |
+| `output/` | Check screenshots and fixtures (not tracked by git) |
 
-## Middleware Internal Structure
-
-| Path | Description |
-|---|---|
-| `apps/omnux-middleware/src/` | Main source (229 files) |
-| `apps/omnux-middleware/src/Application/` | Domain services (75 files). Coding, Routine, Doctor, Plan, TaskGraph, etc. |
-| `apps/omnux-middleware/src/CommandDispatch/` | Slash command router + 12 domain handlers (16 files) |
-| `apps/omnux-middleware/src/Infrastructure/` | Persistence, Paths, Refactor, Search, Telegram substructure |
-
-## Desktop Internal Structure
+## Middleware
 
 | Path | Description |
 |---|---|
-| `apps/desktop/src/` | React/TypeScript source |
-| `apps/desktop/src/features/` | 24 domain screen directories (ask, build, logic, explore, automate, projects, settings, ops, insights, agents, home, activity, routing, etc.) |
-| `apps/desktop/src/features/middleware/` | WebSocket gateway helpers (ask, rag, vision, agents, git, telegram, memory, ops, etc.) |
-| `apps/desktop/src/components/ui/` | Shared UI primitives (`primitives.tsx`) |
-| `apps/desktop/src-tauri/` | Tauri Rust shell (window management only) |
-| `apps/desktop/dist/` | Build output |
+| `apps/omnux-middleware/src/` | C# source |
+| `apps/omnux-middleware/src/Application/` | Domain services. Coding, Routine, Doctor, Plan, TaskGraph, etc. |
+| `apps/omnux-middleware/src/CommandDispatch/` | Slash command router and domain handlers |
+| `apps/omnux-middleware/src/Infrastructure/` | Browser, Paths, Persistence, Refactor, Search, Telegram, Workspace |
+| `apps/omnux-middleware/resources/browser/` | Playwright browser execution resources (embedded) |
+
+## Desktop
+
+| Path | Description |
+|---|---|
+| `apps/desktop/src/App.tsx` | Screen registry |
+| `apps/desktop/src/features/` | Per-screen directories (`*-workspace`, `shell`, `settings`, `middleware`, etc.) |
+| `apps/desktop/src/features/middleware/` | WebSocket gateway helpers |
+| `apps/desktop/src/components/` | Shared UI (`ui/primitives.tsx`, `screen/`, `capsule/`) |
+| `apps/desktop/src-tauri/` | Tauri Rust shell (window management, middleware bootstrap) |
 
 ## Work Artifacts
 
 | Path | Contents |
 |---|---|
-| `workspace/coding/runs/` | Per-run coding execution folders |
-| `workspace/coding/routines/` | Routine execution results and browser agent assets |
-| `workspace/.runtime/logic/` | Logic graph execution logs and snapshots |
-| `workspace/.runtime/tasks/` | Task graph execution logs |
+| `workspace/coding/runs/` | Per-run build folders |
+| `workspace/coding/routines/` | Routine results and browser agent assets |
+| `workspace/.runtime/logic/` | Logic graph run logs and snapshots |
+| `workspace/.runtime/tasks/` | Task graph run logs |
 | `workspace/.runtime/refactor-preview/` | Safe Refactor previews |
-| `workspace/coding/` | Coding-related auxiliary files |
-| `workspace/runtime/` | Runtime auxiliary files |
 
-## Preservation Criteria
+## Preservation
 
-`~/.omnux` is the persistent state original. It contains conversations, plans, notebooks, routing policies, session info, project definitions, agent communications, telemetry tracking, and memory notes — always confirm preservation before deletion.
+`~/.omnux` is the source of persistent state: conversations, plans, notebooks, routing policies, sessions, projects, agent communication, telemetry, and memory notes. Confirm before deleting anything there. The `omnux` launcher state lives in `~/.omnux/cli/`.
 
 ## Launchers
 
-- `./scripts/omnux setup`: checks or installs dependencies, builds the middleware, validates, and registers the launcher on macOS/Linux.
-- `./scripts/omnux`: starts the server; if the setup marker is missing, it attempts automatic setup first.
-- `./scripts/omnux shutdown`: stops running omnux processes.
-- `.\scripts\omnux.ps1 setup`: Windows setup, build, and validation.
+- `./scripts/omnux setup`: dependency check/install, build, `npm test`, launcher registration
+- `omnux`: starts the desktop app (with the middleware)
+- `omnux start` / `status` / `shutdown`: middleware only, status, stop everything
+- `.\scripts\omnux.ps1 setup`: Windows setup

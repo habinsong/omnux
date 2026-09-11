@@ -2,188 +2,92 @@
 
 [한국어](../사용법_빠른시작.md) · [English](./usage.md)
 
-Updated: 2026-06-05
+Updated: 2026-09-12
 
-This document covers the most commonly used features in the desktop app and web dashboard. For Telegram bot slash commands, inline buttons, voice attachments, and multi-user allowlist, see the [Telegram Bot Guide](../텔레그램_봇_가이드.md).
+A short tour of the desktop screens you use most. For install and run, see [quickstart.md](./quickstart.md). The Telegram guide is Korean only: [텔레그램_봇_가이드.md](../텔레그램_봇_가이드.md).
 
-For a fresh install or new environment, run `./scripts/omnux setup` first. It checks/installs dependencies, builds the middleware, runs `npm test`, and registers the launcher.
+## Layout
+
+Pick an area on the left rail, then a screen in the sub-panel. On narrow widths, open navigation with the top menu button. ⌘K (Ctrl+K on Windows/Linux) opens the command palette.
+
+| Area | Screens |
+|---|---|
+| Home | Home |
+| Workspace | Ask, Build, Automate, Explore, Review |
+| Projects | Projects, Tasks, Notes |
+| Engine | Agents, Tools, Extensions, Routing, Rules |
+| Monitor | Activity, Logs, Status |
+| Settings | Settings |
 
 ## Home
 
-The Home screen is the dashboard starting point.
+Type a request straight into the input. Shortcuts below it (Automate, Logic, Skills, Plan, Notes) create new items, and the bottom **Continue work** and **Active projects** panels bring you back to recent work.
 
-- **Active Projects**: Displays registered projects with a representative project highlighted.
-- **Continue**: Jump directly to the most recent work item.
-- **Recent Activity**: Runtime WebSocket event-based timeline.
-- **Resource Usage**: CPU/memory/process cards based on `metrics`/`metrics_stream`.
+## Ask
 
-## Ask (Chat)
+Tabs: Chat · Models · References · History
 
-![Chat tab](../assets/readme/dashboard-chat-tab.png)
+- Modes are single, orchestration, and multi. Multi compares several provider answers side by side.
+- Enter sends and Shift+Enter adds a line. Enter during Korean IME composition does not send.
+- Attach files and images. Images are checked for format and model support first.
+- Answers can be handed off to Notes, Tasks, Build, or Automate.
+- Requests like `open naver` or `close the browser` are handled as browser commands before any LLM call.
+- Naming a skill turns it on, and it stays on in the same conversation until you stop it.
 
-The Ask screen switches between single model, orchestration, and multi-LLM comparison within the same view.
+## Build
 
-- **Single mode**: One model responds.
-- **Orchestration mode**: Roles are split into planning, development, verification, and revision.
-- **Multi mode**: Multiple providers/models respond simultaneously for comparison.
-- **Markdown rendering**: Tables, code blocks, and links rendered via `react-markdown`.
-- **Think+**: Reasoning mode toggle. Use for questions requiring deep analysis.
-- **RAG preflight**: Analyzes input to recommend memory/code/web/session search candidates. User must explicitly execute.
-- **Vision**: Select an image file to run Vision preflight. Checks provider candidates and readiness.
-- **Token usage**: Per-conversation and per-message token usage with source (exact/estimated).
-- **Adaptive Compression**: Backend auto-compresses long conversations. Shows compression system messages and linked memory.
+Tabs: Build · Settings · References · History
 
-Browser execution requests are handled directly from chat input. Phrases like "Open Naver", "Open github.com", "Close browser" are detected as browser intent before LLM invocation.
+A request gets its own execution folder (`workspace/coding/runs/`) with generated files, run output, and validation results. Single, orchestration, and multi modes are available, and a rollback snapshot is taken from the workspace baseline before the run. Reopen past work from the **History** tab.
 
-Naming a skill directly activates it, persisting until the user stops it. This works the same in Telegram. The last active skill auto-restores after middleware restart.
+Build also handles requests like `open naver` or `close the browser` as browser commands before any coding run.
 
-Multiple skill names in one message trigger a rejection. UI dropdown skill selection is overridden if the prompt explicitly names a different skill.
+## Automate
 
-## Build (Coding)
-
-![Coding tab](../assets/readme/dashboard-coding-tab.png)
-
-The Build screen doesn't stop at model-generated files. It creates execution folders with files, commands, stdout/stderr, validation results, and recent-result snapshots.
-
-- **Single coding**: One model implements and validates end-to-end.
-- **Orchestration coding**: Roles split into planning, development, verification, and revision.
-- **Multi coding**: Multiple providers/models run in independent folders for comparison.
-- **Rollback**: Saves workspace baseline before coding execution. Creates rollback snapshot on changes. Restore by rollback ID.
-- **Run latest result**: Re-execute a previous coding result.
-
-Default execution folder: `workspace/coding/runs/<timestamp>-<mode>-<suffix>/`.
-
-## Logic (Logic Graphs)
-
-![Logic tab](../assets/readme/dashboard-logic-tab.png)
-
-The Logic screen manages and executes `logic.graph.v1` graphs. Connect chat, coding, routine, and tool nodes to create flows.
-
-- **Graph list**: Shows saved graphs.
-- **Structure view**: Displays nodes (type/title/config) and edges (source→target) for the selected graph.
-- **Execution**: Runs the graph and displays per-node status in the execution snapshot.
-- **Save/Delete/Cancel**: Save, delete, or cancel a running graph.
-- **Recovery candidates**: Query incomplete execution snapshots after middleware restart.
-
-Execution results are stored under `workspace/.runtime/logic/`.
+Create routines in natural language and run them immediately or on a schedule (cron/interval). Results go to Telegram according to each routine's setting.
 
 ## Explore
 
-The Explore screen provides web search, URL fetching, session management, and agent spawning.
+Tabs: Web · Browser · Canvas · History
 
-- **Web search**: `web_search` → search results with provider badges.
-- **URL fetch**: `web_fetch` → HTTP status, length, body content.
-- **Sessions**: Session list/history, send follow-up messages to selected sessions.
-- **Agent spawn**: Create new sessions with queue/active/breaker status display.
-- **Browser/Canvas**: Browser status/start/stop and canvas show/hide.
+Web search, URL fetch, browser control, and canvas display in one screen. The browser opens in a fresh temporary context using the Playwright Chromium that setup installed.
 
-## Automate (Routines)
+## Review
 
-![Routines tab](../assets/readme/dashboard-routines-tab.png)
+The Safe Refactor screen. Follow the tabs in order: 1. Files → 2. Changes → 3. Check & apply. File state is re-checked right before apply.
 
-The Automate screen provides routine CRUD and a creation wizard.
+## Projects · Tasks · Notes
 
-- **Routine list**: Shows registered routines with toggle status.
-- **Execution**: Immediate or scheduled execution.
-- **Creation wizard**: 3-step progressive disclosure (Request → Schedule → Advanced).
-  - Request: Write routine content in natural language
-  - Schedule: Set kind (immediate/cron/interval), time, days, dates
-  - Advanced: Set runImmediately, notifyTelegram
-- **Preview**: Check routine structure from the backend before creating.
+| Screen | Tabs | Purpose |
+|---|---|---|
+| Projects | List · Add | Register and manage local projects (`~/.omnux/projects.json`) |
+| Tasks | List · New plan | Plan create, review, approve, run |
+| Notes | Log · Decisions · Checks · Memo · Handoff | Learnings, decisions, verification records, and handoff |
 
-Scheduled execution results are sent based on per-routine Telegram response settings.
+## Engine
 
-## Projects
+| Screen | Tabs |
+|---|---|
+| Agents | Running · Flow · Shared log · Work folders · Record |
+| Tools | All · Project · Global skills (`.omni/skills/`, `~/.omnux/skills/`) |
+| Extensions | Hooks · Approvals · Rules · Plugins |
+| Routing | Per-task routes · Recent choices · Local models |
+| Rules | Logic graph list · Diagram · Properties · Run |
 
-The Projects screen manages local project registration.
+## Monitor
 
-- **Project list**: Shows registered projects based on `projects_state`.
-- **CRUD**: Create, update, delete projects.
-- **Representative project**: Designate one project as representative.
-- **Touch**: Update last-used timestamp when opening a project.
-
-Project state is saved in `~/.omnux/projects.json`.
+| Screen | Tabs |
+|---|---|
+| Activity | This session · Session timeline |
+| Logs | Model calls · Diagnostics |
+| Status | Connection · Checks · Jobs · Tools |
 
 ## Settings
 
-![Settings tab](../assets/readme/dashboard-settings-tab.png)
+Tabs: General · Integrations · Models & keys · Memory · About
 
-The Settings screen has multiple tabs.
-
-- **Memory & Backup**: Memory note list/search/rename/delete/clear, memory detail reads, FTS index rebuild, portable backup export/import preview/apply.
-- **Models & Services**: Groq/Copilot model selection/apply/refresh, CLI adapter status, API key save/delete, Gemini tokens, Copilot Premium quota, Telegram Bot Token/Chat ID integration.
-- **Memory search results**: Tier badges (working/short_term/episodic/long_term), source, line ranges.
-
-Remote clients enter limited mode without OTP. Only read-oriented queries and model/routing settings are allowed.
-
-## Operations
-
-The Operations screen provides environment diagnostics, Git automation, and plan/task status.
-
-- **Doctor / Environment diagnostics**: Check environment status via `doctor_get_last`, `doctor_run`, `doctor_fix_preview`. Shows ok/warn/fail/skip counts and per-check status. `doctor_fix_apply` is a hazardous operations command currently disabled.
-- **Git Automation**: View branch, changed files, readiness/publish status via `git_automation_snapshot_get`. Request branch create, commit, push, PR creation previews via `git_operation_preview`. Apply after approval gate.
-- **Plan / Task status**: `plan_list`, `task_graph_list` read-only summary cards.
-
-## Activity
-
-The Activity screen provides a runtime WebSocket event-based timeline and session replay.
-
-- **Event timeline**: Real-time WS events in chronological order.
-- **Session Replay**: Query conversation messages, LLM telemetry, and agent event timelines via `session_replay_get`. Shows summary and metadata only; full text is optionally viewable.
-
-## Insights
-
-The Insights screen provides various readiness and status snapshots.
-
-- **Telemetry**: LLM call history by provider/model/status/token/time.
-- **Semantic Search Readiness**: FTS/vector search status, embedding model candidates.
-- **Local LLM Discovery**: Local endpoint (Ollama/LM Studio) latency, models, offline mode status.
-- **Git Time Machine**: Repository status, checkpoint list, rollback candidates.
-- **Commit Learning**: Recent commit metadata, intent rollup, file hotspots.
-- **Self Improvement**: Backend-suggested improvements as cards.
-- **MCP Servers**: Workspace MCP config file scan for discovered servers.
-- **Terminal Readiness**: Shell/toolchain status.
-- **Routing Policy**: Routing policy, recent decisions, local LLM readiness.
-
-## Agents
-
-The Agents screen provides agent bus, lifecycle, and multi-agent tracking.
-
-- **Agent Bus**: Message history, shared board upsert, lifecycle event storage, group command message storage.
-- **Multi-Agent Trace**: Project agent messages/board/lifecycle into visualization-ready structures.
-- **Agent Watchdog**: Active run inventory with timeout/stale status.
-- **Agent Worktree**: ACP spawn worktree list with clean/dirty/conflict status.
-
-## Skills
-
-![Skills tab](../assets/readme/dashboard-skills-tab.png)
-
-Skills are read from `.omni/skills/**/SKILL.md` and `~/.omnux/skills/**/SKILL.md`. Activate/deactivate via the skill badge in chat/coding input.
-
-## Routing
-
-The Routing screen provides routing policy management and local LLM readiness.
-
-- **Routing policy**: Query/save/reset the current provider fallback chain.
-- **Recent decisions**: Category/request provider/result provider/decision time/reason shown as cards.
-- **Local LLM**: Endpoint count, model count, offline mode status, readiness check.
-
-## Command Palette
-
-Press ⌘K to open the Command Palette for quick actions.
+The Models & keys tab manages per-provider model selection, integration keys, CLI auth, priority, and usage. The Memory tab handles notes and portable backup. The external-access toggle is also in Settings.
 
 ## Theme
 
-Toggle between 3 themes via the top toolbar.
-
-- **Glass** (default): Translucent backgrounds + backdrop-blur, pastel blobs
-- **Light**: Clean off-white + subtle shadows
-- **Dark**: Warm dark tones + indigo glow
-
-## Mobile (Web Dashboard)
-
-| Closed | Open |
-|---|---|
-| ![Mobile closed](../assets/readme/dashboard-mobile-closed-390x844.png) | ![Mobile open](../assets/readme/dashboard-mobile-composer-390x844.png.png) |
-
-On mobile portrait, the composer is collapsed by default. Tap the keyboard button at the bottom right to open it, and tap the down arrow above the composer to close it.
+Light (default), Glass, and Dark. Switch with the theme button in the top bar.

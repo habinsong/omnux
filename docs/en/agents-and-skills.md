@@ -4,11 +4,9 @@
 
 Updated: 2026-06-05
 
-![Skills tab](../assets/readme/dashboard-skills-tab.png)
-
 AGENTS files are always-on instructions. Skills are opt-in behavior packs stored as `SKILL.md`. Commands are reusable prompt templates. Chat, Coding, and Telegram share the same skill activation and stop flow.
 
-Skills work the same way across the desktop app, web dashboard, and Telegram bot. You can activate/deactivate them via the skill badge in the chat input or slash commands.
+Skills work the same way in the desktop app and the Telegram bot. You can activate/deactivate them via the skill badge in the chat input or slash commands.
 
 Current behavior:
 
