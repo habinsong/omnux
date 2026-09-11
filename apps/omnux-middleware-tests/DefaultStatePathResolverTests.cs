@@ -38,6 +38,23 @@ public sealed class DefaultStatePathResolverTests : IDisposable
     }
 
     [Fact]
+    public void FreshCloneUsesCanonicalWorkspaceInsteadOfRootCodingDir()
+    {
+        // 새로 클론한 저장소에는 workspace/coding 이 아직 없다. 예전 로직은 저장소 루트의 coding 을 골랐다.
+        Environment.SetEnvironmentVariable("OMNUX_WORKSPACE_ROOT", null);
+        var repoRoot = CreateTempDir();
+        var projectDir = Path.Combine(repoRoot, "apps", "omnux-middleware");
+        Directory.CreateDirectory(projectDir);
+        File.WriteAllText(Path.Combine(projectDir, "Omnux.Middleware.csproj"), "<Project />");
+        var baseDir = Path.Combine(projectDir, "bin", "Debug", "net9.0") + Path.DirectorySeparatorChar;
+        Directory.CreateDirectory(baseDir);
+
+        var resolved = DefaultStatePathResolver.ResolveDefaultWorkspaceRootDir(CreateTempDir(), baseDir, repoRoot);
+
+        Assert.Equal(Path.Combine(repoRoot, "workspace", "coding"), resolved);
+    }
+
+    [Fact]
     public void LogicRuntimeRootStaysInsideWorkspaceContainer()
     {
         var container = CreateTempDir();

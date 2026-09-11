@@ -194,6 +194,9 @@ public sealed class DefaultStatePathResolver : IStatePathResolver
     }
 
     internal static string ResolveDefaultWorkspaceRootDir(string stateRootDir)
+        => ResolveDefaultWorkspaceRootDir(stateRootDir, AppContext.BaseDirectory, Directory.GetCurrentDirectory());
+
+    internal static string ResolveDefaultWorkspaceRootDir(string stateRootDir, string baseDir, string cwd)
     {
         var configured = Env.Get("OMNUX_WORKSPACE_ROOT");
         if (!string.IsNullOrWhiteSpace(configured))
@@ -201,8 +204,6 @@ public sealed class DefaultStatePathResolver : IStatePathResolver
             return Path.GetFullPath(configured.Trim());
         }
 
-        var baseDir = AppContext.BaseDirectory;
-        var cwd = Directory.GetCurrentDirectory();
         var candidates = new[]
         {
             Path.GetFullPath(Path.Combine(baseDir, "../../../../../workspace/coding")),
@@ -222,6 +223,13 @@ public sealed class DefaultStatePathResolver : IStatePathResolver
             }
         }
 
+        // 새로 클론한 저장소에는 workspace/coding 이 아직 없다. 저장소 루트를 찾으면 canonical 경로를 쓴다.
+        var repositoryRoot = FindRepositoryRoot(baseDir) ?? FindRepositoryRoot(cwd);
+        if (repositoryRoot != null)
+        {
+            return Path.Combine(repositoryRoot, "workspace", "coding");
+        }
+
         foreach (var candidate in candidates)
         {
             var parent = Directory.GetParent(candidate);
@@ -235,6 +243,19 @@ public sealed class DefaultStatePathResolver : IStatePathResolver
 
         // 리포 상대 경로가 모두 빗나가는 패키징 실행(.app / installed binary) 대비 안전한 기본값.
         return Path.Combine(stateRootDir, "workspace", "coding");
+    }
+
+    private static string? FindRepositoryRoot(string startDir)
+    {
+        for (var directory = new DirectoryInfo(Path.GetFullPath(startDir)); directory != null; directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "apps", "omnux-middleware", "Omnux.Middleware.csproj")))
+            {
+                return directory.FullName;
+            }
+        }
+
+        return null;
     }
 
     private static bool IsFileSystemRoot(string path)

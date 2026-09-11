@@ -46,12 +46,13 @@ internal static class Program
             cts.Cancel();
         };
 
-        Console.WriteLine("[core-runtime] .NET core runtime is active.");
-
+        // doctor --json 출력은 순수 JSON 이어야 하므로 기동 배너는 doctor 처리 뒤에 찍는다.
         if (await DoctorCli.TryHandleAsync(args, doctorService, cts.Token))
         {
             return;
         }
+
+        Console.WriteLine("[core-runtime] .NET core runtime is active.");
 
         using var telegramClient = new TelegramClient(runtimeSettings);
         using var groqModelCatalog = new GroqModelCatalog(providers, context, runtimeSettings);
