@@ -40,33 +40,6 @@ function toRelative(filePath) {
   return path.relative(repoRoot, filePath) || ".";
 }
 
-const develop = read("develop.md");
-assertIncludes(
-  develop,
-  "Tauri Rust 백엔드는 앱 셸(Window 관리)만 담당한다.",
-  "develop.md desktop shell role"
-);
-assertIncludes(
-  develop,
-  "비즈니스 로직은 .NET 미들웨어가 전담한다.",
-  "develop.md middleware ownership"
-);
-assertIncludes(
-  develop,
-  "Rust 쪽 금지",
-  "develop.md rust prohibition heading"
-);
-assertIncludes(
-  develop,
-  "LLM, 코딩, 루틴, 리팩터, 로직, 라우팅 정책",
-  "develop.md forbidden business domains"
-);
-assertIncludes(
-  develop,
-  "node scripts/check-desktop-shell-boundary-contract.mjs",
-  "develop.md desktop shell contract command"
-);
-
 const runTests = read("scripts/run-omnux-tests.mjs");
 assertIncludes(
   runTests,

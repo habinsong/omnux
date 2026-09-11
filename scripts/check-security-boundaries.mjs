@@ -275,7 +275,6 @@ const agentSpawnRunBreaker = read("apps/omnux-middleware/src/AgentSpawnRunBreake
 const agentSpawnWorkspaceRollbackPolicy = read("apps/omnux-middleware/src/AgentSpawnWorkspaceRollbackPolicy.cs");
 const acpSessionBindingAdapterTests = read("apps/omnux-middleware-tests/AcpSessionBindingAdapterTests.cs");
 const middlewareProject = read("apps/omnux-middleware/Omnux.Middleware.csproj");
-const developPlan = read("develop.md");
 const program = read("apps/omnux-middleware/src/Program.cs");
 const acpCodexExecAdapter = read("apps/omnux-middleware/tools/acp-adapter-codex-exec.js");
 const routineStore = read("apps/omnux-middleware/src/Infrastructure/Persistence/FileRoutineStore.cs");
@@ -754,8 +753,6 @@ assertIncludes(agentSpawnQueueStore, ".queue.lease", "agent spawn queue lease fi
 assertIncludes(sessionSpawnTool, "ClaimReadyEntries", "session spawn queue flush claims entries before dispatch to avoid duplicate delivery");
 assertNotIncludes(middlewareProject, "Microsoft.Data.Sqlite", "agent spawn queue keeps SQLite package out of AOT middleware until the follow-up state DB migration");
 assertNotIncludes(middlewareProject, "SQLitePCLRaw", "agent spawn queue avoids direct SQLite native package coupling in middleware");
-assertIncludes(developPlan, "SQLite/DB 큐 전환 최종 판단 완료", "develop plan records final SQLite queue decision");
-assertIncludes(developPlan, "후속 상태 DB 마이그레이션과 묶는다", "develop plan ties SQLite queue migration to follow-up state DB scope");
 assertIncludes(agentSpawnQueueStore, "NearDeadLetterCount", "agent spawn queue snapshot exposes near-dead-letter pressure");
 assertIncludes(agentSpawnQueueStore, "NextReason", "agent spawn queue snapshot exposes oldest retry reason");
 assertIncludes(agentSpawnQueueStore, "NextError", "agent spawn queue snapshot exposes latest retry error");

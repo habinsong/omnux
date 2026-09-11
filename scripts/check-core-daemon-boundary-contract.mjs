@@ -40,7 +40,6 @@ const runTests = read("scripts/run-omnux-tests.mjs");
 const repoHygiene = read("scripts/check-repo-hygiene.mjs");
 const shellScript = read("scripts/omnux");
 const powershellScript = read("scripts/omnux.ps1");
-const developPlan = read("develop.md");
 const readme = read("README.md");
 const readmeEn = read("README.en.md");
 const quickstart = read("docs/QUICKSTART.md");
@@ -127,8 +126,5 @@ assertIncludes(
   "scripts\", \"check-core-daemon-boundary-contract.mjs",
   "npm test runs the core daemon boundary contract"
 );
-assertIncludes(developPlan, "완전 해결률: 100%", "develop plan records 100% complete rate");
-assertIncludes(developPlan, "C11 코어 데몬 잔재 완전 삭제", "develop plan records legacy core removal");
-assertIncludes(developPlan, "치명적 결함 12선 캠페인을 영구 종결", "develop plan updates remaining loop estimate");
 
 process.stdout.write(`[core-daemon-boundary-contract] ok assertions=${assertionCount}\n`);

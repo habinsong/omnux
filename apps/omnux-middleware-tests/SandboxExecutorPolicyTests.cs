@@ -59,7 +59,7 @@ print(json.dumps({
         var current = new DirectoryInfo(AppContext.BaseDirectory);
         for (var i = 0; i < 10 && current != null; i += 1)
         {
-            if (File.Exists(Path.Combine(current.FullName, "develop.md")))
+            if (File.Exists(Path.Combine(current.FullName, "apps", "omnux-middleware", "Omnux.Middleware.csproj")))
             {
                 return current.FullName;
             }
