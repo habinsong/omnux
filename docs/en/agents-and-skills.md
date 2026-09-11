@@ -2,9 +2,9 @@
 
 [한국어](../AGENTS_AND_SKILLS.md) · [English](./agents-and-skills.md)
 
-Updated: 2026-06-05
+Updated: 2026-09-12
 
-AGENTS files are always-on instructions. Skills are opt-in behavior packs stored as `SKILL.md`. Commands are reusable prompt templates. Chat, Coding, and Telegram share the same skill activation and stop flow.
+AGENTS files are always-on instructions. Skills are opt-in behavior packs stored as `SKILL.md`. Commands are reusable prompt templates. Ask, Build, and Telegram share the same skill activation and stop flow.
 
 Skills work the same way in the desktop app and the Telegram bot. You can activate/deactivate them via the skill badge in the chat input or slash commands.
 
@@ -16,7 +16,7 @@ Current behavior:
 - Only one effective skill is allowed at a time; multiple detected skills return a clear rejection.
 - URL and web-search fast paths do not bypass active skill context.
 - Project skills win over global skills with the same name.
-- `/skill create` and the Skills tab do not silently overwrite an existing skill.
+- `/skill create` and the desktop Tools screen do not silently overwrite an existing skill.
 
 ## In-conversation skill creation
 

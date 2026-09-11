@@ -181,7 +181,7 @@ assert(
 assert(
   handoffSlashCommandHandler.includes("TelegramHandoffPresentationPolicy.BuildTelegramHandoffResult") &&
     telegramHandoffPresentationPolicy.includes("handoffPath=") &&
-    telegramHandoffPresentationPolicy.includes("Notebooks 화면의 Handoff 패널") &&
+    telegramHandoffPresentationPolicy.includes("노트 화면의 이어보기 탭") &&
     telegramHandoffPresentationPolicy.includes("텔레그램에서는 요약과 트리거만 확인") &&
     !telegramHandoffPresentationPolicy.includes("omnux://"),
   "텔레그램 /handoff 결과는 데스크톱 Handoff 화면과 로컬 handoff 문서 경로를 명확히 안내하고 deep link를 만들지 않아야 합니다."
@@ -192,7 +192,7 @@ assert(
   "문서 인덱스에서 텔레그램 봇 가이드로 연결해야 합니다."
 );
 assert(
-  telegramGuide.includes("업데이트 기준: 2026-06-02") &&
+  telegramGuide.includes("업데이트 기준: 2026-09-12") &&
     telegramGuide.includes("모바일 handoff 운영 기준") &&
     telegramGuide.includes("telegram_command_output_handoff") &&
     telegramGuide.includes("telegram_heavy_output_handoff") &&
@@ -227,10 +227,10 @@ assert(
   "실환경 수동 회귀 체크리스트는 텔레그램 모바일 live QA 완료 판정을 포함해야 합니다."
 );
 assert(
-  notebooksHandoffGuide.includes("업데이트 기준: 2026-06-02") &&
+  notebooksHandoffGuide.includes("업데이트 기준: 2026-09-12") &&
     notebooksHandoffGuide.includes("텔레그램 handoff") &&
     notebooksHandoffGuide.includes("~/.omnux/notebooks/<project-key>/handoff.md") &&
-    notebooksHandoffGuide.includes("Notebooks 화면의 Handoff 패널") &&
+    notebooksHandoffGuide.includes("노트 화면의 이어보기 탭") &&
     notebooksHandoffGuide.includes("Deep link 최종 판단") &&
     notebooksHandoffGuide.includes("`omnux://` 링크를 만들지 않고") &&
     notebooksHandoffGuide.includes("Phase 5에서 데스크톱 라우팅과 앱 프로토콜이 확정되면"),

@@ -49,7 +49,6 @@ workspace/coding/runs/
 workspace/coding/routines/
 workspace/coding/__pycache__/
 workspace/coding/**/*.pyc
-docs/gemini-retriever-plan/loop-automation/runtime/
 apps/.runtime/
 apps/omnux-middleware/__pycache__/
 apps/omnux-middleware/app

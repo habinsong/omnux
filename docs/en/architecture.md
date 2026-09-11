@@ -150,7 +150,7 @@ The Tauri Rust shell owns only the app shell.
 - `/api/local-image` allows only routine asset paths. Attachments over the count/size limits are rejected.
 - Static files served by the middleware are returned byte-for-byte, with `304 Not Modified` for `ETag`/`Last-Modified` conditional requests.
 - Markdown rendering disables raw HTML.
-- Safe Refactor re-checks file state right before apply. Coding runs support workspace rollback.
+- Safe Refactor re-checks file state right before apply and saves a rollback snapshot. Agent spawn work also saves a workspace rollback snapshot when files change.
 - JSON state writes take a per-file `.lock` lease and replace atomically. The previous valid file is kept as `.bak`.
 - Coding runs get their own folder, and local code execution is allowed only when `OMNUX_ENABLE_DYNAMIC_CODE=true`. The shell is picked as zsh → bash → sh, whichever exists.
 - The Python sandbox limits local trusted code; it is not an OS-level security sandbox.

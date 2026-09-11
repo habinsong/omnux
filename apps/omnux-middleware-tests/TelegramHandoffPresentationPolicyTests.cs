@@ -28,7 +28,7 @@ public sealed class TelegramHandoffPresentationPolicyTests
         );
 
         Assert.Contains("[데스크톱 handoff 생성]", text);
-        Assert.Contains("Notebooks 화면의 Handoff 패널", text);
+        Assert.Contains("노트 화면의 이어보기 탭", text);
         Assert.Contains("handoffPath=/state/notebooks/project-1/handoff.md", text);
         Assert.Contains("텔레그램에서는 요약과 트리거만 확인", text);
     }

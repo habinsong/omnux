@@ -4,9 +4,7 @@
 
 업데이트 기준: 2026-09-12
 
-omnux를 설치하고 쓰고 운영할 때 필요한 문서만 앞에 둔다. v1.0.6 기준 Tauri 데스크톱 앱(6개 영역, 18개 화면), .NET 9 미들웨어, 7개 LLM provider, 외부접속 제한 모드, macOS/Linux setup을 반영한다.
-
-## 빠르게 볼 문서
+omnux를 설치하고 쓰고 운영할 때 필요한 문서만 둔다. v1.0.6 기준 Tauri 데스크톱 앱(6개 영역, 18개 화면), .NET 9 미들웨어, 7개 LLM provider, 외부접속 제한 모드, macOS/Linux setup을 반영한다.
 
 | 주제 | 한국어 | English |
 |---|---|---|
@@ -18,18 +16,14 @@ omnux를 설치하고 쓰고 운영할 때 필요한 문서만 앞에 둔다. v1
 | 검증 | [열기](./검증_가이드.md) | [Open](./en/validation.md) |
 | 디렉터리 | [열기](./디렉터리_가이드.md) | [Open](./en/directory-guide.md) |
 | AGENTS와 스킬 | [열기](./AGENTS_AND_SKILLS.md) | [Open](./en/agents-and-skills.md) |
-| NVIDIA NIM | [열기](./nvidia-nim-provider.md) | [Open](./en/nvidia-nim-provider.md) |
-| Safe Refactor | [열기](./SAFE_REFACTORING.md) | [Open](./en/safe-refactoring.md) |
-| Doctor | [열기](./DOCTOR.md) | [Open](./en/doctor.md) |
-| 도구 통합 패널 | [열기](./도구_통합_패널_사용_가이드.md) | [Open](./en/tool-integration-panel.md) |
 | 텔레그램 봇 | [열기](./텔레그램_봇_가이드.md) | 한국어 문서 |
 | 노트북과 이어보기 | [열기](./NOTEBOOKS_AND_HANDOFF.md) | [Open](./en/notebooks-and-handoff.md) |
 | 계획과 Task Graph | [열기](./PLANNING_AND_TASKS.md) | [Open](./en/planning-and-tasks.md) |
+| Safe Refactor | [열기](./SAFE_REFACTORING.md) | [Open](./en/safe-refactoring.md) |
+| Doctor | [열기](./DOCTOR.md) | [Open](./en/doctor.md) |
+| NVIDIA NIM | [열기](./nvidia-nim-provider.md) | [Open](./en/nvidia-nim-provider.md) |
 | 정리 기준 | [열기](./CLEANUP.md) | [Open](./en/cleanup.md) |
 | 토큰과 메모리 초기화 | [열기](./토큰_메모리_초기화_가이드.md) | [Open](./en/token-memory-reset.md) |
 | 수동 회귀 체크리스트 | [열기](./OMNUX_실환경_수동_최종회귀_체크리스트.md) | [Open](./en/manual-regression-checklist.md) |
-| Gemini 검색 전환 기록 | [열기](./GEMINI_SEARCH_RETRIEVER_INTEGRATION_PLAN.md) | [Open](./en/gemini-search-retriever-integration-plan.md) |
 
-## 스크린샷
-
-`docs/assets/readme/`의 이미지는 리뉴얼 전 화면이다. 현재 화면은 `node scripts/audit-all-screens.mjs`로 `output/playwright/audit/all/`에 새로 찍는다.
+현재 화면 스크린샷은 `node scripts/audit-all-screens.mjs`로 `output/playwright/audit/all/`에 찍는다. `assets/readme/social-preview.png`는 GitHub 소셜 카드용이다.

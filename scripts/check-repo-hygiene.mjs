@@ -35,7 +35,6 @@ const REQUIRED_GITIGNORE_PATTERNS = [
   "node_modules/",
   "output/",
   "workspace/",
-  "docs/gemini-retriever-plan/loop-automation/runtime/",
   "apps/.runtime/",
   "apps/omnux-middleware/gugudan.py"
 ];
@@ -46,7 +45,6 @@ const ARTIFACT_PATHS = [
   "workspace/.runtime",
   "workspace/runtime",
   "workspace/coding",
-  "docs/gemini-retriever-plan/loop-automation/runtime",
   "apps/.runtime"
 ];
 const DISALLOWED_TRACKED_FILES = [

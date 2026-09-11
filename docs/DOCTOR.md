@@ -2,9 +2,9 @@
 
 [한국어](./DOCTOR.md) · [English](./en/doctor.md)
 
-업데이트 기준: 2026-06-05
+업데이트 기준: 2026-09-12
 
-Doctor는 omnux를 운영할 때 가장 먼저 보는 진단 명령이다. provider 키, CLI 인증, 코어 연결, 상태 파일, 작업공간, 검색/도구 상태를 한 번에 확인한다.
+Doctor는 운영할 때 가장 먼저 보는 진단이다. .NET 코어 런타임, 작업공간, 샌드박스, SQLite, provider 키, Codex/Copilot CLI, 텔레그램, 검색 경로를 한 번에 확인한다.
 
 ## 실행
 
@@ -12,14 +12,15 @@ Doctor는 omnux를 운영할 때 가장 먼저 보는 진단 명령이다. provi
 dotnet run --project apps/omnux-middleware/Omnux.Middleware.csproj -- doctor --json
 ```
 
-대시보드 설정 탭의 환경 진단 패널에서도 최근 doctor 결과를 볼 수 있다.
+`--json`은 순수 JSON만 출력한다. `--json` 없이 실행하면 사람이 읽는 형식으로 출력한다.
 
-도구 통합 패널의 `doctor.fix.preview`는 최근 Doctor 결과와 현재 설정을 바탕으로 적용 가능한 복구 계획을 만든다. `doctor.fix.apply`는 해당 previewId가 있는 경우에만 실행되며, 자동 적용 범위는 누락된 상태/워크스페이스 디렉터리 생성으로 제한된다. API 키 입력, CLI 인증, 파괴적 정리는 자동 실행하지 않는다.
+데스크톱은 **상태 > 점검 > 환경 진단**에서 최근 결과를 본다. 복구 미리보기(`doctor_fix_preview`)는 최근 결과로 복구 계획을 만들고, 적용(`doctor_fix_apply`)은 그 미리보기 ID가 있을 때만 실행하고, 자동으로 하는 일은 빠진 디렉터리 생성뿐이다. API 키 입력, CLI 인증, 파괴적 정리는 자동으로 하지 않는다.
 
 ## 읽는 법
 
 - `ok`: 정상
-- `warn`: 기능은 돌 수 있지만 확인이 필요
-- `fail`: 해당 기능 사용 전에 조치 필요
+- `warn`: 기능은 돌지만 확인이 필요
+- `fail`: 해당 기능을 쓰기 전에 조치 필요
+- `skip`: 이번 실행에서 확인하지 않음
 
-provider가 `api_key_missing`이면 설정 탭 또는 `*_FILE` 환경변수에서 키를 먼저 설정한다. Copilot/Codex가 CLI 인증을 요구하면 설정 탭의 CLI 인증 영역에서 상태를 확인한다.
+provider 키가 없으면 설정 화면이나 `*_FILE` 환경변수로 먼저 넣는다. Copilot/Codex가 CLI 인증을 요구하면 **설정 > 모델·키 > CLI 인증**에서 상태를 본다.

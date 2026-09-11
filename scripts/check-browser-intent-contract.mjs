@@ -18,7 +18,6 @@ const chat = read("apps/omnux-middleware/src/CommandService.Chat.cs");
 const coding = read("apps/omnux-middleware/src/Application/CodingApplicationService.Coding.cs");
 const browserTool = read("apps/omnux-middleware/src/BrowserTool.cs");
 const usage = read("docs/사용법_빠른시작.md");
-const toolGuide = read("docs/도구_통합_패널_사용_가이드.md");
 
 assert.match(browserIntent, /BrowserIntentOpenVerbRegex/, "브라우저 자연어 실행 동사 감지 누락");
 assert.match(browserIntent, /"네이버", "https:\/\/www\.naver\.com\/"/, "네이버 alias 누락");
@@ -35,6 +34,5 @@ assert.doesNotMatch(browserTool, /ExecuteStubAction|ExecuteAutoAction/, "가짜 
 assert.match(browserTool, /_host\.Execute\(/, "브라우저 intent가 실제 실행기로 전달되어야 합니다.");
 assert.match(usage, /네이버 열어줘/, "사용법 문서의 대화 탭 브라우저 예시 누락");
 assert.match(usage, /빌드에서도 `네이버 열어줘`/, "사용법 문서의 빌드(코딩) 브라우저 예시 누락");
-assert.match(toolGuide, /일반 사용자는 대화 탭이나 코딩 탭에 자연어로 입력한다/, "도구 패널 문서의 실제 사용 경로 설명 누락");
 
 console.log("[check-browser-intent-contract] ok");

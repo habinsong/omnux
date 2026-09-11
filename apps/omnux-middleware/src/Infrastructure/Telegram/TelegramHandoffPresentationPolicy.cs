@@ -26,7 +26,7 @@ internal static class TelegramHandoffPresentationPolicy
             $"updated={snapshot.Handoff.UpdatedAtUtc}",
             string.Empty,
             "데스크톱에서 이어보기:",
-            "- Notebooks 화면의 Handoff 패널을 엽니다.",
+            "- 노트 화면의 이어보기 탭을 엽니다.",
             $"- 로컬 문서: {handoffPath}",
             string.Empty,
             "텔레그램에서는 요약과 트리거만 확인하고, 큰 작업은 데스크톱에서 이어가세요."
