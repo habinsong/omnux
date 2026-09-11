@@ -92,9 +92,28 @@ for (const pageId of pages) {
         topbarGap = Math.round(a.left - s.right);
       }
       const controls = [...document.querySelectorAll("button,input,textarea,select,a,[role='tab']")].filter((node) => node.getClientRects().length);
+      // 스크롤/접힘 영역에 잘린 요소와 닫힌 서랍(transform 으로 화면 밖) 안의 요소는 보이지 않으므로 제외한다.
+      const clippedByAncestor = (node, b) => {
+        for (let parent = node.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
+          const style = getComputedStyle(parent);
+          if (style.overflowX === "visible" && style.overflowY === "visible") continue;
+          const r = parent.getBoundingClientRect();
+          if (b.left < r.left - 1 || b.right > r.right + 1 || b.top < r.top - 1 || b.bottom > r.bottom + 1) return true;
+        }
+        return false;
+      };
+      const inClosedDrawer = (node, b) => {
+        const offscreen = b.right <= 0 || b.left >= innerWidth || b.bottom <= 0 || b.top >= innerHeight;
+        if (!offscreen) return false;
+        for (let parent = node.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
+          if (getComputedStyle(parent).transform !== "none") return true;
+        }
+        return false;
+      };
       const outside = controls.filter((node) => {
         const b = node.getBoundingClientRect();
-        return b.left < -1 || b.right > innerWidth + 1 || b.top < -1 || b.bottom > innerHeight + 1;
+        const beyond = b.left < -1 || b.right > innerWidth + 1 || b.top < -1 || b.bottom > innerHeight + 1;
+        return beyond && !clippedByAncestor(node, b) && !inClosedDrawer(node, b);
       }).map((n) => ({
         label: (n.getAttribute("aria-label") || n.textContent || "").trim().slice(0, 40),
         box: toBox(n)
@@ -110,7 +129,6 @@ for (const pageId of pages) {
       const content = surface || h1?.closest(".flex.h-full") || mainPad;
       const contentBox = toBox(content);
       const contentCenterX = contentBox ? contentBox.x + contentBox.w / 2 : innerWidth / 2;
-      const viewportCenterX = innerWidth / 2;
       const chromeH =
         (header?.getBoundingClientRect().height || 0) +
         (h1 ? h1.getBoundingClientRect().height + 12 : 0) +
@@ -136,7 +154,8 @@ for (const pageId of pages) {
         subW: Math.round(subW),
         usedLeft: Math.round(usedLeft),
         content: contentBox,
-        contentCenterSkew: Math.round(contentCenterX - viewportCenterX),
+        // 레일과 서브패널이 차지한 왼쪽을 뺀 남은 영역의 중심과 비교한다.
+        contentCenterSkew: Math.round(contentCenterX - (usedLeft + (innerWidth - usedLeft) / 2)),
         hero: toBox(hero),
         composer: toBox(composer),
         header: toBox(header),
