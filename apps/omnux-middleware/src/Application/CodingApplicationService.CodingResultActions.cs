@@ -401,7 +401,7 @@ public sealed partial class CodingApplicationService
             .FirstOrDefault();
     }
 
-    private string BuildInteractivePythonLaunchCommand(
+    internal static string BuildInteractivePythonLaunchCommand(
         string runDirectory,
         string entryPath,
         IReadOnlyList<string> sourceFiles,
@@ -421,7 +421,10 @@ public sealed partial class CodingApplicationService
         var workspaceSafe = EscapeShellArg(runDirectory);
         var moduleCheckCommand = BuildInteractivePythonModuleAvailabilityCommand(interactiveModules);
         var launchCommand = $"python3 {EscapeShellArg(entryPath)}";
-        var runtimeLaunchCommand = $"python {EscapeShellArg(entryPath)}";
+        // macOS/Linux 에는 python 명령이 기본으로 없다(python3 만 있다).
+        var runtimeLaunchCommand = OperatingSystem.IsWindows()
+            ? $"python {EscapeShellArg(entryPath)}"
+            : launchCommand;
         if (ShouldLaunchInteractivePythonInTerminal(interactiveModules))
         {
             return BuildInteractivePythonTerminalLaunchCommand(
@@ -440,7 +443,7 @@ public sealed partial class CodingApplicationService
         );
     }
 
-    private string BuildInteractivePythonDetachedLaunchCommand(
+    private static string BuildInteractivePythonDetachedLaunchCommand(
         string runDirectory,
         string sourceArgs,
         string moduleCheckCommand,
@@ -472,7 +475,7 @@ public sealed partial class CodingApplicationService
             "exit $__omni_status";
     }
 
-    private string BuildInteractivePythonTerminalLaunchCommand(
+    private static string BuildInteractivePythonTerminalLaunchCommand(
         string runDirectory,
         string sourceArgs,
         string moduleCheckCommand,
@@ -481,6 +484,16 @@ public sealed partial class CodingApplicationService
     {
         var workspaceSafe = EscapeShellArg(runDirectory);
         var terminalScript = $"cd {workspaceSafe} && {launchCommand}";
+        if (!OperatingSystem.IsMacOS())
+        {
+            return
+                $"cd {workspaceSafe} && " +
+                $"python3 -m py_compile {sourceArgs} && " +
+                $"{moduleCheckCommand} && " +
+                $"{{ nohup x-terminal-emulator -e sh -c {EscapeShellArg(terminalScript)} >/dev/null 2>&1 </dev/null & }} && " +
+                "printf '%s\\n' 'interactive terminal app launched in a terminal window and will stay open until you close it'";
+        }
+
         var activateStatement = EscapeShellArg("tell application \"Terminal\" to activate");
         var runStatement = EscapeShellArg(
             $"tell application \"Terminal\" to do script \"{EscapeAppleScriptString(terminalScript)}\""
@@ -495,8 +508,12 @@ public sealed partial class CodingApplicationService
 
     private static bool ShouldLaunchInteractivePythonInTerminal(IReadOnlyCollection<string> interactiveModules)
     {
-        return (interactiveModules ?? Array.Empty<string>())
+        var needsTerminal = (interactiveModules ?? Array.Empty<string>())
             .Any(module => string.Equals(module, "curses", StringComparison.OrdinalIgnoreCase));
+        // macOS 는 Terminal.app(osascript), Linux 는 Debian 계열 x-terminal-emulator(-e 규약)로 연다.
+        return needsTerminal
+            && (OperatingSystem.IsMacOS()
+                || (OperatingSystem.IsLinux() && RefactorToolAvailability.FindExecutable(new[] { "x-terminal-emulator" }) is not null));
     }
 
     private static string EscapeAppleScriptString(string value)

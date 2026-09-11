@@ -202,7 +202,7 @@ public sealed class UniversalCodeRunner
     {
         var startInfo = new ProcessStartInfo
         {
-            FileName = OperatingSystem.IsWindows() ? "cmd.exe" : "/bin/zsh",
+            FileName = ShellPathResolver.Resolve(),
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,

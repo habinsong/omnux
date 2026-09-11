@@ -1102,7 +1102,7 @@ public sealed partial class CodingApplicationService
     )
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var shellPath = ResolveWorkspaceShellPath();
+        var shellPath = ShellPathResolver.Resolve();
         var startInfo = new ProcessStartInfo
         {
             FileName = shellPath,
@@ -1218,23 +1218,6 @@ public sealed partial class CodingApplicationService
         return normalized.EndsWith('\n') ? normalized : normalized + "\n";
     }
 
-    private static string ResolveWorkspaceShellPath()
-    {
-        if (OperatingSystem.IsWindows())
-        {
-            return "cmd.exe";
-        }
-
-        foreach (var candidate in new[] { "/bin/zsh", "/usr/bin/zsh", "/bin/bash", "/usr/bin/bash", "/bin/sh" })
-        {
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-        }
-
-        return "/bin/sh";
-    }
 
     private static void ApplyWorkspaceExecutablePath(ProcessStartInfo startInfo, string command, string workDir)
     {
