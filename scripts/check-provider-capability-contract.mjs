@@ -79,12 +79,15 @@ function main() {
 
   // ── 미들웨어가 능력표대로 라우팅한다 ──
   const composition = read("apps/omnux-middleware/src/CommandService.SearchAnswerComposition.cs");
+  const providers = read("apps/omnux-middleware/src/CommandService.SearchAnswerProviders.cs");
   check(
-    composition.includes("TryComposeNativeProviderWebAnswerAsync"),
+    composition.includes("TryComposeNativeProviderWebAnswerAsync")
+      && providers.includes("TryComposeNativeProviderWebAnswerAsync"),
     "선택한 제공자의 네이티브 웹 검색을 먼저 시도해야 한다"
   );
   check(
-    composition.includes("TryComposeSelectedProviderWithEvidenceAsync"),
+    composition.includes("TryComposeSelectedProviderWithEvidenceAsync")
+      && providers.includes("TryComposeSelectedProviderWithEvidenceAsync"),
     "네이티브가 없으면 근거를 모아 선택 모델이 직접 답해야 한다"
   );
   check(
