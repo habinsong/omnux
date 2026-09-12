@@ -1643,33 +1643,42 @@ public sealed partial class CodingApplicationService
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(TimeSpan.FromSeconds(12));
+            // 추론하는 모델은 출력 예산을 생각에 먼저 쓴다. 120 토큰이면 JSON 한 줄도 못 내보내서
+            // 판정이 늘 실패했다(실측: Gemini 에서 결과 줄이 아예 안 찍혔다).
             var generated = await GenerateByProviderSafeAsync(
                 provider,
                 model,
                 CodingTaskSignalResolver.BuildClassificationPrompt(request),
                 timeout.Token,
-                maxOutputTokens: 120,
-                timeoutOverrideSeconds: 12,
+                maxOutputTokens: 512,
+                timeoutOverrideSeconds: 20,
                 tuning: LlmTuning.From("low", "compact")
             ).ConfigureAwait(false);
             if (CodingProviderFailurePolicy.Classify(generated.Text) != CodingProviderFailureKind.None)
             {
+                Console.Error.WriteLine("[coding-signals] 제공자 호출 실패로 판정을 건너뛴다.");
                 return;
             }
 
-            if (CodingTaskSignalResolver.TryParse(generated.Text, out var signals))
+            if (!CodingTaskSignalResolver.TryParse(generated.Text, out var signals))
             {
-                // 정책들은 프롬프트 전문으로, 실행 경로는 사용자 메시지로 조회한다. 둘 다 찾히게 넣는다.
-                CodingTaskSignalResolver.Set(objective, signals);
-                if (ActiveUserRequest.Length > 0)
-                {
-                    CodingTaskSignalResolver.Set(ActiveUserRequest, signals);
-                }
                 Console.Error.WriteLine(
-                    $"[coding-signals] game={signals.Game} gui={signals.Gui} interactive={signals.Interactive} frontend={signals.Frontend}"
-                    + $" request=\"{(request.Length <= 80 ? request : request[..80]).Replace("\n", " ", StringComparison.Ordinal)}\""
+                    $"[coding-signals] 판정 응답을 읽지 못했다: {TrimForOutput(generated.Text, 160)}"
                 );
+                return;
             }
+
+            // 정책들은 프롬프트 전문으로, 실행 경로는 사용자 메시지로 조회한다. 둘 다 찾히게 넣는다.
+            CodingTaskSignalResolver.Set(objective, signals);
+            if (ActiveUserRequest.Length > 0)
+            {
+                CodingTaskSignalResolver.Set(ActiveUserRequest, signals);
+            }
+
+            Console.Error.WriteLine(
+                $"[coding-signals] game={signals.Game} gui={signals.Gui} interactive={signals.Interactive} frontend={signals.Frontend}"
+                + $" request=\"{(request.Length <= 80 ? request : request[..80]).Replace("\n", " ", StringComparison.Ordinal)}\""
+            );
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
