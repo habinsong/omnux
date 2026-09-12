@@ -12,7 +12,7 @@
 ./scripts/omnux setup
 ```
 
-macOS는 Homebrew, Linux는 배포판 패키지 매니저(apt/dnf/yum/pacman/zypper/apk)를 쓴다. 순서는 이렇다.
+macOS는 Homebrew, Linux는 배포판 패키지 매니저(apt/dnf/yum/pacman/zypper/apk)를 쓴다. 이 순서로 돈다.
 
 | 단계 | 하는 일 |
 |---|---|

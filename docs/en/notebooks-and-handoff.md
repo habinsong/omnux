@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-Notebooks collect what you want to leave behind while working: notes, decisions, verification, and a handoff, so the next session can pick up where you stopped. They do not re-summarize LLM answers.
+Notebooks collect what you want to leave behind while working: notes, decisions, verification, and a handoff, so the next session starts from where you stopped. They do not re-summarize LLM answers.
 
 ## Document types
 

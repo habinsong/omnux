@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-Small runtimes split by responsibility. What each one owns, and what it does not, is the content of this document.
+Small runtimes split by responsibility. What each one owns, and what it does not, is below.
 
 | Area | Stack | Responsibility |
 |---|---|---|
@@ -16,7 +16,7 @@ Small runtimes split by responsibility. What each one owns, and what it does not
 | Tests and scripts | Node.js, npm scripts | Repository hygiene, contract checks, frontend syntax checks |
 | State | JSON, Markdown, SQLite FTS | Human-readable operational state and records |
 
-## Language Boundaries
+## Language boundaries
 
 - Rust owns only the app shell and window lifecycle. It must not own provider/API/state/domain logic.
 - TypeScript and React are for the desktop UI only. Business logic belongs to the .NET middleware.
@@ -25,7 +25,7 @@ Small runtimes split by responsibility. What each one owns, and what it does not
 - Node.js is for tests, contract checks, and the Playwright browser adapter. .NET owns process lifetime and tool permissions.
 - New business logic and state orchestration belong to the .NET 9 middleware by default.
 
-## Canonical Source Homes
+## Canonical source homes
 
 - .NET 9 runtime, business logic, and policy code belong only under `apps/omnux-middleware/src/`.
 - Desktop React/TypeScript shell code belongs under `apps/desktop/src/`, and Rust shell code belongs under `apps/desktop/src-tauri/src/`.
@@ -35,7 +35,7 @@ Small runtimes split by responsibility. What each one owns, and what it does not
 - The middleware root must not keep coding-smoke generated artifacts such as `main.py`, `main.js`, or `main.c`.
 - New code must not cross these boundaries.
 
-## New Language / Runtime Approval Criteria
+## New language / runtime approval criteria
 
 - New languages, runtimes, frameworks, and bundlers are denied by default. Review an exception only when the current stack cannot meet the requirement or an official platform requirement forces it.
 - An approval change must update this document, the Korean document, and `scripts/check-tech-stack-contract.mjs` in the same change.
@@ -43,14 +43,14 @@ Small runtimes split by responsibility. What each one owns, and what it does not
 - A new runtime is not a reason to move business logic, provider routing, or state orchestration out of the `.NET 9` middleware.
 - Experimental spike artifacts belong only in `workspace/` and must not be kept under `apps/` or the repository root before promotion to product code.
 
-## Phase 5 Stack Ingress Gate
+## Phase 5 stack ingress gate
 
 - Phase 5 screen migration uses only the existing `apps/desktop/` Tauri/Vite/React/TypeScript shell. The legacy static dashboard (`apps/omnux-dashboard/`) has been removed.
 - Run `npm test` before and after Phase 5 changes. For scoped checks, run at least `node scripts/check-tech-stack-contract.mjs` and `node scripts/check-repo-hygiene.mjs` together.
 - Do not create new root app directories, new source homes, new bundlers, new package managers, or new runtime shortcuts until the new language/runtime approval criteria pass.
 - The existing root `omnux/` prototype is not an active source home. Freeze its file list until deletion or migration is confirmed, and do not add runtime, package, or build artifacts under it.
 
-## Brand And Compatibility Alias Boundary
+## Brand and compatibility alias boundary
 
 - The canonical product name, package name, launcher name, state directory, and new user-facing copy use `omnux`.
 - The previous brand name may remain only in historical context or migration examples.
@@ -58,7 +58,7 @@ Small runtimes split by responsibility. What each one owns, and what it does not
 - If a compatibility alias is required, add it only as a temporary shim and document the removal condition plus contract check in the same change.
 - New product copy in the desktop shell, README, and package metadata uses `omnux`.
 
-## LLM Providers
+## LLM providers
 
 | provider key | Label | Integration |
 |---|---|---|
@@ -72,9 +72,9 @@ Small runtimes split by responsibility. What each one owns, and what it does not
 
 Per-provider default models live in `apps/shared/model-registry.json`, and `apps/shared/generate-cs-registry.js` generates the C# registry from it. `npm test` checks that the two do not drift.
 
-## Frontend Principles
+## Frontend principles
 
-The desktop app is a tool surface. It prioritizes information density, repeated use, and narrow-width input, so that conversations, run results, settings, and logs come up fast.
+The desktop app is a tool surface, built for dense information, repeated use, and narrow windows. Conversations, run results, settings, and logs come up fast.
 
 - Use the Tailwind CSS v4 tokens. Feature CSS stays scoped to its screen; no CSS-in-JS and no second design system.
 - Use a custom Dialog instead of `window.alert`, `window.confirm`, or `window.prompt`.
@@ -84,7 +84,7 @@ The desktop app is a tool surface. It prioritizes information density, repeated 
 
 `scripts/check-ui-slop.mjs` checks for gradients, hover scale, glass effects, uppercase tracking, marketing adjectives, and negative parallelism.
 
-## Browser Execution Resources (2026-09-07)
+## Browser execution resources (2026-09-07)
 
 - `apps/omnux-middleware/resources/browser/PlaywrightHost.cjs` and `A2UiRenderer.cjs` are embedded resources split out of the existing Node/Playwright execution code. These two files are the only browser execution resources allowed.
 - The .NET source home stays at `apps/omnux-middleware/src/`. `Infrastructure/Browser` owns execution, errors, and process teardown; the scripts handle the browser page and the declarative UI.

@@ -12,7 +12,7 @@ Only what you need to get from a fresh clone to a running app. Screen-by-screen 
 ./scripts/omnux setup
 ```
 
-macOS uses Homebrew; Linux uses the distribution package manager (apt/dnf/yum/pacman/zypper/apk). The order is this.
+macOS uses Homebrew; Linux uses the distribution package manager (apt/dnf/yum/pacman/zypper/apk). It runs in this order.
 
 | Step | What it does |
 |---|---|

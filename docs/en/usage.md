@@ -44,7 +44,7 @@ Tabs: Build · Settings · References · History
 4. **다시 실행하기** (Run again) re-runs the result with new input.
 5. A stopped job comes back through **중단한 요청 이어 쓰기** (Resume stopped request), which restores the original request and model.
 
-Model, language, and project name are under **모델과 작업 설정**; skills and notes under **스킬과 참고 노트**. Past builds reopen from **저장한 빌드** (Saved builds). Run folders live in `workspace/coding/runs/`.
+Model, language, and project name are under **모델과 작업 설정**. Skills and notes are under **스킬과 참고 노트**. Past builds reopen from **저장한 빌드** (Saved builds). Run folders live in `workspace/coding/runs/`.
 
 Build also treats "open naver" or "close the browser" as browser commands before any coding run.
 

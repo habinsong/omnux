@@ -84,7 +84,7 @@ Only providers with an API key or a signed-in CLI show up in the list. One key i
 | `~/.omnux` | JSON + Markdown | Settings, conversations, plans, notes, routing policy |
 | `workspace/` | — | Build, automation, and logic run output |
 
-The Rust shell manages windows and starts the middleware. LLM calls, coding, routines, and state files all belong to the .NET middleware.
+The Rust shell manages windows and starts the middleware. LLM calls, coding, routines, and state files are the .NET middleware's job.
 
 ## Safety boundaries
 

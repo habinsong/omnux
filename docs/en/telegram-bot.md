@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-The desktop Ask screen and the Telegram bot share one command layer, `CommandService`. This document covers the slash commands you use most in the bot, the natural-language flow, attachment handling, inline keyboards, and mobile handoff.
+The desktop Ask screen and the Telegram bot share one command layer, `CommandService`. Below are the slash commands you reach for most, the natural-language flow, attachments, inline keyboards, and mobile handoff.
 
 ## Message flow
 
