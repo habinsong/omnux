@@ -77,7 +77,8 @@ export function ExpandChoice<T extends string>({
         disabled={disabled}
         onClick={onToggle}
         className={cn(
-          "shrink-0 rounded-sm text-xs font-semibold leading-none transition-colors duration-200",
+          // 누를 수 있는 높이를 준다. 글자만 두면 12px 이라 좁은 화면에서 누르기 어렵다.
+          "flex h-7 shrink-0 items-center rounded-sm px-1 text-xs font-semibold leading-none transition-colors duration-200",
           FOCUS,
           MOTION,
           open ? "text-primary" : "text-muted-foreground/80 hover:text-foreground",
@@ -100,7 +101,7 @@ export function ExpandChoice<T extends string>({
               type="button"
               onClick={() => onSelect(option.value)}
               className={cn(
-                "rounded-sm text-xs font-medium leading-none text-muted-foreground/70 transition-colors duration-200 hover:text-foreground",
+                "flex h-7 items-center rounded-sm px-1 text-xs font-medium leading-none text-muted-foreground/70 transition-colors duration-200 hover:text-foreground",
                 FOCUS,
                 MOTION
               )}

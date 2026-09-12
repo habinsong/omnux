@@ -109,9 +109,9 @@ function ContinueProjectsDrawer({
               <FolderGit2 size={15} className="text-primary" aria-hidden="true" /> 활성 프로젝트
             </span>
           </button>
-          <button type="button" onClick={onActivity} className="hidden shrink-0 text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline">활동</button>
+          <button type="button" onClick={onActivity} className="hidden min-h-[28px] shrink-0 items-center px-1 text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline-flex">활동</button>
           <span className="hidden text-border sm:inline" aria-hidden="true">·</span>
-          <button type="button" onClick={onProjects} className="hidden shrink-0 text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline">프로젝트</button>
+          <button type="button" onClick={onProjects} className="hidden min-h-[28px] shrink-0 items-center px-1 text-xs text-muted-foreground transition-colors hover:text-foreground sm:inline-flex">프로젝트</button>
           <button
             type="button"
             onClick={() => setOpen((value) => !value)}
