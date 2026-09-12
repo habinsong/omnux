@@ -27,7 +27,7 @@ The result area leads with files and program output. Earlier runs and detailed l
 | `workspace/.runtime/tasks/<graph>/<task>/attempts/<id>/` | stdout, stderr, and result.json per attempt |
 | `~/.omnux/routing-policy.json` | Routing override |
 
-Plan generation and review use an LLM. The task graph is split from the approved plan by rules.
+Plan generation and review use an LLM. Rules convert the approved plan into a task graph.
 
 ## Run recovery
 

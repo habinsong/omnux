@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-Small runtimes split by responsibility. What each one owns, and what it does not, is below.
+Each runtime has a defined responsibility, listed below.
 
 | Area | Stack | Responsibility |
 |---|---|---|
@@ -74,7 +74,7 @@ Per-provider default models live in `apps/shared/model-registry.json`, and `apps
 
 ## Frontend principles
 
-The desktop app is a tool surface, built for dense information, repeated use, and narrow windows. Conversations, run results, settings, and logs come up fast.
+The desktop app is designed for dense information, repeated use, and narrow windows, with quick access to conversations, run results, settings, and logs.
 
 - Use the Tailwind CSS v4 tokens. Feature CSS stays scoped to its screen; no CSS-in-JS and no second design system.
 - Use a custom Dialog instead of `window.alert`, `window.confirm`, or `window.prompt`.

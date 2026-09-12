@@ -22,7 +22,7 @@
 
 **omnux**는 데스크톱 앱 하나로 LLM에 묻고, 코드를 만들어 실행하고, 정해진 시간에 자동으로 돌리고, 그 결과를 파일과 기록으로 남기는 도구입니다. 대화 내역, 빌드 산출물, 실행 로그, 노트는 전부 내 컴퓨터의 `~/.omnux`와 `workspace/`에 남습니다.
 
-Gemini, Groq, Cerebras, NVIDIA NIM, Copilot, Codex, Grok을 같은 화면에서 바꿔 가며 씁니다. 하나만 골라 쓰거나, 여러 개를 순서대로 태우거나, 나란히 놓고 답을 비교합니다.
+Gemini, Groq, Cerebras, NVIDIA NIM, Copilot, Codex, Grok을 같은 화면에서 바꿔 가며 씁니다. 하나만 골라 쓰거나, 여러 개를 순서대로 실행하거나, 나란히 놓고 답을 비교합니다.
 
 텔레그램 봇을 붙이면 밖에서도 같은 명령을 보낼 수 있습니다. 데스크톱 앱과 봇은 같은 명령 계층(`CommandService`)을 통과하므로 한쪽에만 있는 기능이 생기지 않습니다.
 
@@ -92,7 +92,7 @@ Rust 셸은 창 관리와 미들웨어 기동만 합니다. LLM 호출, 코딩, 
 - WebSocket은 Origin 검사, 인증 전 메시지 allowlist, 명령 rate limit, 기본 16MB 메시지 상한을 겁니다.
 - 외부접속은 기본 꺼짐입니다. 켜면 같은 LAN의 기기가 제한 모드로 들어오며, 읽기 조회와 모델·라우팅 선택만 됩니다.
 - Safe Refactor는 적용 직전에 파일 상태를 다시 확인하고 rollback snapshot을 남깁니다.
-- 로컬 코드 실행은 `OMNUX_ENABLE_DYNAMIC_CODE=true`일 때만 열립니다.
+- 로컬 코드 실행은 `OMNUX_ENABLE_DYNAMIC_CODE=true`일 때만 허용합니다.
 
 ## 문서
 

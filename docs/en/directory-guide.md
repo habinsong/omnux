@@ -60,7 +60,7 @@ The canonical layout is `apps/`, `docs/`, `scripts/`, and `workspace/`. New code
 
 `~/.omnux` is the source of persistent state: conversations, plans, notebooks, routing policy, sessions, projects, agent communication, telemetry, and memory notes. Check what it holds before deleting anything. The `omnux` launcher keeps its state in `~/.omnux/cli/`.
 
-What is safe to delete is in the [cleanup guide](./cleanup.md).
+See the [cleanup guide](./cleanup.md) before deleting files.
 
 ## Launcher
 

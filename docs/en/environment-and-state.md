@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-Settings and conversation history live under `~/.omnux`; work output lives under `workspace/`. `~/.omnux` is the only state directory. Only `OMNUX_*` variables are read, and there are currently 159 of them. The tables below cover the ones you reach for.
+Settings and conversation history live under `~/.omnux`; work output lives under `workspace/`. `~/.omnux` is the only state directory. Only `OMNUX_*` variables are read, and there are currently 159 of them. The tables below cover commonly used variables.
 
 ## Secrets
 
@@ -18,7 +18,7 @@ Settings and conversation history live under `~/.omnux`; work output lives under
 | `OMNUX_TELEGRAM_BOT_TOKEN_FILE` | Telegram bot token file |
 | `OMNUX_*_KEYCHAIN_SERVICE`, `OMNUX_*_KEYCHAIN_ACCOUNT` | Which macOS Keychain item to read |
 
-A raw key in a variable such as `OMNUX_GROQ_API_KEY` works, but in operation use `*_FILE` or the secure store.
+You can set a key directly in a variable such as `OMNUX_GROQ_API_KEY`. For regular use, use `*_FILE` or the secure store.
 
 ```bash
 mkdir -p "$HOME/.omnux/keys"

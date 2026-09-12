@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-omnux produces a lot of artifacts. Separate regenerable caches from state you have to keep.
+Before cleaning up omnux files, separate caches you can regenerate from state you need to keep.
 
 The desktop **Status > Tools > Cleanup** panel lists candidates first (`cleanup_preview`) and deletes only with a selected preview (`cleanup_apply`). Candidates are `apps/.runtime`, `workspace/.runtime`, `bin`/`obj`/`.runtime` under `apps/`, and `.DS_Store`. Files inside `.git` are excluded.
 
@@ -29,6 +29,6 @@ The desktop **Status > Tools > Cleanup** panel lists candidates first (`cleanup_
 
 ## Do not delete casually
 
-Everything under `~/.omnux` is the source of settings and history: conversations, plans, notebooks, routing policy, and the Telegram offset. Do not delete it without a backup. Make one from the portable package under **Settings > Data > Backup**.
+Everything under `~/.omnux` is the source of settings and history: conversations, plans, notebooks, routing policy, and the Telegram offset. Do not delete it without a backup. Export a portable backup package under **Settings > Data > Backup**.
 
 On Linux, `~/.dotnet` and `~/.cargo` installed by setup are tools `omnux` uses.

@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-Notebooks collect what you want to leave behind while working: notes, decisions, verification, and a handoff, so the next session starts from where you stopped. They do not re-summarize LLM answers.
+Notebooks store notes, decisions, verification records, and a handoff so you can continue where you stopped in the next session. They do not re-summarize LLM answers.
 
 ## Document types
 
@@ -28,9 +28,9 @@ Both the Ask screen and Telegram accept `/notebook` and `/handoff`.
 
 ## Telegram handoff
 
-Telegram is closer to notifications and triggers. Large coding results, diffs, logs, file bodies, task output, and doctor JSON are not expanded there; they come as a summary with a short preview.
+Use Telegram for notifications and to start work. Large coding results, diffs, logs, file bodies, task output, and doctor JSON are not expanded there; they come as a summary with a short preview.
 
-`/handoff [project-key]` creates the reference point.
+`/handoff [project-key]` creates the handoff document.
 
 | Item | Value |
 |---|---|
@@ -38,4 +38,4 @@ Telegram is closer to notifications and triggers. Large coding results, diffs, l
 | Desktop location | The Handoff tab of the Notes screen |
 | Telegram response | `projectKey`, `rootPath`, `handoffPath`, `updated`, and a short preview |
 
-On deep links: there is no separate desktop deep link protocol for now. The Telegram `/handoff` response does not build an `omnux://` link; you continue from the local path in the desktop Notes screen. Once desktop routing and the app protocol are settled in Phase 5, deep links get reconsidered as separate work.
+There is currently no separate desktop deep link protocol. The Telegram `/handoff` response does not build an `omnux://` link; you continue from the local path in the desktop Notes screen. Once desktop routing and the app protocol are settled in Phase 5, deep links will be reconsidered separately.

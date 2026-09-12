@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-What a person clicks through before a release. Automated tests can pass while the real desktop app or Telegram breaks; this list catches that.
+Use this checklist to test the desktop app and Telegram before a release, including behavior that automated tests may miss.
 
 ## Install and run
 

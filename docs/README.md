@@ -19,7 +19,7 @@ flowchart LR
 |---|---|---|
 | [5분 시작](./QUICKSTART.md) | setup부터 첫 실행까지 순서대로 할 때 | [Open](./en/quickstart.md) |
 | [사용법](./사용법_빠른시작.md) | 어느 화면에서 무엇을 누르는지 알고 싶을 때 | [Open](./en/usage.md) |
-| [텔레그램 봇](./텔레그램_봇_가이드.md) | 밖에서 봇으로 omnux를 부릴 때 | [Open](./en/telegram-bot.md) |
+| [텔레그램 봇](./텔레그램_봇_가이드.md) | 밖에서 봇으로 omnux를 사용할 때 | [Open](./en/telegram-bot.md) |
 
 ## 구조
 

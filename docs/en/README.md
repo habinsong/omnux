@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-Split by subject so you can open the one you need first. Written against v1.0.6: the Tauri desktop app with 6 areas and 18 screens, the .NET 9 middleware, 7 providers, remote limited mode, and setup on macOS, Linux, and Windows.
+The documents are grouped by subject and describe v1.0.6: the Tauri desktop app with 6 areas and 18 screens, the .NET 9 middleware, 7 providers, remote limited mode, and setup on macOS, Linux, and Windows.
 
 ```mermaid
 flowchart LR
@@ -19,14 +19,14 @@ flowchart LR
 |---|---|---|
 | [Quickstart](./quickstart.md) | You are going from setup to first run | [열기](../QUICKSTART.md) |
 | [Usage](./usage.md) | You want to know what to press on each screen | [열기](../사용법_빠른시작.md) |
-| [Telegram bot](./telegram-bot.md) | You drive omnux from the bot while away | [열기](../텔레그램_봇_가이드.md) |
+| [Telegram bot](./telegram-bot.md) | You use the bot to control omnux while away | [열기](../텔레그램_봇_가이드.md) |
 
 ## Structure
 
 | Document | What it covers | 한국어 |
 |---|---|---|
 | [Architecture](./architecture.md) | The path a request takes, command routing, safety boundaries | [열기](../아키텍처_흐름.md) |
-| [Tech stack](./tech-stack.md) | Per-language responsibility, source homes, new runtime approval | [열기](../기술스택_정리.md) |
+| [Tech stack](./tech-stack.md) | Per-language responsibility, source locations, new runtime approval | [열기](../기술스택_정리.md) |
 | [Directory guide](./directory-guide.md) | What lives in which folder | [열기](../디렉터리_가이드.md) |
 | [AGENTS and skills](./agents-and-skills.md) | Instruction file read order, skill activation rules | [열기](../AGENTS_AND_SKILLS.md) |
 
@@ -34,7 +34,7 @@ flowchart LR
 
 | Document | What it covers | 한국어 |
 |---|---|---|
-| [Planning and task graphs](./planning-and-tasks.md) | Plan create, approve, run, and recovery on the Tasks screen | [열기](../PLANNING_AND_TASKS.md) |
+| [Planning and task graphs](./planning-and-tasks.md) | Creating, approving, running, and recovering plans on the Tasks screen | [열기](../PLANNING_AND_TASKS.md) |
 | [Notes and handoff](./notebooks-and-handoff.md) | The four record types and the handoff document | [열기](../NOTEBOOKS_AND_HANDOFF.md) |
 | [Safe Refactor](./safe-refactoring.md) | Three preview methods and the re-check before apply | [열기](../SAFE_REFACTORING.md) |
 | [NVIDIA NIM](./nvidia-nim-provider.md) | Defaults and variables for the `nvidia` provider | [열기](../nvidia-nim-provider.md) |

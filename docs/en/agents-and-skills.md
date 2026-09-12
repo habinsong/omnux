@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-omnux reads project instructions and skills as runtime context. Instructions that should always apply go into AGENTS; ways of working that you turn on when needed go into a skill.
+omnux reads project instructions and skills as runtime context. Instructions that should always apply go into AGENTS; workflows you enable when needed go into a skill.
 
 Skills behave the same in the desktop app and the Telegram bot. Turn them on and off with the skill badge in the chat input or with slash commands.
 
@@ -96,20 +96,20 @@ The body should be actionable instructions for repeated use, at least 8 lines, c
 
 ## What a good SKILL.md looks like
 
-`description` drives the invocation decision, so state both what the skill does and which requests it belongs to, in one specific line.
+`description` drives the invocation decision, so state both what the skill does and when to use it, in one specific line.
 
 The body usually follows this structure.
 
 | Section | Contents |
 |---|---|
 | Purpose | What the skill solves |
-| Usage flow | Input checks, processing order, when to ask back |
+| Usage flow | Input checks, processing order, when to ask for clarification |
 | Response principles | Tone, depth, evidence level, exception handling |
 | Output format | Answer structure, when to use tables, lists, and code |
 | Verification | Quality checks before answering |
 | Things to avoid | Guessing, overstatement, unwanted advice, padding |
 
-A conversation or tone skill should not end at 3 to 5 lines either. Write down how the first sentence works, how long answers run, when to give advice, and what phrasing to avoid, or it will not behave consistently. Code and review skills cover what to read, change principles, verification, and how to report risk. Search and research skills cover preferred sources, recency checks, citation style, and how to mark uncertainty.
+Conversation and tone skills also need more than 3 to 5 lines. Write down how the first sentence works, how long answers run, when to give advice, and what phrasing to avoid, or it will not behave consistently. Code and review skills cover what to read, change principles, verification, and how to report risk. Search and research skills cover preferred sources, recency checks, citation style, and how to mark uncertainty.
 
 ## Layout example
 
@@ -119,6 +119,6 @@ A conversation or tone skill should not end at 3 to 5 lines either. Write down h
   commands/release-check.md
 ```
 
-Skills hold repeated answer shapes, review criteria, and explanation tone. Command templates fit work that runs with the same structure every time, such as a release check.
+Skills define reusable response formats, review criteria, and tone. Command templates fit work that runs with the same structure every time, such as a release check.
 
 The repository ships 10 example skills under `.omni/skills/`: `brainstorming`, `casual-chat`, `casual-empathy`, `code-review`, `coding-for-beginners`, `eli5`, `explain-optical-design`, `refactor`, `skill-creator`, and `write-tests`.

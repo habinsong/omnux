@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-Small components tied together by WebSocket and a file-backed state store. The desktop app and the Telegram bot go through the same command layer.
+Components communicate over WebSocket and store state in files. The desktop app and the Telegram bot go through the same command layer.
 
 ```mermaid
 flowchart LR
@@ -43,11 +43,11 @@ flowchart LR
 3. `CommandService` branches to a domain handler through `SlashCommandRouter`.
 4. The handler delegates to that domain's ApplicationService.
 5. When an LLM is needed, `LlmRouter` picks the provider and the fallback chain.
-6. Results land in the conversation record, the run folder, the runtime log, and notebook documents.
+6. Results are saved in the conversation record, the run folder, the runtime log, and notebook documents.
 
 ## Command routing layer
 
-Reflection-based DI is unavailable under `PublishAot=true`, so `Program.cs` assembles the handlers by hand.
+Reflection-based DI is unavailable under `PublishAot=true`, so `Program.cs` assembles the handlers explicitly.
 
 ```text
 ExecuteNormalizedCommandRoutingAsync (router)
@@ -104,7 +104,7 @@ Domain services live under `src/Application/`.
 | Providers | `OpenAiCompatibleProtocol`, `ProviderResponseParser`, `GeminiCitationParser`, `GroqRateLimitHeaderParser`, `ProviderTimeoutPolicy` |
 | Others | `RemoteLimitedMessagePolicy`, `UniversalCodeExecutionSafetyPolicy`, `AdaptiveContextCompressionPolicy`, `PromptCachePolicy`, `RagRetrievalPreflightPolicy`, `MemoryTierPolicy` |
 
-Policies carry unit tests in `apps/omnux-middleware-tests`, and `scripts/check-security-boundaries.mjs` verifies the contract.
+Policies have unit tests in `apps/omnux-middleware-tests`, and `scripts/check-security-boundaries.mjs` verifies the contract.
 
 ## Desktop frontend
 
@@ -149,11 +149,11 @@ The Tauri Rust shell owns the app shell only.
 - Remote clients enter limited mode without an OTP request, and still pass the WebSocket message allowlist.
 - WebSocket enforces an Origin check, a pre-auth message allowlist, a command rate limit, and a 16MB message cap by default.
 - `/api/local-image` serves only routine asset paths. Attachments over the count or size limit are rejected.
-- Static files served by the middleware go out byte for byte, and conditional requests based on `ETag`/`Last-Modified` get `304 Not Modified`.
+- The middleware serves static files without changing their bytes, and conditional requests based on `ETag`/`Last-Modified` get `304 Not Modified`.
 - Markdown rendering disables raw HTML.
 - Safe Refactor re-checks file state right before apply and leaves a rollback snapshot. Agent spawn jobs also leave a workspace rollback snapshot when they change files.
 - JSON state writes take a per-file `.lock` lease and replace atomically. The previous valid file stays as `.bak`.
-- Coding runs get one folder each. Local code execution opens only when `OMNUX_ENABLE_DYNAMIC_CODE=true`. The shell is whichever of zsh, bash, or sh is present, in that order.
+- Coding runs get one folder each. Local code execution is enabled only when `OMNUX_ENABLE_DYNAMIC_CODE=true`. The shell is whichever of zsh, bash, or sh is present, in that order.
 - The Python sandbox limits locally trusted code. It is not an OS-level security sandbox.
 
 ## Remote limited mode permissions

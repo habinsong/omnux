@@ -42,7 +42,7 @@ Tabs: Build · Settings · References · History
 2. While it runs, **작업 중단** (Stop) halts it. You can type the next request in the meantime.
 3. Read the summary, files, and program output. HTML opens with **미리 보기** (Preview).
 4. **다시 실행하기** (Run again) re-runs the result with new input.
-5. A stopped job comes back through **중단한 요청 이어 쓰기** (Resume stopped request), which restores the original request and model.
+5. Use **중단한 요청 이어 쓰기** (Resume stopped request) to restore a stopped job's original request and model.
 
 Model, language, and project name are under **모델과 작업 설정**. Skills and notes are under **스킬과 참고 노트**. Past builds reopen from **저장한 빌드** (Saved builds). Run folders live in `workspace/coding/runs/`.
 
@@ -74,7 +74,7 @@ The Safe Refactor screen. Follow the tabs in order: 1. Files → 2. Changes → 
 | Screen | Tabs | What it does |
 |---|---|---|
 | Projects | List · Add (Edit) | Register and manage local projects (`~/.omnux/projects.json`) |
-| Tasks | List · New plan · Plan · Run · Result | Plan create, review, approve, run |
+| Tasks | List · New plan · Plan · Run · Result | Create, review, approve, and run plans |
 | Notes | Log · Decisions · Checks · Memo · Handoff | Decisions and verification records, and a handoff for the next session |
 
 The Plan, Run, and Result tabs appear only when that state exists.

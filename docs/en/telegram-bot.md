@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-The desktop Ask screen and the Telegram bot share one command layer, `CommandService`. Below are the slash commands you reach for most, the natural-language flow, attachments, inline keyboards, and mobile handoff.
+The desktop Ask screen and the Telegram bot share one command layer, `CommandService`. This guide covers common slash commands, the natural-language flow, attachments, inline keyboards, and mobile handoff.
 
 ## Message flow
 
@@ -129,7 +129,7 @@ Handlers append the button row with a `__TG_BUTTONS__` marker, and `TelegramUpda
 
 ## Mobile handoff rules
 
-Telegram is closer to notifications and triggers. Long coding results, large diffs, logs, file bodies, task output, and doctor JSON are hard to read on a phone, so their bodies are not expanded there.
+Use Telegram for notifications and to start work. Long coding results, large diffs, logs, file bodies, task output, and doctor JSON are hard to read on a phone, so their bodies are not expanded there.
 
 Telegram shows only this:
 
@@ -160,7 +160,7 @@ What local policy tests cover for `/coding download <number>`:
 - `TelegramClientTests` uses fake HTTP, with no real Telegram server, to check the `sendDocument` multipart endpoint, `chat_id`, caption, document body, and file name.
 - With no Telegram token or chat id, no `sendDocument` request goes out at all.
 
-On deep links: there is no separate desktop deep link protocol for now. A `/handoff` response does not build an `omnux://` link; it shows the local `handoff.md` path and points at the Handoff tab in the desktop Notes screen. Once desktop routing and the app protocol are settled in Phase 5, deep links get reconsidered as separate work.
+There is currently no separate desktop deep link protocol. A `/handoff` response does not build an `omnux://` link; it shows the local `handoff.md` path and points at the Handoff tab in the desktop Notes screen. Once desktop routing and the app protocol are settled in Phase 5, deep links will be reconsidered separately.
 
 ## Live mobile QA checklist
 
@@ -237,7 +237,7 @@ Skill name matching is word-boundary based, so a short name like `ai` does not m
 
 A skill turned on by `/skill use eli5` or in natural language is stored on disk as `ConversationThread.ActiveSkillName`. A middleware restart brings the last active skill back, applying from the next message.
 
-With a skill active, a question needing a URL or web search still does not bypass the skill instructions on the fast web path. Web context attaches during shared input preparation, while output format and tone follow the active skill.
+When a skill is active, the fast web path also applies its instructions to questions that need a URL or web search. Web context attaches during shared input preparation, while output format and tone follow the active skill.
 
 `/skill create` does not overwrite an existing skill. A name collision returns a save-failure message, so edit existing skills on the desktop Tools screen.
 

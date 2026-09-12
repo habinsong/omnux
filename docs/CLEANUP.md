@@ -4,7 +4,7 @@
 
 업데이트 기준: 2026-09-12
 
-omnux는 작업 산출물이 많이 생긴다. 지워도 되는 캐시와 보존해야 하는 상태를 가른다.
+omnux 파일을 정리할 때는 다시 만들 수 있는 캐시와 보존해야 할 상태를 구분한다.
 
 데스크톱 **상태 > 도구 > 정리** 패널은 정리 후보를 먼저 보여 주고(`cleanup_preview`), 선택한 미리보기가 있을 때만 삭제한다(`cleanup_apply`). 후보는 `apps/.runtime`, `workspace/.runtime`, `apps/` 아래 `bin`·`obj`·`.runtime`, 그리고 `.DS_Store`다. `.git` 안의 파일은 후보에서 뺀다.
 

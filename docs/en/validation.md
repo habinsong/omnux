@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-After changing a feature, check at least the following, in this order.
+After changing a feature, run at least these checks in order.
 
 ## Basic checks
 
@@ -58,7 +58,7 @@ Run `npm test` once to create the gateway fixtures, then run these while vite an
 | `check-provider-model-defaults.mjs` | Model defaults in Settings |
 | `audit-all-screens.mjs` | Horizontal overflow and screenshots for every screen |
 
-Screenshots and logs land under `output/playwright/`.
+Screenshots and logs are saved under `output/playwright/`.
 
 The UI check scripts compare the Korean on-screen strings literally. When you change a label, fix the matching check in the same change.
 

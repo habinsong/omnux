@@ -20,24 +20,24 @@
 
 ---
 
-**omnux** is a desktop app for asking an LLM, generating and running code, scheduling that work, and keeping what comes out of it. Conversations, build output, run logs, and notes all stay on your machine, under `~/.omnux` and `workspace/`.
+**omnux** is a desktop app for asking questions of an LLM, generating and running code, scheduling jobs, and saving the results. Conversations, build output, run logs, and notes all stay on your machine, under `~/.omnux` and `workspace/`.
 
-Gemini, Groq, Cerebras, NVIDIA NIM, Copilot, Codex, and Grok are switchable from the same screen. Pick one, chain several in order, or put them side by side and compare the answers.
+Gemini, Groq, Cerebras, NVIDIA NIM, Copilot, Codex, and Grok can be selected from the same screen. Pick one, chain several in order, or put them side by side and compare the answers.
 
-Attach the Telegram bot and you can send the same commands from your phone. The desktop app and the bot both go through `CommandService`, so neither side gets features the other lacks.
+Connect the Telegram bot and you can send the same commands from your phone. The desktop app and the bot both go through `CommandService`, so neither side gets features the other lacks.
 
 ## What it does
 
 | Screen | What it does |
 |---|---|
 | Ask | Chat. Single, orchestration, and multi modes; file and image attachments; skills |
-| Build | Describe what you want, get code that runs. Each run keeps its own folder |
+| Build | Describe what you want to build, then generate and run the code. Each run has its own folder |
 | Automate | Run a job daily, weekly, or monthly at a set time |
 | Explore | Web search, URL fetch, real browser control, canvas |
 | Review | Safe Refactor. Build a preview, re-check the file right before apply |
 | Projects · Tasks · Notes | Register local projects, create and run plans, keep notes and handoffs |
 | Agents · Tools · Extensions · Routing · Rules | Agent runs, skills, hooks and plugins, provider routes, logic graphs |
-| Activity · Logs · Status | Session records, model call history, connection and diagnostics |
+| Activity · Logs · Status | Session records, model call history, connection status and diagnostics |
 | Settings | Display, models and keys, security, integrations, data, about |
 
 ## Getting started
@@ -90,9 +90,9 @@ The Rust shell manages windows and starts the middleware. LLM calls, coding, rou
 
 - API keys come from environment variables, `*_FILE`, the secure store (`~/.config/omnux/secrets.json`, 0600), or the macOS Keychain.
 - WebSocket enforces an Origin check, a pre-auth message allowlist, a command rate limit, and a 16MB message cap by default.
-- Remote access is off by default. Turned on, devices on the same LAN enter in limited mode with read queries and model/routing selection only.
+- Remote access is off by default. When enabled, it lets devices on the same LAN connect in limited mode, with read queries and model/routing selection only.
 - Safe Refactor re-checks file state right before apply and leaves a rollback snapshot.
-- Local code execution opens only when `OMNUX_ENABLE_DYNAMIC_CODE=true`.
+- Local code execution is enabled only when `OMNUX_ENABLE_DYNAMIC_CODE=true`.
 
 ## Documentation
 
