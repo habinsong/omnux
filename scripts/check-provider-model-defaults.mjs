@@ -86,7 +86,7 @@ if (await buildModelBox.count()) {
 }
 
 await page.evaluate((id) => window.__nav.getState().setActivePage(id), "settings");
-await page.getByRole("tab", { name: "모델·키", exact: true }).click();
+await page.getByRole("tab", { name: "모델", exact: true }).click();
 await page.getByRole("tab", { name: "모델 선택", exact: true }).click();
 // 모델 칸은 카탈로그가 비어도 직접 입력할 수 있는 자유 입력이다(목록은 자동완성).
 const groqModelBox = page.getByRole("combobox", { name: "Groq", exact: true }).first();
@@ -118,8 +118,8 @@ if (await telegramToken.isDisabled()) throw new Error("telegram token input disa
 await telegramToken.fill("123456:offline-typed");
 if ((await telegramToken.inputValue()) !== "123456:offline-typed") throw new Error("telegram token not editable while disconnected");
 
-await page.getByRole("tab", { name: "모델·키", exact: true }).click();
-await page.getByRole("tab", { name: "연동 키", exact: true }).click();
+await page.getByRole("tab", { name: "모델", exact: true }).click();
+await page.getByRole("tab", { name: "API 키", exact: true }).click();
 const providerKey = page.locator('input[type="password"]').first();
 await providerKey.waitFor({ timeout: 8000 });
 if (await providerKey.isDisabled()) throw new Error("provider key input disabled while disconnected");

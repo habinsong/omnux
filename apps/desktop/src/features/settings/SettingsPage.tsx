@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Cpu, Database, Info, Settings2, Share2 } from "lucide-react";
+import { Cpu, Database, Info, Settings2, Share2, ShieldCheck } from "lucide-react";
 import { Screen, ScreenNotice } from "../../components/screen/Screen";
 import { ScreenTabs, type ScreenTab } from "../../components/screen/ScreenTabs";
 import { cn } from "../../components/ui/primitives";
@@ -81,6 +81,7 @@ export function SettingsPage() {
 
   const groups: Group[] = useMemo(
     () => [
+      // 묶음 기준: 앱 사용 습관(일반) · LLM(모델) · 접근 권한(보안) · 외부 서비스(연동) · 내 기록(데이터) · 상태(정보)
       {
         key: "general",
         label: "일반",
@@ -88,12 +89,72 @@ export function SettingsPage() {
         items: [
           { key: "general-preferences", label: "앱 표시", render: () => <DesktopPreferencesCard onError={recordCardError} /> },
           { key: "general-startup", label: "시작 시 실행", render: () => <StartOnLaunchCard onError={recordCardError} /> },
-          { key: "general-speech", label: "음성 출력", render: () => <SpeechSettingsCard onError={recordCardError} /> },
           { key: "general-shortcuts", label: "단축키", render: () => <ShortcutPreferencesCard onError={recordCardError} /> },
-          { key: "general-permissions", label: "전역 권한", render: () => <GlobalPermissionsCard onError={recordCardError} /> },
+          { key: "general-speech", label: "음성 출력", render: () => <SpeechSettingsCard onError={recordCardError} /> },
           { key: "general-default-project", label: "기본 프로젝트", render: () => <DefaultProjectCard canRequest={authorized} onError={recordCardError} /> },
+          { key: "general-user-rules", label: "사용자 규칙", render: () => <SettingsUserRulesPanel canRequest={connected} /> }
+        ]
+      },
+      {
+        key: "models",
+        label: "모델",
+        icon: Cpu,
+        items: [
           {
-            key: "general-status",
+            key: "models-select",
+            label: "모델 선택",
+            render: () => (
+              <>
+                <LlmModelSelectCard store={store} canRequest={connected} onError={recordCardError} />
+                <CerebrasCard store={store} canRequest={connected} onError={recordCardError} />
+              </>
+            )
+          },
+          { key: "models-keys", label: "API 키", render: () => <LlmKeysCard canRequest={connected} onError={recordCardError} /> },
+          { key: "models-cli", label: "CLI 연결", render: () => <CliAuthCard store={store} canRequest={connected} onError={recordCardError} /> },
+          { key: "models-priority", label: "우선순위", render: () => <ModelPriorityCard onError={recordCardError} /> },
+          { key: "models-usage", label: "사용량", render: () => <LlmUsageCard store={store} onError={recordCardError} /> }
+        ]
+      },
+      {
+        key: "security",
+        label: "보안",
+        icon: ShieldCheck,
+        items: [
+          { key: "security-otp", label: "앱 인증", render: () => <SettingsOtpPanel bridgeConnected={connected} onError={recordCardError} /> },
+          { key: "security-external", label: "외부 접속", render: () => <SettingsExternalAccessPanel canRequest={authorized} onError={recordCardError} /> },
+          { key: "security-permissions", label: "권한", render: () => <GlobalPermissionsCard onError={recordCardError} /> }
+        ]
+      },
+      {
+        key: "integrations",
+        label: "연동",
+        icon: Share2,
+        items: [
+          { key: "int-telegram", label: "Telegram", render: () => <SettingsTelegramPanel canRequest={connected} onError={recordCardError} /> },
+          { key: "int-sync", label: "클라우드 동기화", render: () => <CloudSyncCard store={store} canRequest={authorized} onError={recordCardError} /> }
+        ]
+      },
+      {
+        key: "data",
+        label: "데이터",
+        icon: Database,
+        items: [
+          { key: "data-notes", label: "메모리 노트", render: () => <MemoryNotesCard store={store} canRequest={authorized} onError={recordCardError} /> },
+          {
+            key: "data-backup",
+            label: "백업",
+            render: () => <BackupPackageCard store={store} canRequest={authorized} fileInputRef={fileInputRef} onError={recordCardError} />
+          }
+        ]
+      },
+      {
+        key: "about",
+        label: "정보",
+        icon: Info,
+        items: [
+          {
+            key: "about-status",
             label: "연결 상태",
             render: () => (
               <StatusCard
@@ -105,51 +166,8 @@ export function SettingsPage() {
               />
             )
           },
-          { key: "general-otp", label: "OTP 인증", render: () => <SettingsOtpPanel bridgeConnected={connected} onError={recordCardError} /> },
-          { key: "general-user-rules", label: "사용자 규칙", render: () => <SettingsUserRulesPanel canRequest={connected} /> }
+          { key: "about-app", label: "앱 정보", render: () => <AboutCard onError={recordCardError} /> }
         ]
-      },
-      {
-        key: "integrations",
-        label: "연동",
-        icon: Share2,
-        items: [
-          { key: "int-telegram", label: "Telegram", render: () => <SettingsTelegramPanel canRequest={connected} onError={recordCardError} /> },
-          { key: "int-external", label: "외부 접속", render: () => <SettingsExternalAccessPanel canRequest={authorized} onError={recordCardError} /> }
-        ]
-      },
-      {
-        key: "models",
-        label: "모델·키",
-        icon: Cpu,
-        items: [
-          { key: "models-select", label: "모델 선택", render: () => <LlmModelSelectCard store={store} canRequest={connected} onError={recordCardError} /> },
-          { key: "models-keys", label: "연동 키", render: () => <LlmKeysCard canRequest={connected} onError={recordCardError} /> },
-          { key: "models-cli", label: "CLI 인증", render: () => <CliAuthCard store={store} canRequest={connected} onError={recordCardError} /> },
-          { key: "models-priority", label: "우선순위", render: () => <ModelPriorityCard onError={recordCardError} /> },
-          { key: "models-cerebras", label: "Cerebras", render: () => <CerebrasCard store={store} canRequest={connected} onError={recordCardError} /> },
-          { key: "models-usage", label: "사용량", render: () => <LlmUsageCard store={store} onError={recordCardError} /> }
-        ]
-      },
-      {
-        key: "memory",
-        label: "메모리",
-        icon: Database,
-        items: [
-          { key: "memory-notes", label: "메모리 노트", render: () => <MemoryNotesCard store={store} canRequest={authorized} onError={recordCardError} /> },
-          {
-            key: "memory-backup",
-            label: "백업",
-            render: () => <BackupPackageCard store={store} canRequest={authorized} fileInputRef={fileInputRef} onError={recordCardError} />
-          },
-          { key: "memory-sync", label: "클라우드 동기화", render: () => <CloudSyncCard store={store} canRequest={authorized} onError={recordCardError} /> }
-        ]
-      },
-      {
-        key: "about",
-        label: "정보",
-        icon: Info,
-        items: [{ key: "about-app", label: "앱 정보", render: () => <AboutCard onError={recordCardError} /> }]
       }
     ],
     [bridgeStatus, authStatus, authorized, connected, store, recordCardError]
