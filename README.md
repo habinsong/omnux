@@ -4,7 +4,7 @@
 
 <h1 align="center">omnux</h1>
 
-<p align="center">질문하고, 만들고, 돌리고, 남기는 일을 하나의 AI 에이전틱 앱에서.</p>
+<p align="center">질문하고, 만들고, 돌리고, 검증하는 AI 에이전틱 앱</p>
 
 <p align="center">
   <a href="package.json"><img src="https://img.shields.io/badge/version-1.0.6-EF8B26" alt="version 1.0.6"></a>
@@ -22,7 +22,7 @@
 
 **omnux**는 데스크톱 앱 하나로 LLM에 묻고, 코드를 만들어 실행하고, 정해진 시간에 자동으로 돌리고, 그 결과를 파일과 기록으로 남기는 도구입니다. 대화 내역, 빌드 산출물, 실행 로그, 노트는 전부 내 컴퓨터의 `~/.omnux`와 `workspace/`에 남습니다.
 
-Gemini, Groq, Cerebras, NVIDIA NIM, Copilot, Codex, Grok을 같은 화면에서 바꿔 가며 씁니다. 하나만 골라 쓰거나, 여러 개를 순서대로 태우거나, 나란히 놓고 답을 비교합니다.
+Gemini, Groq, Cerebras, NVIDIA NIM, Copilot, Codex, Grok을 같은 화면에서 바꿔 가며 사용하며 하나만 골라 쓰거나, 여러 개를 순서대로 태우거나, 나란히 놓고 답을 비교합니다.
 
 텔레그램 봇을 붙이면 밖에서도 같은 명령을 보낼 수 있습니다. 데스크톱 앱과 봇은 같은 명령 계층(`CommandService`)을 통과하므로 한쪽에만 있는 기능이 생기지 않습니다.
 
