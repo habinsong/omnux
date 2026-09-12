@@ -48,6 +48,24 @@ public sealed partial class CommandService
             return nativeResult;
         }
 
+        // 아래 폴백들은 사용자가 고른 제공자가 아닌 모델이 답하게 된다.
+        // 그 사실이 화면에 남도록 경로 이름에 표시한다(고른 제공자가 왜 안 나왔는지 보이게).
+        var requested = NormalizeProvider(requestedProvider ?? string.Empty, allowAuto: true);
+        var fallbackNote = requested.Length > 0 && requested != "auto" && requested != "none"
+            ? $"{ModelRegistry.GetLabel(requested)} 대체"
+            : string.Empty;
+
+        SearchAnswerCompositionResult MarkFallback(SearchAnswerCompositionResult result)
+        {
+            if (fallbackNote.Length == 0
+                || string.Equals(result.Response.Provider, requested, StringComparison.OrdinalIgnoreCase))
+            {
+                return result;
+            }
+
+            return result with { Route = $"{result.Route} · {fallbackNote}" };
+        }
+
         // 2순위 — 서버측 검색이 없는 제공자면 근거만 따로 모아서 "사용자가 고른 모델"이 직접 답한다.
         //         답변 주체를 Gemini 로 바꿔치기하면 제공자를 고른 의미가 사라진다.
         var evidenceResult = await TryComposeSelectedProviderWithEvidenceAsync(
@@ -93,14 +111,14 @@ public sealed partial class CommandService
             ).ConfigureAwait(false);
             if (!IsGroundedWebAnswerFailureText(geminiResult.Response.Text))
             {
-                return new SearchAnswerCompositionResult(
+                return MarkFallback(new SearchAnswerCompositionResult(
                     geminiResult.Response,
                     "gemini-web-single",
                     geminiResult.Latency,
                     geminiResult.Citations,
                     null,
                     SearchRetrieverPath.GeminiGrounding
-                );
+                ));
             }
 
             _auditLogger.Log(
@@ -143,7 +161,7 @@ public sealed partial class CommandService
             // "검색 실패"로 끝내기 전에 Groq compound(서버측 웹검색 내장)를 최후 폴백으로 시도 (P0-4).
             if (!IsGroundedWebAnswerFailureText(composed.Response.Text))
             {
-                return composed;
+                return MarkFallback(composed);
             }
 
             var compound = await TryComposeGroqCompoundWebAnswerAsync(
@@ -156,7 +174,7 @@ public sealed partial class CommandService
                 source,
                 cancellationToken
             ).ConfigureAwait(false);
-            return compound ?? composed;
+            return MarkFallback(compound ?? composed);
         }
         catch (OperationCanceledException)
         {
