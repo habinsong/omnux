@@ -4,7 +4,7 @@
 
 <h1 align="center">omnux</h1>
 
-<p align="center">질문하고, 만들고, 돌리고, 남기는 일을 한 앱에서 한다. 내 컴퓨터에서 돈다.</p>
+<p align="center">질문하고, 만들고, 돌리고, 남기는 일을 하나의 AI 에이전틱 앱에서.</p>
 
 <p align="center">
   <a href="package.json"><img src="https://img.shields.io/badge/version-1.0.6-EF8B26" alt="version 1.0.6"></a>
@@ -26,7 +26,7 @@ Gemini, Groq, Cerebras, NVIDIA NIM, Copilot, Codex, Grok을 같은 화면에서 
 
 텔레그램 봇을 붙이면 밖에서도 같은 명령을 보낼 수 있습니다. 데스크톱 앱과 봇은 같은 명령 계층(`CommandService`)을 통과하므로 한쪽에만 있는 기능이 생기지 않습니다.
 
-## 무엇을 하나
+## omnux
 
 | 화면 | 하는 일 |
 |---|---|
