@@ -102,7 +102,8 @@ function Frame({ head, children }: { head: string; children: React.ReactNode }) 
 }
 
 function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="px-3 py-6 text-center text-xs text-muted-foreground">{children}</p>;
+  // 칸 전체를 쓰고 가운데 둔다. 위쪽에만 한 줄 띄우면 아래가 통째로 빈 칸으로 남는다.
+  return <p className="flex h-full min-h-[200px] items-center justify-center px-3 py-6 text-center text-xs text-muted-foreground">{children}</p>;
 }
 
 function Row({ name, detail, status }: { name: string; detail?: string; status?: string }) {

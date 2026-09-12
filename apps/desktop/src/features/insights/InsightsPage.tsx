@@ -201,7 +201,7 @@ function CallList({
             <Spinner size={13} /> 조회 중입니다.
           </p>
         ) : events.length === 0 ? (
-          <p className="px-3 py-6 text-center text-xs text-muted-foreground">기록된 모델 호출이 없습니다.</p>
+          <p className="flex h-full min-h-[200px] items-center justify-center px-3 py-6 text-center text-xs text-muted-foreground">기록된 모델 호출이 없습니다.</p>
         ) : (
           <ul className="divide-y divide-border">
             {shown.map((event, index) => (

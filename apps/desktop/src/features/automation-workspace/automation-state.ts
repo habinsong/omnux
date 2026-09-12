@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { useDesktopShellStore } from "../../shell-store";
 import { useDesktopAuthStore } from "../auth/auth-store";
 import { subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
+import { SLICE_TIMEOUT_MS } from "../middleware/slice-state";
 import { sendAutomationCommand, type AutomationCommand } from "../middleware/automation-workspace-gateway";
 import { array, automationPayload, emptyAutomationForm, formError, parseAutomation, parsePreview, parseRunDetail, string, type Automation, type AutomationForm, type Preview, type RunDetail } from "./automation-model";
 
@@ -26,7 +27,16 @@ export const useAutomationWorkspace = create<State>((set, get) => ({
     if (slot === "change" && get().pending.change) return;
     const request = { id: id(), type, fields };
     set(state => ({ pending: { ...state.pending, [slot]: request }, ...(slot === "change" ? { error: "", progress: "" } : {}) }));
-    if (!sendAutomationCommand(type, request.id, fields)) set(state => ({ pending: { ...state.pending, [slot]: undefined }, error: "요청을 보내지 못했습니다. 연결을 확인한 뒤 다시 시도해 주세요." }));
+    if (!sendAutomationCommand(type, request.id, fields)) {
+      set(state => ({ pending: { ...state.pending, [slot]: undefined }, error: "요청을 보내지 못했습니다. 연결을 확인한 뒤 다시 시도해 주세요." }));
+      return;
+    }
+    // 응답이 오지 않으면 기한을 두고 푼다. 기한이 없으면 "불러오고 있습니다" 가 영원히 남고
+    // 「다시 조회」 까지 눌리지 않아 화면에서 빠져나올 방법이 없다.
+    setTimeout(() => {
+      if (get().pending[slot]?.id !== request.id) return;
+      set(state => ({ pending: { ...state.pending, [slot]: undefined }, progress: "", error: "응답이 없습니다. 연결을 확인한 뒤 다시 조회해 주세요." }));
+    }, SLICE_TIMEOUT_MS);
   },
   refresh: () => { get().request("list", "get_routines"); get().request("scheduler", "get_routine_scheduler_status"); },
   create: () => { if (get().pending.change || get().editor) return; set({ editor: true, editId: null, selectedId: "", form: emptyAutomationForm(), preview: null, error: "", detail: null, selectedTime: null }); },

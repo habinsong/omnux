@@ -13,7 +13,15 @@ export function BuildResultPanel({ connected }: { connected: boolean }) {
   if (!result || !selected) return null;
   const matches = state.runtime && state.runtime.target === state.target && (!state.runtime.targetProvider || state.runtime.targetProvider === selected.provider) && (!state.runtime.targetModel || state.runtime.targetModel === selected.model);
   const execution = matches && state.runtime?.execution ? state.runtime.execution : selected.execution;
-  const paths = Array.from(new Set([...selected.changedFiles, selected.execution.entryFile])).filter(path => relativeFile(path, selected.execution.runDirectory));
+  // 같은 파일이 절대경로(changedFiles)와 상대경로(entryFile)로 함께 오면 Set 이 걸러내지 못한다.
+  // 화면에 보여 줄 상대경로로 바꾼 뒤에 중복을 없앤다.
+  const paths = Array.from(
+    new Map(
+      [...selected.changedFiles, selected.execution.entryFile]
+        .map(path => [relativeFile(path, selected.execution.runDirectory), path] as const)
+        .filter(([relative]) => relative)
+    ).values()
+  );
   const preview = state.file?.kind === "page" ? state.file.url : matches ? state.runtime?.previewUrl : "";
   const busy = busyBuild(state);
   const runnable = !(execution.status === "skipped" && paths.length === 0);

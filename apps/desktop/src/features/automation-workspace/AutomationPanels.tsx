@@ -47,15 +47,17 @@ export function AutomationListPanel({ connected }: { connected: boolean }) {
     <Panel
       ariaLabel="저장한 자동화"
       footer={
-        <Button variant="outline" size="sm" disabled={!connected || Boolean(state.pending.list)} onClick={state.refresh}>
+        // 배경 갱신 때문에 막지 않는다. 응답이 없을 때 빠져나올 방법이 이 버튼뿐이다.
+        <Button variant="outline" size="sm" disabled={!connected} onClick={state.refresh}>
           다시 조회
         </Button>
       }
     >
-      {state.pending.list && state.items.length === 0 ? (
+      {/* 첫 조회만 "불러오는 중" 으로 알린다. 15초마다 도는 배경 갱신까지 알리면 화면이 계속 조회 중으로 보인다. */}
+      {state.pending.list && state.items.length === 0 && !state.error ? (
         <p className="px-3 py-8 text-center text-xs text-muted-foreground">자동화를 불러오고 있습니다.</p>
       ) : state.items.length === 0 ? (
-        <p className="px-3 py-8 text-center text-xs text-muted-foreground">아직 자동화가 없습니다. 반복할 일을 하나 등록해 보세요.</p>
+        <p className="flex h-full min-h-[200px] items-center justify-center px-3 py-8 text-center text-xs text-muted-foreground">아직 자동화가 없습니다. 반복할 일을 하나 등록해 보세요.</p>
       ) : (
         <div className="min-w-0">
         <label className="block min-w-0 space-y-1 p-3">

@@ -192,7 +192,8 @@ export function ChatWorkspacePage() {
 
       <div className="chat-workspace flex min-h-0 min-w-0 flex-1 flex-col gap-2">
         {tab === "chat" ? (
-          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+          // 대화가 있으면 안쪽 대화 칸이 스크롤한다. 여기서 또 스크롤하면 스크롤 칸이 둘이 된다.
+          <div className={`min-h-0 min-w-0 flex-1 overflow-x-hidden ${state.messages.length > 0 || state.pending ? "overflow-hidden" : "overflow-y-auto"}`}>
             {state.messages.length > 0 || state.pending ? (
               <ChatTranscript canRequest={canRequest} />
             ) : (

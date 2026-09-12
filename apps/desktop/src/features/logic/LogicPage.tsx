@@ -185,7 +185,7 @@ function GraphListPanel({ connected, loading }: { connected: boolean; loading: b
       ) : null}
 
       {graphs.length === 0 ? (
-        <p className="px-3 py-8 text-center text-xs text-muted-foreground">저장된 규칙이 없습니다.</p>
+        <p className="flex h-full min-h-[200px] items-center justify-center px-3 py-8 text-center text-xs text-muted-foreground">저장된 규칙이 없습니다.</p>
       ) : (
         <ul className="min-w-0 divide-y divide-border">
           {graphs.map((item) => (

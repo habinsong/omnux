@@ -43,8 +43,9 @@
 .build-composer { display: block; min-width: 0; padding: 0; }
 .build-workspace .build-composer textarea, .build-workspace .build-compose textarea { min-height: 24px; max-height: 96px; width: auto; flex: 1 1 auto; resize: none; line-height: 1.5; border-radius: 0; padding: 0; background: transparent; border: 0; }
 .build-thread { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 8px 4px 12px; }
-.build-bubble { max-width: min(78%, 520px); padding: 8px 12px; border-radius: 16px 16px 16px 4px; background: var(--build-paper); border: 1px solid var(--build-line); align-self: flex-start; white-space: pre-wrap; font-size: 15px; line-height: 1.45; }
-.build-bubble[data-role=user] { align-self: flex-end; background: var(--muted); color: var(--foreground); border: 1px solid var(--border); border-radius: 16px 16px 4px 16px; }
+/* 채팅 규칙: 결과는 왼쪽에 붙고 오른쪽에 여백을 남긴다. 보낸 요청은 오른쪽에 붙는다. */
+.build-bubble { min-width: 0; width: 100%; max-width: min(94%, 1000px); padding: 10px 14px; border-radius: 14px 14px 14px 4px; background: var(--build-paper); border: 1px solid var(--build-line); align-self: flex-start; white-space: pre-wrap; font-size: 15px; line-height: 1.45; }
+.build-bubble[data-role=user] { width: fit-content; max-width: min(84%, 720px); align-self: flex-end; background: var(--muted); color: var(--foreground); border: 1px solid var(--border); border-radius: 14px 14px 4px 14px; }
 .build-result-body { display: grid; gap: 20px; min-width: 0; padding: var(--build-padding); }
 .build-result-heading { padding: var(--build-padding); border-bottom: 1px solid var(--build-line); }
 .build-workspace .build-form-fields { display: grid; min-width: 0; gap: 18px; }
@@ -101,5 +102,5 @@
 .build-dialog { margin: auto; padding: 24px; border: 1px solid var(--build-line); border-radius: 16px; width: min(440px,calc(100vw - 32px)); max-height: calc(100dvh - 32px); background: var(--build-paper); color: var(--build-ink); }
 .build-dialog::backdrop { background: rgba(0,0,0,.3); }
 .build-dialog form { display: grid; gap: 20px; }
-@media (max-width:480px) { .build-workspace { gap: 18px; } }
+@media (max-width:480px) { .build-workspace { gap: 18px; } .build-bubble { max-width: 97%; } .build-bubble[data-role=user] { max-width: 92%; } }
 @media (prefers-reduced-motion:reduce) { .build-workspace *, .build-workspace *::before, .build-workspace *::after { animation: none !important; transition: none !important; } }

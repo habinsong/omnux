@@ -214,7 +214,12 @@ export function WebPanel({ connected }: { connected: boolean }) {
         </section>
       ) : null}
 
-      {!state.results && !state.document && !state.pending ? <Note>찾을 내용을 아래에 넣고 「찾기」를 누르세요.</Note> : null}
+      {/* 빈 칸을 위쪽 한 줄로 두지 않는다. 안내를 칸 가운데에 둔다. */}
+      {!state.results && !state.document && !state.pending ? (
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <Note>찾을 내용을 아래에 넣고 「찾기」를 누르세요.</Note>
+        </div>
+      ) : null}
     </Panel>
   );
 }

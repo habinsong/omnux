@@ -69,12 +69,22 @@
 .chat-muted, .chat-files small { color: var(--muted-foreground); font-size: 12px; }
 .chat-transcript { display: flex; flex-direction: column; gap: 8px; min-width: 0; height: 100%; }
 .chat-transcript > h2 { font-size: 13px; font-weight: 600; padding: 4px 8px; color: var(--muted-foreground); }
-.chat-log { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 8px 4px 12px; scroll-padding: 12px; }
-.chat-message { min-width: 0; max-width: min(78%, 520px); padding: 8px 12px; border-radius: 16px 16px 16px 4px; background: var(--card); border: 1px solid var(--border); align-self: flex-start; }
-.chat-message[data-role=user] { align-self: flex-end; background: var(--muted); color: var(--foreground); border: 1px solid var(--border); border-radius: 16px 16px 4px 16px; }
+/* 대화 칸이 직접 스크롤한다. 바깥 칸이 스크롤하면 "새 답변 따라가기" 가 동작하지 않는다. */
+.chat-log { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 8px 4px 12px; scroll-padding: 12px; }
+/* 주고받은 말이 적으면 작성칸 쪽으로 내려 붙인다. 위쪽에 빈 칸을 남기지 않는다. */
+.chat-log > :first-child { margin-top: auto; }
+/* 채팅 규칙: 답변은 왼쪽에 붙고 오른쪽에 여백을 남긴다. 질문은 오른쪽에 붙고 왼쪽에 여백을 남긴다. */
+.chat-message { min-width: 0; width: 100%; max-width: min(94%, 1000px); padding: 10px 14px; border-radius: 14px 14px 14px 4px; background: var(--card); border: 1px solid var(--border); align-self: flex-start; }
+.chat-message[data-role=user] { width: fit-content; max-width: min(84%, 720px); align-self: flex-end; background: var(--muted); color: var(--foreground); border: 1px solid var(--border); border-radius: 14px 14px 4px 14px; }
 .chat-speaker { display: none; }
 .chat-plain { white-space: pre-wrap; font-size: 15px; line-height: 1.45; }
-.chat-reply-actions { margin-top: 14px; }
+/* 답변 부속 UI는 한 줄 칩으로 둔다. 펼칠 때만 아래로 연다. */
+.chat-reply-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; min-width: 0; }
+.chat-reply-bar .chat-chip, .chat-reply-bar .chat-chip-fold > summary { min-height: 26px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--muted-foreground); font-size: 12px; font-weight: 500; cursor: pointer; }
+.chat-reply-bar .chat-chip:hover, .chat-reply-bar .chat-chip-fold > summary:hover { background: var(--accent); color: var(--foreground); }
+.chat-chip-fold { min-width: 0; }
+.chat-chip-fold[open] { flex: 1 1 100%; }
+.chat-chip-fold[open] > summary { margin-bottom: 8px; }
 .chat-message .chat-fold { margin-top: 10px; border-top: 0; padding-top: 0; color: var(--muted-foreground); }
 .chat-message .chat-fold[open] { padding-bottom: 10px; }
 .chat-prose { min-width: 0; font-size: 15px; line-height: 1.85; }
@@ -99,5 +109,5 @@
 .chat-metadata { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,200px),1fr)); gap: 12px; font-size: 12px; }
 .chat-metadata dt { color: var(--muted-foreground); }
 .chat-metadata dd { margin: 3px 0 0; color: var(--foreground); }
-@media (max-width:480px) { .chat-summary-note { display: none; } .chat-message { max-width: 86%; } }
+@media (max-width:480px) { .chat-summary-note { display: none; } .chat-message { max-width: 97%; } .chat-message[data-role=user] { max-width: 92%; } }
 @media (prefers-reduced-motion:reduce) { .chat-workspace *, .chat-workspace *::before, .chat-workspace *::after { animation: none !important; transition: none !important; } }

@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { requestDesktopSettings, subscribeDesktopMessages, type DesktopServerMessage } from "../middleware/desktop-message-gateway";
 import { requestDesktopLlm, type LlmCredentialInput } from "../middleware/llm-gateway";
 import { requestDesktopMemory } from "../middleware/memory-gateway";
+import { SLICE_TIMEOUT_MS } from "../middleware/slice-state";
 import { requestConfirmDialog, requestPromptDialog } from "../dialog/dialog-store";
 import { useDesktopPreferenceStore, type ModelProviderId } from "../shell/preference-store";
 import { useAskStore } from "../ask/ask-store";
@@ -407,6 +408,26 @@ function statusText(installed: boolean, authenticated: boolean, mode: string): s
 function normalizeServerList<T>(value: unknown, mapper: (item: Record<string, unknown>) => T): T[] {
   return Array.isArray(value) ? value.map((item) => mapper(item as Record<string, unknown>)) : [];
 }
+
+/**
+ * 조회 표시에 기한을 둔다.
+ * 게이트웨이가 답을 주지 않으면 loading 을 풀어 줄 응답도 오지 않는다.
+ * 기한이 없으면 「조회 중…」 이 영원히 남고 그 버튼을 다시 누를 수도 없다.
+ */
+let loadingDeadline: ReturnType<typeof setTimeout> | null = null;
+useSettingsStore.subscribe((state, previous) => {
+  if (state.loading === previous.loading) return;
+  if (loadingDeadline) {
+    clearTimeout(loadingDeadline);
+    loadingDeadline = null;
+  }
+  if (!state.loading) return;
+  loadingDeadline = setTimeout(() => {
+    loadingDeadline = null;
+    if (!useSettingsStore.getState().loading) return;
+    useSettingsStore.setState({ loading: false, lastMessage: "응답이 없습니다. 연결을 확인한 뒤 다시 시도해 주세요." });
+  }, SLICE_TIMEOUT_MS);
+});
 
 export function useSettingsPageBridge() {
   useEffect(() => {

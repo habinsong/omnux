@@ -35,15 +35,14 @@ function ReplyActions({ text, message, index, canRequest }: { text: string; mess
         : {})
     });
   };
-  return <div className="chat-reply-actions">
-    <div className="chat-actions"><button className="chat-button chat-quiet" aria-label="답변 복사" onClick={async () => {
+  // 답변 아래 부속 UI는 한 줄 칩으로 둔다. 대화가 화면의 주인공이어야 한다.
+  return <>
+    <button className="chat-chip" aria-label="답변 복사" onClick={async () => {
       try { await navigator.clipboard.writeText(text); setCopyResult("복사했습니다."); }
       catch { setCopyResult("복사하지 못했습니다."); }
     }}>복사</button>
-      {isSpeechSupported() && <button className="chat-button chat-quiet" aria-pressed={speech.speakingKey === key} onClick={() => speech.toggle(key, text)}>{speech.speakingKey === key ? "읽기 중지" : "읽기"}</button>}
-      {copyResult && <span role="status" className="chat-muted">{copyResult}</span>}
-    </div>
-    <details className="chat-fold"><summary>답변 활용</summary><div className="chat-actions">
+    {isSpeechSupported() && <button className="chat-chip" aria-pressed={speech.speakingKey === key} onClick={() => speech.toggle(key, text)}>{speech.speakingKey === key ? "읽기 중지" : "읽기"}</button>}
+    <details className="chat-chip-fold"><summary>답변 활용</summary><div className="chat-actions">
       <button className="chat-button" onClick={() => transfer("planning")}>작업으로 보내기</button>
       <button className="chat-button" onClick={() => transfer("build")}>빌드로 보내기</button>
       <button className="chat-button" onClick={() => transfer("automate")}>자동화로 보내기</button>
@@ -51,18 +50,19 @@ function ReplyActions({ text, message, index, canRequest }: { text: string; mess
       <button className="chat-button" disabled={!canRequest || saving} onClick={() => state.saveMessageToNotebook(index, text, message.meta)}>{saving ? "저장 중" : "노트에 저장"}</button>
       {message.actionSuggestions?.map((suggestion, i) => <button key={i} className="chat-button" disabled={!canRequest || state.pending} onClick={() => state.runActionSuggestion(suggestion)}>{suggestion.label}</button>)}
     </div></details>
-  </div>;
+    {copyResult && <span role="status" className="chat-muted">{copyResult}</span>}
+  </>;
 }
 
 function ReplyDetails({ message }: { message: AskMessage }) {
   return <>
-    {!!message.citations?.length && <details className="chat-fold"><summary>출처 {message.citations.length}</summary><ol className="chat-sources">
+    {!!message.citations?.length && <details className="chat-chip-fold"><summary>출처 {message.citations.length}</summary><ol className="chat-sources">
       {message.citations.map((source, index) => <li key={`${source.id}-${index}`}>
         {/^(https?:)\/\//i.test(source.url) ? <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title || source.url}</a> : <span>{source.title || "출처"}</span>}
         {source.snippet && <p>{source.snippet}</p>}{source.published && <small>{source.published}</small>}
       </li>)}
     </ol>{message.citationValidation && <p className="chat-muted">{message.citationValidation.passed ? "인용 확인을 통과했습니다." : `출처 표시가 없는 문장 ${message.citationValidation.missingSentences}개가 있습니다.`}</p>}</details>}
-    <details className="chat-fold"><summary>응답 정보</summary><dl className="chat-metadata">
+    <details className="chat-chip-fold"><summary>응답 정보</summary><dl className="chat-metadata">
       <div><dt>모델</dt><dd>{[message.provider, message.model].filter(Boolean).join(" · ") || "기록 없음"}</dd></div>
       {message.route && <div><dt>응답 경로</dt><dd>{message.route}</dd></div>}
       {message.meta && <div><dt>기록</dt><dd>{message.meta}</dd></div>}
@@ -91,7 +91,7 @@ export function ChatTranscript({ canRequest }: { canRequest: boolean }) {
     }}>
       {state.messages.map((message, index) => <article className="chat-message" data-role={message.role} key={`${state.activeConversationId}-${index}`}>
         {message.role === "ai" ? <ChatMarkdown text={message.text} /> : <p className="chat-plain">{message.text}</p>}
-        {message.role === "ai" && <><ReplyActions message={message} text={message.text} index={index} canRequest={canRequest} /><ReplyDetails message={message} /></>}
+        {message.role === "ai" && <div className="chat-reply-bar"><ReplyActions message={message} text={message.text} index={index} canRequest={canRequest} /><ReplyDetails message={message} /></div>}
       </article>)}
       {state.streamingActive && <article className="chat-message" data-role="ai" aria-busy="true">{state.streamingText ? <ChatMarkdown text={state.streamingText} /> : <p className="chat-muted">응답을 기다리고 있습니다.</p>}</article>}
     </div>
