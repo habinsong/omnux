@@ -18,7 +18,8 @@ public enum RouterIntent
 public sealed record GeminiGroundedChatResponse(
     string Text,
     long FirstChunkMs,
-    long FullResponseMs
+    long FullResponseMs,
+    IReadOnlyList<SearchCitationReference>? Citations = null
 );
 
 public sealed record GeminiUrlContextChatResponse(
@@ -1243,6 +1244,25 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         var streamedTextStarted = false;
         var mergedBuilder = new StringBuilder();
         string? usagePayload = null;
+        // 그라운딩 출처는 스트림 뒤쪽 이벤트에 한 번만 실려 온다. 이벤트마다 긁어 모은다.
+        var groundingCitations = new List<SearchCitationReference>();
+        var groundingUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void CollectGroundingCitations(string eventPayload)
+        {
+            if (!eventPayload.Contains("groundingChunks", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            foreach (var citation in GeminiCitationParser.ExtractGroundingCitations(eventPayload))
+            {
+                if (groundingUrls.Add(citation.Url))
+                {
+                    groundingCitations.Add(citation with { CitationId = $"c{groundingCitations.Count + 1}" });
+                }
+            }
+        }
 
         try
         {
@@ -1284,7 +1304,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
             return new GeminiGroundedChatResponse(
                 string.IsNullOrWhiteSpace(content) ? "Gemini 웹검색 응답이 비어 있습니다." : content,
                 firstChunkMs,
-                Math.Max(0L, stopwatch.ElapsedMilliseconds)
+                Math.Max(0L, stopwatch.ElapsedMilliseconds),
+                groundingCitations
             );
 
             void ConsumeEvent(string eventPayload)
@@ -1294,6 +1315,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                     usagePayload = eventPayload;
                 }
 
+                CollectGroundingCitations(eventPayload);
                 var chunk = ProviderResponseParser.ExtractGeminiChunk(eventPayload);
                 var delta = GeminiRequestPolicy.NormalizeStreamDelta(chunk.Content, mergedBuilder.ToString());
                 if (delta.Length == 0)

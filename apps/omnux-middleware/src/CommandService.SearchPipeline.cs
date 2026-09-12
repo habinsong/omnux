@@ -254,7 +254,8 @@ public sealed partial class CommandService
 
         return new GeminiGroundedWebAnswerResult(
             new LlmSingleChatResult("gemini", model, outputText),
-            latency
+            latency,
+            response.Citations ?? Array.Empty<SearchCitationReference>()
         );
     }
 

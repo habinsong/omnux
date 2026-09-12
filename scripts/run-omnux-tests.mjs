@@ -146,6 +146,12 @@ function main() {
     ["test", "apps/omnux-middleware-tests/Omnux.Middleware.Tests.csproj"]
   );
   runStep(
+    "provider capability contract",
+    "node",
+    [toRelative(path.join(repoRoot, "scripts", "check-provider-capability-contract.mjs"))]
+  );
+
+  runStep(
     "gateway runtime contract",
     "node",
     [toRelative(path.join(repoRoot, "scripts", "check-gateway-runtime-contract.mjs"))]

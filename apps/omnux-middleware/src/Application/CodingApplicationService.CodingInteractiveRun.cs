@@ -96,7 +96,12 @@ public sealed partial class CodingApplicationService
             cancellationToken
         ).ConfigureAwait(false);
 
-        var signals = CodingTaskSignalResolver.TryGet(latest.Summary) ?? CodingTaskSignalResolver.TryGet(target.Execution.Command);
+        // 신호 캐시는 "사용자가 적은 요청 문장"으로 색인돼 있다. 대화의 마지막 사용자 메시지로 찾는다.
+        var lastUserRequest = conversation.Messages
+            .Where(item => string.Equals(item.Role, "user", StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Text ?? string.Empty)
+            .LastOrDefault(text => !string.IsNullOrWhiteSpace(text)) ?? string.Empty;
+        var signals = CodingTaskSignalResolver.TryGet(lastUserRequest);
         var gui = signals?.Gui ?? false;
         var environment = BuildInteractiveRunEnvironment(gui);
 
@@ -117,6 +122,9 @@ public sealed partial class CodingApplicationService
         );
     }
 
+    /// <summary>헤드리스 스모크용 변수를 지우기 위한 표식. 실행측이 이 값을 보면 변수를 제거한다.</summary>
+    public const string RemoveEnvironmentMarker = "\u0000remove";
+
     /// <summary>
     /// 실제 실행용 환경변수. 헤드리스 스모크 테스트에서만 쓰는 더미 드라이버가 새어 들어오면
     /// 창이 안 떠서 "게임이 실행 안 된다"가 된다. 여기서는 반드시 지운다.
@@ -125,8 +133,8 @@ public sealed partial class CodingApplicationService
     {
         var environment = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["SDL_VIDEODRIVER"] = string.Empty,
-            ["OMNI_HEADLESS_TEST"] = string.Empty,
+            ["SDL_VIDEODRIVER"] = RemoveEnvironmentMarker,
+            ["OMNI_HEADLESS_TEST"] = RemoveEnvironmentMarker,
             ["PYTHONUNBUFFERED"] = "1"
         };
         if (!gui)

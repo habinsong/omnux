@@ -98,6 +98,14 @@ public sealed class InteractiveTerminalSession : IAsyncDisposable
         {
             foreach (var (key, value) in request.ExtraEnvironment)
             {
+                // 헤드리스 스모크용 변수(SDL_VIDEODRIVER=dummy 등)가 남아 있으면 GUI 창이 안 뜬다.
+                // 빈 값으로 덮는 것으로는 부족해서 아예 지운다.
+                if (string.Equals(value, CodingApplicationService.RemoveEnvironmentMarker, StringComparison.Ordinal))
+                {
+                    startInfo.Environment.Remove(key);
+                    continue;
+                }
+
                 startInfo.Environment[key] = value;
             }
         }
