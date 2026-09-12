@@ -59,6 +59,7 @@ internal static class Program
         using var cerebrasModelCatalog = new CerebrasModelCatalog(providers, runtimeSettings);
         using var geminiModelCatalog = new GeminiModelCatalog(providers, runtimeSettings);
         using var nvidiaModelCatalog = new NvidiaModelCatalog(providers, runtimeSettings);
+        using var deepseekModelCatalog = new DeepseekModelCatalog(providers, runtimeSettings);
         using var codexModelCatalog = new CodexModelCatalog(runtimeSettings);
         using var llmRouter = new LlmRouter(providers, paths, context, runtimeSettings, cerebrasModelCatalog);
         var persistence = ConfigurePersistence(config, pathResolver);
@@ -279,6 +280,7 @@ internal static class Program
             cerebrasModelCatalog,
             geminiModelCatalog,
             nvidiaModelCatalog,
+            deepseekModelCatalog,
             codexModelCatalog,
             telegramClient,
             persistence.AuthSessionStore,
@@ -934,6 +936,7 @@ internal static class Program
         CerebrasModelCatalog cerebrasModelCatalog,
         GeminiModelCatalog geminiModelCatalog,
         NvidiaModelCatalog nvidiaModelCatalog,
+        DeepseekModelCatalog deepseekModelCatalog,
         CodexModelCatalog codexModelCatalog,
         TelegramClient telegramClient,
         IAuthSessionStore authSessionStore,
@@ -984,6 +987,7 @@ internal static class Program
                 cerebrasModelCatalog,
                 geminiModelCatalog,
                 nvidiaModelCatalog,
+                deepseekModelCatalog,
                 codexModelCatalog,
                 new GuardRetryTimelineStore(config.GuardRetryTimelineStatePath),
                 auditLogger,

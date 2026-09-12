@@ -35,6 +35,7 @@ internal sealed class LlmPreferenceContext
             MultiCopilotModel = defaultCopilotModel,
             MultiCerebrasModel = config.CerebrasModel,
             MultiNvidiaModel = config.NvidiaModel,
+            MultiDeepseekModel = config.DeepseekModel,
             MultiCodexModel = config.CodexModel,
             MultiSummaryProvider = "auto",
             TalkThinkingLevel = "low",
@@ -54,6 +55,7 @@ internal sealed class LlmPreferenceContext
             OrchestrationGeminiModel = config.GeminiModel,
             OrchestrationCerebrasModel = config.CerebrasModel,
             OrchestrationNvidiaModel = config.NvidiaModel,
+            OrchestrationDeepseekModel = config.DeepseekModel,
             OrchestrationCopilotModel = "none",
             OrchestrationCodexModel = "none",
             MultiProvider = "gemini",
@@ -63,6 +65,7 @@ internal sealed class LlmPreferenceContext
             MultiGeminiModel = config.GeminiModel,
             MultiCerebrasModel = config.CerebrasModel,
             MultiNvidiaModel = config.NvidiaModel,
+            MultiDeepseekModel = config.DeepseekModel,
             MultiCopilotModel = "none",
             MultiCodexModel = "none"
         };
@@ -83,6 +86,7 @@ internal sealed class LlmPreferenceContext
             MultiCopilotModel = defaultCopilotModel,
             MultiCerebrasModel = config.CerebrasModel,
             MultiNvidiaModel = config.NvidiaModel,
+            MultiDeepseekModel = config.DeepseekModel,
             MultiCodexModel = config.CodexModel,
             MultiSummaryProvider = "auto",
             TalkThinkingLevel = "low",

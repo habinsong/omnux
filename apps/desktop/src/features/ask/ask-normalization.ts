@@ -221,6 +221,7 @@ export function normalizeMultiResult(message: DesktopServerMessage): AskMultiRes
     { key: "gemini", label: "Gemini", modelKey: "geminiModel" },
     { key: "cerebras", label: "Cerebras", modelKey: "cerebrasModel" },
     { key: "nvidia", label: "NVIDIA NIM", modelKey: "nvidiaModel" },
+    { key: "deepseek", label: "DeepSeek", modelKey: "deepseekModel" },
     { key: "copilot", label: "Copilot", modelKey: "copilotModel" },
     { key: "codex", label: "Codex", modelKey: "codexModel" },
     { key: "grok", label: "Grok", modelKey: "grokModel" }

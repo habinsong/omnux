@@ -5,7 +5,7 @@
  */
 import registry from "../../../../shared/model-registry.json";
 
-type ProviderKey = "groq" | "gemini" | "cerebras" | "nvidia" | "copilot" | "codex" | "grok";
+type ProviderKey = "groq" | "gemini" | "cerebras" | "nvidia" | "deepseek" | "copilot" | "codex" | "grok";
 type AnyProvider = ProviderKey | "auto";
 
 interface ProviderConfig {
@@ -39,6 +39,7 @@ export const DEFAULT_GROQ_WORKER_MODEL = providers.groq.workerDefault;
 export const DEFAULT_GEMINI_WORKER_MODEL = providers.gemini.workerDefault;
 export const DEFAULT_CEREBRAS_MODEL = providers.cerebras.default;
 export const DEFAULT_NVIDIA_MODEL = providers.nvidia.default;
+export const DEFAULT_DEEPSEEK_MODEL = providers.deepseek.default;
 export const DEFAULT_COPILOT_MODEL = providers.copilot.default;
 export const DEFAULT_CODEX_MODEL = providers.codex.default;
 export const DEFAULT_GROK_MODEL = providers.grok.default;

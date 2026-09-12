@@ -49,6 +49,7 @@ type SettingsState = {
   copilotModels: Catalog;
   geminiModels: Catalog;
   nvidiaModels: Catalog;
+  deepseekModels: Catalog;
   codexModels: Catalog;
   grokModels: Catalog;
   copilotStatus: { text: string; detail: string };
@@ -120,6 +121,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   copilotModels: { ...EMPTY_CATALOG },
   geminiModels: { ...EMPTY_CATALOG },
   nvidiaModels: { ...EMPTY_CATALOG },
+  deepseekModels: { ...EMPTY_CATALOG },
   codexModels: { ...EMPTY_CATALOG },
   grokModels: { ...EMPTY_CATALOG },
   copilotStatus: { text: "조회 전", detail: "-" },
@@ -316,6 +318,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     requestDesktopLlm.copilotModels();
     requestDesktopLlm.geminiModels();
     requestDesktopLlm.nvidiaModels();
+    requestDesktopLlm.deepseekModels();
     requestDesktopLlm.codexModels();
     requestDesktopLlm.grokModels();
     requestDesktopLlm.cerebrasModels();
@@ -346,12 +349,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     useDesktopPreferenceStore.getState().setPreferredModel(provider, value);
     applyPreferredToSessions(provider, value);
     const label =
-      provider === "gemini" ? "Gemini" : provider === "cerebras" ? "Cerebras" : provider === "nvidia" ? "NVIDIA NIM" : provider === "codex" ? "Codex" : "Grok";
+      provider === "gemini" ? "Gemini" : provider === "cerebras" ? "Cerebras" : provider === "nvidia" ? "NVIDIA NIM" : provider === "deepseek" ? "DeepSeek" : provider === "codex" ? "Codex" : "Grok";
     if (provider === "cerebras") {
       set({ cerebrasModels: { ...get().cerebrasModels, selected: value }, llmMessage: `${label} 모델을 ${value}로 적용했습니다.` });
       return;
     }
-    const key = `${provider}Models` as "geminiModels" | "nvidiaModels" | "codexModels" | "grokModels";
+    const key = `${provider}Models` as "geminiModels" | "nvidiaModels" | "deepseekModels" | "codexModels" | "grokModels";
     set({ [key]: { ...get()[key], selected: value }, llmMessage: `${label} 모델을 ${value}로 적용했습니다.` });
   },
   startCopilotLogin: () => {
@@ -584,6 +587,11 @@ export function useSettingsPageBridge() {
       useSettingsStore.setState({ geminiModels: mergeCatalog(useSettingsStore.getState().geminiModels, message) });
       return;
     }
+    if (message.type === "deepseek_models") {
+      useSettingsStore.setState({ deepseekModels: mergeCatalog(useSettingsStore.getState().deepseekModels, message) });
+      return;
+    }
+
     if (message.type === "nvidia_models") {
       useSettingsStore.setState({ nvidiaModels: mergeCatalog(useSettingsStore.getState().nvidiaModels, message) });
       return;

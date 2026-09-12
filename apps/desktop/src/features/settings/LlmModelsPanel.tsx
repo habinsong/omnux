@@ -221,6 +221,7 @@ const MODEL_SELECT_ROWS: Array<{
   { id: "gemini", persist: "app" },
   { id: "cerebras", persist: "app" },
   { id: "nvidia", persist: "app" },
+  { id: "deepseek", persist: "app" },
   { id: "copilot", persist: "server" },
   { id: "codex", persist: "app" },
   { id: "grok", persist: "app" }
@@ -234,6 +235,7 @@ function catalogFor(store: Store, id: ModelProviderId): { selected: string; item
   if (id === "copilot") return store.copilotModels;
   if (id === "gemini") return store.geminiModels;
   if (id === "nvidia") return store.nvidiaModels;
+  if (id === "deepseek") return store.deepseekModels;
   if (id === "codex") return store.codexModels;
   return store.grokModels;
 }

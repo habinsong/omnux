@@ -72,6 +72,7 @@ public sealed partial class WebSocketGateway
     private readonly CerebrasModelCatalog _cerebrasModelCatalog;
     private readonly GeminiModelCatalog _geminiModelCatalog;
     private readonly NvidiaModelCatalog _nvidiaModelCatalog;
+    private readonly DeepseekModelCatalog _deepseekModelCatalog;
     private readonly CodexModelCatalog _codexModelCatalog;
     private readonly GuardRetryTimelineStore _guardRetryTimelineStore;
     private readonly AuditLogger _auditLogger;
@@ -180,6 +181,7 @@ public sealed partial class WebSocketGateway
         CerebrasModelCatalog cerebrasModelCatalog,
         GeminiModelCatalog geminiModelCatalog,
         NvidiaModelCatalog nvidiaModelCatalog,
+        DeepseekModelCatalog deepseekModelCatalog,
         CodexModelCatalog codexModelCatalog,
         GuardRetryTimelineStore guardRetryTimelineStore,
         AuditLogger auditLogger,
@@ -213,6 +215,7 @@ public sealed partial class WebSocketGateway
         _cerebrasModelCatalog = cerebrasModelCatalog;
         _geminiModelCatalog = geminiModelCatalog;
         _nvidiaModelCatalog = nvidiaModelCatalog;
+        _deepseekModelCatalog = deepseekModelCatalog;
         _codexModelCatalog = codexModelCatalog;
         _guardRetryTimelineStore = guardRetryTimelineStore;
         _auditLogger = auditLogger;
@@ -230,6 +233,7 @@ public sealed partial class WebSocketGateway
             SendCopilotModelsAsync,
             SendGeminiModelsAsync,
             SendNvidiaModelsAsync,
+            SendDeepseekModelsAsync,
             SendCodexModelsAsync,
             (socket, sendLock, token, forceRefresh) => SendUsageStatsAsync(socket, sendLock, token, forceRefresh),
             SendRoutingPolicyResultAsync,
@@ -458,6 +462,7 @@ public sealed partial class WebSocketGateway
             + $"\"geminiApiKeySet\":{(snapshot.GeminiApiKeySet ? "true" : "false")},"
             + $"\"cerebrasApiKeySet\":{(snapshot.CerebrasApiKeySet ? "true" : "false")},"
             + $"\"nvidiaApiKeySet\":{(snapshot.NvidiaApiKeySet ? "true" : "false")},"
+            + $"\"deepseekApiKeySet\":{(snapshot.DeepseekApiKeySet ? "true" : "false")},"
             + $"\"codexApiKeySet\":{(snapshot.CodexApiKeySet ? "true" : "false")},"
             + $"\"telegramBotTokenMasked\":\"{EscapeJson(snapshot.TelegramBotTokenMasked)}\","
             + $"\"telegramChatIdMasked\":\"{EscapeJson(snapshot.TelegramChatIdMasked)}\","
@@ -465,6 +470,7 @@ public sealed partial class WebSocketGateway
             + $"\"geminiApiKeyMasked\":\"{EscapeJson(snapshot.GeminiApiKeyMasked)}\","
             + $"\"cerebrasApiKeyMasked\":\"{EscapeJson(snapshot.CerebrasApiKeyMasked)}\","
             + $"\"nvidiaApiKeyMasked\":\"{EscapeJson(snapshot.NvidiaApiKeyMasked)}\","
+            + $"\"deepseekApiKeyMasked\":\"{EscapeJson(snapshot.DeepseekApiKeyMasked)}\","
             + $"\"codexApiKeyMasked\":\"{EscapeJson(snapshot.CodexApiKeyMasked)}\","
             + $"\"externalDashboardEnabled\":{(snapshot.ExternalDashboardEnabled ? "true" : "false")},"
             + $"\"remoteDashboardClient\":{(remoteDashboardClient ? "true" : "false")},"
@@ -660,6 +666,12 @@ public sealed partial class WebSocketGateway
     {
         var ids = await _nvidiaModelCatalog.GetModelIdsAsync(cancellationToken);
         await SendTextAsync(socket, sendLock, BuildModelIdsMessage("nvidia_models", ids), cancellationToken);
+    }
+
+    private async Task SendDeepseekModelsAsync(WebSocket socket, SemaphoreSlim sendLock, CancellationToken cancellationToken)
+    {
+        var ids = await _deepseekModelCatalog.GetModelIdsAsync(cancellationToken);
+        await SendTextAsync(socket, sendLock, BuildModelIdsMessage("deepseek_models", ids), cancellationToken);
     }
 
     private async Task SendCodexModelsAsync(WebSocket socket, SemaphoreSlim sendLock, CancellationToken cancellationToken)
@@ -2328,6 +2340,7 @@ public sealed partial class WebSocketGateway
             string? copilotModel = null;
             string? cerebrasModel = null;
             string? nvidiaModel = null;
+            string? deepseekModel = null;
             string? codexModel = null;
             string? grokModel = "none";
             string? summaryProvider = null;
@@ -2394,6 +2407,7 @@ public sealed partial class WebSocketGateway
             string? geminiApiKey = null;
             string? cerebrasApiKey = null;
             string? nvidiaApiKey = null;
+            string? deepseekApiKey = null;
             string? codexApiKey = null;
             string? routingPolicyJson = null;
             string? refactorEditsJson = null;
@@ -2527,6 +2541,11 @@ public sealed partial class WebSocketGateway
             if (doc.RootElement.TryGetProperty("cerebrasModel", out var cerebrasModelElement))
             {
                 cerebrasModel = cerebrasModelElement.GetString();
+            }
+
+            if (doc.RootElement.TryGetProperty("deepseekModel", out var deepseekModelElement))
+            {
+                deepseekModel = deepseekModelElement.GetString();
             }
 
             if (doc.RootElement.TryGetProperty("nvidiaModel", out var nvidiaModelElement))
@@ -3204,6 +3223,11 @@ public sealed partial class WebSocketGateway
                 cerebrasApiKey = cerebrasKey.GetString();
             }
 
+            if (doc.RootElement.TryGetProperty("deepseekApiKey", out var deepseekKey))
+            {
+                deepseekApiKey = deepseekKey.GetString();
+            }
+
             if (doc.RootElement.TryGetProperty("nvidiaApiKey", out var nvidiaKey))
             {
                 nvidiaApiKey = nvidiaKey.GetString();
@@ -3542,6 +3566,7 @@ public sealed partial class WebSocketGateway
                 CopilotModel = copilotModel,
                 CerebrasModel = cerebrasModel,
                 NvidiaModel = nvidiaModel,
+                DeepseekModel = deepseekModel,
                 CodexModel = codexModel,
                 GrokModel = grokModel,
                 SummaryProvider = summaryProvider,
@@ -3613,6 +3638,7 @@ public sealed partial class WebSocketGateway
                 GeminiApiKey = geminiApiKey,
                 CerebrasApiKey = cerebrasApiKey,
                 NvidiaApiKey = nvidiaApiKey,
+                DeepseekApiKey = deepseekApiKey,
                 CodexApiKey = codexApiKey,
                 RoutingPolicyJson = routingPolicyJson,
                 RefactorEditsJson = refactorEditsJson,

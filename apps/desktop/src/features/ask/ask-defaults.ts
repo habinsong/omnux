@@ -1,4 +1,4 @@
-import { DEFAULT_CEREBRAS_MODEL, DEFAULT_CODEX_MODEL, DEFAULT_COPILOT_MODEL, DEFAULT_GEMINI_WORKER_MODEL, DEFAULT_GROK_MODEL, DEFAULT_GROQ_SINGLE_MODEL, DEFAULT_GROQ_WORKER_MODEL, DEFAULT_NVIDIA_MODEL, NONE_MODEL, STATIC_MODEL_OPTIONS } from "./ask-models";
+import { DEFAULT_CEREBRAS_MODEL, DEFAULT_CODEX_MODEL, DEFAULT_COPILOT_MODEL, DEFAULT_DEEPSEEK_MODEL, DEFAULT_GEMINI_WORKER_MODEL, DEFAULT_GROK_MODEL, DEFAULT_GROQ_SINGLE_MODEL, DEFAULT_GROQ_WORKER_MODEL, DEFAULT_NVIDIA_MODEL, NONE_MODEL, STATIC_MODEL_OPTIONS } from "./ask-models";
 import type { AskProvider, AskModelProvider } from "./ask-types";
 
 export const ASK_PROVIDER_OPTIONS: Array<{ value: AskProvider; label: string }> = [
@@ -7,6 +7,7 @@ export const ASK_PROVIDER_OPTIONS: Array<{ value: AskProvider; label: string }> 
   { value: "gemini", label: "Gemini" },
   { value: "cerebras", label: "Cerebras" },
   { value: "nvidia", label: "NVIDIA NIM" },
+  { value: "deepseek", label: "DeepSeek" },
   { value: "copilot", label: "Copilot" },
   { value: "codex", label: "Codex" },
   { value: "grok", label: "Grok" }
@@ -17,6 +18,7 @@ export const DEFAULT_MODEL_CATALOGS: Record<AskModelProvider, string[]> = {
   gemini: STATIC_MODEL_OPTIONS.gemini ?? [],
   cerebras: STATIC_MODEL_OPTIONS.cerebras ?? [],
   nvidia: STATIC_MODEL_OPTIONS.nvidia ?? [],
+  deepseek: STATIC_MODEL_OPTIONS.deepseek ?? [],
   copilot: STATIC_MODEL_OPTIONS.copilot ?? [],
   codex: STATIC_MODEL_OPTIONS.codex ?? [],
   grok: STATIC_MODEL_OPTIONS.grok ?? []
@@ -27,6 +29,7 @@ export const DEFAULT_SELECTED_MODELS: Partial<Record<AskModelProvider, string>> 
   gemini: DEFAULT_GEMINI_WORKER_MODEL,
   cerebras: DEFAULT_CEREBRAS_MODEL,
   nvidia: DEFAULT_NVIDIA_MODEL,
+  deepseek: DEFAULT_DEEPSEEK_MODEL,
   copilot: DEFAULT_COPILOT_MODEL,
   codex: DEFAULT_CODEX_MODEL,
   grok: DEFAULT_GROK_MODEL
@@ -37,6 +40,7 @@ export const DEFAULT_WORKER_MODELS: Partial<Record<AskModelProvider, string>> = 
   gemini: DEFAULT_GEMINI_WORKER_MODEL,
   cerebras: DEFAULT_CEREBRAS_MODEL,
   nvidia: DEFAULT_NVIDIA_MODEL,
+  deepseek: DEFAULT_DEEPSEEK_MODEL,
   copilot: NONE_MODEL,
   codex: NONE_MODEL,
   grok: NONE_MODEL

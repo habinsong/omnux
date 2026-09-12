@@ -167,6 +167,8 @@ internal record ChatMultiResultWsResponse(
     string RetryReason,
     string Grok = "",
     string GrokModel = "",
+    string Deepseek = "",
+    string DeepseekModel = "",
     string? RequestId = null
 );
 

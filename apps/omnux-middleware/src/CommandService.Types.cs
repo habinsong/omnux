@@ -131,7 +131,9 @@ public sealed record LlmMultiChatResult(
     TokenUsage? WorkerTokenUsage = null,
     TokenUsage? SummaryTokenUsage = null,
     string GrokText = "",
-    string GrokModel = ""
+    string GrokModel = "",
+    string DeepseekText = "",
+    string DeepseekModel = ""
 );
 public sealed record InputAttachment(
     string Name,
@@ -189,7 +191,8 @@ public sealed record ChatRequest(
     string? SkillScope = null,
     bool ThinkPlusEnabled = false,
     string? NvidiaModel = null,
-    string? GrokModel = "none"
+    string? GrokModel = "none",
+    string? DeepseekModel = null
 );
 public sealed record MultiChatRequest(
     string Input,
@@ -215,7 +218,8 @@ public sealed record MultiChatRequest(
     bool ThinkPlusEnabled = false,
     string? SkillName = null,
     string? SkillScope = null,
-    string? GrokModel = "none"
+    string? GrokModel = "none",
+    string? DeepseekModel = null
 );
 public sealed record ChatStreamUpdate(
     string Scope,
@@ -364,7 +368,9 @@ public sealed record ConversationMultiResult(
     string NvidiaText = "",
     string NvidiaModel = "",
     string GrokText = "",
-    string GrokModel = ""
+    string GrokModel = "",
+    string DeepseekText = "",
+    string DeepseekModel = ""
 );
 public sealed record CodingRunRequest(
     string Input,
@@ -393,7 +399,8 @@ public sealed record CodingRunRequest(
     string? SkillName = null,
     string? SkillScope = null,
     string? GrokModel = "none",
-    string? ProjectKey = null
+    string? ProjectKey = null,
+    string? DeepseekModel = null
 )
 {
     internal CodingProjectBinding? BoundProject { get; init; }
@@ -949,6 +956,7 @@ internal sealed class TelegramLlmPreferences
     public string MultiCopilotModel { get; set; } = string.Empty;
     public string MultiCerebrasModel { get; set; } = string.Empty;
     public string MultiNvidiaModel { get; set; } = string.Empty;
+    public string MultiDeepseekModel { get; set; } = string.Empty;
     public string MultiCodexModel { get; set; } = string.Empty;
     public string MultiGrokModel { get; set; } = "none";
     public string MultiSummaryProvider { get; set; } = "auto";
@@ -971,6 +979,7 @@ internal sealed class TelegramLlmPreferences
             MultiCopilotModel = MultiCopilotModel,
             MultiCerebrasModel = MultiCerebrasModel,
             MultiNvidiaModel = MultiNvidiaModel,
+            MultiDeepseekModel = MultiDeepseekModel,
             MultiCodexModel = MultiCodexModel,
             MultiGrokModel = MultiGrokModel,
             MultiSummaryProvider = MultiSummaryProvider,
@@ -993,6 +1002,7 @@ internal sealed class TelegramCodingPreferences
     public string OrchestrationGeminiModel { get; set; } = string.Empty;
     public string OrchestrationCerebrasModel { get; set; } = string.Empty;
     public string OrchestrationNvidiaModel { get; set; } = string.Empty;
+    public string OrchestrationDeepseekModel { get; set; } = string.Empty;
     public string OrchestrationCopilotModel { get; set; } = "none";
     public string OrchestrationCodexModel { get; set; } = "none";
     public string OrchestrationGrokModel { get; set; } = "none";
@@ -1003,6 +1013,7 @@ internal sealed class TelegramCodingPreferences
     public string MultiGeminiModel { get; set; } = string.Empty;
     public string MultiCerebrasModel { get; set; } = string.Empty;
     public string MultiNvidiaModel { get; set; } = string.Empty;
+    public string MultiDeepseekModel { get; set; } = string.Empty;
     public string MultiCopilotModel { get; set; } = "none";
     public string MultiCodexModel { get; set; } = "none";
     public string MultiGrokModel { get; set; } = "none";
@@ -1022,6 +1033,7 @@ internal sealed class TelegramCodingPreferences
             OrchestrationGeminiModel = OrchestrationGeminiModel,
             OrchestrationCerebrasModel = OrchestrationCerebrasModel,
             OrchestrationNvidiaModel = OrchestrationNvidiaModel,
+            OrchestrationDeepseekModel = OrchestrationDeepseekModel,
             OrchestrationCopilotModel = OrchestrationCopilotModel,
             OrchestrationCodexModel = OrchestrationCodexModel,
             OrchestrationGrokModel = OrchestrationGrokModel,
@@ -1032,6 +1044,7 @@ internal sealed class TelegramCodingPreferences
             MultiGeminiModel = MultiGeminiModel,
             MultiCerebrasModel = MultiCerebrasModel,
             MultiNvidiaModel = MultiNvidiaModel,
+            MultiDeepseekModel = MultiDeepseekModel,
             MultiCopilotModel = MultiCopilotModel,
             MultiCodexModel = MultiCodexModel,
             MultiGrokModel = MultiGrokModel
@@ -1072,6 +1085,7 @@ internal sealed class WebLlmPreferences
     public string MultiCopilotModel { get; set; } = string.Empty;
     public string MultiCerebrasModel { get; set; } = string.Empty;
     public string MultiNvidiaModel { get; set; } = string.Empty;
+    public string MultiDeepseekModel { get; set; } = string.Empty;
     public string MultiCodexModel { get; set; } = string.Empty;
     public string MultiGrokModel { get; set; } = "none";
     public string MultiSummaryProvider { get; set; } = "auto";
@@ -1094,6 +1108,7 @@ internal sealed class WebLlmPreferences
             MultiCopilotModel = MultiCopilotModel,
             MultiCerebrasModel = MultiCerebrasModel,
             MultiNvidiaModel = MultiNvidiaModel,
+            MultiDeepseekModel = MultiDeepseekModel,
             MultiCodexModel = MultiCodexModel,
             MultiGrokModel = MultiGrokModel,
             MultiSummaryProvider = MultiSummaryProvider,

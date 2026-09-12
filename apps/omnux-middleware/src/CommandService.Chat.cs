@@ -72,7 +72,8 @@ public sealed partial class CommandService
         string? nvidiaModel,
         IReadOnlyList<InputAttachment>? attachments,
         CancellationToken cancellationToken,
-        string? grokModel = "none"
+        string? grokModel = "none",
+        string? deepseekModel = null
     )
     {
         return ChatOrchestrationCoreAsync(
@@ -88,7 +89,8 @@ public sealed partial class CommandService
             nvidiaModel,
             attachments,
             cancellationToken,
-            grokModel
+            grokModel,
+            deepseekModel
         );
     }
 
@@ -104,7 +106,8 @@ public sealed partial class CommandService
         string? nvidiaModel,
         IReadOnlyList<InputAttachment>? attachments,
         CancellationToken cancellationToken,
-        string? grokModel = "none"
+        string? grokModel = "none",
+        string? deepseekModel = null
     )
     {
         return ChatMultiCoreAsync(
@@ -119,7 +122,8 @@ public sealed partial class CommandService
             nvidiaModel,
             attachments,
             cancellationToken,
-            grokModel
+            grokModel,
+            deepseekModel
         );
     }
 
@@ -455,6 +459,7 @@ public sealed partial class CommandService
         {
             "copilot" => null,
             "nvidia" => TimeSpan.FromSeconds(Math.Max(_context.NvidiaMinSingleChatTimeoutSec, _providers.NvidiaTimeoutSec)),
+            "deepseek" => TimeSpan.FromSeconds(Math.Max(_context.NvidiaMinSingleChatTimeoutSec, _providers.DeepseekTimeoutSec)),
             "cerebras" => TimeSpan.FromSeconds(Math.Max(_context.CerebrasMinSingleChatTimeoutSec, _providers.CerebrasTimeoutSec)),
             _ => TimeSpan.FromSeconds(_context.SingleChatDefaultTimeoutSec),
         };
@@ -1455,7 +1460,8 @@ public sealed partial class CommandService
             request.NvidiaModel,
             request.Attachments,
             cancellationToken,
-            request.GrokModel
+            request.GrokModel,
+            request.DeepseekModel
         );
         var citationBundle = BuildAndLogCitationMappings(
             request.Source,
@@ -1734,7 +1740,8 @@ public sealed partial class CommandService
             request.NvidiaModel,
             request.Attachments,
             cancellationToken,
-            request.GrokModel
+            request.GrokModel,
+            request.DeepseekModel
         );
 
         var citationBundle = BuildAndLogCitationMappings(
@@ -1745,6 +1752,7 @@ public sealed partial class CommandService
             ("gemini", generated.GeminiText),
             ("cerebras", generated.CerebrasText),
             ("nvidia", generated.NvidiaText),
+            ("deepseek", generated.DeepseekText),
             ("copilot", generated.CopilotText),
             ("codex", generated.CodexText),
             ("grok", generated.GrokText),
@@ -1757,6 +1765,7 @@ public sealed partial class CommandService
         var responseGeminiText = generated.GeminiText;
         var responseCerebrasText = generated.CerebrasText;
         var responseNvidiaText = generated.NvidiaText;
+        var responseDeepseekText = generated.DeepseekText;
         var responseCopilotText = generated.CopilotText;
         var responseCodexText = generated.CodexText;
         var responseGrokText = generated.GrokText;
@@ -1780,7 +1789,9 @@ public sealed partial class CommandService
             responseNvidiaText,
             generated.NvidiaModel,
             GrokText: responseGrokText,
-            GrokModel: generated.GrokModel
+            GrokModel: generated.GrokModel,
+            DeepseekText: responseDeepseekText,
+            DeepseekModel: generated.DeepseekModel
         ));
         var summaryMessageText = MultiComparisonPolicy.BuildMultiSummaryAssistantText(
             responseSummaryText,
@@ -1838,7 +1849,9 @@ public sealed partial class CommandService
             responseNvidiaText,
             generated.NvidiaModel,
             GrokText: responseGrokText,
-            GrokModel: generated.GrokModel
+            GrokModel: generated.GrokModel,
+            DeepseekText: responseDeepseekText,
+            DeepseekModel: generated.DeepseekModel
         );
     }
 
@@ -1885,7 +1898,8 @@ public sealed partial class CommandService
         string? nvidiaModel,
         IReadOnlyList<InputAttachment>? attachments,
         CancellationToken cancellationToken,
-        string? grokModel = "none"
+        string? grokModel = "none",
+        string? deepseekModel = null
     )
     {
         var text = (input ?? string.Empty).Trim();
@@ -1917,6 +1931,12 @@ public sealed partial class CommandService
         {
             var selectedNvidia = string.IsNullOrWhiteSpace(nvidiaModel) ? null : nvidiaModel.Trim();
             workerSpecs.Add(("nvidia", selectedNvidia));
+        }
+
+        if (_llmRouter.HasDeepseekApiKey() && !IsDisabledModelSelection(deepseekModel))
+        {
+            var selectedDeepseek = string.IsNullOrWhiteSpace(deepseekModel) ? null : deepseekModel.Trim();
+            workerSpecs.Add(("deepseek", selectedDeepseek));
         }
 
         var copilotStatus = await _copilotWrapper.GetStatusAsync(cancellationToken);
@@ -1973,7 +1993,7 @@ public sealed partial class CommandService
             })
             .ToList();
         var availabilityByProvider = await GetProviderAvailabilityMapAsync(cancellationToken);
-        var selectionByProvider = BuildProviderSelectionMap(groqModel, geminiModel, cerebrasModel, copilotModel, codexModel, nvidiaModel, grokModel);
+        var selectionByProvider = BuildProviderSelectionMap(groqModel, geminiModel, cerebrasModel, copilotModel, codexModel, nvidiaModel, deepseekModel, grokModel);
         var successfulWorkers = workerResults
             .Where(x => IsUsableWorkerResult(x, availabilityByProvider, selectionByProvider))
             .ToArray();
@@ -1996,6 +2016,7 @@ public sealed partial class CommandService
             || (resolvedProvider == "gemini" && IsDisabledModelSelection(geminiModel))
             || (resolvedProvider == "cerebras" && IsDisabledModelSelection(cerebrasModel))
             || (resolvedProvider == "nvidia" && IsDisabledModelSelection(nvidiaModel))
+            || (resolvedProvider == "deepseek" && IsDisabledModelSelection(deepseekModel))
             || (resolvedProvider == "copilot" && IsDisabledModelSelection(copilotModel))
             || (resolvedProvider == "codex" && IsDisabledModelSelection(codexModel))
             || (resolvedProvider == "grok" && IsDisabledModelSelection(grokModel)))
@@ -2013,6 +2034,7 @@ public sealed partial class CommandService
                 "codex" => ResolveModelForCategory(TaskCategory.GeneralChat, resolvedProvider, codexModel),
                 "grok" => ResolveModelForCategory(TaskCategory.GeneralChat, resolvedProvider, grokModel),
                 "nvidia" => ResolveModelForCategory(TaskCategory.GeneralChat, resolvedProvider, nvidiaModel),
+                "deepseek" => ResolveModelForCategory(TaskCategory.GeneralChat, resolvedProvider, deepseekModel),
                 "cerebras" => ResolveModelForCategory(TaskCategory.GeneralChat, resolvedProvider, cerebrasModel),
                 _ => ResolveModelForCategory(TaskCategory.GeneralChat, resolvedProvider, geminiModel)
             };
@@ -2052,7 +2074,8 @@ public sealed partial class CommandService
         string? nvidiaModel,
         IReadOnlyList<InputAttachment>? attachments,
         CancellationToken cancellationToken,
-        string? grokModel = "none"
+        string? grokModel = "none",
+        string? deepseekModel = null
     )
     {
         var text = (input ?? string.Empty).Trim();
@@ -2061,6 +2084,7 @@ public sealed partial class CommandService
         var geminiSelected = NormalizeModelSelection(geminiModel) ?? _providers.GeminiModel;
         var cerebrasSelected = NormalizeModelSelection(cerebrasModel) ?? _providers.CerebrasModel;
         var nvidiaSelected = NormalizeModelSelection(nvidiaModel) ?? _providers.NvidiaModel;
+        var deepseekSelected = NormalizeModelSelection(deepseekModel) ?? _providers.DeepseekModel;
         var copilotSelected = NormalizeModelSelection(copilotModel) ?? _copilotWrapper.GetSelectedModel();
         var grokSelected = NormalizeModelSelection(grokModel) ?? _providers.GrokModel;
         var grokResolvedModel = IsDisabledModelSelection(grokModel) ? "none" : grokSelected;
@@ -2069,6 +2093,7 @@ public sealed partial class CommandService
         var geminiResolvedModel = IsDisabledModelSelection(geminiModel) ? "none" : geminiSelected;
         var cerebrasResolvedModel = IsDisabledModelSelection(cerebrasModel) ? "none" : cerebrasSelected;
         var nvidiaResolvedModel = IsDisabledModelSelection(nvidiaModel) ? "none" : nvidiaSelected;
+        var deepseekResolvedModel = IsDisabledModelSelection(deepseekModel) ? "none" : deepseekSelected;
         var copilotResolvedModel = IsDisabledModelSelection(copilotModel) ? "none" : copilotSelected;
         var codexResolvedModel = IsDisabledModelSelection(codexModel) ? "none" : codexSelected;
         var requestedSummaryProvider = NormalizeProvider(summaryProvider, allowAuto: true);
@@ -2119,6 +2144,12 @@ public sealed partial class CommandService
                 ? ExecuteProviderChatWithPreparedInputAsync("nvidia", nvidiaSelected, text, attachments, cancellationToken)
                 : Task.FromResult(new LlmSingleChatResult("nvidia", nvidiaSelected, "NVIDIA NIM API 키가 설정되지 않았습니다."));
 
+        Task<LlmSingleChatResult> deepseekTask = IsDisabledModelSelection(deepseekModel)
+            ? Task.FromResult(new LlmSingleChatResult("deepseek", "none", "선택 안함"))
+            : _llmRouter.HasDeepseekApiKey()
+                ? ExecuteProviderChatWithPreparedInputAsync("deepseek", deepseekSelected, text, attachments, cancellationToken)
+                : Task.FromResult(new LlmSingleChatResult("deepseek", deepseekSelected, "DeepSeek API 키가 설정되지 않았습니다."));
+
         var copilotStatus = await _copilotWrapper.GetStatusAsync(cancellationToken);
         Task<LlmSingleChatResult> copilotTask = IsDisabledModelSelection(copilotModel)
             ? Task.FromResult(new LlmSingleChatResult("copilot", "none", "선택 안함"))
@@ -2141,19 +2172,20 @@ public sealed partial class CommandService
                 ? ExecuteProviderChatWithPreparedInputAsync("grok", grokSelected, text, attachments, cancellationToken)
                 : Task.FromResult(new LlmSingleChatResult("grok", grokSelected, "Grok OAuth 인증이 필요합니다."));
         }
-        await Task.WhenAll(groqTask, geminiTask, cerebrasTask, nvidiaTask, copilotTask, codexTask, grokTask);
+        await Task.WhenAll(groqTask, geminiTask, cerebrasTask, nvidiaTask, deepseekTask, copilotTask, codexTask, grokTask);
         var workerResults = new[]
         {
             groqTask.Result with { Text = ChatOutputSanitizerPolicy.Sanitize(groqTask.Result.Text) },
             geminiTask.Result with { Text = ChatOutputSanitizerPolicy.Sanitize(geminiTask.Result.Text) },
             cerebrasTask.Result with { Text = ChatOutputSanitizerPolicy.Sanitize(cerebrasTask.Result.Text) },
             nvidiaTask.Result with { Text = ChatOutputSanitizerPolicy.Sanitize(nvidiaTask.Result.Text) },
+            deepseekTask.Result with { Text = ChatOutputSanitizerPolicy.Sanitize(deepseekTask.Result.Text) },
             copilotTask.Result with { Text = ChatOutputSanitizerPolicy.Sanitize(copilotTask.Result.Text) },
             codexTask.Result with { Text = ChatOutputSanitizerPolicy.Sanitize(codexTask.Result.Text) },
             grokTask.Result with { Text = ChatOutputSanitizerPolicy.Sanitize(grokTask.Result.Text) }
         };
         var availabilityByProvider = await GetProviderAvailabilityMapAsync(cancellationToken);
-        var selectionByProvider = BuildProviderSelectionMap(groqModel, geminiModel, cerebrasModel, copilotModel, codexModel, nvidiaModel, grokModel);
+        var selectionByProvider = BuildProviderSelectionMap(groqModel, geminiModel, cerebrasModel, copilotModel, codexModel, nvidiaModel, deepseekModel, grokModel);
         var successfulWorkers = workerResults
             .Where(x => IsUsableWorkerResult(x, availabilityByProvider, selectionByProvider))
             .ToArray();
@@ -2162,9 +2194,10 @@ public sealed partial class CommandService
         var gemini = workerResults[1].Text;
         var cerebras = workerResults[2].Text;
         var nvidia = workerResults[3].Text;
-        var copilot = workerResults[4].Text;
-        var codex = workerResults[5].Text;
-        var grok = workerResults[6].Text;
+        var deepseek = workerResults[4].Text;
+        var copilot = workerResults[5].Text;
+        var codex = workerResults[6].Text;
+        var grok = workerResults[7].Text;
 
         var summaryPrompt = $"""
                             사용자 질문:
@@ -2187,6 +2220,9 @@ public sealed partial class CommandService
 
                             [Codex]
                             {codex}
+
+                            [DeepSeek]
+                            {deepseek}
 
                             [Grok]
                             {grok}
@@ -2229,7 +2265,7 @@ public sealed partial class CommandService
         }
         var summarySections = MultiComparisonPolicy.ParseMultiSummarySections(summary);
 
-        _auditLogger.Log(source, "chat_multi", "ok", $"groq={groqSelected} nvidia={nvidiaSelected} cerebras={cerebrasSelected} copilot={copilotSelected} codex={codexSelected} summary={resolvedSummaryProvider}");
+        _auditLogger.Log(source, "chat_multi", "ok", $"groq={groqSelected} nvidia={nvidiaSelected} deepseek={deepseekSelected} cerebras={cerebrasSelected} copilot={copilotSelected} codex={codexSelected} summary={resolvedSummaryProvider}");
         return new LlmMultiChatResult(
             groq,
             gemini,
@@ -2251,7 +2287,9 @@ public sealed partial class CommandService
             TokenUsageEstimator.Combine(workerResults.Select(item => item.TokenUsage)),
             summaryTokenUsage,
             grok,
-            grokResolvedModel
+            grokResolvedModel,
+            deepseek,
+            deepseekResolvedModel
         );
     }
 

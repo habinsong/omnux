@@ -85,6 +85,7 @@ public sealed class SettingsApplicationService : ISettingsApplicationService
         string? geminiApiKey,
         string? cerebrasApiKey,
         string? nvidiaApiKey,
+        string? deepseekApiKey,
         string? codexApiKey,
         bool persist
     )
@@ -94,6 +95,7 @@ public sealed class SettingsApplicationService : ISettingsApplicationService
             geminiApiKey,
             cerebrasApiKey,
             nvidiaApiKey,
+            deepseekApiKey,
             codexApiKey,
             persist
         );

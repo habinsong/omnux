@@ -1,6 +1,6 @@
 {
   "_comment": "단일 소스 오브 트루스: omnux 전체의 LLM 제공자/모델 정의. TS/C#/JS 모두 여기서 읽는다.",
-  "_updated": "2026-09-09",
+  "_updated": "2026-09-13",
   "_verification": "제공자별 확인 상태는 docs/renewal/implementation/model-registry.md 를 본다. 확인하지 못한 모델은 목록에 남기되 문서에 미확인으로 적는다.",
   "providers": {
     "groq": {
@@ -45,6 +45,16 @@
         "moonshotai/kimi-k3",
         "deepseek-ai/deepseek-v4-pro-0813",
         "openai/gpt-oss-120b"
+      ]
+    },
+    "deepseek": {
+      "label": "DeepSeek",
+      "default": "deepseek-flash",
+      "workerDefault": "deepseek-flash",
+      "fallback": [
+        "deepseek-flash",
+        "deepseek-v4-pro",
+        "deepseek-v4-flash"
       ]
     },
     "copilot": {

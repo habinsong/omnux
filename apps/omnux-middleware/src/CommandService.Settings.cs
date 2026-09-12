@@ -25,9 +25,10 @@ public sealed partial class CommandService
         string? geminiApiKey,
         string? cerebrasApiKey,
         string? nvidiaApiKey,
+        string? deepseekApiKey,
         string? codexApiKey,
         bool persist
-    ) => _settingsAppService.UpdateLlmCredentials(groqApiKey, geminiApiKey, cerebrasApiKey, nvidiaApiKey, codexApiKey, persist);
+    ) => _settingsAppService.UpdateLlmCredentials(groqApiKey, geminiApiKey, cerebrasApiKey, nvidiaApiKey, deepseekApiKey, codexApiKey, persist);
 
     public string DeleteTelegramCredentials(bool deletePersisted)
         => _settingsAppService.DeleteTelegramCredentials(deletePersisted);

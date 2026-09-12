@@ -217,6 +217,11 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         return !string.IsNullOrWhiteSpace(_runtimeSettings.GetNvidiaApiKey());
     }
 
+    public bool HasDeepseekApiKey()
+    {
+        return !string.IsNullOrWhiteSpace(_runtimeSettings.GetDeepseekApiKey());
+    }
+
     public bool HasSttSettings()
     {
         return !string.IsNullOrWhiteSpace(_providers.SttBaseUrl)
@@ -395,6 +400,11 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                 return $"{routeRole}:nvidia:{_providers.NvidiaModel}";
             }
 
+            if (provider == "deepseek" && HasDeepseekApiKey())
+            {
+                return $"{routeRole}:deepseek:{_providers.DeepseekModel}";
+            }
+
             if (provider == "cerebras" && HasCerebrasApiKey())
             {
                 return $"{routeRole}:cerebras:{_providers.CerebrasModel}";
@@ -436,6 +446,11 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                 return await GenerateNvidiaChatAsync(prompt, _providers.NvidiaModel, 1024, cancellationToken);
             }
 
+            if (provider == "deepseek" && HasDeepseekApiKey())
+            {
+                return await GenerateDeepseekChatAsync(prompt, _providers.DeepseekModel, 1024, cancellationToken);
+            }
+
             if (provider == "cerebras" && HasCerebrasApiKey())
             {
                 return await GenerateCerebrasChatAsync(prompt, _providers.CerebrasModel, 1024, cancellationToken);
@@ -473,6 +488,11 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
             if (provider == "nvidia" && HasNvidiaApiKey())
             {
                 return await GenerateNvidiaChatAsync(prompt, _providers.NvidiaModel, 768, cancellationToken);
+            }
+
+            if (provider == "deepseek" && HasDeepseekApiKey())
+            {
+                return await GenerateDeepseekChatAsync(prompt, _providers.DeepseekModel, 768, cancellationToken);
             }
 
             if (provider == "cerebras" && HasCerebrasApiKey())
@@ -1888,6 +1908,132 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
             deltaCallback,
             cancellationToken
         );
+    }
+
+    // DeepSeek 공식 API는 OpenAI 호환 규격이다. NVIDIA NIM 과 달리 202 Accepted 폴링이 없어
+    // AcceptedResponseResolver 를 쓰지 않는다.
+    public async Task<string> GenerateDeepseekChatAsync(
+        string userInput,
+        string? modelOverride,
+        int maxOutputTokens,
+        CancellationToken cancellationToken
+    )
+    {
+        var deepseekApiKey = _runtimeSettings.GetDeepseekApiKey();
+        if (string.IsNullOrWhiteSpace(deepseekApiKey))
+        {
+            return "DeepSeek API 키가 설정되지 않았습니다.";
+        }
+
+        var model = string.IsNullOrWhiteSpace(modelOverride) ? _providers.DeepseekModel : modelOverride.Trim();
+        var endpoint = $"{_providers.DeepseekBaseUrl.TrimEnd('/')}/chat/completions";
+        var systemPrompt = BuildOpenAiCompatibleChatSystemPrompt();
+        var effectiveMaxOutputTokens = NormalizeDeepseekMaxOutputTokens(maxOutputTokens);
+        var promptForTurn = userInput;
+        var mergedBuilder = new StringBuilder();
+
+        try
+        {
+            for (var turn = 0; turn < ChatContinuationRounds; turn++)
+            {
+                var result = await _openAiCompatibleChatAdapter.SendAsync(
+                    new ProviderChatAdapterRequest(
+                        "deepseek",
+                        endpoint,
+                        deepseekApiKey,
+                        model,
+                        systemPrompt,
+                        promptForTurn,
+                        null,
+                        "max_tokens",
+                        effectiveMaxOutputTokens
+                    ),
+                    cancellationToken
+                );
+                if (!result.IsSuccess)
+                {
+                    return result.FailureMessage;
+                }
+
+                CaptureOpenAiCompatibleTokenUsage(result.ResponseBody);
+                var chunk = ProviderResponseParser.ExtractOpenAiCompatibleChunk(result.ResponseBody);
+                var chunkText = chunk.Content.Trim();
+                if (!string.IsNullOrWhiteSpace(chunkText))
+                {
+                    if (mergedBuilder.Length > 0)
+                    {
+                        mergedBuilder.AppendLine();
+                    }
+
+                    mergedBuilder.Append(chunkText);
+                }
+
+                if (!ProviderResponseParser.IsOpenAiCompatibleTruncated(chunk.FinishReason) || string.IsNullOrWhiteSpace(chunkText))
+                {
+                    break;
+                }
+
+                promptForTurn = ChatStreamingContinuation.BuildContinuationPrompt(userInput, mergedBuilder.ToString());
+            }
+
+            var content = mergedBuilder.ToString().Trim();
+            return string.IsNullOrWhiteSpace(content) ? "DeepSeek 응답이 비어 있습니다." : content;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return "DeepSeek 응답 시간이 초과되었습니다.";
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[deepseek] chat error: {ex.Message}");
+            return $"DeepSeek 호출 오류: {ex.Message}";
+        }
+    }
+
+    public async Task<string> GenerateDeepseekChatStreamingAsync(
+        string userInput,
+        string? modelOverride,
+        int maxOutputTokens,
+        Action<string>? deltaCallback,
+        CancellationToken cancellationToken
+    )
+    {
+        var deepseekApiKey = _runtimeSettings.GetDeepseekApiKey();
+        if (string.IsNullOrWhiteSpace(deepseekApiKey))
+        {
+            return "DeepSeek API 키가 설정되지 않았습니다.";
+        }
+
+        var model = string.IsNullOrWhiteSpace(modelOverride) ? _providers.DeepseekModel : modelOverride.Trim();
+        var endpoint = $"{_providers.DeepseekBaseUrl.TrimEnd('/')}/chat/completions";
+        return await GenerateOpenAiCompatibleChatStreamingAsync(
+            "deepseek",
+            endpoint,
+            deepseekApiKey,
+            model,
+            BuildOpenAiCompatibleChatSystemPrompt(),
+            userInput,
+            null,
+            "max_tokens",
+            NormalizeDeepseekMaxOutputTokens(maxOutputTokens),
+            deltaCallback,
+            cancellationToken
+        );
+    }
+
+    private int NormalizeDeepseekMaxOutputTokens(int requested)
+    {
+        return Math.Clamp(NormalizeMaxOutputTokens(requested, Math.Min(_context.ChatMaxOutputTokens, 8192)), 256, 8192);
+    }
+
+    // NVIDIA·DeepSeek 등 OpenAI 호환 제공자가 공유하는 채팅 시스템 프롬프트.
+    private static string BuildOpenAiCompatibleChatSystemPrompt()
+    {
+        return AssistantReplyPolicy.ChatSystemPreamble
+            + "Answer only the latest user request. Do not switch to news, search summaries, 3D printing, or other unrelated topics unless the user explicitly asks for them. "
+            + "If conversation history is provided above, treat short follow-up messages (a yes/no check, 'would it work?', a spec like '24GB') as continuations of the prior turns. Never claim that prior context is missing when a recent-conversation block is in the prompt — use it. "
+            + "When the user asks for a judgment or opinion, give a concrete, decisive answer based on the conversation history and your knowledge. Do not deflect with generic disclaimers that extra metrics or datasets are required. State your best assessment with a 1-2 sentence rationale, then optionally note any uncertainty. "
+            + "Do not repeat the same paragraphs across multiple turns. If the user asks the same thing again, dig deeper or take a clearer stance instead of repeating prior wording.";
     }
 
     private async Task<string?> ResolveAvailableCerebrasModelAsync(string apiKey, CancellationToken cancellationToken)

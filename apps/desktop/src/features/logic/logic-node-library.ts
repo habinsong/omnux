@@ -64,6 +64,7 @@ const PROVIDER_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "gemini", label: "Gemini" },
   { value: "cerebras", label: "Cerebras" },
   { value: "nvidia", label: "NVIDIA NIM" },
+  { value: "deepseek", label: "DeepSeek" },
   { value: "copilot", label: "Copilot" },
   { value: "codex", label: "Codex" },
   { value: "grok", label: "Grok" }

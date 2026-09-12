@@ -34,6 +34,7 @@ internal static class ProviderTimeoutPolicy
             "grok" => Math.Max(120, context.LlmTimeoutSec * 3),
             "cerebras" => Math.Max(120, providers.CerebrasTimeoutSec * 3),
             "nvidia" => Math.Max(360, providers.NvidiaTimeoutSec * 2),
+            "deepseek" => Math.Max(360, providers.DeepseekTimeoutSec * 2),
             _ => Math.Max(8, context.LlmTimeoutSec)
         };
     }

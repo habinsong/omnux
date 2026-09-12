@@ -18,7 +18,7 @@ export type AskConversationItem = {
 
 export type AskChatMode = "single" | "orchestration" | "multi";
 
-export type AskProvider = "auto" | "groq" | "gemini" | "cerebras" | "nvidia" | "copilot" | "codex" | "grok";
+export type AskProvider = "auto" | "groq" | "gemini" | "cerebras" | "nvidia" | "deepseek" | "copilot" | "codex" | "grok";
 export type AskModelProvider = Exclude<AskProvider, "auto">;
 
 export type AskConversationMetaDraft = {

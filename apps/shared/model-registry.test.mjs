@@ -16,6 +16,10 @@ test("Grok 이 1급 제공자고 확인한 2026-09 모델 ID 가 들어 있다",
   assert.ok(registry.providers.gemini.fallback.includes("gemini-3.8-flash"));
   assert.ok(registry.providers.groq.fallback.includes("qwen/qwen3.8-27b"));
   assert.ok(registry.providers.nvidia.fallback.includes("moonshotai/kimi-k3"));
+  // DeepSeek 공식 API 모델 id (api-docs.deepseek.com 확인).
+  // deepseek-flash 가 최신 V4.1 Flash 의 정식 호출명이고, deepseek-v4-flash 는 레거시 별칭이다.
+  assert.ok(registry.providers.deepseek.fallback.includes("deepseek-flash"));
+  assert.ok(registry.providers.deepseek.fallback.includes("deepseek-v4-pro"));
 });
 
 test("제공자 키를 지어내지 않는다", () => {
@@ -23,6 +27,7 @@ test("제공자 키를 지어내지 않는다", () => {
     "cerebras",
     "codex",
     "copilot",
+    "deepseek",
     "gemini",
     "grok",
     "groq",

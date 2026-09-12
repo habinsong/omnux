@@ -285,6 +285,7 @@ internal static class UnifiedSlashCommandPolicy
             "copilot" => "multi.copilot",
             "cerebras" => "multi.cerebras",
             "nvidia" or "nvidia-nim" or "nvidia_nim" or "nim" => "multi.nvidia",
+            "deepseek" or "deep-seek" or "deep_seek" or "ds" => "multi.deepseek",
             "codex" => "multi.codex",
             _ => string.Empty
         };
@@ -323,6 +324,11 @@ internal static class UnifiedSlashCommandPolicy
             return new UnifiedSlashCommand(UnifiedSlashCommandKind.LlmSetProviderThenModel, tokens, "codex", model);
         }
 
+        if (provider is "deepseek" or "deep-seek" or "deep_seek" or "ds")
+        {
+            return new UnifiedSlashCommand(UnifiedSlashCommandKind.LlmSetProviderThenModel, tokens, "deepseek", model);
+        }
+
         if (provider is "nvidia" or "nvidia-nim" or "nvidia_nim" or "nim")
         {
             return new UnifiedSlashCommand(UnifiedSlashCommandKind.LlmSetProviderThenModel, tokens, "nvidia", model);
@@ -334,12 +340,13 @@ internal static class UnifiedSlashCommandPolicy
     private static string NormalizeProviderAlias(string value)
     {
         var provider = (value ?? string.Empty).Trim().ToLowerInvariant();
+        if (provider is "deep-seek" or "deep_seek" or "ds") return "deepseek";
         return provider is "nvidia-nim" or "nvidia_nim" or "nim" ? "nvidia" : provider;
     }
 
     private static bool IsConcreteProvider(string provider)
     {
-        return provider is "groq" or "gemini" or "copilot" or "cerebras" or "nvidia" or "codex" or "grok";
+        return provider is "groq" or "gemini" or "copilot" or "cerebras" or "nvidia" or "deepseek" or "codex" or "grok";
     }
 
     private static UnifiedSlashCommand Message(IReadOnlyList<string> tokens, string message)

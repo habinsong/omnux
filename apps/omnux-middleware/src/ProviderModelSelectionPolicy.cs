@@ -4,7 +4,7 @@ internal static class ProviderModelSelectionPolicy
 {
     private static readonly string[] KnownLlmProviders =
     {
-        "gemini", "groq", "cerebras", "nvidia", "copilot", "codex", "grok"
+        "gemini", "groq", "cerebras", "nvidia", "deepseek", "copilot", "codex", "grok"
     };
 
     public static string NormalizeProviderAliases(string? provider)

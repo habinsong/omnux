@@ -183,6 +183,7 @@ internal sealed class WsAiCommandDispatcher
                         Model: message.Model,
                         LinkedMemoryNotes: message.MemoryNotes,
                         NvidiaModel: message.NvidiaModel,
+                        DeepseekModel: message.DeepseekModel,
                         Attachments: message.Attachments,
                         WebUrls: message.WebUrls,
                         WebSearchEnabled: message.WebSearchEnabled,
@@ -255,6 +256,7 @@ internal sealed class WsAiCommandDispatcher
                         CopilotModel: message.CopilotModel,
                         CerebrasModel: message.CerebrasModel,
                         NvidiaModel: message.NvidiaModel,
+                        DeepseekModel: message.DeepseekModel,
                         Attachments: message.Attachments,
                         WebUrls: message.WebUrls,
                         WebSearchEnabled: message.WebSearchEnabled,
@@ -320,6 +322,7 @@ internal sealed class WsAiCommandDispatcher
                         CopilotModel: message.CopilotModel,
                         CerebrasModel: message.CerebrasModel,
                         NvidiaModel: message.NvidiaModel,
+                        DeepseekModel: message.DeepseekModel,
                         SummaryProvider: message.SummaryProvider,
                         LinkedMemoryNotes: message.MemoryNotes,
                         Attachments: message.Attachments,
@@ -370,6 +373,8 @@ internal sealed class WsAiCommandDispatcher
                     retryDirective.RetryReason,
                     Grok: result.GrokText,
                     GrokModel: result.GrokModel,
+                    Deepseek: result.DeepseekText,
+                    DeepseekModel: result.DeepseekModel,
                     RequestId: message.RequestId
                 );
                 var multiJson = JsonSerializer.Serialize(multiResponse, WsAiJsonContext.Default.ChatMultiResultWsResponse);
@@ -444,6 +449,7 @@ internal sealed class WsAiCommandDispatcher
                     GeminiModel: message.GeminiModel,
                     CerebrasModel: message.CerebrasModel,
                     NvidiaModel: message.NvidiaModel,
+                    DeepseekModel: message.DeepseekModel,
                     CopilotModel: message.CopilotModel,
                     CodexModel: message.CodexModel,
                     GrokModel: message.GrokModel ?? "none",

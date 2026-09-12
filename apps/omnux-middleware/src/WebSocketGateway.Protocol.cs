@@ -309,6 +309,7 @@ public sealed partial class WebSocketGateway
         public string? CopilotModel { get; set; }
         public string? CerebrasModel { get; set; }
         public string? NvidiaModel { get; set; }
+        public string? DeepseekModel { get; set; }
         public string? CodexModel { get; set; }
         public string? GrokModel { get; set; }
         public string? SummaryProvider { get; set; }
@@ -381,6 +382,7 @@ public sealed partial class WebSocketGateway
         public string? GeminiApiKey { get; set; }
         public string? CerebrasApiKey { get; set; }
         public string? NvidiaApiKey { get; set; }
+        public string? DeepseekApiKey { get; set; }
         public string? CodexApiKey { get; set; }
         public string? RoutingPolicyJson { get; set; }
         public string? RefactorEditsJson { get; set; }

@@ -91,6 +91,7 @@ internal static class OpenAiCompatibleProtocol
             "gemini" => "Gemini",
             "cerebras" => "Cerebras",
             "nvidia" => "NVIDIA NIM",
+            "deepseek" => "DeepSeek",
             _ => provider
         };
     }

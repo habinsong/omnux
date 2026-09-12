@@ -107,6 +107,15 @@ public sealed partial class CommandService
             return CompleteTokenUsage("nvidia", selected, input, response);
         }
 
+        if (normalized == "deepseek")
+        {
+            var selected = NormalizeModelSelection(model) ?? _providers.DeepseekModel;
+            var response = streamCallback == null
+                ? await _llmRouter.GenerateDeepseekChatAsync(input, selected, requestedMaxOutputTokens, cancellationToken)
+                : await _llmRouter.GenerateDeepseekChatStreamingAsync(input, selected, requestedMaxOutputTokens, streamCallback, cancellationToken);
+            return CompleteTokenUsage("deepseek", selected, input, response);
+        }
+
         if (normalized == "copilot")
         {
             var selected = NormalizeModelSelection(model) ?? _copilotWrapper.GetSelectedModel();
@@ -500,6 +509,7 @@ public sealed partial class CommandService
             "groq" => _llmRouter.GetSelectedGroqModel(),
             "cerebras" => _providers.CerebrasModel,
             "nvidia" => _providers.NvidiaModel,
+            "deepseek" => _providers.DeepseekModel,
             "copilot" => DefaultCopilotModel,
             "codex" => _providers.CodexModel,
             "grok" => _providers.GrokModel,
@@ -766,6 +776,7 @@ public sealed partial class CommandService
         string? copilotModel,
         string? codexModel,
         string? nvidiaModel = null,
+        string? deepseekModel = null,
         string? grokModel = "none"
     )
     {
@@ -775,6 +786,7 @@ public sealed partial class CommandService
             ["groq"] = groqModel,
             ["cerebras"] = cerebrasModel,
             ["nvidia"] = nvidiaModel,
+            ["deepseek"] = deepseekModel,
             ["copilot"] = copilotModel,
             ["codex"] = codexModel,
             ["grok"] = grokModel

@@ -5,7 +5,7 @@ import { requestDesktopLlm, type LlmCredentialInput } from "../middleware/llm-ga
 import { requestDesktopTelegram } from "../middleware/telegram-gateway";
 import { requestConfirmDialog } from "../dialog/dialog-store";
 
-export type ProviderKeyId = "groq" | "gemini" | "cerebras" | "nvidia" | "codex";
+export type ProviderKeyId = "groq" | "gemini" | "cerebras" | "nvidia" | "deepseek" | "codex";
 
 export type ProviderCredentialCard = {
   id: ProviderKeyId;
@@ -39,6 +39,7 @@ const EMPTY_INPUTS: Record<ProviderKeyId, string> = {
   gemini: "",
   cerebras: "",
   nvidia: "",
+  deepseek: "",
   codex: ""
 };
 
@@ -47,6 +48,7 @@ const CARD_META = [
   { id: "gemini", label: "Gemini", helper: "grounding / 검색", placeholder: "AIza..." },
   { id: "cerebras", label: "Cerebras", helper: "대체 고속 모델", placeholder: "csk-..." },
   { id: "nvidia", label: "NVIDIA NIM", helper: "OpenAI 호환 NIM", placeholder: "nvapi-..." },
+  { id: "deepseek", label: "DeepSeek", helper: "OpenAI 호환 · V4", placeholder: "sk-..." },
   { id: "codex", label: "Codex API", helper: "OAuth 대체 API 키", placeholder: "sk-..." }
 ] as const;
 
@@ -72,6 +74,7 @@ function buildPayload(inputs: Record<ProviderKeyId, string>): LlmCredentialInput
     geminiApiKey: inputs.gemini,
     cerebrasApiKey: inputs.cerebras,
     nvidiaApiKey: inputs.nvidia,
+    deepseekApiKey: inputs.deepseek,
     codexApiKey: inputs.codex
   };
 }
@@ -113,8 +116,8 @@ export const useProviderCredentialsStore = create<ProviderCredentialState>((set,
     const confirmed = await requestConfirmDialog({
       title: "LLM API 키 삭제",
       message: state.persist
-        ? "Groq, Gemini, Cerebras, NVIDIA NIM, Codex API 키를 현재 세션과 보안 저장소에서 삭제할까요?"
-        : "Groq, Gemini, Cerebras, NVIDIA NIM, Codex API 키를 현재 실행 중인 세션에서 삭제할까요?",
+        ? "Groq, Gemini, Cerebras, NVIDIA NIM, DeepSeek, Codex API 키를 현재 세션과 보안 저장소에서 삭제할까요?"
+        : "Groq, Gemini, Cerebras, NVIDIA NIM, DeepSeek, Codex API 키를 현재 실행 중인 세션에서 삭제할까요?",
       confirmLabel: "키 삭제",
       tone: "danger"
     });

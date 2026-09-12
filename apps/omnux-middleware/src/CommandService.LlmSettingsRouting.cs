@@ -15,6 +15,7 @@ public sealed partial class CommandService
             "copilot" => await SetCopilotModelForChannelAsync(source, model, cancellationToken),
             "codex" => SetChannelModelWithProvider(source, "codex", model),
             "nvidia" => SetChannelModelWithProvider(source, "nvidia", model),
+            "deepseek" => SetChannelModelWithProvider(source, "deepseek", model),
             _ => "알 수 없는 /llm 명령입니다. /llm help 또는 자연어 요청을 사용하세요."
         };
     }

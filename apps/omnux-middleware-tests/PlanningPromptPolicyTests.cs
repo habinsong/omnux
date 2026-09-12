@@ -9,7 +9,7 @@ public sealed class PlanningPromptPolicyTests
     {
         var chain = PlanningPromptPolicy.NormalizeProviderChain(null);
 
-        Assert.Equal(new[] { "gemini", "groq", "nvidia", "cerebras" }, chain);
+        Assert.Equal(new[] { "gemini", "groq", "nvidia", "deepseek", "cerebras" }, chain);
     }
 
     [Fact]

@@ -6,6 +6,7 @@ registerDesktopPublicRequestTypes(
   "get_copilot_models",
   "get_gemini_models",
   "get_nvidia_models",
+  "get_deepseek_models",
   "get_codex_models",
   "set_groq_model",
   "set_copilot_model",
@@ -29,6 +30,7 @@ export interface LlmCredentialInput {
   geminiApiKey?: string;
   cerebrasApiKey?: string;
   nvidiaApiKey?: string;
+  deepseekApiKey?: string;
   codexApiKey?: string;
 }
 
@@ -50,6 +52,9 @@ export const requestDesktopLlm = {
   },
   nvidiaModels() {
     return sendDesktopRequest({ type: "get_nvidia_models" });
+  },
+  deepseekModels() {
+    return sendDesktopRequest({ type: "get_deepseek_models" });
   },
   codexModels() {
     return sendDesktopRequest({ type: "get_codex_models" });
@@ -85,6 +90,7 @@ export const requestDesktopLlm = {
       geminiApiKey: keys.geminiApiKey?.trim() || undefined,
       cerebrasApiKey: keys.cerebrasApiKey?.trim() || undefined,
       nvidiaApiKey: keys.nvidiaApiKey?.trim() || undefined,
+      deepseekApiKey: keys.deepseekApiKey?.trim() || undefined,
       codexApiKey: keys.codexApiKey?.trim() || undefined,
       persist
     });

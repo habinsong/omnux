@@ -10,6 +10,7 @@ public sealed class AppConfig
     private const string GeminiApiKeyService = "omnux_gemini_api_key";
     private const string CerebrasApiKeyService = "omnux_cerebras_api_key";
     private const string NvidiaApiKeyService = "omnux_nvidia_api_key";
+    private const string DeepseekApiKeyService = "omnux_deepseek_api_key";
     private const string CodexApiKeyService = "omnux_codex_api_key";
     private const string SttApiKeyService = "omnux_stt_api_key";
 
@@ -49,6 +50,13 @@ public sealed class AppConfig
     public string NvidiaKeychainService { get; init; } = NvidiaApiKeyService;
     public string NvidiaKeychainAccount { get; init; } = DefaultKeychainAccount;
     public string? NvidiaApiKey { get; init; }
+    // DeepSeek 공식 API 는 OpenAI 호환 규격이다. base url 에 /v1 은 붙이지 않는다.
+    public string DeepseekBaseUrl { get; init; } = "https://api.deepseek.com";
+    public string DeepseekModel { get; init; } = ModelRegistry.GetDefaultModel("deepseek");
+    public int DeepseekTimeoutSec { get; init; } = 180;
+    public string DeepseekKeychainService { get; init; } = DeepseekApiKeyService;
+    public string DeepseekKeychainAccount { get; init; } = DefaultKeychainAccount;
+    public string? DeepseekApiKey { get; init; }
     public string? CodexApiKey { get; init; }
     public string SttProvider { get; init; } = string.Empty;
     public string SttBaseUrl { get; init; } = string.Empty;
@@ -153,6 +161,12 @@ public sealed class AppConfig
         NvidiaKeychainService,
         NvidiaKeychainAccount,
         NvidiaApiKey,
+        DeepseekBaseUrl,
+        DeepseekModel,
+        DeepseekTimeoutSec,
+        DeepseekKeychainService,
+        DeepseekKeychainAccount,
+        DeepseekApiKey,
         CodexApiKey,
         SttProvider,
         SttBaseUrl,
@@ -342,6 +356,20 @@ public sealed class AppConfig
                 keychainServiceEnvKey: "OMNUX_NVIDIA_KEYCHAIN_SERVICE",
                 keychainAccountEnvKey: "OMNUX_NVIDIA_KEYCHAIN_ACCOUNT",
                 defaultKeychainService: NvidiaApiKeyService,
+                defaultKeychainAccount: DefaultKeychainAccount
+            ),
+            DeepseekBaseUrl = GetStringEnv("OMNUX_DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+            DeepseekModel = GetStringEnv("OMNUX_DEEPSEEK_MODEL", ModelRegistry.GetDefaultModel("deepseek")),
+            DeepseekTimeoutSec = GetIntEnv("OMNUX_DEEPSEEK_TIMEOUT_SEC", 180),
+            DeepseekKeychainService = GetStringEnv("OMNUX_DEEPSEEK_KEYCHAIN_SERVICE", DeepseekApiKeyService),
+            DeepseekKeychainAccount = GetStringEnv("OMNUX_DEEPSEEK_KEYCHAIN_ACCOUNT", DefaultKeychainAccount),
+            DeepseekApiKey = SecretLoader.ResolveApiKey(
+                providerName: "deepseek",
+                directEnvKey: "OMNUX_DEEPSEEK_API_KEY",
+                fileEnvKey: "OMNUX_DEEPSEEK_API_KEY_FILE",
+                keychainServiceEnvKey: "OMNUX_DEEPSEEK_KEYCHAIN_SERVICE",
+                keychainAccountEnvKey: "OMNUX_DEEPSEEK_KEYCHAIN_ACCOUNT",
+                defaultKeychainService: DeepseekApiKeyService,
                 defaultKeychainAccount: DefaultKeychainAccount
             ),
             CodexApiKey = SecretLoader.ResolveApiKey(
@@ -572,6 +600,12 @@ public sealed record ProviderOptions(
     string NvidiaKeychainService,
     string NvidiaKeychainAccount,
     string? NvidiaApiKey,
+    string DeepseekBaseUrl,
+    string DeepseekModel,
+    int DeepseekTimeoutSec,
+    string DeepseekKeychainService,
+    string DeepseekKeychainAccount,
+    string? DeepseekApiKey,
     string? CodexApiKey,
     string SttProvider,
     string SttBaseUrl,

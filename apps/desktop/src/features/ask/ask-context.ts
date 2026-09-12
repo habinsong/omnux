@@ -193,13 +193,13 @@ function parseMessageMeta(meta: string, role: string) {
     return result;
   }
 
-  if (parts.length >= 2 && /^(groq|gemini|cerebras|nvidia|copilot|codex|grok)$/i.test(parts[0])) {
+  if (parts.length >= 2 && /^(groq|gemini|cerebras|nvidia|deepseek|copilot|codex|grok)$/i.test(parts[0])) {
     result.provider = parts[0];
     result.model = parts.slice(1).join(":");
     return result;
   }
 
-  if (/^(gemini|groq|cerebras|nvidia|copilot|codex|grok)[-_]/i.test(normalized)) {
+  if (/^(gemini|groq|cerebras|nvidia|deepseek|copilot|codex|grok)[-_]/i.test(normalized)) {
     result.provider = normalized.split(/[-_:]/)[0] || "";
     result.route = normalized;
     return result;

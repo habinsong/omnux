@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 export type ThemeMode = "glass" | "light" | "dark";
 export type DetailLevel = "simple" | "advanced";
-export type ModelProviderId = "groq" | "gemini" | "cerebras" | "nvidia" | "copilot" | "codex" | "grok";
+export type ModelProviderId = "groq" | "gemini" | "cerebras" | "nvidia" | "deepseek" | "copilot" | "codex" | "grok";
 export type ShortcutAction =
   | "palette"
   | "paletteAlt"
@@ -55,12 +55,13 @@ type PreferenceState = {
 export const THEME_ORDER: ThemeMode[] = ["light", "dark", "glass"];
 export const THEME_LABEL: Record<ThemeMode, string> = { glass: "글래스", light: "라이트", dark: "다크" };
 export const DETAIL_LABEL: Record<DetailLevel, string> = { simple: "간단히", advanced: "고급" };
-export const MODEL_PROVIDER_ORDER: ModelProviderId[] = ["groq", "gemini", "codex", "copilot", "cerebras", "nvidia", "grok"];
+export const MODEL_PROVIDER_ORDER: ModelProviderId[] = ["groq", "gemini", "codex", "copilot", "cerebras", "nvidia", "deepseek", "grok"];
 export const MODEL_PROVIDER_LABEL: Record<ModelProviderId, string> = {
   groq: "Groq",
   gemini: "Gemini",
   cerebras: "Cerebras",
   nvidia: "NVIDIA NIM",
+  deepseek: "DeepSeek",
   copilot: "Copilot",
   codex: "Codex",
   grok: "Grok"
@@ -70,6 +71,7 @@ export const MODEL_PROVIDER_KIND: Record<ModelProviderId, "API" | "CLI"> = {
   gemini: "API",
   cerebras: "API",
   nvidia: "API",
+  deepseek: "API",
   copilot: "CLI",
   codex: "CLI",
   grok: "CLI"

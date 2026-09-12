@@ -35,6 +35,7 @@ internal static class MultiComparisonPolicy
         AddEntry("gemini", result.GeminiModel, result.GeminiText);
         AddEntry("cerebras", result.CerebrasModel, result.CerebrasText);
         AddEntry("nvidia", result.NvidiaModel, result.NvidiaText);
+        AddEntry("deepseek", result.DeepseekModel, result.DeepseekText);
         AddEntry("copilot", result.CopilotModel, result.CopilotText);
         AddEntry("codex", result.CodexModel, result.CodexText);
         AddEntry("grok", result.GrokModel, result.GrokText);

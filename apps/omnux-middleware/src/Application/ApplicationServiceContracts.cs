@@ -29,6 +29,7 @@ public interface ISettingsApplicationService
         string? geminiApiKey,
         string? cerebrasApiKey,
         string? nvidiaApiKey,
+        string? deepseekApiKey,
         string? codexApiKey,
         bool persist
     );

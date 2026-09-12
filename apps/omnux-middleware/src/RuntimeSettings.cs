@@ -11,6 +11,7 @@ public sealed class RuntimeSettings
     private const string GeminiApiKeyService = "omnux_gemini_api_key";
     private const string CerebrasApiKeyService = "omnux_cerebras_api_key";
     private const string NvidiaApiKeyService = "omnux_nvidia_api_key";
+    private const string DeepseekApiKeyService = "omnux_deepseek_api_key";
     private const string CodexApiKeyService = "omnux_codex_api_key";
     private const string SttApiKeyService = "omnux_stt_api_key";
 
@@ -21,6 +22,7 @@ public sealed class RuntimeSettings
     private string? _geminiApiKey;
     private string? _cerebrasApiKey;
     private string? _nvidiaApiKey;
+    private string? _deepseekApiKey;
     private string? _codexApiKey;
     private string? _sttApiKey;
     private bool _externalDashboardEnabled;
@@ -28,6 +30,8 @@ public sealed class RuntimeSettings
     private readonly string _cerebrasKeychainAccount;
     private readonly string _nvidiaKeychainService;
     private readonly string _nvidiaKeychainAccount;
+    private readonly string _deepseekKeychainService;
+    private readonly string _deepseekKeychainAccount;
     private readonly string _dashboardAccessStatePath;
 
     public RuntimeSettings(AppConfig config)
@@ -38,6 +42,7 @@ public sealed class RuntimeSettings
         _geminiApiKey = config.GeminiApiKey;
         _cerebrasApiKey = config.CerebrasApiKey;
         _nvidiaApiKey = config.NvidiaApiKey;
+        _deepseekApiKey = config.DeepseekApiKey;
         _codexApiKey = config.CodexApiKey;
         _sttApiKey = config.SttApiKey;
         _dashboardAccessStatePath = string.IsNullOrWhiteSpace(config.DashboardAccessStatePath)
@@ -56,6 +61,12 @@ public sealed class RuntimeSettings
         _nvidiaKeychainAccount = string.IsNullOrWhiteSpace(config.NvidiaKeychainAccount)
             ? KeychainAccount
             : config.NvidiaKeychainAccount.Trim();
+        _deepseekKeychainService = string.IsNullOrWhiteSpace(config.DeepseekKeychainService)
+            ? DeepseekApiKeyService
+            : config.DeepseekKeychainService.Trim();
+        _deepseekKeychainAccount = string.IsNullOrWhiteSpace(config.DeepseekKeychainAccount)
+            ? KeychainAccount
+            : config.DeepseekKeychainAccount.Trim();
     }
 
     public string? GetTelegramBotToken()
@@ -106,6 +117,14 @@ public sealed class RuntimeSettings
         }
     }
 
+    public string? GetDeepseekApiKey()
+    {
+        lock (_lock)
+        {
+            return _deepseekApiKey;
+        }
+    }
+
     public string? GetCodexApiKey()
     {
         lock (_lock)
@@ -141,6 +160,7 @@ public sealed class RuntimeSettings
                 Mask(_geminiApiKey),
                 Mask(_cerebrasApiKey),
                 Mask(_nvidiaApiKey),
+                Mask(_deepseekApiKey),
                 Mask(_codexApiKey),
                 HasValue(_telegramBotToken),
                 HasValue(_telegramChatId),
@@ -148,6 +168,7 @@ public sealed class RuntimeSettings
                 HasValue(_geminiApiKey),
                 HasValue(_cerebrasApiKey),
                 HasValue(_nvidiaApiKey),
+                HasValue(_deepseekApiKey),
                 HasValue(_codexApiKey),
                 _externalDashboardEnabled
             );
@@ -230,6 +251,7 @@ public sealed class RuntimeSettings
         string? geminiApiKey,
         string? cerebrasApiKey,
         string? nvidiaApiKey,
+        string? deepseekApiKey,
         string? codexApiKey,
         bool persist
     )
@@ -259,6 +281,12 @@ public sealed class RuntimeSettings
             {
                 _nvidiaApiKey = nvidiaApiKey.Trim();
                 updatedFields.Add("nvidia_api_key");
+            }
+
+            if (!string.IsNullOrWhiteSpace(deepseekApiKey))
+            {
+                _deepseekApiKey = deepseekApiKey.Trim();
+                updatedFields.Add("deepseek_api_key");
             }
 
             if (!string.IsNullOrWhiteSpace(codexApiKey))
@@ -296,6 +324,11 @@ public sealed class RuntimeSettings
             if (!Persist(_nvidiaKeychainService, _nvidiaKeychainAccount, nvidiaApiKey))
             {
                 failed.Add("nvidia_api_key");
+            }
+
+            if (!Persist(_deepseekKeychainService, _deepseekKeychainAccount, deepseekApiKey))
+            {
+                failed.Add("deepseek_api_key");
             }
 
             if (!Persist(CodexApiKeyService, KeychainAccount, codexApiKey))
@@ -357,6 +390,7 @@ public sealed class RuntimeSettings
             _geminiApiKey = null;
             _cerebrasApiKey = null;
             _nvidiaApiKey = null;
+            _deepseekApiKey = null;
             _codexApiKey = null;
         }
 
@@ -384,6 +418,11 @@ public sealed class RuntimeSettings
         if (!SecretLoader.TryDeletePlatformSecret(_nvidiaKeychainService, _nvidiaKeychainAccount))
         {
             failed.Add("nvidia_api_key");
+        }
+
+        if (!SecretLoader.TryDeletePlatformSecret(_deepseekKeychainService, _deepseekKeychainAccount))
+        {
+            failed.Add("deepseek_api_key");
         }
 
         if (!SecretLoader.TryDeletePlatformSecret(CodexApiKeyService, KeychainAccount))
@@ -476,6 +515,7 @@ public sealed record SettingsSnapshot(
     string GeminiApiKeyMasked,
     string CerebrasApiKeyMasked,
     string NvidiaApiKeyMasked,
+    string DeepseekApiKeyMasked,
     string CodexApiKeyMasked,
     bool TelegramBotTokenSet,
     bool TelegramChatIdSet,
@@ -483,6 +523,7 @@ public sealed record SettingsSnapshot(
     bool GeminiApiKeySet,
     bool CerebrasApiKeySet,
     bool NvidiaApiKeySet,
+    bool DeepseekApiKeySet,
     bool CodexApiKeySet,
     bool ExternalDashboardEnabled
 );

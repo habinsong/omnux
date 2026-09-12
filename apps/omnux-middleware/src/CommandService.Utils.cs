@@ -630,6 +630,7 @@ public sealed partial class CommandService
             "gemini" => _providers.GeminiModel,
             "cerebras" => _providers.CerebrasModel,
             "nvidia" => _providers.NvidiaModel,
+            "deepseek" => _providers.DeepseekModel,
             "copilot" => DefaultCopilotModel,
             "codex" => _providers.CodexModel,
             "grok" => _providers.GrokModel,

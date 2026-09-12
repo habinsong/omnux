@@ -13,7 +13,7 @@ public sealed record ProviderAvailability(
 
 public sealed class ProviderRegistry
 {
-    private static readonly string[] AutoPriority = { "gemini", "groq", "nvidia", "cerebras", "copilot", "codex", "grok" };
+    private static readonly string[] AutoPriority = { "gemini", "groq", "nvidia", "deepseek", "cerebras", "copilot", "codex", "grok" };
     private readonly LlmRouter _llmRouter;
     private readonly CopilotCliWrapper _copilotWrapper;
     private readonly CodexCliWrapper _codexWrapper;
@@ -63,7 +63,10 @@ public sealed class ProviderRegistry
                 : new ProviderAvailability("nvidia", false, "api_key_missing", false, true, false, false, true),
             _llmRouter.HasCerebrasApiKey()
                 ? new ProviderAvailability("cerebras", true, "configured", false, true, false, false, true)
-                : new ProviderAvailability("cerebras", false, "api_key_missing", false, true, false, false, true)
+                : new ProviderAvailability("cerebras", false, "api_key_missing", false, true, false, false, true),
+            _llmRouter.HasDeepseekApiKey()
+                ? new ProviderAvailability("deepseek", true, "configured", false, true, false, false, true)
+                : new ProviderAvailability("deepseek", false, "api_key_missing", false, true, false, false, true)
         };
 
         var copilot = await _copilotWrapper.GetStatusAsync(cancellationToken);

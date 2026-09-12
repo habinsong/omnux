@@ -529,6 +529,7 @@ public sealed partial class CommandService
                 ("gemini", multi.GeminiText),
                 ("cerebras", multi.CerebrasText),
                 ("nvidia", multi.NvidiaText),
+                ("deepseek", multi.DeepseekText),
                 ("copilot", multi.CopilotText),
                 ("codex", multi.CodexText),
                 ("summary", multi.Summary)
@@ -555,6 +556,7 @@ public sealed partial class CommandService
                 "gemini" => multi.GeminiModel,
                 "cerebras" => multi.CerebrasModel,
                 "nvidia" => multi.NvidiaModel,
+                "deepseek" => multi.DeepseekModel,
                 "copilot" => multi.CopilotModel,
                 "codex" => multi.CodexModel,
                 _ => "-"

@@ -15,6 +15,7 @@ internal sealed class WsSetupCommandDispatcher
     private readonly Func<WebSocket, SemaphoreSlim, CancellationToken, Task> _sendCopilotModelsAsync;
     private readonly Func<WebSocket, SemaphoreSlim, CancellationToken, Task> _sendGeminiModelsAsync;
     private readonly Func<WebSocket, SemaphoreSlim, CancellationToken, Task> _sendNvidiaModelsAsync;
+    private readonly Func<WebSocket, SemaphoreSlim, CancellationToken, Task> _sendDeepseekModelsAsync;
     private readonly Func<WebSocket, SemaphoreSlim, CancellationToken, Task> _sendCodexModelsAsync;
     private readonly Func<WebSocket, SemaphoreSlim, CancellationToken, bool, Task> _sendUsageStatsAsync;
     private readonly Func<WebSocket, SemaphoreSlim, string, RoutingPolicyActionResult, CancellationToken, Task> _sendRoutingPolicyResultAsync;
@@ -32,6 +33,7 @@ internal sealed class WsSetupCommandDispatcher
         Func<WebSocket, SemaphoreSlim, CancellationToken, Task> sendCopilotModelsAsync,
         Func<WebSocket, SemaphoreSlim, CancellationToken, Task> sendGeminiModelsAsync,
         Func<WebSocket, SemaphoreSlim, CancellationToken, Task> sendNvidiaModelsAsync,
+        Func<WebSocket, SemaphoreSlim, CancellationToken, Task> sendDeepseekModelsAsync,
         Func<WebSocket, SemaphoreSlim, CancellationToken, Task> sendCodexModelsAsync,
         Func<WebSocket, SemaphoreSlim, CancellationToken, bool, Task> sendUsageStatsAsync,
         Func<WebSocket, SemaphoreSlim, string, RoutingPolicyActionResult, CancellationToken, Task> sendRoutingPolicyResultAsync,
@@ -51,6 +53,7 @@ internal sealed class WsSetupCommandDispatcher
         _sendCopilotModelsAsync = sendCopilotModelsAsync;
         _sendGeminiModelsAsync = sendGeminiModelsAsync;
         _sendNvidiaModelsAsync = sendNvidiaModelsAsync;
+        _sendDeepseekModelsAsync = sendDeepseekModelsAsync;
         _sendCodexModelsAsync = sendCodexModelsAsync;
         _sendUsageStatsAsync = sendUsageStatsAsync;
         _sendRoutingPolicyResultAsync = sendRoutingPolicyResultAsync;
@@ -270,6 +273,7 @@ internal sealed class WsSetupCommandDispatcher
                 message.GeminiApiKey,
                 message.CerebrasApiKey,
                 message.NvidiaApiKey,
+                message.DeepseekApiKey,
                 message.CodexApiKey,
                 message.Persist
             );
@@ -489,6 +493,12 @@ internal sealed class WsSetupCommandDispatcher
             return true;
         }
 
+        if (message.Type == "get_deepseek_models")
+        {
+            await _sendDeepseekModelsAsync(socket, sendLock, cancellationToken);
+            return true;
+        }
+
         if (message.Type == "get_codex_models")
         {
             await _sendCodexModelsAsync(socket, sendLock, cancellationToken);
@@ -602,6 +612,7 @@ internal sealed class WsSetupCommandDispatcher
             "get_cerebras_models" or
             "get_gemini_models" or
             "get_nvidia_models" or
+            "get_deepseek_models" or
             "get_codex_models" or
             "get_grok_models" or
             "set_groq_model";
@@ -633,6 +644,7 @@ internal sealed class WsSetupCommandDispatcher
             "get_cerebras_models" or
             "get_gemini_models" or
             "get_nvidia_models" or
+            "get_deepseek_models" or
             "get_codex_models" or
             "get_grok_models";
     }

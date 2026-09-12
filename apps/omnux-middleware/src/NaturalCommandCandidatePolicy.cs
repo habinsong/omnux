@@ -12,7 +12,8 @@ internal sealed record NaturalCommandLlmPreferenceSnapshot(
     string MultiCopilotModel,
     string MultiCerebrasModel,
     string MultiNvidiaModel,
-    string MultiCodexModel
+    string MultiCodexModel,
+    string MultiDeepseekModel = ""
 );
 
 internal sealed record NaturalCommandInterpretCandidate(string Provider, string Model);
@@ -24,6 +25,7 @@ internal static class NaturalCommandCandidatePolicy
         "gemini",
         "groq",
         "nvidia",
+        "deepseek",
         "codex",
         "copilot",
         "cerebras"
@@ -43,7 +45,8 @@ internal static class NaturalCommandCandidatePolicy
             preferences.MultiCopilotModel,
             preferences.MultiCerebrasModel,
             preferences.MultiNvidiaModel,
-            preferences.MultiCodexModel
+            preferences.MultiCodexModel,
+            preferences.MultiDeepseekModel
         );
     }
 
@@ -61,7 +64,8 @@ internal static class NaturalCommandCandidatePolicy
             preferences.MultiCopilotModel,
             preferences.MultiCerebrasModel,
             preferences.MultiNvidiaModel,
-            preferences.MultiCodexModel
+            preferences.MultiCodexModel,
+            preferences.MultiDeepseekModel
         );
     }
 
@@ -275,6 +279,7 @@ internal static class NaturalCommandCandidatePolicy
                 "copilot" => resolveModel("copilot", preferences.MultiCopilotModel),
                 "cerebras" => resolveModel("cerebras", preferences.MultiCerebrasModel),
                 "nvidia" => resolveModel("nvidia", preferences.MultiNvidiaModel),
+                "deepseek" => resolveModel("deepseek", preferences.MultiDeepseekModel),
                 "codex" => resolveModel("codex", preferences.MultiCodexModel),
                 _ => resolveModel(provider, null)
             };

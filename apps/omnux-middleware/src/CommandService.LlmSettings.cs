@@ -58,6 +58,7 @@ public sealed partial class CommandService
             "copilot" => "Copilot",
             "cerebras" => "Cerebras",
             "nvidia" => "NVIDIA NIM",
+            "deepseek" => "DeepSeek",
             "codex" => "Codex",
             "auto" => "자동 선택",
             _ => "Groq"

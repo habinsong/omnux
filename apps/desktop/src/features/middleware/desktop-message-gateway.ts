@@ -117,6 +117,7 @@ const READ_ONLY_DEDUPE_REQUESTS = new Set<string>([
   "get_cerebras_models",
   "get_gemini_models",
   "get_nvidia_models",
+  "get_deepseek_models",
   "get_codex_models",
   "get_grok_models",
   "get_copilot_status",
@@ -482,8 +483,8 @@ export const requestDesktopAsk = {
       provider?: string;
       summaryProvider?: string;
       thinkPlus?: boolean;
-      models?: Partial<Record<"groq" | "gemini" | "cerebras" | "nvidia" | "copilot" | "codex" | "grok", string>>;
-      workerModels?: Partial<Record<"groq" | "gemini" | "cerebras" | "nvidia" | "copilot" | "codex" | "grok", string>>;
+      models?: Partial<Record<"groq" | "gemini" | "cerebras" | "nvidia" | "deepseek" | "copilot" | "codex" | "grok", string>>;
+      workerModels?: Partial<Record<"groq" | "gemini" | "cerebras" | "nvidia" | "deepseek" | "copilot" | "codex" | "grok", string>>;
       project?: string;
       category?: string;
       tags?: string;
@@ -530,6 +531,7 @@ export const requestDesktopAsk = {
       geminiModel: pick(workerModels.gemini),
       cerebrasModel: pick(workerModels.cerebras),
       nvidiaModel: pick(workerModels.nvidia),
+      deepseekModel: pick(workerModels.deepseek),
       copilotModel: pick(workerModels.copilot),
       codexModel: pick(workerModels.codex),
       grokModel: pick(workerModels.grok)
@@ -823,7 +825,7 @@ export const requestDesktopCoding = {
       thinkPlus?: boolean;
       skillName?: string;
       skillScope?: string;
-      workerModels?: Partial<Record<"groq" | "gemini" | "cerebras" | "nvidia" | "copilot" | "codex" | "grok", string>>;
+      workerModels?: Partial<Record<"groq" | "gemini" | "cerebras" | "nvidia" | "deepseek" | "copilot" | "codex" | "grok", string>>;
     } = {}
   ) {
     const type =
@@ -859,6 +861,7 @@ export const requestDesktopCoding = {
       geminiModel: pick(workerModels.gemini),
       cerebrasModel: pick(workerModels.cerebras),
       nvidiaModel: pick(workerModels.nvidia),
+      deepseekModel: pick(workerModels.deepseek),
       copilotModel: pick(workerModels.copilot),
       codexModel: pick(workerModels.codex),
       grokModel: pick(workerModels.grok)
