@@ -314,9 +314,12 @@ internal static class ChatOutputSanitizerPolicy
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace("\r", "\n", StringComparison.Ordinal)
             .Trim();
+        // 라벨은 한 줄 안에서 끝난다. 줄바꿈을 건너뛰며 뒤쪽 "출처:" 까지 훑으면
+        // "Python 3.15.0rc2" 의 "15." 를 목록 번호로 오인해 버전 한가운데를 쪼갠다.
+        // 번호 표식도 앞에 숫자·점이 붙어 있으면(= 버전 일부) 번호로 보지 않는다.
         normalized = Regex.Replace(
             normalized,
-            @"(?<=[.!?]|…)\s*(?=(?:[-•▪]\s*)?(?:(?:No\.\d+|\d+[.)])\s*)?[A-Za-z가-힣0-9(][A-Za-z가-힣0-9().&+_/\-·\s]{1,80}[:：](?:\s|$))",
+            @"(?<=[.!?]|…)[^\S\n]*(?=(?:[-•▪][^\S\n]*)?(?:(?:No\.\d+|(?<![\d.])\d{1,2}[.)])[^\S\n]+)?[A-Za-z가-힣0-9(][A-Za-z가-힣0-9().&+_/\-·\t ]{1,80}[:：](?:[^\S\n]|$))",
             "\n\n",
             RegexOptions.CultureInvariant
         );

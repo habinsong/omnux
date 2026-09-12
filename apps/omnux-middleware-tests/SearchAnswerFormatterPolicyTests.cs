@@ -166,4 +166,55 @@ public sealed class SearchAnswerFormatterPolicyTests
         Assert.Contains("1. 첫 번째 소식", normalized);
         Assert.Contains("2. 두 번째 소식", normalized);
     }
+
+    [Fact]
+    public void ReadableWebAnswerKeepsDottedVersionNumbers()
+    {
+        var raw = "**요약:** 현재 기준 파이썬의 최신 안정 버전은 2026년 8월 5일에 출시된 Python 3.14.7입니다.\n"
+            + "**핵심:**\n"
+            + "- 파이썬의 최신 안정 버전은 Python 3.14.7이며, 2026년 8월 5일에 공식 릴리스되었습니다.\n"
+            + "- 이전 계열인 Python 3.13의 최신 패치는 Python 3.13.15입니다.\n"
+            + "출처: python.org";
+
+        var normalized = SearchAnswerFormatterPolicy.EnsureReadableWebAnswerResponse(raw, "파이썬 최신 버전 알려줘", allowMarkdownTable: true);
+
+        Assert.Contains("3.14.7", normalized);
+        Assert.DoesNotContain("3.  14", normalized);
+        Assert.DoesNotContain("3. 14. 7", normalized);
+        Assert.DoesNotContain("3.  1. 7", normalized);
+    }
+
+    [Fact]
+    public void ReadableWebAnswerKeepsVersionsInSingleLineSummary()
+    {
+        // 리눅스 실행에서 실제로 깨졌던 모양: 한 줄 요약 안에 점 세 자리 버전이 여러 번 나온다.
+        var raw = "**요약:** 2026년 9월 12일 기준, 파이썬(Python)의 최신 안정 버전은 3.14.7입니다. "
+            + "**핵심:** - 파이썬 공식 홈페이지를 통해 확인된 최신 안정 릴리스는 3.14.7 버전입니다. "
+            + "- 해당 버전은 2026년 8월 5일에 배포되었습니다. 출처: Python.org";
+
+        var normalized = SearchAnswerFormatterPolicy.EnsureReadableWebAnswerResponse(raw, "파이썬 최신 버전", allowMarkdownTable: true);
+
+        Assert.Contains("3.14.7", normalized);
+        Assert.DoesNotContain("3.\n", normalized);
+        Assert.DoesNotContain("1. 7", normalized);
+    }
+
+    [Fact]
+    public void ReadableWebAnswerKeepsPrereleaseVersionsAndSpaces()
+    {
+        var raw = "**요약:** 현재 파이썬의 최신 안정 버전은 2026년 8월 5일에 출시된 Python 3.14.7입니다.\n\n"
+            + "**핵심:**\n"
+            + "- 현재 가장 최신의 파이썬 안정 버전은 Python 3.14.7입니다.\n"
+            + "- 해당 버전은 2026년 8월 5일에 릴리스되었습니다.\n"
+            + "- 개발 중인 버전으로는 2026년 9월 1일에 출시된 Python 3.15.0rc2(릴리스 후보)가 있습니다.\n\n"
+            + "출처: Python.org";
+
+        var sanitized = ChatOutputSanitizerPolicy.Sanitize(raw, keepMarkdownTables: true);
+        Assert.Contains("3.15.0rc2", sanitized);
+        var normalized = SearchAnswerFormatterPolicy.EnsureReadableWebAnswerResponse(sanitized, "파이썬 최신 버전", allowMarkdownTable: true);
+
+        Assert.Contains("3.15.0rc2", normalized);
+        Assert.Contains("안정 버전", normalized);
+        Assert.Contains("버전은 2026년", normalized);
+    }
 }
