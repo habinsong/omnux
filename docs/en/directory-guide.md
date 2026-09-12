@@ -4,61 +4,69 @@
 
 Updated: 2026-09-12
 
-The canonical layout is `apps/`, `docs/`, and `workspace/`. New code goes in canonical paths only.
+The canonical layout is `apps/`, `docs/`, `scripts/`, and `workspace/`. New code goes only into canonical paths.
 
 ## Root
 
-| Path | Description |
+| Path | Contents |
 |---|---|
 | `apps/omnux-middleware/` | .NET 9 middleware. WebSocket/HTTP, Telegram, routing, domain orchestration |
 | `apps/omnux-middleware-tests/` | .NET unit tests |
 | `apps/desktop/` | Tauri v2 desktop app. React 19 + TypeScript + Tailwind CSS v4 |
 | `apps/omnux-sandbox/` | Python executor (`executor.py`) |
-| `apps/shared/` | Model registry (`model-registry.json`) and C# generator |
-| `docs/` | Korean docs, `docs/en/` English docs |
-| `scripts/` | `omnux` launcher, Windows `omnux.ps1`, contract/screen check scripts |
-| `deploy/` | macOS/Linux deployment templates |
+| `apps/shared/` | Model registry (`model-registry.json`), C# generator, renewal inventory scripts |
+| `docs/` | Korean documents. English documents are under `docs/en/` |
+| `scripts/` | The `omnux` launcher, `omnux.ps1` and `omnux.cmd` for Windows, contract and screen checks |
+| `plugins/` | Example plugin kept in the repository (`safety-basics`) |
+| `deploy/` | macOS `launchd` plist, Linux `systemd` unit |
+| `.github/workflows/` | Guard retry timeline and guard alert dispatch regression workflows |
 | `.omni/skills/` | Project skills (`SKILL.md`) |
-| `workspace/` | Work artifacts (not tracked by git) |
+| `workspace/` | Work output (not tracked by git) |
 | `output/` | Check screenshots and fixtures (not tracked by git) |
 
 ## Middleware
 
-| Path | Description |
+| Path | Contents |
 |---|---|
-| `apps/omnux-middleware/src/` | C# source |
-| `apps/omnux-middleware/src/Application/` | Domain services. Coding, Routine, Doctor, Plan, TaskGraph, etc. |
-| `apps/omnux-middleware/src/CommandDispatch/` | Slash command router and domain handlers |
-| `apps/omnux-middleware/src/Infrastructure/` | Browser, Paths, Persistence, Refactor, Search, Telegram, Workspace |
-| `apps/omnux-middleware/resources/browser/` | Playwright browser execution resources (embedded) |
+| `src/` | C# source. `CommandService`, `LlmRouter`, 31 `Ws*CommandDispatcher` types, 100 `*Policy` types |
+| `src/Application/` | Domain services: Coding, Routine, Doctor, Plan, TaskGraph, Extensions, Agents, and others |
+| `src/CommandDispatch/` | Slash command router and domain handlers |
+| `src/Infrastructure/` | Browser, Paths, Persistence, Refactor, Search, Telegram, Workspace |
+| `resources/browser/` | Playwright browser execution resources (embedded in the assembly) |
+| `tools/` | ACP adapters and the desktop control MCP script |
 
 ## Desktop
 
-| Path | Description |
+| Path | Contents |
 |---|---|
-| `apps/desktop/src/App.tsx` | Screen registry |
-| `apps/desktop/src/features/` | Per-screen directories (`*-workspace`, `shell`, `settings`, `middleware`, etc.) |
-| `apps/desktop/src/features/middleware/` | WebSocket gateway helpers |
-| `apps/desktop/src/components/` | Shared UI (`ui/primitives.tsx`, `screen/`, `capsule/`) |
-| `apps/desktop/src-tauri/` | Tauri Rust shell (window management, middleware bootstrap) |
+| `src/App.tsx` | Screen registry |
+| `src/features/shell/nav-areas.ts` | The 6 areas and the screens in each |
+| `src/features/` | One directory per screen (`*-workspace`, `settings`, `middleware`, and so on) |
+| `src/features/middleware/` | WebSocket gateway helpers |
+| `src/components/` | Shared UI (`ui/primitives.tsx`, `screen/`, `capsule/`) |
+| `src-tauri/` | Tauri Rust shell (window management, middleware bootstrap) |
 
-## Work Artifacts
+## Work output
 
 | Path | Contents |
 |---|---|
-| `workspace/coding/runs/` | Per-run build folders |
-| `workspace/coding/routines/` | Routine results and browser agent assets |
+| `workspace/coding/runs/` | One folder per build run |
+| `workspace/coding/routines/` | Routine run results and browser agent assets |
 | `workspace/.runtime/logic/` | Logic graph run logs and snapshots |
 | `workspace/.runtime/tasks/` | Task graph run logs |
 | `workspace/.runtime/refactor-preview/` | Safe Refactor previews |
 
-## Preservation
+## What to keep
 
-`~/.omnux` is the source of persistent state: conversations, plans, notebooks, routing policies, sessions, projects, agent communication, telemetry, and memory notes. Confirm before deleting anything there. The `omnux` launcher state lives in `~/.omnux/cli/`.
+`~/.omnux` is the source of persistent state: conversations, plans, notebooks, routing policy, sessions, projects, agent communication, telemetry, and memory notes. Check what it holds before deleting anything. The `omnux` launcher keeps its state in `~/.omnux/cli/`.
 
-## Launchers
+What is safe to delete is in the [cleanup guide](./cleanup.md).
 
-- `./scripts/omnux setup`: dependency check/install, build, `npm test`, launcher registration
-- `omnux`: starts the desktop app (with the middleware)
-- `omnux start` / `status` / `shutdown`: middleware only, status, stop everything
-- `.\scripts\omnux.ps1 setup`: Windows setup
+## Launcher
+
+| Command | What it does |
+|---|---|
+| `./scripts/omnux setup` | Checks and installs dependencies, builds, runs `npm test`, registers the launcher |
+| `omnux` | Starts the desktop app, middleware included |
+| `omnux start` / `status` / `shutdown` | Middleware only, status, stop everything |
+| `.\scripts\omnux.ps1 setup` | Windows setup |

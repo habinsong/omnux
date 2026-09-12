@@ -142,7 +142,7 @@ assertIncludes(englishTechStack, "The previous brand name may remain only in his
 assertIncludes(englishTechStack, "Old-prefix root aliases, Electron/Codex legacy aliases, and new runtime shortcuts must not be recreated.", "영문 legacy alias 재생성 금지");
 assertIncludes(packageJson, "\"name\": \"omnux\"", "package name canonical omnux");
 assertNotIncludes(packageJson, LEGACY_PACKAGE_NAME, "package name must not use legacy package name");
-assertIncludes(englishReadme, "# omnux", "영문 README canonical title");
+assertIncludes(englishReadme, "<h1 align=\"center\">omnux</h1>", "영문 README canonical title");
 assertPathMissing("apps/omnux-dashboard", "legacy static dashboard must stay removed");
 assertIncludes(testRunner, "scripts\", \"check-repo-hygiene.mjs", "npm test runs repo hygiene gate");
 assertIncludes(testRunner, "scripts\", \"check-tech-stack-contract.mjs", "npm test runs tech stack contract");

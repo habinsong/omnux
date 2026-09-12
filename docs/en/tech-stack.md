@@ -4,16 +4,16 @@
 
 Updated: 2026-09-12
 
-omnux is not one large framework. It keeps small runtimes separated by responsibility.
+Small runtimes split by responsibility. What each one owns, and what it does not, is the content of this document.
 
 | Area | Stack | Responsibility |
 |---|---|---|
 | Core runtime | .NET 9 (`PublishAot=true`) | Metrics, guarded kill, WebSocket/HTTP, Telegram, file state, provider routing, domain orchestration |
-| Desktop shell | Tauri v2 + React 19 + TypeScript + Tailwind CSS v4 | App shell (Rust) + UI (React), Zustand state management, react-markdown rendering |
+| Desktop shell | Rust + TypeScript + React (Tauri v2 + React 19 + TypeScript + Tailwind CSS v4) | App shell (Rust) and UI (React), Zustand state management, react-markdown rendering |
 | Desktop build | Vite 7 + `@tailwindcss/vite` | Fast HMR, Tailwind v4 integrated build |
-| Desktop UI | Tailwind CSS v4, lucide-react | Existing 3-tier tokens (Light/Glass/Dark), responsive collapsible tool screens |
-| Executor | Python | Simple code execution and verification |
-| Tests/scripts | Node.js, npm scripts | Repository hygiene, contract checks, frontend syntax checks |
+| Desktop UI | Tailwind CSS v4, lucide-react | 3-tier tokens (Light/Glass/Dark), responsive collapsible tool screens |
+| Executor | Python | Code execution and verification |
+| Tests and scripts | Node.js, npm scripts | Repository hygiene, contract checks, frontend syntax checks |
 | State | JSON, Markdown, SQLite FTS | Human-readable operational state and records |
 
 ## Language Boundaries
@@ -22,7 +22,7 @@ omnux is not one large framework. It keeps small runtimes separated by responsib
 - TypeScript and React are for the desktop UI only. Business logic belongs to the .NET middleware.
 - JavaScript is for contract checks and the Playwright browser execution resources.
 - Python is for sandbox execution and code verification only.
-- Node.js is for tests, contract checks, and the existing Playwright browser adapter. .NET owns process lifetime and tool permissions.
+- Node.js is for tests, contract checks, and the Playwright browser adapter. .NET owns process lifetime and tool permissions.
 - New business logic and state orchestration belong to the .NET 9 middleware by default.
 
 ## Canonical Source Homes
@@ -60,17 +60,34 @@ omnux is not one large framework. It keeps small runtimes separated by responsib
 
 ## LLM Providers
 
-- Gemini: API and grounding search
-- Groq: OpenAI-compatible HTTP
-- Cerebras: HTTP API
-- NVIDIA NIM: OpenAI-compatible chat completions
-- Copilot: CLI wrapper
-- Codex: CLI/API path
-- Grok: CLI wrapper
+| provider key | Label | Integration |
+|---|---|---|
+| `gemini` | Gemini | Google API and grounded search |
+| `groq` | Groq | OpenAI-compatible HTTP |
+| `cerebras` | Cerebras | HTTP API |
+| `nvidia` | NVIDIA NIM | OpenAI-compatible `https://integrate.api.nvidia.com/v1` |
+| `copilot` | Copilot | `gh` / `copilot` CLI wrapper |
+| `codex` | Codex | `codex` CLI or API path |
+| `grok` | Grok | `grok` CLI wrapper |
+
+Per-provider default models live in `apps/shared/model-registry.json`, and `apps/shared/generate-cs-registry.js` generates the C# registry from it. `npm test` checks that the two do not drift.
+
+## Frontend Principles
+
+The desktop app is a tool surface. It prioritizes information density, repeated use, and narrow-width input, so that conversations, run results, settings, and logs come up fast.
+
+- Use the Tailwind CSS v4 tokens. Feature CSS stays scoped to its screen; no CSS-in-JS and no second design system.
+- Use a custom Dialog instead of `window.alert`, `window.confirm`, or `window.prompt`.
+- Render with `react-markdown` instead of `dangerouslySetInnerHTML`.
+- Use Tailwind classes instead of inline styles.
+- Support the 3-tier theme (Light/Glass/Dark), with Light as the default.
+
+`scripts/check-ui-slop.mjs` checks for gradients, hover scale, glass effects, uppercase tracking, marketing adjectives, and negative parallelism.
 
 ## Browser Execution Resources (2026-09-07)
 
-- `apps/omnux-middleware/resources/browser/PlaywrightHost.cjs` and `A2UiRenderer.cjs` are embedded resources split out of the existing Node/Playwright execution code. The .NET source home keeps C# only.
-- Owner: the .NET runner in `Infrastructure/Browser`. State: a fresh temporary browser context. User profiles and credential files are not read.
-- Dependencies: Node.js, Playwright, and Playwright Chromium (installed by `omnux setup`) or Chrome. Shipping these with a desktop package is a separate packaging check.
-- Verification: `npm test`, `node scripts/check-gateway-runtime-contract.mjs --explore-only`. When removing the feature, remove the resources, Browser/Canvas wiring, and runtime checks together.
+- `apps/omnux-middleware/resources/browser/PlaywrightHost.cjs` and `A2UiRenderer.cjs` are embedded resources split out of the existing Node/Playwright execution code. These two files are the only browser execution resources allowed.
+- The .NET source home stays at `apps/omnux-middleware/src/`. `Infrastructure/Browser` owns execution, errors, and process teardown; the scripts handle the browser page and the declarative UI.
+- Browser state lives in a fresh temporary context for that process. User browser profiles and OAuth or API credential files are not read.
+- Requires Node.js, the Playwright package, and Playwright Chromium (installed by `omnux setup`) or Chrome. Whether a desktop package ships these dependencies is a separate packaging check.
+- Verification: `npm test`, `node scripts/check-gateway-runtime-contract.mjs --explore-only`. When removing the feature, remove both embedded resources along with the Browser/Canvas wiring and runtime checks.

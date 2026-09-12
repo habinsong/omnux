@@ -4,26 +4,63 @@
 
 Updated: 2026-09-12
 
-The docs you need to install, use, and operate omnux. As of v1.0.6 they cover the Tauri desktop app (6 areas, 18 screens), the .NET 9 middleware, 7 LLM providers, remote limited mode, and macOS/Linux setup.
+Split by subject so you can open the one you need first. Written against v1.0.6: the Tauri desktop app with 6 areas and 18 screens, the .NET 9 middleware, 7 providers, remote limited mode, and setup on macOS, Linux, and Windows.
 
-| Topic | Korean | English |
+```mermaid
+flowchart LR
+    A["I want to install and try it"] --> S["Getting started"]
+    B["I want the code and data flow"] --> T["Structure"]
+    C["Something broke in operation"] --> O["Operations"]
+```
+
+## Getting started
+
+| Document | Read it when | 한국어 |
 |---|---|---|
-| Quick start | [Open](../QUICKSTART.md) | [Open](./quickstart.md) |
-| Usage | [Open](../사용법_빠른시작.md) | [Open](./usage.md) |
-| Architecture | [Open](../아키텍처_흐름.md) | [Open](./architecture.md) |
-| Tech stack | [Open](../기술스택_정리.md) | [Open](./tech-stack.md) |
-| Environment and state | [Open](../환경변수_및_상태파일.md) | [Open](./environment-and-state.md) |
-| Validation | [Open](../검증_가이드.md) | [Open](./validation.md) |
-| Directory | [Open](../디렉터리_가이드.md) | [Open](./directory-guide.md) |
-| AGENTS and skills | [Open](../AGENTS_AND_SKILLS.md) | [Open](./agents-and-skills.md) |
-| Telegram bot | [Open](../텔레그램_봇_가이드.md) | Korean only |
-| Notebooks and handoff | [Open](../NOTEBOOKS_AND_HANDOFF.md) | [Open](./notebooks-and-handoff.md) |
-| Planning and task graph | [Open](../PLANNING_AND_TASKS.md) | [Open](./planning-and-tasks.md) |
-| Safe Refactor | [Open](../SAFE_REFACTORING.md) | [Open](./safe-refactoring.md) |
-| Doctor | [Open](../DOCTOR.md) | [Open](./doctor.md) |
-| NVIDIA NIM | [Open](../nvidia-nim-provider.md) | [Open](./nvidia-nim-provider.md) |
-| Cleanup | [Open](../CLEANUP.md) | [Open](./cleanup.md) |
-| Token and memory reset | [Open](../토큰_메모리_초기화_가이드.md) | [Open](./token-memory-reset.md) |
-| Manual regression checklist | [Open](../OMNUX_실환경_수동_최종회귀_체크리스트.md) | [Open](./manual-regression-checklist.md) |
+| [Quickstart](./quickstart.md) | You are going from setup to first run | [열기](../QUICKSTART.md) |
+| [Usage](./usage.md) | You want to know what to press on each screen | [열기](../사용법_빠른시작.md) |
+| [Telegram bot](./telegram-bot.md) | You drive omnux from the bot while away | [열기](../텔레그램_봇_가이드.md) |
 
-Capture current screens with `node scripts/audit-all-screens.mjs` into `output/playwright/audit/all/`. `assets/readme/social-preview.png` is the GitHub social card.
+## Structure
+
+| Document | What it covers | 한국어 |
+|---|---|---|
+| [Architecture](./architecture.md) | The path a request takes, command routing, safety boundaries | [열기](../아키텍처_흐름.md) |
+| [Tech stack](./tech-stack.md) | Per-language responsibility, source homes, new runtime approval | [열기](../기술스택_정리.md) |
+| [Directory guide](./directory-guide.md) | What lives in which folder | [열기](../디렉터리_가이드.md) |
+| [AGENTS and skills](./agents-and-skills.md) | Instruction file read order, skill activation rules | [열기](../AGENTS_AND_SKILLS.md) |
+
+## Features
+
+| Document | What it covers | 한국어 |
+|---|---|---|
+| [Planning and task graphs](./planning-and-tasks.md) | Plan create, approve, run, and recovery on the Tasks screen | [열기](../PLANNING_AND_TASKS.md) |
+| [Notes and handoff](./notebooks-and-handoff.md) | The four record types and the handoff document | [열기](../NOTEBOOKS_AND_HANDOFF.md) |
+| [Safe Refactor](./safe-refactoring.md) | Three preview methods and the re-check before apply | [열기](../SAFE_REFACTORING.md) |
+| [NVIDIA NIM](./nvidia-nim-provider.md) | Defaults and variables for the `nvidia` provider | [열기](../nvidia-nim-provider.md) |
+
+## Operations
+
+| Document | Read it when | 한국어 |
+|---|---|---|
+| [Environment and state files](./environment-and-state.md) | You check an `OMNUX_*` variable or a storage path | [열기](../환경변수_및_상태파일.md) |
+| [Doctor](./doctor.md) | Something does not work and you want a diagnosis first | [열기](../DOCTOR.md) |
+| [Validation guide](./validation.md) | You changed a feature and need to know what to run | [열기](../검증_가이드.md) |
+| [Token and memory reset](./token-memory-reset.md) | Answers keep drifting toward old context | [열기](../토큰_메모리_초기화_가이드.md) |
+| [Cleanup](./cleanup.md) | You are separating what is safe to delete from what is not | [열기](../CLEANUP.md) |
+| [Manual regression checklist](./manual-regression-checklist.md) | You are clicking through the app before a release | [열기](../OMNUX_실환경_수동_최종회귀_체크리스트.md) |
+
+## Not in the repository
+
+Survey, audit, and execution records from the renewal that started 2026-09-07 live in `docs/RENEWAL_2026-09-07.md` and `docs/renewal/`. They preserve the state at the time of the work and can differ from current behavior, so they are excluded by `.gitignore` and are not present in a cloned repository.
+
+## How these are written
+
+- Usage documents describe only what is on screen today.
+- Structure documents describe responsibility and how data moves.
+- Variable names, file paths, and command strings stay exactly as the code spells them.
+- Validation documents separate what passed from what is not checked yet.
+- Plain sentences. No marketing adjectives, no closing summary paragraph, no negative parallelism.
+- A section that exists in the Korean document exists in the English one too.
+
+Capture screenshots with `node scripts/audit-all-screens.mjs` into `output/playwright/audit/all/`. `assets/readme/social-preview.png` is the GitHub social card.
