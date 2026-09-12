@@ -40,23 +40,26 @@ export function BuildTerminal({ connected }: { connected: boolean }) {
     const addon = new FitAddon();
     terminal.loadAddon(addon);
     terminal.open(host.current);
-    addon.fit();
     term.current = terminal;
     fit.current = addon;
 
-    const detach = useBuildTerminal.getState().attach(data => terminal.write(data));
-    const input = terminal.onData(data => useBuildTerminal.getState().send(data));
-    const onResize = () => {
+    // 탭이 아직 그려지기 전이면 크기를 잴 수 없어 FitAddon 이 던진다. 다음 프레임에 맞춘다.
+    const safeFit = () => {
       try {
         addon.fit();
       } catch {
-        /* 패널이 숨어 있으면 크기를 못 잰다. 다음 표시 때 다시 맞춘다. */
+        /* 숨겨져 있거나 크기가 0이면 다음 표시 때 다시 맞춘다. */
       }
     };
-    const observer = new ResizeObserver(onResize);
+    const fitFrame = requestAnimationFrame(safeFit);
+
+    const detach = useBuildTerminal.getState().attach(data => terminal.write(data));
+    const input = terminal.onData(data => useBuildTerminal.getState().send(data));
+    const observer = new ResizeObserver(safeFit);
     observer.observe(host.current);
 
     return () => {
+      cancelAnimationFrame(fitFrame);
       observer.disconnect();
       input.dispose();
       detach();
@@ -67,7 +70,13 @@ export function BuildTerminal({ connected }: { connected: boolean }) {
   }, []);
 
   const run = () => {
-    const size = fit.current?.proposeDimensions();
+    let size: { cols: number; rows: number } | undefined;
+    try {
+      size = fit.current?.proposeDimensions();
+    } catch {
+      size = undefined;
+    }
+
     useBuildTerminal.getState().start(build.activeId, build.target, {
       cols: Math.max(40, Math.round(size?.cols ?? 100)),
       rows: Math.max(10, Math.round(size?.rows ?? 30))
