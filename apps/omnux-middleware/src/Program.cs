@@ -424,9 +424,16 @@ internal static class Program
     )
     {
         var geminiGroundedRetriever = new GeminiGroundedRetriever(providers, context, runtimeSettings);
+        // Gemini grounding 이 키·쿼터·타임아웃으로 못 쓰면 Groq compound(서버측 웹검색 내장)로 넘긴다.
+        // 그래야 Gemini 키가 없어도 웹 검색이 동작한다.
+        var groqCompoundRetriever = new GroqCompoundRetriever(providers, runtimeSettings);
+        var searchRetrieverChain = new FallbackSearchRetriever(
+            ("gemini_grounding", geminiGroundedRetriever),
+            ("groq_compound", groqCompoundRetriever)
+        );
         var searchEvidencePackBuilder = new DefaultSearchEvidencePackBuilder();
         var searchGuard = new DefaultSearchGuard();
-        var searchGateway = new LegacyGeminiGroundingSearchGateway(geminiGroundedRetriever, searchEvidencePackBuilder);
+        var searchGateway = new LegacyGeminiGroundingSearchGateway(searchRetrieverChain, searchEvidencePackBuilder);
         var searchAnswerComposer = new EvidenceFallbackSearchAnswerComposer(searchGateway, searchGuard);
         return new SearchServices(searchGateway, searchGuard, searchAnswerComposer);
     }

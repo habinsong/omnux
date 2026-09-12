@@ -12,6 +12,16 @@ internal sealed record SearchRequirementDecision(
     string SourceDomain
 );
 
+// 빠른 경로의 판정 결과. Unknown 이면 확신이 없다는 뜻이므로 호출자는 조용히 건너뛰지 말고
+// LLM 판정으로 넘겨야 한다. 예전에는 이 구분이 없어 "확신 없음"이 곧 "검색 불필요"로
+// 처리됐고, 영어 토큰에 걸리지 않는 한국어 질문은 항상 web_search 가 skip 됐다.
+internal enum FastSearchVerdict
+{
+    Required,
+    NotRequired,
+    Unknown
+}
+
 internal readonly record struct WebPreferenceHint(string Category, string Text);
 
 internal static class SearchQueryPolicy
@@ -69,6 +79,30 @@ internal static class SearchQueryPolicy
         "markdown", "list", "compare", "vs", "site", "http", "https", "www"
     };
 
+    // 빠른 경로에서 확신할 수 있는 경우만 Required/NotRequired 를 내고, 애매하면 Unknown 을 낸다.
+    // 여기의 판별 신호는 URL·site: 연산자처럼 언어와 무관한 구조 신호와 영어 토큰뿐이다.
+    // 한국어를 비롯한 다른 언어의 의도는 동의어 목록으로 추측하지 않고 Unknown 으로 넘겨 LLM 이 판단한다.
+    public static FastSearchVerdict ClassifyFastRequirement(string input)
+    {
+        var normalized = (input ?? string.Empty).Trim();
+        if (normalized.Length == 0)
+        {
+            return FastSearchVerdict.NotRequired;
+        }
+
+        if (LooksLikeExplicitWebLookupQuestion(normalized) || LooksLikeRealtimeQuestion(normalized))
+        {
+            return FastSearchVerdict.Required;
+        }
+
+        if (LooksLikeClearlyNonWebQuestion(normalized))
+        {
+            return FastSearchVerdict.NotRequired;
+        }
+
+        return FastSearchVerdict.Unknown;
+    }
+
     public static SearchRequirementDecision BuildFastRequirementDecision(string input)
     {
         var normalized = (input ?? string.Empty).Trim();
@@ -77,17 +111,20 @@ internal static class SearchQueryPolicy
             return new SearchRequirementDecision(false, "llm:false:empty_input", string.Empty, string.Empty);
         }
 
-        if (LooksLikeClearlyNonWebQuestion(normalized))
+        var verdict = ClassifyFastRequirement(normalized);
+        var needWeb = verdict == FastSearchVerdict.Required;
+        var label = verdict switch
         {
-            return new SearchRequirementDecision(false, "heuristic:false:non_web", string.Empty, string.Empty);
-        }
+            FastSearchVerdict.Required =>
+                LooksLikeExplicitWebLookupQuestion(normalized) ? "fast:true:explicit_web" : "fast:true:heuristic",
+            FastSearchVerdict.NotRequired => "heuristic:false:non_web",
+            // 확신이 없다는 뜻이지 "검색 불필요"라는 뜻이 아니다. 호출자가 LLM 판정으로 넘긴다.
+            _ => "fast:unknown:heuristic"
+        };
 
-        var heuristicNeedWeb = LooksLikeExplicitWebLookupQuestion(normalized) || LooksLikeRealtimeQuestion(normalized);
         return new SearchRequirementDecision(
-            heuristicNeedWeb,
-            heuristicNeedWeb
-                ? (LooksLikeExplicitWebLookupQuestion(normalized) ? "fast:true:explicit_web" : "fast:true:heuristic")
-                : "fast:false:heuristic",
+            needWeb,
+            label,
             ExtractSourceFocusHintFromInput(normalized),
             ExtractSourceDomainHintFromInput(normalized)
         );

@@ -33,25 +33,28 @@ public sealed class SearchPipelineDoctorCheck : IDoctorCheck
         cancellationToken.ThrowIfCancellationRequested();
 
         var hasGeminiKey = !string.IsNullOrWhiteSpace(_runtimeSettings.GetGeminiApiKey());
+        // Gemini grounding 이 없어도 Groq compound(서버측 웹검색 내장)가 폴백으로 검색을 수행한다.
+        var hasGroqKey = !string.IsNullOrWhiteSpace(_runtimeSettings.GetGroqApiKey());
+        var hasAnyRetrieverKey = hasGeminiKey || hasGroqKey;
         var hasSearchModel = !string.IsNullOrWhiteSpace(_providers.GeminiSearchModel);
         var pipelineReady = _searchGateway != null && _searchGuard != null && _searchAnswerComposer != null;
         var status = !pipelineReady || !hasSearchModel
             ? DoctorStatus.Fail
-            : hasGeminiKey
+            : hasAnyRetrieverKey
                 ? DoctorStatus.Ok
                 : DoctorStatus.Warn;
 
         var summary = status switch
         {
             DoctorStatus.Ok => "검색 파이프라인 기본 구성이 준비되었습니다.",
-            DoctorStatus.Warn => "검색 파이프라인은 연결되어 있지만 Gemini 시크릿이 비어 있습니다.",
+            DoctorStatus.Warn => "검색 파이프라인은 연결되어 있지만 검색용 시크릿이 비어 있습니다.",
             _ => "검색 파이프라인 필수 구성이 비어 있습니다."
         };
 
         var actions = new List<string>();
-        if (!hasGeminiKey)
+        if (!hasAnyRetrieverKey)
         {
-            actions.Add("grounded 검색을 쓰려면 Gemini API Key를 설정하세요.");
+            actions.Add("웹 검색을 쓰려면 Gemini API Key(grounding) 또는 Groq API Key(compound 폴백) 중 하나를 설정하세요.");
         }
 
         if (!hasSearchModel || !pipelineReady)
@@ -63,7 +66,7 @@ public sealed class SearchPipelineDoctorCheck : IDoctorCheck
             Id,
             status,
             summary,
-            $"geminiSearchModel={_providers.GeminiSearchModel}; geminiKey={(hasGeminiKey ? "set" : "missing")}; fastWebPipeline={_context.EnableFastWebPipeline}; guard={(pipelineReady ? "ready" : "missing")}",
+            $"geminiSearchModel={_providers.GeminiSearchModel}; geminiKey={(hasGeminiKey ? "set" : "missing")}; groqKey={(hasGroqKey ? "set" : "missing")}; fastWebPipeline={_context.EnableFastWebPipeline}; guard={(pipelineReady ? "ready" : "missing")}",
             actions
         ));
     }

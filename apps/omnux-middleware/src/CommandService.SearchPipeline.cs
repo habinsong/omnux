@@ -468,9 +468,16 @@ public sealed partial class CommandService
             return new SearchRequirementDecision(false, "heuristic:false:non_web", string.Empty, string.Empty);
         }
 
+        // 빠른 경로는 확신이 있을 때만 결론을 낸다. 애매하면(Unknown) 조용히 건너뛰지 않고
+        // 아래 LLM 판정으로 넘긴다. 예전에는 확신 없음이 곧 "검색 불필요"였고, 그래서 영어
+        // 토큰에 걸리지 않는 한국어 질문은 어느 화면에서든 web_search 가 항상 skip 됐다.
         if (_context.EnableFastWebPipeline)
         {
-            return SearchQueryPolicy.BuildFastRequirementDecision(normalized);
+            var fastVerdict = SearchQueryPolicy.ClassifyFastRequirement(normalized);
+            if (fastVerdict != FastSearchVerdict.Unknown)
+            {
+                return SearchQueryPolicy.BuildFastRequirementDecision(normalized);
+            }
         }
 
         var provider = await ResolveCategoryProviderAsync(

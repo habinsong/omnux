@@ -265,3 +265,39 @@ public sealed class SearchQueryPolicyTests
         throw new FileNotFoundException(relative);
     }
 }
+
+// 빠른 경로가 확신하지 못하는 입력을 "검색 불필요"로 단정하지 않는지 확인한다.
+// 예전에는 Unknown 구분이 없어, 영어 토큰에 걸리지 않는 한국어 질문이면 어느 화면에서든
+// web_search 가 곧바로 skip(llm_not_required) 됐다. 이제는 LLM 판정으로 넘어가야 한다.
+public sealed class SearchQueryPolicyFastVerdictTests
+{
+    [Theory]
+    [InlineData("오늘 뉴스 알려줘")]
+    [InlineData("최신 환율 검색해줘")]
+    [InlineData("요즘 AI 업계 근황 찾아줘")]
+    [InlineData("지금 비트코인 시세 얼마야")]
+    public void NonEnglishQueriesAreDeferredToLlmInsteadOfSkipped(string input)
+    {
+        Assert.Equal(FastSearchVerdict.Unknown, SearchQueryPolicy.ClassifyFastRequirement(input));
+    }
+
+    [Theory]
+    [InlineData("latest news about openai")]
+    [InlineData("search for the release notes")]
+    [InlineData("https://example.com 요약해줘")]
+    [InlineData("site:cnn.com election")]
+    public void LanguageNeutralAndEnglishSignalsStillDecideFast(string input)
+    {
+        Assert.Equal(FastSearchVerdict.Required, SearchQueryPolicy.ClassifyFastRequirement(input));
+    }
+
+    [Theory]
+    [InlineData("what time is it?")]
+    [InlineData("hi")]
+    // 짧은 한국어 발화는 일상 대화로 보고 검색하지 않는다(로컬 시계 질문 포함).
+    [InlineData("지금 몇시야")]
+    public void ClearlyNonWebQueriesStayNotRequired(string input)
+    {
+        Assert.Equal(FastSearchVerdict.NotRequired, SearchQueryPolicy.ClassifyFastRequirement(input));
+    }
+}
