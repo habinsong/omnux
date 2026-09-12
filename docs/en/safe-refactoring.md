@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-Safe Refactor never overwrites a file directly. It builds a preview first and re-checks file state right before apply. In the desktop app, this is the **Review** screen.
+Safe Refactor guards against blind file overwrites through a staged, preview-first refactoring pipeline that verifies source hashes immediately before applying patches. In the desktop shell, this flow lives under the **Review** screen.
 
 ## Methods
 
@@ -23,11 +23,11 @@ Lines is always available. Pattern and Name are off by default: turn them on wit
 
 ## Flow
 
-Follow the Review screen tabs in order.
+Execute operations sequentially through the numbered Review tabs:
 
-1. **1. Files**: read the target file.
-2. **2. Changes**: pick a method, set the range or the symbol/pattern, and build the preview.
-3. **3. Check and apply**: read the diff and apply. If the file changed after the preview, apply is blocked and you rebuild the preview.
+1. **1. Files**: Load the target source file.
+2. **2. Changes**: Select a refactoring strategy (Lines, Pattern, or Name), configure parameters, and generate the diff preview.
+3. **3. Check and apply**: Inspect the generated patch. If underlying file hashes changed between preview generation and apply, the operation is blocked to prevent conflicting writes.
 
 Previews live in `workspace/.runtime/refactor-preview/` and expire after 120 minutes by default (`OMNUX_REFACTOR_PREVIEW_TTL_MINUTES`, 5–1440). They are treated as work artifacts, so deleting them changes no setting.
 

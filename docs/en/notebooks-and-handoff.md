@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-Notebooks store notes, decisions, verification records, and a handoff so you can continue where you stopped in the next session. They do not re-summarize LLM answers.
+Notebooks provide persistent project memory, capturing operational context, architectural decisions, verification outcomes, and structured handoff documents so work resumes smoothly in subsequent sessions. They do not re-summarize conversational chat turns.
 
 ## Document types
 

@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-After changing a feature, run at least these checks in order.
+When modifying code or architecture, execute these verification procedures sequentially.
 
 ## Basic checks
 
@@ -19,7 +19,7 @@ On Windows, use `.\scripts\omnux.ps1 setup`.
 
 ## npm test steps
 
-`scripts/run-omnux-tests.mjs` runs these in order and stops at the first failure.
+The `scripts/run-omnux-tests.mjs` test runner executes the test suite in this sequence and aborts on the first error.
 
 | Order | Group | Scripts |
 |---|---|---|
@@ -33,9 +33,9 @@ On Windows, use `.\scripts\omnux.ps1 setup`.
 | 8 | Gateway | `check-gateway-runtime-contract` (isolated middleware + Playwright Chromium) |
 | 9 | Sandbox | `apps/omnux-sandbox/executor.py` smoke |
 
-Screen model checks import `.ts` directly. On a Node built without type stripping (distro packages on Ubuntu, for instance) the runner attaches `scripts/typescript-loader.mjs` automatically.
+Screen model checks import `.ts` files directly. On Node environments without native type stripping, the runner automatically attaches `scripts/typescript-loader.mjs`.
 
-`check-ui-slop` scans the desktop source for gradients, hover scale, glass effects, uppercase tracking, marketing adjectives, and negative parallelism, and fails on any hit.
+`check-ui-slop` analyzes desktop source files for gradients, hover scale, glass effects, excessive tracking, promotional adjectives, and negative parallelism, failing immediately upon policy violations.
 
 ## Desktop checks
 
@@ -44,27 +44,27 @@ npm run build --prefix apps/desktop
 omnux
 ```
 
-`omnux` starts vite (1420) and the Tauri shell, and the shell starts the middleware (41880) with it.
+`omnux` starts Vite (1420) and the Tauri shell, which launches the .NET middleware (41880) concurrently.
 
 ## Screen checks (Playwright)
 
-Run `npm test` once to create the gateway fixtures, then run these while vite answers on `127.0.0.1:1420`. Start it with `omnux`, or with `OMNUX_DESKTOP_UI_HOST=127.0.0.1 npm run dev --prefix apps/desktop`. On macOS the default `localhost` binds to IPv6 only.
+Execute `npm test` once to prepare gateway fixtures, then run screen checks while Vite responds at `127.0.0.1:1420`. Start the stack with `omnux`, or launch Vite standalone with `OMNUX_DESKTOP_UI_HOST=127.0.0.1 npm run dev --prefix apps/desktop`. (On macOS, `localhost` defaults to IPv6; binding explicitly to `127.0.0.1` ensures stable local resolution.)
 
 | Script | What it checks |
 |---|---|
 | `run-workspace-ui-checks.mjs` | Ask, Build, Automate, Explore, and Tasks flows in order |
-| `check-desktop-launch.mjs` | First launch and relaunch |
-| `check-viewport-fit.mjs` | Fit at 1440, 768, 390, and 320 widths |
+| `check-desktop-launch.mjs` | First launch and relaunch stability |
+| `check-viewport-fit.mjs` | Layout responsiveness across 1440, 768, 390, and 320 widths |
 | `check-provider-model-defaults.mjs` | Model defaults in Settings |
 | `audit-all-screens.mjs` | Horizontal overflow and screenshots for every screen |
 
 Screenshots and logs are saved under `output/playwright/`.
 
-The UI check scripts compare the Korean on-screen strings literally. When you change a label, fix the matching check in the same change.
+The UI test scripts enforce exact literal string matches against Korean UI labels. Any label modifications require synchronized updates to the corresponding test scripts.
 
 ## Live integration checks
 
-These cannot be covered by local unit tests. They need real tokens and accounts.
+These integration paths cannot be verified with offline local tests; they require live credentials and external accounts.
 
 | Command | What it needs |
 |---|---|

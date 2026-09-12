@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-The canonical layout is `apps/`, `docs/`, `scripts/`, and `workspace/`. New code goes only into canonical paths.
+The canonical project layout is partitioned into `apps/`, `docs/`, `scripts/`, and `workspace/`. New code must reside within these canonical paths.
 
 ## Root
 
@@ -58,9 +58,9 @@ The canonical layout is `apps/`, `docs/`, `scripts/`, and `workspace/`. New code
 
 ## What to keep
 
-`~/.omnux` is the source of persistent state: conversations, plans, notebooks, routing policy, sessions, projects, agent communication, telemetry, and memory notes. Check what it holds before deleting anything. The `omnux` launcher keeps its state in `~/.omnux/cli/`.
+The `~/.omnux` directory is the single source of truth for persistent system state: conversations, plans, notebooks, routing policies, sessions, projects, agent messaging logs, telemetry, and memory notes. Inspect its contents and understand dependencies before pruning. The `omnux` CLI launcher persists runtime state under `~/.omnux/cli/`.
 
-See the [cleanup guide](./cleanup.md) before deleting files.
+Consult the [cleanup guide](./cleanup.md) for explicit retention and deletion policies.
 
 ## Launcher
 

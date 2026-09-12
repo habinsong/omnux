@@ -20,18 +20,18 @@
 
 ---
 
-**omnux** is a desktop app for asking questions of an LLM, generating and running code, scheduling jobs, and saving the results. Conversations, build output, run logs, and notes all stay on your machine, under `~/.omnux` and `workspace/`.
+**omnux** is a desktop application that integrates LLM queries, code generation and execution, scheduled job automation, and run logging on your local machine. Conversations, build artifacts, execution logs, and notes remain under `~/.omnux` and `workspace/`.
 
-Gemini, Groq, Cerebras, NVIDIA NIM, Copilot, Codex, and Grok can be selected from the same screen. Pick one, chain several in order, or put them side by side and compare the answers.
+Switch between Gemini, Groq, Cerebras, NVIDIA NIM, Copilot, Codex, and Grok on a single interface. Run single-model queries, pipe multiple models in sequence, or compare responses side by side.
 
-Connect the Telegram bot and you can send the same commands from your phone. The desktop app and the bot both go through `CommandService`, so neither side gets features the other lacks.
+Connect the Telegram bot to send identical commands remotely. Both the desktop app and the bot share the same `CommandService` layer, ensuring complete feature parity.
 
 ## What it does
 
 | Screen | What it does |
 |---|---|
 | Ask | Chat. Single, orchestration, and multi modes; file and image attachments; skills |
-| Build | Describe what you want to build, then generate and run the code. Each run has its own folder |
+| Build | Prompt-driven code generation and execution with isolated run directories |
 | Automate | Run a job daily, weekly, or monthly at a set time |
 | Explore | Web search, URL fetch, real browser control, canvas |
 | Review | Safe Refactor. Build a preview, re-check the file right before apply |
@@ -47,9 +47,9 @@ Connect the Telegram bot and you can send the same commands from your phone. The
 omnux
 ```
 
-`setup` checks the tools it needs, installs the missing ones, builds, runs `npm test`, and registers the `omnux` command. It uses Homebrew on macOS and the distro package manager on Linux (apt/dnf/yum/pacman/zypper/apk). On Windows, run `.\scripts\omnux.ps1 setup`.
+`setup` verifies and installs dependencies, builds the project, runs `npm test`, and registers the `omnux` CLI command. It supports Homebrew on macOS and distribution package managers on Linux (apt/dnf/yum/pacman/zypper/apk). On Windows, run `.\scripts\omnux.ps1 setup`.
 
-`omnux` opens the desktop app, which starts the .NET middleware alongside it. Use `omnux start` for the middleware alone and `omnux shutdown` to stop everything.
+`omnux` launches the desktop shell and spawns the .NET middleware. Run `omnux start` to run the middleware standalone, or `omnux shutdown` to terminate all processes.
 
 | Target | Address |
 |---|---|
@@ -84,7 +84,7 @@ Only providers with an API key or a signed-in CLI show up in the list. One key i
 | `~/.omnux` | JSON + Markdown | Settings, conversations, plans, notes, routing policy |
 | `workspace/` | — | Build, automation, and logic run output |
 
-The Rust shell manages windows and starts the middleware. LLM calls, coding, routines, and state files are the .NET middleware's job.
+The Rust shell manages window lifecycles and launches the middleware process. LLM orchestration, code generation, routine scheduling, and state persistence are handled entirely by the .NET middleware.
 
 ## Safety boundaries
 

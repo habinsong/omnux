@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-Use this checklist to test the desktop app and Telegram before a release, including behavior that automated tests may miss.
+Execute this checklist before releasing to verify desktop shell stability and Telegram live integrations, ensuring that cross-machine behaviors and edge interactions not captured by automated test suites are validated.
 
 ## Install and run
 

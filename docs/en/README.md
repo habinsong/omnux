@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-The documents are grouped by subject and describe v1.0.6: the Tauri desktop app with 6 areas and 18 screens, the .NET 9 middleware, 7 providers, remote limited mode, and setup on macOS, Linux, and Windows.
+Documentation is organized by topic for omnux v1.0.6, covering the Tauri desktop app (6 areas, 18 screens), .NET 9 middleware, 7 LLM providers, restricted remote mode, and cross-platform setup across macOS, Linux, and Windows.
 
 ```mermaid
 flowchart LR
@@ -52,15 +52,15 @@ flowchart LR
 
 ## Not in the repository
 
-Survey, audit, and execution records from the renewal that started 2026-09-07 live in `docs/RENEWAL_2026-09-07.md` and `docs/renewal/`. They preserve the state at the time of the work and can differ from current behavior, so they are excluded by `.gitignore` and are not present in a cloned repository.
+Investigation, audit, and migration archives from the 2026-09-07 renewal are cataloged in `docs/RENEWAL_2026-09-07.md` and `docs/renewal/`. Because they represent snapshot records from the migration period, current behavior may differ.
 
 ## How these are written
 
-- Usage documents describe only what is on screen today.
-- Structure documents describe responsibility and how data moves.
-- Variable names, file paths, and command strings stay exactly as the code spells them.
-- Validation documents separate what passed from what is not checked yet.
-- Plain sentences. No marketing adjectives, no closing summary paragraph, no negative parallelism.
-- A section that exists in the Korean document exists in the English one too.
+- Usage guides describe concrete UI interactions and observable behaviors.
+- Architecture and structure guides outline subsystem boundaries and data flow.
+- Environment variables, file paths, and CLI commands match the codebase verbatim.
+- Validation guides explicitly distinguish verified test suites from unverified paths.
+- Write in plain, direct technical English without promotional adjectives or redundant summaries.
+- Maintain mirrored section structures between English and Korean editions.
 
 Capture screenshots with `node scripts/audit-all-screens.mjs` into `output/playwright/audit/all/`. `assets/readme/social-preview.png` is the GitHub social card.

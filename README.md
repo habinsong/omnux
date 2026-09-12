@@ -20,18 +20,18 @@
 
 ---
 
-**omnux**는 데스크톱 앱 하나로 LLM에 묻고, 코드를 만들어 실행하고, 정해진 시간에 자동으로 돌리고, 그 결과를 파일과 기록으로 남기는 도구입니다. 대화 내역, 빌드 산출물, 실행 로그, 노트는 전부 내 컴퓨터의 `~/.omnux`와 `workspace/`에 남습니다.
+**omnux**는 데스크톱 앱 하나로 LLM 질의, 코드 생성 및 실행, 주기적 작업 자동화, 실행 결과 기록을 통합 처리하는 도구입니다. 대화 내역, 빌드 산출물, 실행 로그, 노트는 외부 클라우드가 아닌 로컬 머신의 `~/.omnux`와 `workspace/`에 보관됩니다.
 
-Gemini, Groq, Cerebras, NVIDIA NIM, Copilot, Codex, Grok을 같은 화면에서 바꿔 가며 사용하며 하나만 골라 쓰거나, 여러 개를 순서대로 실행하거나, 나란히 놓고 답을 비교합니다.
+Gemini, Groq, Cerebras, NVIDIA NIM, Copilot, Codex, Grok을 한 화면에서 전환하며 사용합니다. 단일 모델 호출, 여러 모델의 순차 파이프라인 실행, 모델 간 답변 비교를 지원합니다.
 
-텔레그램 봇을 붙이면 밖에서도 같은 명령을 보낼 수 있습니다. 데스크톱 앱과 봇은 같은 명령 계층(`CommandService`)을 통과하므로 한쪽에만 있는 기능이 생기지 않습니다.
+텔레그램 봇을 연동하면 외부에서도 동일한 명령을 실행할 수 있습니다. 데스크톱 앱과 텔레그램 봇이 같은 명령 계층(`CommandService`)을 공유하므로 인터페이스에 따른 기능 격차가 없습니다.
 
 ## omnux
 
 | 화면 | 하는 일 |
 |---|---|
 | 질문 | 대화. 싱글·오케스트레이션·멀티 모드, 파일과 이미지 첨부, 스킬 적용 |
-| 빌드 | 요구사항을 적으면 코드를 만들고 실행한다. 실행 폴더가 남는다 |
+| 빌드 | 요구사항 기반 코드 생성 및 실행. 작업별 실행 폴더 보존 |
 | 자동화 | 매일·매주·매월 정해진 시각에 작업을 돌린다 |
 | 탐색 | 웹 검색, URL 가져오기, 실제 브라우저 제어, 캔버스 |
 | 리뷰 | Safe Refactor. 미리 보기를 만들고 적용 직전에 파일을 다시 확인한다 |
@@ -47,9 +47,9 @@ Gemini, Groq, Cerebras, NVIDIA NIM, Copilot, Codex, Grok을 같은 화면에서 
 omnux
 ```
 
-`setup`은 필요한 도구를 확인해서 없으면 설치하고, 빌드와 `npm test`까지 돌린 뒤 `omnux` 명령을 등록합니다. macOS는 Homebrew, Linux는 배포판 패키지 매니저(apt/dnf/yum/pacman/zypper/apk)를 씁니다. Windows는 `.\scripts\omnux.ps1 setup`입니다.
+`setup`은 필요한 도구를 점검해 설치하고, 빌드와 `npm test`를 통과한 뒤 `omnux` CLI 명령을 등록합니다. macOS는 Homebrew, Linux는 배포판 패키지 관리자(apt/dnf/yum/pacman/zypper/apk)를 지원합니다. Windows 환경에서는 `.\scripts\omnux.ps1 setup`을 실행합니다.
 
-`omnux`를 실행하면 데스크톱 앱이 뜨고, 앱이 .NET 미들웨어를 함께 띄웁니다. 미들웨어만 필요하면 `omnux start`, 전부 끄려면 `omnux shutdown`입니다.
+`omnux` 명령으로 데스크톱 앱과 .NET 미들웨어를 함께 기동합니다. 미들웨어만 단독 실행하려면 `omnux start`, 전체 프로세스를 종료하려면 `omnux shutdown`을 사용합니다.
 
 | 대상 | 주소 |
 |---|---|
@@ -71,7 +71,7 @@ API 키나 CLI 인증이 된 provider만 목록에 나타납니다. 키 하나�
 | `cerebras` | Cerebras | HTTP API |
 | `nvidia` | NVIDIA NIM | OpenAI 호환 `https://integrate.api.nvidia.com/v1` |
 | `copilot` | Copilot | `gh` / `copilot` CLI |
-| `codex` | Codex | `codex` CLI 또는 API 키 |
+| `codex` | Codex | `codex` CLI 또는 API key |
 | `grok` | Grok | `grok` CLI |
 
 ## 구성
@@ -84,15 +84,15 @@ API 키나 CLI 인증이 된 provider만 목록에 나타납니다. 키 하나�
 | `~/.omnux` | JSON + Markdown | 설정, 대화, 계획, 노트, 라우팅 정책 |
 | `workspace/` | — | 빌드·자동화·로직 실행 산출물 |
 
-Rust 셸은 창 관리와 미들웨어 기동만 합니다. LLM 호출, 코딩, 루틴, 상태 파일은 .NET 미들웨어가 맡습니다.
+Rust 셸은 윈도우 관리와 미들웨어 기동만 담당합니다. LLM 호출, 코드 생성, 루틴 스케줄링, 상태 관리는 전부 .NET 미들웨어가 처리합니다.
 
 ## 안전 경계
 
-- API 키는 환경변수, `*_FILE`, secure store(`~/.config/omnux/secrets.json`, 0600), macOS Keychain 중에서 고릅니다.
-- WebSocket은 Origin 검사, 인증 전 메시지 allowlist, 명령 rate limit, 기본 16MB 메시지 상한을 겁니다.
-- 외부접속은 기본 꺼짐입니다. 켜면 같은 LAN의 기기가 제한 모드로 들어오며, 읽기 조회와 모델·라우팅 선택만 됩니다.
-- Safe Refactor는 적용 직전에 파일 상태를 다시 확인하고 rollback snapshot을 남깁니다.
-- 로컬 코드 실행은 `OMNUX_ENABLE_DYNAMIC_CODE=true`일 때만 허용합니다.
+- API 키는 환경변수, `*_FILE`, 암호화 저장소(`~/.config/omnux/secrets.json`, 권한 0600), macOS Keychain 중에서 선택해 관리합니다.
+- WebSocket 계층은 Origin 검증, 인증 전 메시지 허용 목록(allowlist), 명령 요청 빈도 제한(rate limit), 기본 16MB 메시지 상한을 적용합니다.
+- 외부 접속은 기본 비활성화입니다. 활성화 시 동일 LAN의 기기가 제한 모드로 접속하며, 읽기 조회와 모델·라우팅 선택만 허용합니다.
+- Safe Refactor는 코드 적용 직전에 파일 변경 여부를 재확인하고 롤백 스냅샷을 생성합니다.
+- 로컬 코드 실행은 `OMNUX_ENABLE_DYNAMIC_CODE=true` 환경변수가 설정되었을 때만 허용합니다.
 
 ## 문서
 
@@ -109,7 +109,7 @@ Rust 셸은 창 관리와 미들웨어 기동만 합니다. LLM 호출, 코딩, 
 npm test
 ```
 
-저장소 위생, 경계 계약, 화면 모델, 미들웨어 빌드와 단위 테스트, 게이트웨이 런타임, 샌드박스 스모크를 순서대로 돌리고 하나라도 실패하면 멈춥니다. 자세한 내용은 [검증 가이드](docs/검증_가이드.md)에 있습니다.
+저장소 위생, 경계 계약, 화면 모델, 미들웨어 빌드 및 단위 테스트, 게이트웨이 런타임, 샌드박스 스모크를 순차 검증하며, 오류 발생 시 즉시 중단합니다. 상세 내용은 [검증 가이드](docs/검증_가이드.md)를 참고하세요.
 
 ## 라이선스
 

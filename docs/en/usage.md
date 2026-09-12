@@ -4,11 +4,11 @@
 
 Updated: 2026-09-12
 
-What to press on each desktop screen. For install and run, see the [quickstart](./quickstart.md); for the bot, the [Telegram guide](./telegram-bot.md).
+Operational guide for each desktop view. For installation and bootstrap, see the [quickstart](./quickstart.md); for remote bot integration, see the [Telegram guide](./telegram-bot.md).
 
 ## Layout
 
-Pick an area on the left rail, then a screen in the sub-panel. On narrow widths, open navigation with the top menu button. `⌘K` (`Ctrl+K` on Windows and Linux) opens the command palette.
+Select an operational area on the left rail, then choose a view in the sub-panel. In compact viewports, open the navigation drawer using the top menu toggle. Press `⌘K` (`Ctrl+K` on Windows and Linux) to summon the command palette.
 
 | Area | Screens |
 |---|---|
@@ -21,49 +21,49 @@ Pick an area on the left rail, then a screen in the sub-panel. On narrow widths,
 
 ## Home
 
-Type a request straight into the input. The shortcuts below it (Automate, Logic, Skills, Plan, Notes) create new items, and **Continue work** and **Active projects** at the bottom take you back to recent work.
+Enter prompts directly into the central input box. Shortcut buttons (Automate, Logic, Skills, Plan, Notes) initialize workflows, while **Continue work** and **Active projects** restore recent workspace contexts.
 
 ## Ask
 
 Tabs: Chat · Models · References · History
 
-- Modes are single, orchestration, and multi. Multi puts several provider answers side by side.
-- Enter sends, Shift+Enter adds a line. Enter during Korean IME composition does not send.
-- Attach files and images. Images are checked for format and model support first.
-- Answers can be handed off to Notes, Tasks, Build, or Automate.
-- Requests like "open naver" or "close the browser" run as browser commands before any LLM call.
-- Naming a skill turns it on, and it stays on in that conversation until you stop it.
+- Supported modes: single, orchestration, and multi. Multi-mode places side-by-side responses from multiple providers for direct comparison.
+- `Enter` sends the message; `Shift+Enter` inserts a newline. IME composition states do not trigger premature dispatch.
+- Drag-and-drop attachments for files and images. Multimodal capabilities are verified before dispatching image payloads.
+- Answers can be transferred to Notes, Tasks, Build, or Automate with a single click.
+- Natural intents such as "open naver" or "close the browser" execute immediately as browser tool actions prior to LLM invocation.
+- Mentioning a skill name toggles that skill on, persisting across turns in that conversation until deactivated.
 
 ## Build
 
 Tabs: Build · Settings · References · History
 
-1. Describe what to build and press **만들기** (Build). `Cmd/Ctrl+Enter` also sends. Attach up to 6 files, 10MB total.
-2. While it runs, **작업 중단** (Stop) halts it. You can type the next request in the meantime.
-3. Read the summary, files, and program output. HTML opens with **미리 보기** (Preview).
-4. **다시 실행하기** (Run again) re-runs the result with new input.
-5. Use **중단한 요청 이어 쓰기** (Resume stopped request) to restore a stopped job's original request and model.
+1. Enter task requirements and select **만들기** (Build), or press `Cmd/Ctrl+Enter`. Attach up to 6 files (10MB total ceiling).
+2. During execution, click **작업 중단** (Stop) to halt the process. Subsequent prompts can be queued in advance.
+3. Review generated code, summary metrics, and standard console output. Render HTML deliverables via **미리 보기** (Preview).
+4. Select **다시 실행하기** (Run again) to modify inputs and re-execute.
+5. Use **중단한 요청 이어 쓰기** (Resume stopped request) to restore aborted prompts and model parameters.
 
-Model, language, and project name are under **모델과 작업 설정**. Skills and notes are under **스킬과 참고 노트**. Past builds reopen from **저장한 빌드** (Saved builds). Run folders live in `workspace/coding/runs/`.
+Configure models, target language, and project scopes under **모델과 작업 설정**. Select skills and contextual references under **스킬과 참고 노트**. Access previous run histories via **저장한 빌드** (Saved builds). Run artifacts persist under `workspace/coding/runs/`.
 
-Build also treats "open naver" or "close the browser" as browser commands before any coding run.
+Build also routes natural requests such as "open naver" or "close the browser" as browser commands before launching code synthesis.
 
 ## Automate
 
 Tabs: List · New automation (Edit) · Result
 
-1. In **새 자동화** (New automation), set the task, frequency (daily/weekly/monthly), and time. Name, time zone, execution mode, retries, and Telegram notification are under **이름과 추가 설정**.
-2. **자동화 저장** (Save) only stores the schedule. Use **지금 실행** (Run now) to run it immediately.
-3. Selecting an automation shows its latest result. Earlier runs and raw records sit in the collapsed area.
-4. **예약 끄기** (Turn off schedule) stops future runs. It does not cancel a run already in progress.
+1. Under **새 자동화** (New automation), define target tasks, recurrence intervals (daily/weekly/monthly), and scheduled trigger times. Routine labels, timezones, execution modes, retry budgets, and Telegram notifications are configured in **이름과 추가 설정**.
+2. **자동화 저장** (Save) registers schedule metadata. Select **지금 실행** (Run now) for immediate verification.
+3. Selecting an automation displays recent execution logs; full historical archives are available in the expandable drawer.
+4. **예약 끄기** (Turn off schedule) suspends upcoming triggers without interrupting active executions.
 
-Telegram notification is off by default. Definitions live in `~/.omnux/routines.json`, results under `workspace/coding/routines/`.
+Telegram notifications are disabled by default. Definitions persist in `~/.omnux/routines.json`, while run artifacts reside in `workspace/coding/routines/`.
 
 ## Explore
 
 Tabs: Web · Browser · Canvas · History
 
-Web search, URL fetch, browser control, and canvas display on one screen. The browser opens a fresh temporary context with the Playwright Chromium that setup installed, falling back to an installed Chrome. If it cannot start, it returns an error.
+Combines web search, URL content extraction, browser automation, and interactive canvas rendering in a single screen. Browser sessions initialize in isolated temporary contexts using the provisioned Playwright Chromium, with system Chrome as fallback. Clear diagnostics are reported if runtime requirements fail.
 
 ## Review
 

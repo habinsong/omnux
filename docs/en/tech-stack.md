@@ -70,11 +70,11 @@ Each runtime has a defined responsibility, listed below.
 | `codex` | Codex | `codex` CLI or API path |
 | `grok` | Grok | `grok` CLI wrapper |
 
-Per-provider default models live in `apps/shared/model-registry.json`, and `apps/shared/generate-cs-registry.js` generates the C# registry from it. `npm test` checks that the two do not drift.
+Default model catalogs per provider are defined in `apps/shared/model-registry.json`, compiled into C# code via `apps/shared/generate-cs-registry.js`. `npm test` ensures schema synchronization between JSON and C# definitions.
 
 ## Frontend principles
 
-The desktop app is designed for dense information, repeated use, and narrow windows, with quick access to conversations, run results, settings, and logs.
+The desktop shell emphasizes operational efficiency: high information density, rapid iterative workflows, and responsive layouts that provide immediate access to chat sessions, execution outputs, configurations, and logs.
 
 - Use the Tailwind CSS v4 tokens. Feature CSS stays scoped to its screen; no CSS-in-JS and no second design system.
 - Use a custom Dialog instead of `window.alert`, `window.confirm`, or `window.prompt`.
@@ -88,6 +88,6 @@ The desktop app is designed for dense information, repeated use, and narrow wind
 
 - `apps/omnux-middleware/resources/browser/PlaywrightHost.cjs` and `A2UiRenderer.cjs` are embedded resources split out of the existing Node/Playwright execution code. These two files are the only browser execution resources allowed.
 - The .NET source home stays at `apps/omnux-middleware/src/`. `Infrastructure/Browser` owns execution, errors, and process teardown; the scripts handle the browser page and the declarative UI.
-- Browser state lives in a fresh temporary context for that process. User browser profiles and OAuth or API credential files are not read.
-- Requires Node.js, the Playwright package, and Playwright Chromium (installed by `omnux setup`) or Chrome. Whether a desktop package ships these dependencies is a separate packaging check.
+- Browser state is isolated within a new temporary session context per process; user browser profiles, session storage, and OAuth credentials are never accessed.
+- Requires Node.js, the Playwright package, and Playwright Chromium (provisioned by `omnux setup`) or system Chrome. Bundling for desktop distribution is validated in a dedicated packaging step.
 - Verification: `npm test`, `node scripts/check-gateway-runtime-contract.mjs --explore-only`. When removing the feature, remove both embedded resources along with the Browser/Canvas wiring and runtime checks.

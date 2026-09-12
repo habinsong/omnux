@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-Settings and conversation history live under `~/.omnux`; work output lives under `workspace/`. `~/.omnux` is the only state directory. Only `OMNUX_*` variables are read, and there are currently 159 of them. The tables below cover commonly used variables.
+System configurations and conversation histories reside under `~/.omnux`, whereas build artifacts and execution logs are isolated under `workspace/`. `~/.omnux` is the sole authorized state root. The runtime reads only `OMNUX_*` environment variables (159 total); the tables below summarize the most frequently configured settings.
 
 ## Secrets
 

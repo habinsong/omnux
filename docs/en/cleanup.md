@@ -4,9 +4,9 @@
 
 Updated: 2026-09-12
 
-Before cleaning up omnux files, separate caches you can regenerate from state you need to keep.
+When reclaiming disk space in omnux environments, strictly distinguish disposable build caches and runtime fixtures from persistent operational state.
 
-The desktop **Status > Tools > Cleanup** panel lists candidates first (`cleanup_preview`) and deletes only with a selected preview (`cleanup_apply`). Candidates are `apps/.runtime`, `workspace/.runtime`, `bin`/`obj`/`.runtime` under `apps/`, and `.DS_Store`. Files inside `.git` are excluded.
+In the desktop app, the **Status > Tools > Cleanup** panel generates a dry-run candidate preview (`cleanup_preview`) and only executes removals when a confirmed preview ID is supplied (`cleanup_apply`). Search targets include `apps/.runtime`, `workspace/.runtime`, `bin`/`obj`/`.runtime` across subprojects, and temporary OS metadata (`.DS_Store`). The `.git` version control repository is always excluded.
 
 ## Usually safe to delete
 
@@ -29,6 +29,6 @@ The desktop **Status > Tools > Cleanup** panel lists candidates first (`cleanup_
 
 ## Do not delete casually
 
-Everything under `~/.omnux` is the source of settings and history: conversations, plans, notebooks, routing policy, and the Telegram offset. Do not delete it without a backup. Export a portable backup package under **Settings > Data > Backup**.
+Directories under `~/.omnux` constitute the single source of truth for persistent system state: conversations, plans, notebooks, routing policies, and Telegram offsets. Never delete this directory without a verified backup. Use **Settings > Data > Backup** to export portable packages.
 
-On Linux, `~/.dotnet` and `~/.cargo` installed by setup are tools `omnux` uses.
+On Linux, `~/.dotnet` and `~/.cargo` installed in user directories by `setup` are also core tools required by the `omnux` runtime.

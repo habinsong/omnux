@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-Only what you need to get from a fresh clone to a running app. Screen-by-screen details are in [usage.md](./usage.md).
+Steps to take a clean clone to a running application. For screen-by-screen interactions, see [usage.md](./usage.md).
 
 ## 1. setup
 
@@ -12,33 +12,33 @@ Only what you need to get from a fresh clone to a running app. Screen-by-screen 
 ./scripts/omnux setup
 ```
 
-macOS uses Homebrew; Linux uses the distribution package manager (apt/dnf/yum/pacman/zypper/apk). It runs in this order.
+On macOS, setup uses Homebrew; on Linux, it detects your package manager (apt/dnf/yum/pacman/zypper/apk). Setup proceeds in this sequence:
 
 | Step | What it does |
 |---|---|
 | Required tools | Checks `node`, `npm`, `python3`, `sqlite3`, `curl`, `cc`, `make` and installs what is missing |
-| .NET SDK 9 | On Linux, installs into `~/.dotnet` with the official `dotnet-install.sh` when missing. No sudo needed |
-| Desktop dependencies | On Linux, checks and installs the GTK/WebKitGTK development packages |
-| Extra Python modules | tkinter, pygame, matplotlib, numpy, requests, and others |
-| Rust | Installs into `~/.cargo` with rustup when `cargo` is missing |
-| Launcher | Links the `omnux` command into `~/.local/bin` or a similar directory |
-| Node dependencies | `npm ci`, then Playwright Chromium |
-| Verification | Middleware build, sandbox smoke, `npm test` |
+| .NET SDK 9 | On Linux, installs into `~/.dotnet` via the official `dotnet-install.sh` if missing (no sudo required) |
+| Desktop dependencies | On Linux, verifies and installs GTK/WebKitGTK development headers |
+| Extra Python modules | Verifies optional packages (tkinter, pygame, matplotlib, numpy, requests) |
+| Rust | Installs into `~/.cargo` via rustup if `cargo` is missing |
+| Launcher | Links the `omnux` CLI binary into `~/.local/bin` |
+| Node dependencies | Executes `npm ci` and provisions Playwright Chromium |
+| Verification | Compiles middleware, runs sandbox smoke tests, and executes `npm test` |
 
-Linux package installs ask for your sudo password. Optional Python modules are skipped when sudo is unavailable, and setup continues. The `omnux` command puts `~/.dotnet` and `~/.cargo` on PATH by itself.
+Linux system packages require sudo privileges. Optional Python modules are skipped if sudo is unavailable. The `omnux` launcher automatically prepends `~/.dotnet` and `~/.cargo` to PATH.
 
-On Windows, use `.\scripts\omnux.ps1 setup`.
+On Windows, run `.\scripts\omnux.ps1 setup`.
 
 ## 2. Run
 
 | Command | What it does |
 |---|---|
-| `omnux` | Starts the desktop app, which starts the .NET middleware with it (same as `omnux desktop`) |
-| `omnux start` | Starts only the middleware, in the background |
-| `omnux status` | Shows middleware status |
-| `omnux shutdown` | Stops the desktop app and the middleware (same as `omnux stop`) |
+| `omnux` | Launches the desktop shell, which spawns the .NET middleware (equivalent to `omnux desktop`) |
+| `omnux start` | Spawns the .NET middleware as a standalone background service |
+| `omnux status` | Inspects current middleware process status |
+| `omnux shutdown` | Gracefully terminates both desktop and middleware processes (equivalent to `omnux stop`) |
 
-If setup has never finished, `omnux` and `omnux start` run setup first. On Linux, run the desktop app from a graphical session (Wayland/X11).
+If setup has not completed, `omnux` and `omnux start` will run setup automatically. On Linux, run the desktop app inside an active graphical display session (Wayland or X11).
 
 ## 3. Addresses
 
@@ -51,7 +51,7 @@ If setup has never finished, `omnux` and `omnux start` run setup first. On Linux
 
 ## 4. Authentication
 
-The first WebSocket session starts pending an OTP. With Telegram configured, the OTP goes there. The local OTP fallback is on by default: started with `omnux`, the OTP prints in the terminal; started with `omnux start`, it lands in `~/.omnux/cli/middleware.log`.
+The initial WebSocket session enters an OTP challenge state. When Telegram is configured, the OTP is sent to your Telegram bot. Local OTP fallback is enabled by default: running `omnux` outputs the OTP in the active terminal, while running `omnux start` logs it to `~/.omnux/cli/middleware.log`.
 
 ## 5. First check
 
@@ -61,8 +61,8 @@ dotnet run --project apps/omnux-middleware/Omnux.Middleware.csproj -- doctor --j
 npm test
 ```
 
-One LLM key is enough to start. Save it under **Settings > Models > API keys**, or point a `*_FILE` environment variable at it.
+Only one LLM provider key is required to begin. Register keys under **Settings > Models > API keys**, or export `*_FILE` environment variables.
 
 ## 6. Remote access
 
-Remote access is off by default. Turn it on under **Settings > Security > Remote access** and other devices on the same LAN can connect. Remote clients enter limited mode without an OTP prompt, with read queries, routing policy, and model selection only. Chat, coding, routine, and logic graph execution, OTP/CLI auth, Telegram and LLM key storage, and the remote-access toggle itself are blocked.
+Remote access is disabled by default. Enabling it under **Settings > Security > Remote access** allows devices on the same LAN to connect. Remote clients connect in restricted mode without OTP challenges, permitting read queries, routing inspection, and model selection. Conversational chat, coding runs, routine and logic execution, token authentication, credential modification, and toggling remote access remain strictly forbidden.

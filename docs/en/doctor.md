@@ -4,7 +4,7 @@
 
 Updated: 2026-09-12
 
-Doctor is the first diagnostic to run. It checks nine things in one pass.
+When operational anomalies arise, run Doctor first to diagnose the state of 9 core subsystems in a single execution.
 
 ## Run
 
@@ -41,4 +41,4 @@ If a provider key is missing, add it under **Settings > Models > API keys** or t
 
 ## In the desktop app
 
-**Status > Checks > Environment diagnostics** shows the latest report. Fix preview (`doctor_fix_preview`) builds a repair plan from that report, and apply (`doctor_fix_apply`) runs only with that preview ID. The only automatic action is creating missing directories. API key entry, CLI auth, and destructive cleanup are never automatic.
+In the desktop app, navigate to **Status > Checks > Environment diagnostics** to inspect recent results. Fix preview (`doctor_fix_preview`) formulates a non-destructive remediation plan, which can only be executed via `doctor_fix_apply` when a matching preview ID is supplied. Automated repair is strictly limited to creating missing state directories; credential entry, CLI logins, and destructive purging must be performed manually.
