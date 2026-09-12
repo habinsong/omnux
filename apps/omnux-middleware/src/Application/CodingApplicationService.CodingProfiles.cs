@@ -1624,7 +1624,8 @@ public sealed partial class CodingApplicationService
             return;
         }
 
-        var request = CodingLanguagePolicy.ExtractLatestCodingRequestText(objective ?? string.Empty).Trim();
+        // 판정에는 프롬프트 전문이 아니라 사용자가 친 요청만 넘긴다(캐시 키와 같은 규칙).
+        var request = CodingTaskSignalResolver.BuildKey(objective);
         if (request.Length == 0)
         {
             return;
@@ -1653,6 +1654,7 @@ public sealed partial class CodingApplicationService
                 CodingTaskSignalResolver.Set(objective, signals);
                 Console.Error.WriteLine(
                     $"[coding-signals] game={signals.Game} gui={signals.Gui} interactive={signals.Interactive} frontend={signals.Frontend}"
+                    + $" request=\"{(request.Length <= 80 ? request : request[..80]).Replace("\n", " ", StringComparison.Ordinal)}\""
                 );
             }
         }

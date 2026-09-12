@@ -79,19 +79,38 @@ public sealed partial class CodingApplicationService
         }
 
         var commandPlan = ResolveLatestCodingExecutionCommandPlan(target);
-        if (string.IsNullOrWhiteSpace(commandPlan.ActualCommand))
+        var command = commandPlan.ActualCommand;
+
+        // 일회성 실행 경로는 GUI·대화형 프로그램을 nohup 으로 떼어 내고 바로 끝난다(결과를 돌려줘야 하니까).
+        // 여기 터미널 세션은 프로그램이 끝날 때까지 살아 있으므로 전경으로 돌린다.
+        // 그래야 출력이 실시간으로 흐르고 "중지" 가 실제로 창을 닫는다.
+        if (LooksLikeDetachedInteractiveLaunchCommand(command))
+        {
+            var foreground = BuildLatestCodingExecutionFallbackCommand(
+                target.Language,
+                target.RunDirectory,
+                target.EntryFile,
+                target.ChangedFiles
+            );
+            if (!string.IsNullOrWhiteSpace(foreground))
+            {
+                command = foreground;
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(command))
         {
             return Failed("실행할 명령을 구성하지 못했습니다.");
         }
 
-        if (CodingExecutionSafetyPolicy.IsDangerousGeneratedRunCommand(commandPlan.ActualCommand))
+        if (CodingExecutionSafetyPolicy.IsDangerousGeneratedRunCommand(command))
         {
             return Failed("안전하지 않은 실행 명령이라 실행하지 않았습니다.");
         }
 
         // 실행 직전에 의존성을 맞춰 둔다. 사용자가 pip/npm 을 직접 칠 일이 없어야 한다.
         var installLog = await PrepareInteractiveRunDependenciesAsync(
-            commandPlan.ActualCommand,
+            command,
             target.RunDirectory,
             cancellationToken
         ).ConfigureAwait(false);
@@ -111,7 +130,7 @@ public sealed partial class CodingApplicationService
         return new CodingInteractiveRunPlan(
             true,
             message,
-            commandPlan.ActualCommand,
+            command,
             target.RunDirectory,
             normalizedLanguage,
             target.Provider,
@@ -120,6 +139,14 @@ public sealed partial class CodingApplicationService
             gui,
             environment
         );
+    }
+
+    /// <summary>일회성 실행용으로 만들어진 "띄우고 바로 빠지는" 명령인지.</summary>
+    private static bool LooksLikeDetachedInteractiveLaunchCommand(string? command)
+    {
+        var text = command ?? string.Empty;
+        return text.Contains(".omnux-interactive-stdout.log", StringComparison.Ordinal)
+            || text.Contains("interactive app launched and left running", StringComparison.Ordinal);
     }
 
     /// <summary>헤드리스 스모크용 변수를 지우기 위한 표식. 실행측이 이 값을 보면 변수를 제거한다.</summary>

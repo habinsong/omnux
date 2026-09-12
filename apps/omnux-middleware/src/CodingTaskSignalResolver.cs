@@ -29,12 +29,29 @@ public static class CodingTaskSignalResolver
     private static readonly ConcurrentDictionary<string, CodingTaskSignals> Cache = new(StringComparer.Ordinal);
     private static readonly ConcurrentQueue<string> Order = new();
 
+    private const string AgentObjectiveMarker = "사용자 요청:";
+
+    /// <summary>
+    /// 캐시 키이자 판정 입력. 코딩 루프는 에이전트 프롬프트 전문을, 실행 경로는 사용자가 친 문장을
+    /// 넘기므로 둘이 같은 값으로 떨어져야 한다. 프롬프트 전문을 그대로 모델에 넘기면 규칙 문단에
+    /// 휩쓸려 "게임 아님"으로 오판한다(실측: pygame 게임 요청이 전부 false 로 나왔다).
+    /// </summary>
     public static string BuildKey(string? objective)
     {
         var text = CodingLanguagePolicy.ExtractLatestCodingRequestText(objective ?? string.Empty).Trim();
         if (text.Length == 0)
         {
             text = (objective ?? string.Empty).Trim();
+        }
+
+        var marker = text.LastIndexOf(AgentObjectiveMarker, StringComparison.Ordinal);
+        if (marker >= 0)
+        {
+            var tail = text[(marker + AgentObjectiveMarker.Length)..].Trim();
+            if (tail.Length > 0)
+            {
+                text = tail;
+            }
         }
 
         return text.Length <= 600 ? text : text[..600];
