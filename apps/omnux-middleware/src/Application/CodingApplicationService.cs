@@ -489,11 +489,36 @@ public sealed partial class CodingApplicationService : ICodingApplicationService
         tuning ?? ActiveTuning
     );
 
+    // 코딩 실행은 텔레그램·데스크탑에서 동시에 들어올 수 있다. 인스턴스 필드에 담으면 서로
+    // 덮어써서 남의 설정으로 돌아가므로, 요청 하나의 비동기 흐름에만 보이는 값으로 둔다.
+    private static readonly AsyncLocal<LlmTuning?> ActiveTuningScope = new();
+    private static readonly AsyncLocal<string?> ActiveUserRequestScope = new();
+
     /// <summary>현재 실행 중인 코딩 요청에 걸린 추론 강도·컨텍스트 예산.</summary>
-    private LlmTuning ActiveTuning { get; set; } = LlmTuning.Default;
+    private LlmTuning ActiveTuning
+    {
+        get => ActiveTuningScope.Value ?? LlmTuning.Default;
+        set => ActiveTuningScope.Value = value;
+    }
+
+    /// <summary>
+    /// 사용자가 실제로 친 요청 문장. 에이전트 프롬프트에는 [Project Context] 같은 내부 블록이
+    /// 섞여 들어가서, 요청 성격 판정에는 이 원문을 써야 한다.
+    /// </summary>
+    private string ActiveUserRequest
+    {
+        get => ActiveUserRequestScope.Value ?? string.Empty;
+        set => ActiveUserRequestScope.Value = value;
+    }
+
+    private static readonly AsyncLocal<string?> LastProviderFailureScope = new();
 
     /// <summary>직전 제공자 호출이 실패(429/413/키)했다면 그 원문. 루프가 조기 종료 판단에 쓴다.</summary>
-    private string LastProviderFailureText { get; set; } = string.Empty;
+    private string LastProviderFailureText
+    {
+        get => LastProviderFailureScope.Value ?? string.Empty;
+        set => LastProviderFailureScope.Value = value;
+    }
 
     /// <summary>제공자 실패면 사유를 기록하고 true. 호출측은 즉시 그 경로를 포기해야 한다.</summary>
     private bool RecordProviderFailure(LlmSingleChatResult generated)

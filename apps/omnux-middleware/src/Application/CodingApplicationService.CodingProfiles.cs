@@ -1624,8 +1624,11 @@ public sealed partial class CodingApplicationService
             return;
         }
 
-        // 판정에는 프롬프트 전문이 아니라 사용자가 친 요청만 넘긴다(캐시 키와 같은 규칙).
-        var request = CodingTaskSignalResolver.BuildKey(objective);
+        // 판정에는 프롬프트 전문이 아니라 사용자가 친 요청을 쓴다.
+        // 에이전트 프롬프트에는 [Project Context]·메모리 블록이 섞여 있어 그대로 넘기면 오판한다.
+        var request = ActiveUserRequest.Length > 0
+            ? ActiveUserRequest
+            : CodingTaskSignalResolver.BuildKey(objective);
         if (Environment.GetEnvironmentVariable("OMNUX_DEBUG_CODING_SIGNALS") == "1")
         {
             var preview = (objective ?? string.Empty).Replace("\n", "\\n", StringComparison.Ordinal);
@@ -1656,7 +1659,12 @@ public sealed partial class CodingApplicationService
 
             if (CodingTaskSignalResolver.TryParse(generated.Text, out var signals))
             {
+                // 정책들은 프롬프트 전문으로, 실행 경로는 사용자 메시지로 조회한다. 둘 다 찾히게 넣는다.
                 CodingTaskSignalResolver.Set(objective, signals);
+                if (ActiveUserRequest.Length > 0)
+                {
+                    CodingTaskSignalResolver.Set(ActiveUserRequest, signals);
+                }
                 Console.Error.WriteLine(
                     $"[coding-signals] game={signals.Game} gui={signals.Gui} interactive={signals.Interactive} frontend={signals.Frontend}"
                     + $" request=\"{(request.Length <= 80 ? request : request[..80]).Replace("\n", " ", StringComparison.Ordinal)}\""

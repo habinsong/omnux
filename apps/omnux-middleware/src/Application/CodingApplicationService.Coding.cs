@@ -88,6 +88,7 @@ public sealed partial class CodingApplicationService
     )
     {
         ActiveTuning = request.Tuning;
+        ActiveUserRequest = (request.Input ?? string.Empty).Trim();
         var session = PrepareSessionContext(
             request.Scope,
             request.Mode,
@@ -353,6 +354,7 @@ public sealed partial class CodingApplicationService
     )
     {
         ActiveTuning = request.Tuning;
+        ActiveUserRequest = (request.Input ?? string.Empty).Trim();
         var session = PrepareSessionContext(
             request.Scope,
             request.Mode,
@@ -827,6 +829,7 @@ public sealed partial class CodingApplicationService
     )
     {
         ActiveTuning = request.Tuning;
+        ActiveUserRequest = (request.Input ?? string.Empty).Trim();
         var session = PrepareSessionContext(
             request.Scope,
             request.Mode,
