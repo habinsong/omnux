@@ -77,3 +77,90 @@ export function modelOptionsForProvider(provider: AnyProvider, catalogs: Provide
 export function getDefaultVisionModel(): { provider: "gemini"; model: string } {
   return { provider: "gemini", model: providers.gemini.default };
 }
+
+// ── 제공자/모델별 능력 (네이티브 웹 검색·추론 강도) ──
+// model-registry.json 의 capabilities 를 그대로 읽는다. UI 는 여기 없는 기능을 보여 주지 않는다.
+
+export type WebSearchMode = "none" | "gemini_google_search" | "groq_browser_search" | "groq_compound" | "cli_native";
+export type ReasoningMode = "none" | "openai_effort" | "gemini_thinking_level" | "nvidia_thinking" | "cli_effort";
+export type ReasoningLevel = "off" | "minimal" | "low" | "medium" | "high";
+
+interface CapabilityRule {
+  match: string;
+  webSearch: WebSearchMode;
+  reasoning: ReasoningMode;
+  levels: string[];
+  defaultLevel?: string;
+}
+
+export interface ProviderCapability {
+  provider: string;
+  model: string;
+  webSearch: WebSearchMode;
+  reasoning: ReasoningMode;
+  levels: ReasoningLevel[];
+  defaultLevel: ReasoningLevel | "";
+  nativeWebSearch: boolean;
+  reasoningControl: boolean;
+}
+
+const capabilityRules = ((registry as { capabilities?: { providers?: Record<string, CapabilityRule[]> } }).capabilities?.providers ??
+  {}) as Record<string, CapabilityRule[]>;
+
+const EMPTY_CAPABILITY: ProviderCapability = {
+  provider: "",
+  model: "",
+  webSearch: "none",
+  reasoning: "none",
+  levels: [],
+  defaultLevel: "",
+  nativeWebSearch: false,
+  reasoningControl: false
+};
+
+/** 제공자+모델의 실제 지원 능력. 모르면 "지원 안 함"으로 떨어진다. */
+export function resolveCapability(provider: AnyProvider | string, model?: string | null): ProviderCapability {
+  const key = String(provider || "").trim();
+  const rules = capabilityRules[key];
+  if (!key || key === "auto" || !rules) return { ...EMPTY_CAPABILITY, provider: key, model: String(model || "") };
+  const modelId = String(model || "").trim() || providers[key as ProviderKey]?.default || "";
+  for (const rule of rules) {
+    if (!new RegExp(rule.match, "i").test(modelId)) continue;
+    const levels = (rule.levels || []) as ReasoningLevel[];
+    return {
+      provider: key,
+      model: modelId,
+      webSearch: rule.webSearch,
+      reasoning: rule.reasoning,
+      levels,
+      defaultLevel: (rule.defaultLevel as ReasoningLevel) || levels[0] || "",
+      nativeWebSearch: rule.webSearch !== "none",
+      reasoningControl: rule.reasoning !== "none" && levels.length > 0
+    };
+  }
+  return { ...EMPTY_CAPABILITY, provider: key, model: modelId };
+}
+
+export const REASONING_LEVEL_LABEL: Record<ReasoningLevel, string> = {
+  off: "끄기",
+  minimal: "최소",
+  low: "낮게",
+  medium: "보통",
+  high: "높게"
+};
+
+/** 웹 검색을 어떤 경로로 처리하는지 사람이 읽을 설명. 배지 tooltip 용. */
+export function webSearchRouteLabel(capability: ProviderCapability): string {
+  switch (capability.webSearch) {
+    case "gemini_google_search":
+      return "모델이 직접 Google 검색";
+    case "groq_browser_search":
+      return "모델이 직접 브라우저 검색";
+    case "groq_compound":
+      return "모델이 직접 웹 검색";
+    case "cli_native":
+      return "CLI 자체 웹 검색";
+    default:
+      return "검색 담당 모델이 근거 수집";
+  }
+}

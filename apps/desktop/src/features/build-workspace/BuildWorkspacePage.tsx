@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FolderOpen, Hammer, History, SlidersHorizontal } from "lucide-react";
+import { FolderOpen, Hammer, History, SlidersHorizontal, TerminalSquare } from "lucide-react";
 import { Screen, ScreenNotice } from "../../components/screen/Screen";
 import { ScreenTabs, type ScreenTab } from "../../components/screen/ScreenTabs";
 import { Button } from "../../components/ui/primitives";
@@ -10,6 +10,8 @@ import { useBuildNotebookSave } from "./build-notebook-save";
 import { BuildComposer, BuildReferences } from "./BuildComposer";
 import { BuildResultPanel } from "./BuildResultPanel";
 import { BuildSettings } from "./BuildSettings";
+import { BuildTerminal } from "./BuildTerminal";
+import { useBuildTerminal, useBuildTerminalSession } from "./build-terminal";
 import { busyBuild, useBuildWorkspace } from "./build-state";
 import { modeNames } from "./build-model";
 import { useHomeRecentStore } from "../home/home-recent-store";
@@ -21,7 +23,7 @@ import "./build-workspace.css";
    빌드 탭에서는 결과가 남은 높이를 차지하고 작성칸이 아래에 붙는다.
    ============================================================================ */
 
-type TabId = "build" | "settings" | "references" | "history";
+type TabId = "build" | "run" | "settings" | "references" | "history";
 
 export function BuildWorkspacePage() {
   const state = useBuildWorkspace();
@@ -36,6 +38,7 @@ export function BuildWorkspacePage() {
   const log = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
   const [tab, setTab] = useState<TabId>("build");
+  useBuildTerminalSession();
 
   useEffect(() => {
     const payload = navigation.routePayload;
@@ -100,8 +103,10 @@ export function BuildWorkspacePage() {
   const running = Boolean(state.pending.run || state.pending.execute);
   const drafting = Boolean(state.input.trim() || state.attachments.length);
 
+  const terminalStatus = useBuildTerminal((current) => current.status);
   const tabs: ScreenTab[] = [
     { id: "build", label: "빌드", icon: Hammer, alert: running },
+    { id: "run", label: "실행", icon: TerminalSquare, alert: terminalStatus === "running" },
     { id: "settings", label: "설정", icon: SlidersHorizontal },
     { id: "references", label: "참고", icon: FolderOpen, badge: state.settings.memory.length > 0 ? String(state.settings.memory.length) : undefined },
     { id: "history", label: "기록", icon: History, badge: state.items.length > 0 ? String(state.items.length) : undefined }
@@ -179,7 +184,9 @@ export function BuildWorkspacePage() {
                 </div>
               ) : null}
               <div className="min-w-0 p-3">
-                {tab === "settings" ? (
+                {tab === "run" ? (
+                  <BuildTerminal connected={connected} />
+                ) : tab === "settings" ? (
                   <BuildSettings connected={connected} />
                 ) : tab === "references" ? (
                   <BuildReferences connected={connected} />

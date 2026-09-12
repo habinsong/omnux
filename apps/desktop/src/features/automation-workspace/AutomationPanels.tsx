@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button, Input, cn } from "../../components/ui/primitives";
 import { CAPSULE_FIELD, CapsuleCard, Fold } from "../../components/capsule/capsule";
-import { STATIC_MODEL_OPTIONS } from "../ask/model-registry";
+import { PROVIDER_KEYS, PROVIDER_LABEL, REASONING_LEVEL_LABEL, STATIC_MODEL_OPTIONS, resolveCapability, type ReasoningLevel } from "../ask/model-registry";
 import { statusLabel, type Automation, type AutomationForm } from "./automation-model";
 import { useDesktopNavigationStore } from "../shell/navigation-store";
 import { useAutomationWorkspace } from "./automation-state";
@@ -245,6 +245,66 @@ export function AutomationFormPanel({ connected }: { connected: boolean }) {
             </select>
           </label>
           <Note>웹 검색·링크 읽기는 Gemini, 코드 생성은 Groq, 브라우저 조작은 Codex 연결이 필요합니다.</Note>
+
+          <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+            <label className="block min-w-0 space-y-1">
+              <Label>담당 모델 제공자</Label>
+              <select
+                className={SELECT}
+                value={form.llmProvider}
+                onChange={(event) => patch({ llmProvider: event.target.value, llmModel: "" })}
+              >
+                <option value="">자동 선택</option>
+                {PROVIDER_KEYS.map((provider) => (
+                  <option key={provider} value={provider}>
+                    {PROVIDER_LABEL[provider]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {form.llmProvider ? (
+              <label className="block min-w-0 space-y-1">
+                <Label>담당 모델</Label>
+                <select className={SELECT} value={form.llmModel} onChange={(event) => patch({ llmModel: event.target.value })}>
+                  <option value="">기본 모델</option>
+                  {(STATIC_MODEL_OPTIONS[form.llmProvider as (typeof PROVIDER_KEYS)[number]] || []).map((model) => (
+                    <option key={model} value={model}>
+                      {model}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+          </div>
+
+          <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+            {automationCapability(form).reasoningControl ? (
+              <label className="block min-w-0 space-y-1">
+                <Label>추론 강도</Label>
+                <select className={SELECT} value={form.reasoning} onChange={(event) => patch({ reasoning: event.target.value })}>
+                  <option value="auto">모델 기본값</option>
+                  {automationCapability(form).levels.map((level) => (
+                    <option key={level} value={level}>
+                      {REASONING_LEVEL_LABEL[level as ReasoningLevel]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <label className="block min-w-0 space-y-1">
+              <Label>컨텍스트 예산</Label>
+              <select className={SELECT} value={form.context} onChange={(event) => patch({ context: event.target.value })}>
+                <option value="compact">간결</option>
+                <option value="standard">기본</option>
+                <option value="full">넓게</option>
+              </select>
+            </label>
+          </div>
+          <Note>
+            {automationCapability(form).nativeWebSearch
+              ? "고른 모델이 웹 검색을 직접 수행합니다."
+              : "고른 모델은 웹 검색을 직접 못 하므로 검색 담당 모델이 근거를 모아 넘겨줍니다."}
+          </Note>
 
           {form.execution === "browser_agent" ? (
             <div className="min-w-0 space-y-2">
@@ -522,4 +582,9 @@ export function AutomationResultPanel({ item, connected }: { item: Automation; c
       </div>
     </Panel>
   );
+}
+
+/** 자동화 폼에서 고른 제공자/모델의 실제 지원 능력. 제공자를 안 골랐으면 아무 것도 안 보여 준다. */
+function automationCapability(form: AutomationForm) {
+  return resolveCapability(form.llmProvider || "", form.llmModel || null);
 }

@@ -77,6 +77,14 @@ internal static class CodingExecutionSafetyPolicy
             return false;
         }
 
+        // 요청당 한 번 판정해 둔 신호가 있으면 언어와 무관하게 그것을 따른다.
+        // 아래 토큰 목록은 판정이 없을 때의 폴백이다.
+        var resolved = CodingTaskSignalResolver.TryGet(objective);
+        if (resolved != null)
+        {
+            return resolved.Interactive || resolved.Gui || resolved.Game;
+        }
+
         if (language == "python")
         {
             return ContainsAny(

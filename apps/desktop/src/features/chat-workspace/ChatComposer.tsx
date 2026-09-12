@@ -23,9 +23,11 @@ import {
   modeChoiceLabel,
   useCapsuleDismiss
 } from "../../components/capsule/capsule";
+import { TuningChoices, type ContextBudget } from "../../components/capsule/tuning";
+import type { ReasoningLevel } from "../ask/model-registry";
 import type { AskChatMode, AskProvider } from "../ask/ask-types";
 
-type OpenId = "mode" | "model" | "tools" | null;
+type OpenId = "mode" | "model" | "tools" | "reasoning" | "context" | null;
 
 export function ChatComposer({ canRequest }: { canRequest: boolean }) {
   const state = useAskStore();
@@ -106,6 +108,23 @@ export function ChatComposer({ canRequest }: { canRequest: boolean }) {
         >
           {modelLabel}
         </button>
+        <TuningChoices
+          provider={provider}
+          model={selectedModel}
+          reasoning={state.reasoningEffort}
+          context={state.contextBudget}
+          webSearch={state.webSearchEnabled}
+          openId={open === "reasoning" || open === "context" ? open : null}
+          onToggle={(id) => setOpen((current) => (current === id ? null : id))}
+          onReasoning={(value) => {
+            state.setReasoningEffort(value as ReasoningLevel);
+            setOpen(null);
+          }}
+          onContext={(value) => {
+            state.setContextBudget(value as ContextBudget);
+            setOpen(null);
+          }}
+        />
       </ExtrasRow>
       <CapsuleCard
         className="chat-compose"

@@ -25,7 +25,8 @@ internal sealed record ProviderStreamingAdapterRequest(
     Func<string, CancellationToken, Task<string>>? AcceptedResponseResolver = null,
     Action<HttpResponseHeaders>? OnResponseHeaders = null,
     Action<string>? OnRawPayload = null,
-    Action<string>? OnDelta = null
+    Action<string>? OnDelta = null,
+    IReadOnlyList<string>? ExtraJsonProperties = null
 );
 
 internal sealed record ProviderStreamingTurnResult(
@@ -58,7 +59,8 @@ internal sealed class OpenAiCompatibleStreamingChatAdapter : IProviderStreamingC
             request.MultiTurn,
             request.MaxTokensProperty,
             request.MaxOutputTokens,
-            stream: true
+            stream: true,
+            request.ExtraJsonProperties
         );
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, request.Endpoint);

@@ -136,7 +136,8 @@ public sealed partial class RoutineApplicationService
         string request,
         string source,
         CancellationToken cancellationToken,
-        Action<RoutineProgressUpdate>? progressCallback = null
+        Action<RoutineProgressUpdate>? progressCallback = null,
+        RoutineLlmSettings? llmSettings = null
     )
     {
         var input = (request ?? string.Empty).Trim();
@@ -165,7 +166,8 @@ public sealed partial class RoutineApplicationService
             true,
             source,
             cancellationToken,
-            progressCallback
+            progressCallback,
+            llmSettings
         );
     }
 
@@ -192,7 +194,8 @@ public sealed partial class RoutineApplicationService
         bool runImmediately,
         string source,
         CancellationToken cancellationToken,
-        Action<RoutineProgressUpdate>? progressCallback = null
+        Action<RoutineProgressUpdate>? progressCallback = null,
+        RoutineLlmSettings? llmSettings = null
     )
     {
         var input = (request ?? string.Empty).Trim();
@@ -239,7 +242,8 @@ public sealed partial class RoutineApplicationService
             runImmediately,
             source,
             cancellationToken,
-            progressCallback
+            progressCallback,
+            llmSettings
         );
     }
 
@@ -265,7 +269,8 @@ public sealed partial class RoutineApplicationService
         int? dayOfMonth,
         string? timezoneId,
         CancellationToken cancellationToken,
-        Action<RoutineProgressUpdate>? progressCallback = null
+        Action<RoutineProgressUpdate>? progressCallback = null,
+        RoutineLlmSettings? llmSettings = null
     )
     {
         var key = (routineId ?? string.Empty).Trim();
@@ -440,6 +445,14 @@ public sealed partial class RoutineApplicationService
             update.Title = resolvedTitle;
             update.Request = input;
             update.ExecutionMode = normalizedExecutionMode;
+            if (llmSettings != null)
+            {
+                update.LlmProvider = llmSettings.Provider;
+                update.LlmModel = llmSettings.Model;
+                update.ReasoningEffort = llmSettings.ReasoningEffort;
+                update.ContextBudget = llmSettings.ContextBudget;
+            }
+
             update.AgentProvider = normalizedAgentProvider;
             update.AgentModel = normalizedAgentModel;
             update.AgentStartUrl = normalizedAgentStartUrl;

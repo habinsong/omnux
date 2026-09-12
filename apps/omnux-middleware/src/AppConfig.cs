@@ -95,7 +95,8 @@ public sealed class AppConfig
     // NVIDIA NIM single-chat의 최소 보장 timeout (콜드 스타트/큐잉 대비 floor).
     public int NvidiaMinSingleChatTimeoutSec { get; init; } = 30;
     public bool EnableFastWebPipeline { get; init; } = true;
-    public int WebDecisionTimeoutMs { get; init; } = 700;
+    // 700ms 는 Groq 말고는 어떤 모델도 못 지킨다. Gemini 는 매번 타임아웃 나서 웹검색이 통째로 스킵됐다.
+    public int WebDecisionTimeoutMs { get; init; } = 2500;
     public int GeminiWebTimeoutMs { get; init; } = 30000;
     public int WebDefaultNewsCount { get; init; } = 10;
     public int WebDefaultListCount { get; init; } = 5;
@@ -423,7 +424,7 @@ public sealed class AppConfig
             CerebrasMinSingleChatTimeoutSec = Math.Clamp(GetIntEnv("OMNUX_CEREBRAS_MIN_SINGLE_CHAT_TIMEOUT_SEC", 40), 5, 600),
             NvidiaMinSingleChatTimeoutSec = Math.Clamp(GetIntEnv("OMNUX_NVIDIA_MIN_SINGLE_CHAT_TIMEOUT_SEC", 30), 5, 600),
             EnableFastWebPipeline = GetBoolEnv("OMNUX_FAST_WEB_PIPELINE", true),
-            WebDecisionTimeoutMs = Math.Clamp(GetIntEnv("OMNUX_WEB_DECISION_TIMEOUT_MS", 700), 200, 5000),
+            WebDecisionTimeoutMs = Math.Clamp(GetIntEnv("OMNUX_WEB_DECISION_TIMEOUT_MS", 2500), 200, 10000),
             GeminiWebTimeoutMs = Math.Clamp(GetIntEnv("OMNUX_GEMINI_WEB_TIMEOUT_MS", 30000), 5000, 60000),
             WebDefaultNewsCount = Math.Clamp(GetIntEnv("OMNUX_WEB_DEFAULT_NEWS_COUNT", 10), 1, 20),
             WebDefaultListCount = Math.Clamp(GetIntEnv("OMNUX_WEB_DEFAULT_LIST_COUNT", 5), 1, 20),

@@ -192,7 +192,9 @@ internal sealed class WsAiCommandDispatcher
                         RequestId: message.RequestId,
                         SkillName: message.SkillName,
                         SkillScope: message.SkillScope,
-                        ThinkPlusEnabled: message.ThinkPlus == true
+                        ThinkPlusEnabled: message.ThinkPlus == true,
+                        ReasoningEffort: message.ReasoningEffort,
+                        ContextBudget: message.ContextBudget
                     ),
                     cancellationToken,
                     stream
@@ -265,7 +267,9 @@ internal sealed class WsAiCommandDispatcher
                         RequestId: message.RequestId,
                         ThinkPlusEnabled: message.ThinkPlus == true,
                         SkillName: message.SkillName,
-                        SkillScope: message.SkillScope
+                        SkillScope: message.SkillScope,
+                        ReasoningEffort: message.ReasoningEffort,
+                        ContextBudget: message.ContextBudget
                     ),
                     cancellationToken
                 );
@@ -458,7 +462,9 @@ internal sealed class WsAiCommandDispatcher
                     WebSearchEnabled: message.WebSearchEnabled,
                     ThinkPlusEnabled: message.ThinkPlus == true,
                     SkillName: message.SkillName,
-                    SkillScope: message.SkillScope
+                    SkillScope: message.SkillScope,
+                    ReasoningEffort: message.ReasoningEffort,
+                    ContextBudget: message.ContextBudget
                 );
                 var result = message.Type switch
                 {

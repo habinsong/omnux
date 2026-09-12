@@ -79,7 +79,8 @@ internal sealed class WsRoutineCommandDispatcher
                 message.RunImmediately ?? true,
                 "web",
                 cancellationToken,
-                update => _ = SendRoutineProgressAsync(socket, sendLock, update, cancellationToken, message.RequestId)
+                update => _ = SendRoutineProgressAsync(socket, sendLock, update, cancellationToken, message.RequestId),
+                RoutineLlmSettings.From(message.Provider, message.Model, message.ReasoningEffort, message.ContextBudget)
             );
             await SendRoutineActionResultAsync(socket, sendLock, result, cancellationToken, message.RequestId);
             await SendRoutinesAsync(socket, sendLock, cancellationToken, message.RequestId);
@@ -121,7 +122,9 @@ internal sealed class WsRoutineCommandDispatcher
                 message.Weekdays,
                 message.DayOfMonth,
                 message.TimezoneId,
-                cancellationToken
+                cancellationToken,
+                null,
+                RoutineLlmSettings.From(message.Provider, message.Model, message.ReasoningEffort, message.ContextBudget)
             );
             await SendRoutineActionResultAsync(socket, sendLock, result, cancellationToken, message.RequestId);
             await SendRoutinesAsync(socket, sendLock, cancellationToken, message.RequestId);

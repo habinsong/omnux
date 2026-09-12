@@ -16,7 +16,8 @@ internal interface IGeminiUrlContextLlm
         string userInput,
         string? modelOverride,
         int maxOutputTokens,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        LlmTuning? tuning = null
     );
 
     Task<GeminiUrlContextChatResponse> GenerateGeminiUrlContextChatStreamingAsync(

@@ -324,6 +324,12 @@ public sealed partial class CodingApplicationService
             "browser"
         );
 
+        var resolvedFrontend = CodingTaskSignalResolver.TryGet(objective);
+        if (resolvedFrontend != null)
+        {
+            return resolvedFrontend.Frontend;
+        }
+
         return (lang is "html" or "css" or "javascript" or "typescript" or "react-vite" || frontendSignals) && !backendSignals;
     }
 
@@ -337,7 +343,11 @@ public sealed partial class CodingApplicationService
         }
 
         var explicitLanguage = CodingLanguagePolicy.ResolveExplicitObjectiveLanguage(objective);
-        var gameSignals = ContainsAny(text, "game", "arcade", "shooter", "shooting", "platformer", "tetris", "pong", "snake");
+        // 요청당 한 번 판정해 둔 신호가 있으면 그것이 진실이다(언어 무관).
+        // 아래 영어 토큰 매칭은 판정이 없을 때만 쓰는 폴백이다.
+        var resolved = CodingTaskSignalResolver.TryGet(objective);
+        var gameSignals = resolved?.Game
+            ?? ContainsAny(text, "game", "arcade", "shooter", "shooting", "platformer", "tetris", "pong", "snake");
         if (!gameSignals)
         {
             return false;
@@ -351,6 +361,13 @@ public sealed partial class CodingApplicationService
         if (!string.IsNullOrWhiteSpace(explicitLanguage))
         {
             return explicitLanguage is "html" or "javascript" or "typescript" or "react-vite" or "css" or "python";
+        }
+
+        // 언어를 안 밝힌 게임 요청은 브라우저/파이썬 둘 다 가능하다. 판정 신호가 frontend 를
+        // 집어 줬으면 그대로 믿고, 없으면 토큰으로 추정한다.
+        if (resolved != null)
+        {
+            return true;
         }
 
         return ContainsAny(text, "web", "canvas", "browser", "html", "python", "pygame");
@@ -863,6 +880,11 @@ public sealed partial class CodingApplicationService
                 optimizeCodexForCoding: profile.OptimizeCodexCli,
                 timeoutOverrideSeconds: profile.RequestTimeoutSeconds
             );
+            if (RecordProviderFailure(bundleGenerated))
+            {
+                return null;
+            }
+
             var bundleOutcome = await TryMaterializeDirectBundleRecoveryAsync(
                 provider,
                 model,
@@ -950,6 +972,11 @@ public sealed partial class CodingApplicationService
             optimizeCodexForCoding: profile.OptimizeCodexCli,
             timeoutOverrideSeconds: profile.RequestTimeoutSeconds
         );
+        if (RecordProviderFailure(fallbackGenerated))
+        {
+            return null;
+        }
+
         var codeOutcome = await TryMaterializeDirectCodeRecoveryAsync(
             provider,
             model,
@@ -1578,5 +1605,64 @@ public sealed partial class CodingApplicationService
             shell.StdErr,
             shell.TimedOut ? "timeout" : (shell.ExitCode == 0 ? "ok" : "error")
         );
+    }
+
+    /// <summary>
+    /// 요청 한 건의 성격(게임/GUI/대화형/프론트엔드)을 모델에게 한 번 물어 캐시에 넣는다.
+    /// 여기서 판정해 두면 이후 프로파일·검증·품질 게이트가 영어 토큰 매칭에 기대지 않는다.
+    /// 실패하거나 늦으면 조용히 넘어가고 각 정책의 기존 휴리스틱이 쓰인다.
+    /// </summary>
+    private async Task EnsureCodingTaskSignalsAsync(
+        string provider,
+        string model,
+        string objective,
+        CancellationToken cancellationToken
+    )
+    {
+        if (CodingTaskSignalResolver.TryGet(objective) != null)
+        {
+            return;
+        }
+
+        var request = CodingLanguagePolicy.ExtractLatestCodingRequestText(objective ?? string.Empty).Trim();
+        if (request.Length == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(12));
+            var generated = await GenerateByProviderSafeAsync(
+                provider,
+                model,
+                CodingTaskSignalResolver.BuildClassificationPrompt(request),
+                timeout.Token,
+                maxOutputTokens: 120,
+                timeoutOverrideSeconds: 12,
+                tuning: LlmTuning.From("low", "compact")
+            ).ConfigureAwait(false);
+            if (CodingProviderFailurePolicy.Classify(generated.Text) != CodingProviderFailureKind.None)
+            {
+                return;
+            }
+
+            if (CodingTaskSignalResolver.TryParse(generated.Text, out var signals))
+            {
+                CodingTaskSignalResolver.Set(objective, signals);
+                Console.Error.WriteLine(
+                    $"[coding-signals] game={signals.Game} gui={signals.Gui} interactive={signals.Interactive} frontend={signals.Frontend}"
+                );
+            }
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // 판정 실패는 치명적이지 않다. 기존 휴리스틱으로 계속 간다.
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[coding-signals] classification skipped: {ex.Message}");
+        }
     }
 }

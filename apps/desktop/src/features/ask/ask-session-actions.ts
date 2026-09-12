@@ -50,6 +50,8 @@ export function createAskSessionActions(set: AskSet, get: () => AskState): Pick<
       attachments,
       webUrls: parseWebUrls(effectiveText),
       webSearchEnabled: get().webSearchEnabled,
+      reasoningEffort: get().reasoningEffort,
+      contextBudget: get().contextBudget,
       requestId
     });
     if (!ok) {

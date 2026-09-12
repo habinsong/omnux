@@ -96,6 +96,12 @@ public sealed class CodingSlashCommandHandlerTests
 
     private sealed class FakeCodingService : ICodingApplicationService
     {
+    public Task<CodingInteractiveRunPlan> BuildInteractiveRunPlanAsync(
+        string conversationId,
+        string? preferredTarget,
+        CancellationToken cancellationToken
+    ) => throw new NotSupportedException();
+
         public string? LastMode { get; private set; }
         public CodingRunRequest? LastRequest { get; private set; }
 

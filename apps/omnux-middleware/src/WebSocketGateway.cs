@@ -82,6 +82,8 @@ public sealed partial class WebSocketGateway
     private readonly WsSetupCommandDispatcher _setupCommandDispatcher;
     private readonly WsConversationMemoryDispatcher _conversationMemoryDispatcher;
     private readonly WsToolCommandDispatcher _toolCommandDispatcher;
+    private readonly WsCodingTerminalDispatcher _codingTerminalDispatcher;
+    private readonly CodingTerminalSessionManager _codingTerminalSessions = new();
     private readonly WsProjectCommandDispatcher _projectCommandDispatcher;
     private readonly WsRoutineCommandDispatcher _routineCommandDispatcher;
     private readonly WsLogicCommandDispatcher _logicCommandDispatcher;
@@ -375,6 +377,7 @@ public sealed partial class WebSocketGateway
         _notebookCommandDispatcher = new WsNotebookCommandDispatcher(
             notebookService
         );
+        _codingTerminalDispatcher = new WsCodingTerminalDispatcher(codingService, _codingTerminalSessions);
         _aiCommandDispatcher = new WsAiCommandDispatcher(
             chatService,
             codingService,
@@ -2368,6 +2371,12 @@ public sealed partial class WebSocketGateway
             string? outputFormat = null;
             string? conversationId = null;
             string? standardInput = null;
+            string? reasoningEffort = null;
+            string? contextBudget = null;
+            string? terminalSessionId = null;
+            string? terminalData = null;
+            int? terminalColumns = null;
+            int? terminalRows = null;
             string? conversationTitle = null;
             string? project = null;
             string? projectKey = null;
@@ -3138,6 +3147,46 @@ public sealed partial class WebSocketGateway
                 }
             }
 
+            // 추론 강도·컨텍스트 예산·대화형 실행 필드.
+            // 이 수동 파서에 안 적으면 프런트가 보내도 그대로 버려진다.
+            if (doc.RootElement.TryGetProperty("reasoningEffort", out var reasoningEffortElement)
+                && reasoningEffortElement.ValueKind == JsonValueKind.String)
+            {
+                reasoningEffort = reasoningEffortElement.GetString();
+            }
+
+            if (doc.RootElement.TryGetProperty("contextBudget", out var contextBudgetElement)
+                && contextBudgetElement.ValueKind == JsonValueKind.String)
+            {
+                contextBudget = contextBudgetElement.GetString();
+            }
+
+            if (doc.RootElement.TryGetProperty("sessionId", out var terminalSessionElement)
+                && terminalSessionElement.ValueKind == JsonValueKind.String)
+            {
+                terminalSessionId = terminalSessionElement.GetString();
+            }
+
+            if (doc.RootElement.TryGetProperty("data", out var terminalDataElement)
+                && terminalDataElement.ValueKind == JsonValueKind.String)
+            {
+                terminalData = terminalDataElement.GetString();
+            }
+
+            if (doc.RootElement.TryGetProperty("columns", out var terminalColumnsElement)
+                && terminalColumnsElement.ValueKind == JsonValueKind.Number
+                && terminalColumnsElement.TryGetInt32(out var parsedColumns))
+            {
+                terminalColumns = parsedColumns;
+            }
+
+            if (doc.RootElement.TryGetProperty("rows", out var terminalRowsElement)
+                && terminalRowsElement.ValueKind == JsonValueKind.Number
+                && terminalRowsElement.TryGetInt32(out var parsedRows))
+            {
+                terminalRows = parsedRows;
+            }
+
             if (doc.RootElement.TryGetProperty("webSearchEnabled", out var webSearchElement))
             {
                 if (webSearchElement.ValueKind == JsonValueKind.False)
@@ -3679,6 +3728,12 @@ public sealed partial class WebSocketGateway
                 Attachments = attachments.Count == 0 ? Array.Empty<InputAttachment>() : attachments.ToArray(),
                 WebUrls = webUrls.Count == 0 ? Array.Empty<string>() : webUrls.ToArray(),
                 WebSearchEnabled = webSearchEnabled,
+                ReasoningEffort = reasoningEffort,
+                ContextBudget = contextBudget,
+                SessionId = terminalSessionId,
+                Data = terminalData,
+                Columns = terminalColumns,
+                Rows = terminalRows,
                 Persist = persist
             };
         }

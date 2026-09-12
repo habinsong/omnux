@@ -285,6 +285,16 @@ public sealed partial class WebSocketGateway
                     continue;
                 }
 
+                if (await _codingTerminalDispatcher.TryHandleAsync(
+                        message,
+                        socket,
+                        sendLock,
+                        cancellationToken
+                    ))
+                {
+                    continue;
+                }
+
                 if (await _toolCommandDispatcher.TryHandleAsync(
                         message,
                         sessionId!,

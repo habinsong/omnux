@@ -345,7 +345,8 @@ public sealed partial class CommandService
         string? codexWorkingDirectoryOverride,
         bool optimizeCodexForCoding,
         int? timeoutOverrideSeconds,
-        Action<string>? streamCallback
+        Action<string>? streamCallback,
+        LlmTuning? tuning
     )
     {
         return Owner.GenerateByProviderSafeAsync(
@@ -358,7 +359,8 @@ public sealed partial class CommandService
             codexWorkingDirectoryOverride,
             optimizeCodexForCoding,
             timeoutOverrideSeconds,
-            streamCallback
+            streamCallback,
+            tuning
         );
     }
 

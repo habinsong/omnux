@@ -44,7 +44,7 @@
       "fallback": [
         "moonshotai/kimi-k3",
         "deepseek-ai/deepseek-v4-pro-0813",
-        "openai/gpt-oss-120b"
+        "nvidia/nemotron-3-super-120b-a12b"
       ]
     },
     "deepseek": {
@@ -133,6 +133,161 @@
       "fallback": [
         "grok-4.6",
         "grok-4.5"
+      ]
+    }
+  },
+  "capabilities": {
+    "_comment": "제공자/모델별 네이티브 웹 검색·추론 강도 지원표. match 는 모델 ID 정규식이며 위에서부터 먼저 맞는 항목을 쓴다. 실제 API 호출로 확인한 값만 적는다.",
+    "_verified": "2026-09-13 실키 호출 확인: groq browser_search(openai/gpt-oss-*), groq compound_custom(groq/compound*), gemini google_search + thinkingLevel, cerebras 서버측 웹검색 미지원(tools 는 function 전용), nvidia chat_template_kwargs.thinking",
+    "webSearchModes": [
+      "none",
+      "gemini_google_search",
+      "groq_browser_search",
+      "groq_compound",
+      "cli_native"
+    ],
+    "reasoningModes": [
+      "none",
+      "openai_effort",
+      "gemini_thinking_level",
+      "nvidia_thinking",
+      "cli_effort"
+    ],
+    "providers": {
+      "groq": [
+        {
+          "match": "^openai/gpt-oss",
+          "webSearch": "groq_browser_search",
+          "reasoning": "openai_effort",
+          "levels": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "defaultLevel": "medium"
+        },
+        {
+          "match": "^groq/compound",
+          "webSearch": "groq_compound",
+          "reasoning": "none",
+          "levels": []
+        },
+        {
+          "match": ".",
+          "webSearch": "none",
+          "reasoning": "none",
+          "levels": []
+        }
+      ],
+      "gemini": [
+        {
+          "match": "^gemini-3\\.6-flash",
+          "webSearch": "gemini_google_search",
+          "reasoning": "gemini_thinking_level",
+          "levels": [
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ],
+          "defaultLevel": "low"
+        },
+        {
+          "match": "^gemini-(3|2\\.5)",
+          "webSearch": "gemini_google_search",
+          "reasoning": "gemini_thinking_level",
+          "levels": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "defaultLevel": "low"
+        },
+        {
+          "match": ".",
+          "webSearch": "gemini_google_search",
+          "reasoning": "none",
+          "levels": []
+        }
+      ],
+      "cerebras": [
+        {
+          "match": "^gpt-oss",
+          "webSearch": "none",
+          "reasoning": "openai_effort",
+          "levels": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "defaultLevel": "medium"
+        },
+        {
+          "match": ".",
+          "webSearch": "none",
+          "reasoning": "none",
+          "levels": []
+        }
+      ],
+      "nvidia": [
+        {
+          "match": "^(moonshotai/kimi|deepseek-ai/deepseek-v4|nvidia/nemotron)",
+          "webSearch": "none",
+          "reasoning": "nvidia_thinking",
+          "levels": [
+            "off",
+            "on"
+          ],
+          "defaultLevel": "on"
+        },
+        {
+          "match": ".",
+          "webSearch": "none",
+          "reasoning": "none",
+          "levels": []
+        }
+      ],
+      "deepseek": [
+        {
+          "match": ".",
+          "webSearch": "none",
+          "reasoning": "openai_effort",
+          "levels": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "defaultLevel": "medium"
+        }
+      ],
+      "copilot": [
+        {
+          "match": ".",
+          "webSearch": "cli_native",
+          "reasoning": "none",
+          "levels": []
+        }
+      ],
+      "codex": [
+        {
+          "match": ".",
+          "webSearch": "cli_native",
+          "reasoning": "cli_effort",
+          "levels": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "defaultLevel": "medium"
+        }
+      ],
+      "grok": [
+        {
+          "match": ".",
+          "webSearch": "cli_native",
+          "reasoning": "none",
+          "levels": []
+        }
       ]
     }
   }

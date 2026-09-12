@@ -13,7 +13,8 @@ public sealed partial class CommandService
         bool useRawCodexPrompt = false,
         string? codexWorkingDirectoryOverride = null,
         bool optimizeCodexForCoding = false,
-        Action<string>? streamCallback = null
+        Action<string>? streamCallback = null,
+        LlmTuning? tuning = null
     )
     {
         var safeInput = input ?? string.Empty;
@@ -46,7 +47,8 @@ public sealed partial class CommandService
                 useRawCodexPrompt,
                 codexWorkingDirectoryOverride,
                 optimizeCodexForCoding,
-                streamCallback
+                streamCallback,
+                tuning
             );
             telemetry.Complete(result.Provider, result.Model, result.Text, result.TokenUsage);
             return result;
@@ -72,7 +74,8 @@ public sealed partial class CommandService
         bool useRawCodexPrompt = false,
         string? codexWorkingDirectoryOverride = null,
         bool optimizeCodexForCoding = false,
-        Action<string>? streamCallback = null
+        Action<string>? streamCallback = null,
+        LlmTuning? tuning = null
     )
     {
         var normalized = NormalizeProvider(provider, allowAuto: false);
@@ -84,8 +87,8 @@ public sealed partial class CommandService
             var requested = NormalizeModelSelection(model) ?? _providers.GeminiModel;
             var selected = ResolveGeminiSingleModelForLatency(requested, input);
             var response = streamCallback == null
-                ? await _llmRouter.GenerateGeminiChatAsync(input, selected, requestedMaxOutputTokens, cancellationToken)
-                : await _llmRouter.GenerateGeminiChatStreamingAsync(input, selected, requestedMaxOutputTokens, streamCallback, cancellationToken);
+                ? await _llmRouter.GenerateGeminiChatAsync(input, selected, requestedMaxOutputTokens, cancellationToken, tuning)
+                : await _llmRouter.GenerateGeminiChatStreamingAsync(input, selected, requestedMaxOutputTokens, streamCallback, cancellationToken, tuning);
             return CompleteTokenUsage("gemini", selected, input, response);
         }
 
@@ -93,8 +96,8 @@ public sealed partial class CommandService
         {
             var selected = NormalizeModelSelection(model) ?? _providers.CerebrasModel;
             var response = streamCallback == null
-                ? await _llmRouter.GenerateCerebrasChatAsync(input, selected, requestedMaxOutputTokens, cancellationToken)
-                : await _llmRouter.GenerateCerebrasChatStreamingAsync(input, selected, requestedMaxOutputTokens, streamCallback, cancellationToken);
+                ? await _llmRouter.GenerateCerebrasChatAsync(input, selected, requestedMaxOutputTokens, cancellationToken, tuning)
+                : await _llmRouter.GenerateCerebrasChatStreamingAsync(input, selected, requestedMaxOutputTokens, streamCallback, cancellationToken, tuning);
             return CompleteTokenUsage("cerebras", selected, input, response);
         }
 
@@ -102,8 +105,8 @@ public sealed partial class CommandService
         {
             var selected = NormalizeModelSelection(model) ?? _providers.NvidiaModel;
             var response = streamCallback == null
-                ? await _llmRouter.GenerateNvidiaChatAsync(input, selected, requestedMaxOutputTokens, cancellationToken)
-                : await _llmRouter.GenerateNvidiaChatStreamingAsync(input, selected, requestedMaxOutputTokens, streamCallback, cancellationToken);
+                ? await _llmRouter.GenerateNvidiaChatAsync(input, selected, requestedMaxOutputTokens, cancellationToken, tuning)
+                : await _llmRouter.GenerateNvidiaChatStreamingAsync(input, selected, requestedMaxOutputTokens, streamCallback, cancellationToken, tuning);
             return CompleteTokenUsage("nvidia", selected, input, response);
         }
 
@@ -111,8 +114,8 @@ public sealed partial class CommandService
         {
             var selected = NormalizeModelSelection(model) ?? _providers.DeepseekModel;
             var response = streamCallback == null
-                ? await _llmRouter.GenerateDeepseekChatAsync(input, selected, requestedMaxOutputTokens, cancellationToken)
-                : await _llmRouter.GenerateDeepseekChatStreamingAsync(input, selected, requestedMaxOutputTokens, streamCallback, cancellationToken);
+                ? await _llmRouter.GenerateDeepseekChatAsync(input, selected, requestedMaxOutputTokens, cancellationToken, tuning)
+                : await _llmRouter.GenerateDeepseekChatStreamingAsync(input, selected, requestedMaxOutputTokens, streamCallback, cancellationToken, tuning);
             return CompleteTokenUsage("deepseek", selected, input, response);
         }
 
@@ -146,15 +149,19 @@ public sealed partial class CommandService
                 cancellationToken,
                 useChatEnvelope: !useRawCodexPrompt,
                 workingDirectoryOverride: codexWorkingDirectoryOverride,
-                useCodingProfile: optimizeCodexForCoding
+                useCodingProfile: optimizeCodexForCoding,
+                reasoningEffort: ProviderRequestTuningPolicy.BuildCliReasoningEffort(
+                    ProviderCapabilityRegistry.Resolve("codex", selected),
+                    tuning ?? LlmTuning.Default
+                )
             );
             return CompleteTokenUsage("codex", selected, input, response);
         }
 
         var groqModel = ResolveGroqModelForInput(input, model);
         var groqResponse = streamCallback == null
-            ? await _llmRouter.GenerateGroqChatAsync(input, groqModel, requestedMaxOutputTokens, cancellationToken)
-            : await _llmRouter.GenerateGroqChatStreamingAsync(input, groqModel, requestedMaxOutputTokens, streamCallback, cancellationToken);
+            ? await _llmRouter.GenerateGroqChatAsync(input, groqModel, requestedMaxOutputTokens, cancellationToken, tuning)
+            : await _llmRouter.GenerateGroqChatStreamingAsync(input, groqModel, requestedMaxOutputTokens, streamCallback, cancellationToken, tuning);
         if (GroqPromptPolicy.IsMaxTokensResponse(groqResponse) && requestedMaxOutputTokens > 8192)
         {
             groqResponse = await _llmRouter.GenerateGroqChatAsync(input, groqModel, 8192, cancellationToken);
@@ -252,7 +259,8 @@ public sealed partial class CommandService
         string? codexWorkingDirectoryOverride = null,
         bool optimizeCodexForCoding = false,
         int? timeoutOverrideSeconds = null,
-        Action<string>? streamCallback = null
+        Action<string>? streamCallback = null,
+        LlmTuning? tuning = null
     )
     {
         var normalized = NormalizeProvider(provider, allowAuto: false);
@@ -285,7 +293,8 @@ public sealed partial class CommandService
                     useRawCodexPrompt,
                     codexWorkingDirectoryOverride,
                     optimizeCodexForCoding,
-                    streamCallback
+                    streamCallback,
+                    tuning
                 );
                 lastException = null;
                 if (normalized == "gemini"
@@ -374,7 +383,8 @@ public sealed partial class CommandService
         string? preferredModel,
         CancellationToken cancellationToken,
         int maxOutputTokens,
-        Action<string>? streamCallback = null
+        Action<string>? streamCallback = null,
+        LlmTuning? tuning = null
     )
     {
         var explicitPreferredModel = NormalizeModelSelection(preferredModel);
@@ -413,7 +423,8 @@ public sealed partial class CommandService
                 currentInput,
                 cancellationToken,
                 effectiveMaxTokens,
-                streamCallback: i == 0 ? streamCallback : null
+                streamCallback: i == 0 ? streamCallback : null,
+                tuning: tuning
             );
             var cleaned = ChatOutputSanitizerPolicy.Sanitize(generated.Text);
             if (!GroqPromptPolicy.IsRateLimitResponse(cleaned))

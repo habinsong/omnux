@@ -17,6 +17,8 @@ export type AskConversationItem = {
 };
 
 export type AskChatMode = "single" | "orchestration" | "multi";
+export type AskReasoningEffort = "auto" | "off" | "minimal" | "low" | "medium" | "high";
+export type AskContextBudget = "compact" | "standard" | "full";
 
 export type AskProvider = "auto" | "groq" | "gemini" | "cerebras" | "nvidia" | "deepseek" | "copilot" | "codex" | "grok";
 export type AskModelProvider = Exclude<AskProvider, "auto">;
@@ -82,6 +84,10 @@ export type AskState = {
   thinkPlus: boolean;
   /** 웹 자동검색 on/off. 끄면 강제컨텍스트 웹검색까지 차단(메모리 검색은 유지). */
   webSearchEnabled: boolean;
+  /** 추론 강도. "auto" 면 모델별 기본값을 쓴다. */
+  reasoningEffort: AskReasoningEffort;
+  /** 프롬프트/응답 토큰 예산. 무료 티어 한도가 빡빡한 모델은 간결이 안전하다. */
+  contextBudget: AskContextBudget;
   multiResult: AskMultiResult | null;
   autoSpeakCandidate: AskAutoSpeakCandidate | null;
   ragPreflight: AskRagPreflight | null;
@@ -120,6 +126,8 @@ export type AskState = {
   setWorkerModel: (provider: AskModelProvider, model: string) => void;
   setThinkPlus: (enabled: boolean) => void;
   setWebSearchEnabled: (enabled: boolean) => void;
+  setReasoningEffort: (value: AskReasoningEffort) => void;
+  setContextBudget: (value: AskContextBudget) => void;
   setSidePanel: (panel: "info" | "memory" | "models" | "context" | null) => void;
   setConversationSelectionMode: (enabled: boolean) => void;
   toggleConversationSelection: (id: string) => void;

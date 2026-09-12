@@ -509,9 +509,31 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
     /// (ASK_ORCHESTRATION_PLAN.md P0-4). 키 없음/실패/빈 응답이면 null 을 반환해
     /// 호출측이 기존 실패 흐름을 그대로 타게 한다.
     /// </summary>
-    public async Task<GroqCompoundWebAnswer?> GenerateGroqCompoundWebAnswerAsync(
+    public Task<GroqCompoundWebAnswer?> GenerateGroqCompoundWebAnswerAsync(
         string systemPrompt,
         string userInput,
+        CancellationToken cancellationToken
+    )
+    {
+        return GenerateGroqNativeWebAnswerAsync(
+            systemPrompt,
+            userInput,
+            GroqCompoundResponseParser.ResolveCompoundModel(),
+            LlmTuning.Default,
+            cancellationToken
+        );
+    }
+
+    /// <summary>
+    /// Groq 모델이 서버측에서 직접 웹을 검색하게 한다. gpt-oss 계열은 tools:[{"type":"browser_search"}],
+    /// compound 계열은 compound_custom.tools.enabled_tools 를 쓴다(2026-09-13 실키 호출로 확인).
+    /// 근거는 두 경우 모두 executed_tools[].search_results 로 돌아와 같은 파서로 읽는다.
+    /// </summary>
+    public async Task<GroqCompoundWebAnswer?> GenerateGroqNativeWebAnswerAsync(
+        string systemPrompt,
+        string userInput,
+        string? modelOverride,
+        LlmTuning tuning,
         CancellationToken cancellationToken
     )
     {
@@ -521,17 +543,33 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
             return null;
         }
 
-        var model = GroqCompoundResponseParser.ResolveCompoundModel();
+        var model = string.IsNullOrWhiteSpace(modelOverride)
+            ? GroqCompoundResponseParser.ResolveCompoundModel()
+            : modelOverride.Trim();
+        var capability = ProviderCapabilityRegistry.Resolve("groq", model);
+        if (!capability.SupportsNativeWebSearch)
+        {
+            // 이 모델은 서버측 검색이 없다. 호출측이 compound 로 내려가도록 null 을 돌려준다.
+            return null;
+        }
+
+        var extras = ProviderRequestTuningPolicy.BuildOpenAiCompatibleExtras(
+            capability,
+            tuning with { WebSearch = true }
+        );
         var endpoint = $"{_providers.GroqBaseUrl.TrimEnd('/')}/chat/completions";
-        var body = "{"
+        var body = ProviderRequestTuningPolicy.AppendExtras(
+            "{"
             + $"\"model\":\"{EscapeJson(model)}\","
             + "\"temperature\":0.3,"
-            + "\"max_tokens\":1024,"
+            + $"\"max_tokens\":{tuning.ScaleOutput(1024)},"
             + "\"messages\":["
             + $"{{\"role\":\"system\",\"content\":\"{EscapeJson(systemPrompt)}\"}},"
             + $"{{\"role\":\"user\",\"content\":\"{EscapeJson(userInput)}\"}}"
             + "]"
-            + "}";
+            + "}",
+            extras
+        );
 
         // 413(request_too_large)은 compound 가 서버측에서 끼워 넣는 "검색 결과 덤프" 크기에
         // 좌우되는 확률적 실패다(같은 시각, 같은 키로 쿼리에 따라 200/413 갈림 — 실측).
@@ -560,7 +598,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                 {
                     var failurePreview = responseBody.Length > 240 ? responseBody[..240] : responseBody;
                     Console.Error.WriteLine(
-                        $"[groq] compound web fallback failed ({(int)response.StatusCode}, attempt={attempt}): {failurePreview}"
+                        $"[groq] native web search failed (model={model}, {(int)response.StatusCode}, attempt={attempt}): {failurePreview}"
                     );
                     var retryableEntityTooLarge =
                         (int)response.StatusCode == 413 && attempt < 2;
@@ -581,7 +619,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"[groq] compound web fallback error: {ex.Message}");
+                Console.Error.WriteLine($"[groq] native web search error (model={model}): {ex.Message}");
                 return null;
             }
         }
@@ -602,7 +640,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         string userInput,
         string? modelOverride,
         int maxOutputTokens,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        LlmTuning? tuning = null
     )
     {
         var groqApiKey = _runtimeSettings.GetGroqApiKey();
@@ -623,9 +662,18 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
             + "If conversation history is provided above, treat short follow-up messages (a yes/no check, 'would it work?', a spec like '24GB') as continuations of the prior turns. Never claim that prior context is missing when a recent-conversation block is in the prompt — use it. "
             + "When the user asks for a judgment or opinion, give a concrete, decisive answer based on the conversation history and your knowledge. Do not deflect with generic disclaimers that extra metrics or datasets are required. State your best assessment with a 1-2 sentence rationale, then optionally note any uncertainty. "
             + "Do not repeat the same paragraphs across multiple turns. If the user asks the same thing again, dig deeper or take a clearer stance instead of repeating prior wording.";
-        var requestedMaxOutputTokens = NormalizeMaxOutputTokens(maxOutputTokens, _context.ChatMaxOutputTokens);
+        var effectiveTuning = tuning ?? LlmTuning.Default;
+        var tuningExtras = ProviderRequestTuningPolicy.BuildOpenAiCompatibleExtras(
+            ProviderCapabilityRegistry.Resolve("groq", model),
+            effectiveTuning
+        );
+        var requestedMaxOutputTokens = NormalizeMaxOutputTokens(
+            effectiveTuning.ScaleOutput(maxOutputTokens),
+            _context.ChatMaxOutputTokens
+        );
         var effectiveMaxOutputTokens = GroqPromptPolicy.ClampGroqMaxOutputTokensForModel(model, requestedMaxOutputTokens);
-        var promptBudgetChars = GroqPromptPolicy.ResolveGroqPromptBudgetChars(model);
+        // 컨텍스트 예산이 compact 면 프롬프트도 같이 줄여 무료 티어 TPM 한도를 넘지 않게 한다.
+        var promptBudgetChars = effectiveTuning.ScalePrompt(GroqPromptPolicy.ResolveGroqPromptBudgetChars(model));
         var promptForTurn = GroqPromptPolicy.TruncatePromptForGroq(userInput, promptBudgetChars);
         var mergedBuilder = new StringBuilder();
         var rateLimitRetries = 0;
@@ -649,7 +697,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                         multiTurn,
                         "max_tokens",
                         effectiveMaxOutputTokens,
-                        OnResponseHeaders: headers => CaptureGroqRateLimitHeaders(model, headers)
+                        OnResponseHeaders: headers => CaptureGroqRateLimitHeaders(model, headers),
+                        ExtraJsonProperties: tuningExtras
                     ),
                     cancellationToken
                 );
@@ -739,7 +788,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         string? modelOverride,
         int maxOutputTokens,
         Action<string>? deltaCallback,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        LlmTuning? tuning = null
     )
     {
         var groqApiKey = _runtimeSettings.GetGroqApiKey();
@@ -776,7 +826,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
             "max_tokens",
             effectiveMaxOutputTokens,
             deltaCallback,
-            cancellationToken
+            cancellationToken,
+            tuning
         );
     }
 
@@ -915,7 +966,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         string userInput,
         string? modelOverride,
         int maxOutputTokens,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        LlmTuning? tuning = null
     )
     {
         var geminiApiKey = _runtimeSettings.GetGeminiApiKey();
@@ -926,7 +978,17 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
 
         var selectedModel = string.IsNullOrWhiteSpace(modelOverride) ? _providers.GeminiModel : modelOverride.Trim();
         var endpoint = $"{_providers.GeminiBaseUrl.TrimEnd('/')}/models/{selectedModel}:generateContent";
-        var effectiveMaxOutputTokens = NormalizeMaxOutputTokens(maxOutputTokens, _context.ChatMaxOutputTokens);
+        var geminiTuningExtrasList = ProviderRequestTuningPolicy.BuildGeminiGenerationConfigExtras(
+            ProviderCapabilityRegistry.Resolve("gemini", selectedModel),
+            tuning ?? LlmTuning.Default
+        );
+        var geminiTuningExtras = geminiTuningExtrasList.Count == 0
+            ? string.Empty
+            : "," + string.Join(",", geminiTuningExtrasList);
+        var effectiveMaxOutputTokens = NormalizeMaxOutputTokens(
+            (tuning ?? LlmTuning.Default).ScaleOutput(maxOutputTokens),
+            _context.ChatMaxOutputTokens
+        );
         var promptForTurn = AssistantReplyPolicy.SystemLanguageRule + "\n\nUser input:\n" + userInput;
         var mergedBuilder = new StringBuilder();
 
@@ -941,7 +1003,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                     + $"{{\"text\":\"{EscapeJson(promptForTurn)}\"}}"
                     + "]"
                     + "}],"
-                    + $"\"generationConfig\":{{\"temperature\":0.3,\"maxOutputTokens\":{effectiveMaxOutputTokens}}}"
+                    + $"\"generationConfig\":{{\"temperature\":0.3,\"maxOutputTokens\":{effectiveMaxOutputTokens}{geminiTuningExtras}}}"
                     + "}";
 
                 var result = await _geminiGenerateContentAdapter.SendAsync(
@@ -994,7 +1056,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         string? modelOverride,
         int maxOutputTokens,
         Action<string>? deltaCallback,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        LlmTuning? tuning = null
     )
     {
         var geminiApiKey = _runtimeSettings.GetGeminiApiKey();
@@ -1005,7 +1068,18 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
 
         var selectedModel = string.IsNullOrWhiteSpace(modelOverride) ? _providers.GeminiModel : modelOverride.Trim();
         var endpoint = $"{_providers.GeminiBaseUrl.TrimEnd('/')}/models/{selectedModel}:streamGenerateContent?alt=sse";
-        var effectiveMaxOutputTokens = NormalizeMaxOutputTokens(maxOutputTokens, _context.ChatMaxOutputTokens);
+        var streamTuning = tuning ?? LlmTuning.Default;
+        var streamTuningExtrasList = ProviderRequestTuningPolicy.BuildGeminiGenerationConfigExtras(
+            ProviderCapabilityRegistry.Resolve("gemini", selectedModel),
+            streamTuning
+        );
+        var streamTuningExtras = streamTuningExtrasList.Count == 0
+            ? string.Empty
+            : "," + string.Join(",", streamTuningExtrasList);
+        var effectiveMaxOutputTokens = NormalizeMaxOutputTokens(
+            streamTuning.ScaleOutput(maxOutputTokens),
+            _context.ChatMaxOutputTokens
+        );
         var prompt = AssistantReplyPolicy.SystemLanguageRule + "\n\nUser input:\n" + userInput;
         var body = "{"
             + "\"contents\":[{"
@@ -1014,7 +1088,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
             + $"{{\"text\":\"{EscapeJson(prompt)}\"}}"
             + "]"
             + "}],"
-            + $"\"generationConfig\":{{\"temperature\":0.3,\"maxOutputTokens\":{effectiveMaxOutputTokens}}}"
+            + $"\"generationConfig\":{{\"temperature\":0.3,\"maxOutputTokens\":{effectiveMaxOutputTokens}{streamTuningExtras}}}"
             + "}";
 
         var mergedBuilder = new StringBuilder();
@@ -1137,7 +1211,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         int maxOutputTokens,
         int timeoutMs,
         Action<string>? deltaCallback,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        LlmTuning? tuning = null
     )
     {
         var geminiApiKey = _runtimeSettings.GetGeminiApiKey();
@@ -1148,10 +1223,21 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
 
         var selectedModel = string.IsNullOrWhiteSpace(model) ? _providers.GeminiSearchModel : model.Trim();
         var endpoint = $"{_providers.GeminiBaseUrl.TrimEnd('/')}/models/{selectedModel}:streamGenerateContent?alt=sse";
-        var effectiveMaxOutputTokens = NormalizeMaxOutputTokens(maxOutputTokens, Math.Min(_context.ChatMaxOutputTokens, 4096));
+        var effectiveTuning = tuning ?? LlmTuning.Default;
+        var effectiveMaxOutputTokens = NormalizeMaxOutputTokens(
+            effectiveTuning.ScaleOutput(maxOutputTokens),
+            Math.Min(_context.ChatMaxOutputTokens, 4096)
+        );
         var effectiveTimeoutMs = ProviderTimeoutPolicy.NormalizeGeminiGroundedTimeoutMs(timeoutMs);
         var effectiveFirstChunkTimeoutMs = ProviderTimeoutPolicy.NormalizeGeminiGroundedFirstChunkTimeoutMs(effectiveTimeoutMs);
-        var body = GeminiRequestPolicy.BuildGroundedBody(prompt, effectiveMaxOutputTokens);
+        var body = GeminiRequestPolicy.BuildGroundedBody(
+            prompt,
+            effectiveMaxOutputTokens,
+            ProviderRequestTuningPolicy.BuildGeminiGenerationConfigExtras(
+                ProviderCapabilityRegistry.Resolve("gemini", selectedModel),
+                effectiveTuning
+            )
+        );
         var stopwatch = Stopwatch.StartNew();
         var firstChunkMs = 0L;
         var streamedTextStarted = false;
@@ -1620,7 +1706,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         string userInput,
         string? modelOverride,
         int maxOutputTokens,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        LlmTuning? tuning = null
     )
     {
         var cerebrasApiKey = _runtimeSettings.GetCerebrasApiKey();
@@ -1631,6 +1718,10 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
 
         var selectedModel = string.IsNullOrWhiteSpace(modelOverride) ? _providers.CerebrasModel : modelOverride.Trim();
         var effectiveModel = selectedModel;
+        var tuningExtras = ProviderRequestTuningPolicy.BuildOpenAiCompatibleExtras(
+            ProviderCapabilityRegistry.Resolve("cerebras", selectedModel),
+            tuning ?? LlmTuning.Default
+        );
         var fallbackRetried = false;
         var endpoint = $"{_providers.CerebrasBaseUrl.TrimEnd('/')}/chat/completions";
         var systemPrompt = AssistantReplyPolicy.ChatSystemPreamble
@@ -1656,7 +1747,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                         promptForTurn,
                         null,
                         "max_completion_tokens",
-                        effectiveMaxOutputTokens
+                        effectiveMaxOutputTokens,
+                        ExtraJsonProperties: tuningExtras
                     ),
                     cancellationToken
                 );
@@ -1723,7 +1815,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         string? modelOverride,
         int maxOutputTokens,
         Action<string>? deltaCallback,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        LlmTuning? tuning = null
     )
     {
         var cerebrasApiKey = _runtimeSettings.GetCerebrasApiKey();
@@ -1760,7 +1853,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
             "max_completion_tokens",
             effectiveMaxOutputTokens,
             deltaCallback,
-            cancellationToken
+            cancellationToken,
+            tuning
         );
 
         // 404로 시작하면 catalog 호출 후 재시도
@@ -1795,7 +1889,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         string userInput,
         string? modelOverride,
         int maxOutputTokens,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        LlmTuning? tuning = null
     )
     {
         var nvidiaApiKey = _runtimeSettings.GetNvidiaApiKey();
@@ -1805,6 +1900,10 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         }
 
         var model = string.IsNullOrWhiteSpace(modelOverride) ? _providers.NvidiaModel : modelOverride.Trim();
+        var tuningExtras = ProviderRequestTuningPolicy.BuildOpenAiCompatibleExtras(
+            ProviderCapabilityRegistry.Resolve("nvidia", model),
+            tuning ?? LlmTuning.Default
+        );
         var endpoint = $"{_providers.NvidiaBaseUrl.TrimEnd('/')}/chat/completions";
         var systemPrompt = AssistantReplyPolicy.ChatSystemPreamble
             + "Answer only the latest user request. Do not switch to news, search summaries, 3D printing, or other unrelated topics unless the user explicitly asks for them. "
@@ -1830,7 +1929,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                         null,
                         "max_tokens",
                         effectiveMaxOutputTokens,
-                        AcceptedResponseResolver: (acceptedBody, token) => PollNvidiaStatusAsync(nvidiaApiKey, acceptedBody, token)
+                        AcceptedResponseResolver: (acceptedBody, token) => PollNvidiaStatusAsync(nvidiaApiKey, acceptedBody, token),
+                        ExtraJsonProperties: tuningExtras
                     ),
                     cancellationToken
                 );
@@ -1879,7 +1979,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         string? modelOverride,
         int maxOutputTokens,
         Action<string>? deltaCallback,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        LlmTuning? tuning = null
     )
     {
         var nvidiaApiKey = _runtimeSettings.GetNvidiaApiKey();
@@ -1906,7 +2007,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
             "max_tokens",
             NormalizeNvidiaMaxOutputTokens(maxOutputTokens),
             deltaCallback,
-            cancellationToken
+            cancellationToken,
+            tuning
         );
     }
 
@@ -1916,7 +2018,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         string userInput,
         string? modelOverride,
         int maxOutputTokens,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        LlmTuning? tuning = null
     )
     {
         var deepseekApiKey = _runtimeSettings.GetDeepseekApiKey();
@@ -1926,6 +2029,10 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         }
 
         var model = string.IsNullOrWhiteSpace(modelOverride) ? _providers.DeepseekModel : modelOverride.Trim();
+        var tuningExtras = ProviderRequestTuningPolicy.BuildOpenAiCompatibleExtras(
+            ProviderCapabilityRegistry.Resolve("deepseek", model),
+            tuning ?? LlmTuning.Default
+        );
         var endpoint = $"{_providers.DeepseekBaseUrl.TrimEnd('/')}/chat/completions";
         var systemPrompt = BuildOpenAiCompatibleChatSystemPrompt();
         var effectiveMaxOutputTokens = NormalizeDeepseekMaxOutputTokens(maxOutputTokens);
@@ -1946,7 +2053,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                         promptForTurn,
                         null,
                         "max_tokens",
-                        effectiveMaxOutputTokens
+                        effectiveMaxOutputTokens,
+                        ExtraJsonProperties: tuningExtras
                     ),
                     cancellationToken
                 );
@@ -1995,7 +2103,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         string? modelOverride,
         int maxOutputTokens,
         Action<string>? deltaCallback,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        LlmTuning? tuning = null
     )
     {
         var deepseekApiKey = _runtimeSettings.GetDeepseekApiKey();
@@ -2017,7 +2126,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
             "max_tokens",
             NormalizeDeepseekMaxOutputTokens(maxOutputTokens),
             deltaCallback,
-            cancellationToken
+            cancellationToken,
+            tuning
         );
     }
 
@@ -2264,11 +2374,16 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         string maxTokensProperty,
         int maxOutputTokens,
         Action<string>? deltaCallback,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        LlmTuning? tuning = null
     )
     {
         var mergedBuilder = new StringBuilder();
         var promptForTurn = userInput;
+        var extras = ProviderRequestTuningPolicy.BuildOpenAiCompatibleExtras(
+            ProviderCapabilityRegistry.Resolve(provider, model),
+            tuning ?? LlmTuning.Default
+        );
 
         try
         {
@@ -2298,7 +2413,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                             mergedBuilder.Append(delta);
                             turnBuilder.Append(delta);
                             ChatStreamingContinuation.SafeEmitDelta(deltaCallback, delta);
-                        }
+                        },
+                        ExtraJsonProperties: extras
                     ),
                     cancellationToken
                 );

@@ -23,7 +23,8 @@ internal sealed record ProviderChatAdapterRequest(
     string MaxTokensProperty,
     int MaxOutputTokens,
     Func<string, CancellationToken, Task<string>>? AcceptedResponseResolver = null,
-    Action<HttpResponseHeaders>? OnResponseHeaders = null
+    Action<HttpResponseHeaders>? OnResponseHeaders = null,
+    IReadOnlyList<string>? ExtraJsonProperties = null
 );
 
 internal sealed record ProviderChatAdapterResult(
@@ -55,7 +56,8 @@ internal sealed class OpenAiCompatibleChatAdapter : IProviderChatAdapter
             request.MultiTurn,
             request.MaxTokensProperty,
             request.MaxOutputTokens,
-            stream: false
+            stream: false,
+            request.ExtraJsonProperties
         );
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, request.Endpoint);

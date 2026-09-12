@@ -354,7 +354,8 @@ public interface IRoutineApplicationService
         string request,
         string source,
         CancellationToken cancellationToken,
-        Action<RoutineProgressUpdate>? progressCallback = null
+        Action<RoutineProgressUpdate>? progressCallback = null,
+        RoutineLlmSettings? llmSettings = null
     );
     Task<RoutineActionResult> CreateRoutineAsync(
         string request,
@@ -379,7 +380,8 @@ public interface IRoutineApplicationService
         bool runImmediately,
         string source,
         CancellationToken cancellationToken,
-        Action<RoutineProgressUpdate>? progressCallback = null
+        Action<RoutineProgressUpdate>? progressCallback = null,
+        RoutineLlmSettings? llmSettings = null
     );
     Task<RoutineActionResult> UpdateRoutineAsync(
         string routineId,
@@ -403,7 +405,8 @@ public interface IRoutineApplicationService
         int? dayOfMonth,
         string? timezoneId,
         CancellationToken cancellationToken,
-        Action<RoutineProgressUpdate>? progressCallback = null
+        Action<RoutineProgressUpdate>? progressCallback = null,
+        RoutineLlmSettings? llmSettings = null
     );
     Task<RoutineActionResult> RunRoutineNowAsync(string routineId, string source, CancellationToken cancellationToken);
     RoutineRunDetailResult GetRoutineRunDetail(string routineId, long ts);
@@ -450,6 +453,13 @@ public interface ICodingApplicationService
         CancellationToken cancellationToken,
         Action<CodingProgressUpdate>? progressCallback = null
     );
+    /// <summary>"실행" 버튼이 프로그램을 실제로 띄우기 위한 명령·작업폴더·환경을 계산한다.</summary>
+    Task<CodingInteractiveRunPlan> BuildInteractiveRunPlanAsync(
+        string conversationId,
+        string? preferredTarget,
+        CancellationToken cancellationToken
+    );
+
     Task<CodingResultExecutionResult> ExecuteLatestCodingResultAsync(
         string conversationId,
         string? standardInput,

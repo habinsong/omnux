@@ -2,8 +2,15 @@ namespace Omnux.Middleware;
 
 internal static class GeminiRequestPolicy
 {
-    public static string BuildGroundedBody(string prompt, int maxOutputTokens)
+    public static string BuildGroundedBody(
+        string prompt,
+        int maxOutputTokens,
+        IReadOnlyList<string>? generationConfigExtras = null
+    )
     {
+        var extras = generationConfigExtras == null || generationConfigExtras.Count == 0
+            ? string.Empty
+            : "," + string.Join(",", generationConfigExtras);
         return "{"
             + "\"contents\":[{"
             + "\"role\":\"user\","
@@ -15,6 +22,7 @@ internal static class GeminiRequestPolicy
             + "\"generationConfig\":{"
             + "\"temperature\":0.1,"
             + $"\"maxOutputTokens\":{maxOutputTokens}"
+            + extras
             + "}"
             + "}";
     }

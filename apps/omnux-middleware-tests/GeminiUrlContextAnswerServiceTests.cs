@@ -23,7 +23,8 @@ public sealed class GeminiUrlContextAnswerServiceTests
             string userInput,
             string? modelOverride,
             int maxOutputTokens,
-            CancellationToken cancellationToken
+            CancellationToken cancellationToken,
+            LlmTuning? tuning = null
         )
         {
             DirectCalls += 1;

@@ -155,6 +155,8 @@ public sealed partial class CodingApplicationService
         cancellationToken.ThrowIfCancellationRequested();
         var workspaceRoot = ResolveCodingWorkspaceRoot(workspaceRootOverride);
         var requestedPaths = CodingFallbackPolicy.ExtractRequestedCodingPaths(objective, languageHint);
+        // 프로파일을 정하기 전에 요청 성격부터 확정한다. 여기 결과가 게임/GUI/대화형 처리 전체를 좌우한다.
+        await EnsureCodingTaskSignalsAsync(provider, model, objective, cancellationToken).ConfigureAwait(false);
         var profile = ResolveCodingExecutionProfile(provider, model, objective, languageHint, requestedPaths);
         var oneShotMode = ShouldUseOneShotMode(profile, objective, languageHint);
         var maxIterations = ResolveMaxIterations(profile, oneShotMode);
@@ -221,6 +223,7 @@ public sealed partial class CodingApplicationService
             VisibleCodingStageTotal
         ));
 
+        LastProviderFailureText = string.Empty;
         var directRecovery = attemptedDirectRecovery
             ? await TryApplyProviderDirectRecoveryAsync(
                 profile,
@@ -257,6 +260,47 @@ public sealed partial class CodingApplicationService
             return directRecovery;
         }
 
+        // 직접 생성 복구에서 제공자가 한도/키 문제로 막혔다면, 같은 모델로 루프를 또 돌려도 같은 결과다.
+        if (LastProviderFailureText.Length > 0)
+        {
+            var earlyKind = CodingProviderFailurePolicy.Classify(LastProviderFailureText);
+            if (CodingProviderFailurePolicy.IsFatal(earlyKind))
+            {
+                var earlyMessage = CodingProviderFailurePolicy.BuildUserMessage(provider, model, earlyKind, LastProviderFailureText);
+                progressCallback?.Invoke(BuildCodingProgressUpdate(
+                    progressMode,
+                    provider,
+                    model,
+                    "error",
+                    "모델 호출이 거절돼 작업을 시작하지 못했습니다.",
+                    maxIterations,
+                    maxIterations,
+                    100,
+                    true,
+                    "verification",
+                    "최종 실행 및 검증",
+                    TrimForOutput(earlyMessage, 220),
+                    6,
+                    VisibleCodingStageTotal
+                ));
+                return new AutonomousCodingOutcome(
+                    currentLanguage,
+                    string.Empty,
+                    LastProviderFailureText,
+                    new CodeExecutionResult(currentLanguage, workspaceRoot, "-", "(none)", 0, string.Empty, earlyMessage, "error"),
+                    Array.Empty<string>(),
+                    earlyMessage,
+                    totalTokenUsage
+                );
+            }
+
+            // 한도 문제라면 남은 반복은 컨텍스트를 줄여서 돈다.
+            if (CodingProviderFailurePolicy.ShouldRetryCompact(earlyKind))
+            {
+                ActiveTuning = ActiveTuning with { ContextBudget = "compact" };
+            }
+        }
+
         // 현재 작업 폴더만 조회한다. 다른 프로젝트의 공유 코드 인덱스를 자동으로 섞지 않는다.
         var retrievalBlock = await CodingWorkspaceRetrieval.BuildAsync(workspaceRoot, objective, cancellationToken).ConfigureAwait(false)
             ?? string.Empty;
@@ -268,6 +312,9 @@ public sealed partial class CodingApplicationService
 
         // 훅이 계획을 거부하면 사유를 담아 루프를 끝내고 복구·수정 경로를 건너뛴다.
         var planHookBlockReason = string.Empty;
+        // 제공자 호출 자체가 실패(429/413/키)하면 그 사유를 담아 즉시 끝낸다.
+        var providerFailureMessage = string.Empty;
+        var compactRetryUsed = false;
 
         for (var i = 1; i <= maxIterations; i++)
         {
@@ -304,6 +351,48 @@ public sealed partial class CodingApplicationService
             );
             totalTokenUsage = TokenUsageEstimator.Combine(totalTokenUsage, generated.TokenUsage);
             lastRawResponse = generated.Text;
+
+            // 제공자 실패 문자열을 "모델이 만든 계획"으로 파싱하려 들면 루프가 헛돈다.
+            // 한 번은 컨텍스트를 줄여 재시도하고, 그래도 실패하면 사유를 그대로 올리고 끝낸다.
+            var providerFailure = CodingProviderFailurePolicy.Classify(generated.Text);
+            if (providerFailure != CodingProviderFailureKind.None)
+            {
+                iterations.Add($"iter={i} provider_failure={providerFailure}");
+                if (!compactRetryUsed
+                    && CodingProviderFailurePolicy.ShouldRetryCompact(providerFailure)
+                    && ActiveTuning.ContextBudget != "compact")
+                {
+                    compactRetryUsed = true;
+                    ActiveTuning = ActiveTuning with { ContextBudget = "compact" };
+                    progressCallback?.Invoke(BuildCodingProgressUpdate(
+                        progressMode,
+                        provider,
+                        model,
+                        "retry",
+                        $"반복 {i}/{maxIterations}: 모델 요청 한도에 걸려 컨텍스트를 줄여 다시 시도합니다.",
+                        i,
+                        maxIterations,
+                        Math.Clamp((int)Math.Round((double)i / maxIterations * 55d), 18, 54),
+                        false,
+                        "planning",
+                        "구현 계획",
+                        "프롬프트 예산을 줄인 뒤 같은 반복을 다시 수행합니다.",
+                        3,
+                        VisibleCodingStageTotal
+                    ));
+                    i -= 1;
+                    continue;
+                }
+
+                providerFailureMessage = CodingProviderFailurePolicy.BuildUserMessage(
+                    provider,
+                    model,
+                    providerFailure,
+                    generated.Text
+                );
+                break;
+            }
+
             var plan = CodingLoopPlanParser.Parse(generated.Text);
             if (plan == null)
             {
@@ -870,6 +959,47 @@ public sealed partial class CodingApplicationService
             }
         }
 
+        if (providerFailureMessage.Length > 0 && changedFiles.Count == 0)
+        {
+            // 아무것도 못 만든 채 제공자 문제로 끝났다. 조용히 "완료"로 포장하지 않는다.
+            progressCallback?.Invoke(BuildCodingProgressUpdate(
+                progressMode,
+                provider,
+                model,
+                "error",
+                "모델 호출이 실패해 작업을 진행하지 못했습니다.",
+                maxIterations,
+                maxIterations,
+                100,
+                true,
+                "verification",
+                "최종 실행 및 검증",
+                TrimForOutput(providerFailureMessage, 220),
+                6,
+                VisibleCodingStageTotal
+            ));
+            var failedExecution = new CodeExecutionResult(
+                currentLanguage,
+                workspaceRoot,
+                "-",
+                "(none)",
+                0,
+                string.Empty,
+                providerFailureMessage,
+                "error"
+            );
+            return new AutonomousCodingOutcome(
+                currentLanguage,
+                string.Empty,
+                lastRawResponse,
+                failedExecution,
+                Array.Empty<string>(),
+                providerFailureMessage,
+                totalTokenUsage,
+                RetrievalLabel: retrievalLabel
+            );
+        }
+
         var orderedChangedFiles = changedFiles
             .Where(x => !string.IsNullOrWhiteSpace(x))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -877,6 +1007,10 @@ public sealed partial class CodingApplicationService
             .ToArray();
         orderedChangedFiles = CleanupRedundantSingleFileArtifacts(workspaceRoot, objective, requestedPaths, orderedChangedFiles);
         var summary = BuildAutonomousCodingSummary(iterations, orderedChangedFiles, lastExecution, maxIterations);
+        if (providerFailureMessage.Length > 0)
+        {
+            summary = $"{summary}\n\n[모델 호출 경고]\n{providerFailureMessage}";
+        }
 
         if (allowRunActions
             && repairAttempt < ResolveMaxCodingRepairPasses(objective, currentLanguage)

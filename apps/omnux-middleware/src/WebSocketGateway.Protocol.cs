@@ -426,6 +426,12 @@ public sealed partial class WebSocketGateway
         public IReadOnlyList<InputAttachment> Attachments { get; set; } = Array.Empty<InputAttachment>();
         public IReadOnlyList<string> WebUrls { get; set; } = Array.Empty<string>();
         public bool WebSearchEnabled { get; set; } = true;
+        public string? ReasoningEffort { get; set; }
+        public string? ContextBudget { get; set; }
+        public string? SessionId { get; set; }
+        public string? Data { get; set; }
+        public int? Columns { get; set; }
+        public int? Rows { get; set; }
         public bool Persist { get; set; }
     }
 }

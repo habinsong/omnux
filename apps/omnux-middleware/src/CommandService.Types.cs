@@ -192,7 +192,9 @@ public sealed record ChatRequest(
     bool ThinkPlusEnabled = false,
     string? NvidiaModel = null,
     string? GrokModel = "none",
-    string? DeepseekModel = null
+    string? DeepseekModel = null,
+    string? ReasoningEffort = null,
+    string? ContextBudget = null
 );
 public sealed record MultiChatRequest(
     string Input,
@@ -219,7 +221,9 @@ public sealed record MultiChatRequest(
     string? SkillName = null,
     string? SkillScope = null,
     string? GrokModel = "none",
-    string? DeepseekModel = null
+    string? DeepseekModel = null,
+    string? ReasoningEffort = null,
+    string? ContextBudget = null
 );
 public sealed record ChatStreamUpdate(
     string Scope,
@@ -400,10 +404,15 @@ public sealed record CodingRunRequest(
     string? SkillScope = null,
     string? GrokModel = "none",
     string? ProjectKey = null,
-    string? DeepseekModel = null
+    string? DeepseekModel = null,
+    string? ReasoningEffort = null,
+    string? ContextBudget = null
 )
 {
     internal CodingProjectBinding? BoundProject { get; init; }
+
+    /// <summary>이 실행에 사용자가 건 추론 강도·컨텍스트 예산.</summary>
+    public LlmTuning Tuning => LlmTuning.From(ReasoningEffort, ContextBudget, WebSearchEnabled);
 }
 public sealed record CodingWorkerResult(
     string Provider,
@@ -628,7 +637,11 @@ public sealed record RoutineSummary(
     string RunCommand,
     IReadOnlyList<RoutineRunSummary> Runs,
     bool Running = false,
-    long? NextRunAtMs = null
+    long? NextRunAtMs = null,
+    string LlmProvider = "",
+    string LlmModel = "",
+    string ReasoningEffort = "",
+    string ContextBudget = ""
 );
 public sealed record RoutineActionResult(bool Ok, string Message, RoutineSummary? Routine);
 public sealed record RoutineProgressUpdate(
@@ -841,6 +854,27 @@ internal sealed class RoutineState
 {
     public IReadOnlyList<RoutineDefinition> Items { get; set; } = Array.Empty<RoutineDefinition>();
 }
+/// <summary>루틴이 LLM 을 쓸 때의 제공자·모델·조절값. 비우면 자동 선택.</summary>
+public sealed record RoutineLlmSettings(
+    string Provider = "",
+    string Model = "",
+    string ReasoningEffort = "",
+    string ContextBudget = ""
+)
+{
+    public static readonly RoutineLlmSettings Default = new();
+
+    public static RoutineLlmSettings From(string? provider, string? model, string? reasoningEffort, string? contextBudget)
+    {
+        return new RoutineLlmSettings(
+            (provider ?? string.Empty).Trim(),
+            (model ?? string.Empty).Trim(),
+            (reasoningEffort ?? string.Empty).Trim(),
+            (contextBudget ?? string.Empty).Trim()
+        );
+    }
+}
+
 internal sealed class RoutineDefinition
 {
     public string Id { get; set; } = string.Empty;
@@ -873,6 +907,12 @@ internal sealed class RoutineDefinition
     public string Code { get; set; } = string.Empty;
     public string Planner { get; set; } = string.Empty;
     public string PlannerModel { get; set; } = string.Empty;
+    /// <summary>이 루틴의 LLM 작업을 맡을 제공자/모델. 비우면 자동 선택.</summary>
+    public string LlmProvider { get; set; } = string.Empty;
+    public string LlmModel { get; set; } = string.Empty;
+    /// <summary>추론 강도·컨텍스트 예산. 제공자가 지원할 때만 실제 요청에 실린다.</summary>
+    public string ReasoningEffort { get; set; } = string.Empty;
+    public string ContextBudget { get; set; } = string.Empty;
     public string CoderModel { get; set; } = string.Empty;
     public string QualityStatus { get; set; } = "unknown";
     public List<string> QualityWarnings { get; set; } = new();

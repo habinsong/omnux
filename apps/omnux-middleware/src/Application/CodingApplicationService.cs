@@ -126,7 +126,8 @@ internal interface ICodingCommandGateway
         string? codexWorkingDirectoryOverride = null,
         bool optimizeCodexForCoding = false,
         int? timeoutOverrideSeconds = null,
-        Action<string>? streamCallback = null
+        Action<string>? streamCallback = null,
+        LlmTuning? tuning = null
     );
     string TrimForOutput(string text, int maxLength);
     bool ContainsAny(string text, params string[] patterns);
@@ -472,7 +473,8 @@ public sealed partial class CodingApplicationService : ICodingApplicationService
         string? codexWorkingDirectoryOverride = null,
         bool optimizeCodexForCoding = false,
         int? timeoutOverrideSeconds = null,
-        Action<string>? streamCallback = null
+        Action<string>? streamCallback = null,
+        LlmTuning? tuning = null
     ) => _gateway.GenerateByProviderSafeAsync(
         provider,
         model,
@@ -483,8 +485,27 @@ public sealed partial class CodingApplicationService : ICodingApplicationService
         codexWorkingDirectoryOverride,
         optimizeCodexForCoding,
         timeoutOverrideSeconds,
-        streamCallback
+        streamCallback,
+        tuning ?? ActiveTuning
     );
+
+    /// <summary>현재 실행 중인 코딩 요청에 걸린 추론 강도·컨텍스트 예산.</summary>
+    private LlmTuning ActiveTuning { get; set; } = LlmTuning.Default;
+
+    /// <summary>직전 제공자 호출이 실패(429/413/키)했다면 그 원문. 루프가 조기 종료 판단에 쓴다.</summary>
+    private string LastProviderFailureText { get; set; } = string.Empty;
+
+    /// <summary>제공자 실패면 사유를 기록하고 true. 호출측은 즉시 그 경로를 포기해야 한다.</summary>
+    private bool RecordProviderFailure(LlmSingleChatResult generated)
+    {
+        if (CodingProviderFailurePolicy.Classify(generated.Text) == CodingProviderFailureKind.None)
+        {
+            return false;
+        }
+
+        LastProviderFailureText = generated.Text;
+        return true;
+    }
 
     private static IReadOnlyDictionary<string, string?> BuildProviderSelectionMap(
         string? groqModel,

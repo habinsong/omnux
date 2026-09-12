@@ -1,9 +1,13 @@
 import { DESKTOP_MIDDLEWARE_HTTP_ORIGIN } from "../../middleware-contract";
 import { registerDesktopRequestTypes, sendDesktopRequest } from "./desktop-message-gateway";
 
+export type BuildTerminalCommand = "coding_terminal_start" | "coding_terminal_input" | "coding_terminal_stop";
 export type BuildCommand = "projects_list" | "project_build_preview" | "project_build_apply" | "coding_run_single" | "coding_run_orchestration" | "coding_run_multi" | "coding_cancel" | "coding_execute_result" | "list_conversations" | "get_conversation" | "update_conversation_meta" | "delete_conversation" | "skills_list" | "list_memory_notes";
 registerDesktopRequestTypes("projects_list", "project_build_preview", "project_build_apply", "coding_run_single", "coding_run_orchestration", "coding_run_multi", "coding_cancel", "coding_execute_result", "list_conversations", "get_conversation", "update_conversation_meta", "delete_conversation", "skills_list", "list_memory_notes");
 export function sendBuildCommand(type: BuildCommand, requestId: string, fields: Record<string, unknown> = {}) { return sendDesktopRequest({ type, requestId, ...fields }); }
+registerDesktopRequestTypes("coding_terminal_start", "coding_terminal_input", "coding_terminal_stop");
+/** 대화형 실행 세션 명령. 입력은 requestId 없이 세션 id 로만 흘려보낸다. */
+export function sendBuildTerminalCommand(type: BuildTerminalCommand, fields: Record<string, unknown> = {}) { return sendDesktopRequest({ type, ...fields }); }
 export function codingFileUrl(conversationId: string, target: string, path: string) {
   if (!conversationId || !/^(main|worker-\d+)$/.test(target) || !path || path.split("/").some(part => part === ".." || part === ".")) return "";
   return `${DESKTOP_MIDDLEWARE_HTTP_ORIGIN}/api/coding-preview/${encodeURIComponent(conversationId)}/${target}/${path.split("/").map(encodeURIComponent).join("/")}`;

@@ -41,7 +41,10 @@ internal interface IRoutineSearchGateway
         string decisionPath,
         long decisionMs,
         string source,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? requestedProvider = null,
+        string? requestedModel = null,
+        LlmTuning? tuning = null
     );
 }
 

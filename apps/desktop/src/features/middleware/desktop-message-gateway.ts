@@ -492,6 +492,8 @@ export const requestDesktopAsk = {
       attachments?: unknown[];
       webUrls?: string[];
       webSearchEnabled?: boolean;
+      reasoningEffort?: string;
+      contextBudget?: string;
       requestId?: string;
     } = {}
   ) {
@@ -527,6 +529,8 @@ export const requestDesktopAsk = {
       attachments: Array.isArray(options.attachments) ? options.attachments : undefined,
       webUrls: Array.isArray(options.webUrls) ? options.webUrls : undefined,
       webSearchEnabled: options.webSearchEnabled === false ? false : undefined,
+      reasoningEffort: pick(options.reasoningEffort),
+      contextBudget: pick(options.contextBudget),
       groqModel: pick(workerModels.groq),
       geminiModel: pick(workerModels.gemini),
       cerebrasModel: pick(workerModels.cerebras),

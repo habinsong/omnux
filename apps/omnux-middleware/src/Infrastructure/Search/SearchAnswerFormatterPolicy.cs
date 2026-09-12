@@ -26,15 +26,18 @@ internal static class SearchAnswerFormatterPolicy
             return string.Empty;
         }
 
+        // 목록 번호와 "3.14.7" 같은 버전·소수점 숫자를 구분한다.
+        // 예전 정규식은 마침표 뒤 공백 없이 이어지는 숫자도 항목 시작으로 봐서
+        // "Python 3.14.7" 을 "3." / "14.7" 로 쪼갠 뒤 "3. 1. 7" 로 재번호를 매겼다.
         normalized = Regex.Replace(
             normalized,
-            @"(?<=[.!?]|…)\s*(?=(?:No\.)?\d{1,2}\.\s*(?:\*\*|[A-Za-z가-힣0-9]))",
+            @"(?<=[.!?]|…)[^\S\n]+(?=(?:No\.)?\d{1,2}\.[^\S\n]+(?:\*\*|[A-Za-z가-힣]))",
             "\n\n",
             RegexOptions.CultureInvariant
         );
         normalized = Regex.Replace(
             normalized,
-            @"(?m)^(?<n>(?:No\.)?\d{1,2})\.(?=\S)",
+            @"(?m)^(?<n>(?:No\.)?\d{1,2})\.(?=[^\s\d.])",
             "${n}. ",
             RegexOptions.CultureInvariant
         );
@@ -1041,7 +1044,8 @@ internal static class SearchAnswerFormatterPolicy
             return false;
         }
 
-        var match = Regex.Match(trimmed, @"^(?:No\.)?(?<n>\d{1,2})\.\s*", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+        // "3.14.7 은 …" 처럼 숫자가 이어지면 목록 번호가 아니다.
+        var match = Regex.Match(trimmed, @"^(?:No\.)?(?<n>\d{1,2})\.(?!\d)\s*", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
         if (!match.Success)
         {
             return false;
@@ -1053,7 +1057,7 @@ internal static class SearchAnswerFormatterPolicy
     private static string StripLeadingNumber(string value)
     {
         var normalized = (value ?? string.Empty).Trim();
-        normalized = Regex.Replace(normalized, @"^(?:No\.)?\d{1,2}\.\s*", string.Empty, RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+        normalized = Regex.Replace(normalized, @"^(?:No\.)?\d{1,2}\.(?!\d)\s*", string.Empty, RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
         return normalized.Trim();
     }
 

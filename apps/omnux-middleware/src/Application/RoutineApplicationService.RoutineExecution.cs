@@ -40,9 +40,11 @@ public sealed partial class RoutineApplicationService
         bool runImmediately,
         string source,
         CancellationToken cancellationToken,
-        Action<RoutineProgressUpdate>? progressCallback = null
+        Action<RoutineProgressUpdate>? progressCallback = null,
+        RoutineLlmSettings? llmSettings = null
     )
     {
+        var routineLlm = llmSettings ?? RoutineLlmSettings.Default;
         var createdAt = DateTimeOffset.UtcNow;
         var id = $"rt-{createdAt:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..8]}";
         var runDir = Path.Combine(_paths.WorkspaceRootDir, "routines", id);
@@ -215,6 +217,10 @@ public sealed partial class RoutineApplicationService
             Title = title,
             Request = request,
             ExecutionMode = normalizedExecutionMode,
+            LlmProvider = routineLlm.Provider,
+            LlmModel = routineLlm.Model,
+            ReasoningEffort = routineLlm.ReasoningEffort,
+            ContextBudget = routineLlm.ContextBudget,
             AgentProvider = normalizedAgentProvider,
             AgentModel = normalizedAgentModel,
             AgentStartUrl = normalizedAgentStartUrl,
@@ -670,7 +676,10 @@ public sealed partial class RoutineApplicationService
             "routine_web",
             0,
             source,
-            cancellationToken
+            cancellationToken,
+            routine.LlmProvider,
+            routine.LlmModel,
+            LlmTuning.From(routine.ReasoningEffort, routine.ContextBudget, true)
         );
         var webOutput = (webResult.Response.Text ?? string.Empty).Trim();
         var webFailed = IsGroundedWebAnswerFailureText(webOutput);

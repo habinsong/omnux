@@ -87,6 +87,7 @@ public sealed partial class CodingApplicationService
         Action<CodingProgressUpdate>? progressCallback = null
     )
     {
+        ActiveTuning = request.Tuning;
         var session = PrepareSessionContext(
             request.Scope,
             request.Mode,
@@ -351,6 +352,7 @@ public sealed partial class CodingApplicationService
         Action<CodingProgressUpdate>? progressCallback = null
     )
     {
+        ActiveTuning = request.Tuning;
         var session = PrepareSessionContext(
             request.Scope,
             request.Mode,
@@ -824,6 +826,7 @@ public sealed partial class CodingApplicationService
         Action<CodingProgressUpdate>? progressCallback = null
     )
     {
+        ActiveTuning = request.Tuning;
         var session = PrepareSessionContext(
             request.Scope,
             request.Mode,

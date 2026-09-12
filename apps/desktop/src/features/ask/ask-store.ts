@@ -33,6 +33,8 @@ export const useAskStore = create<AskState>((set, get) => ({
   workerModels: { ...DEFAULT_WORKER_MODELS },
   thinkPlus: false,
   webSearchEnabled: true,
+  reasoningEffort: "auto",
+  contextBudget: "standard",
   multiResult: null,
   autoSpeakCandidate: null,
   ragPreflight: null,
@@ -87,6 +89,8 @@ export const useAskStore = create<AskState>((set, get) => ({
   setWorkerModel: (provider, model) => set({ workerModels: { ...get().workerModels, [provider]: model } }),
   setThinkPlus: (enabled) => set({ thinkPlus: enabled }),
   setWebSearchEnabled: (enabled) => set({ webSearchEnabled: enabled }),
+  setReasoningEffort: (value) => set({ reasoningEffort: value }),
+  setContextBudget: (value) => set({ contextBudget: value }),
   setSidePanel: (panel) => set({ sidePanel: panel }),
   loadModelCatalogs: () => {
     requestDesktopLlm.groqModels();

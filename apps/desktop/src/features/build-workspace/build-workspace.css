@@ -107,3 +107,7 @@
 .build-dialog form { display: grid; gap: 20px; }
 @media (max-width:480px) { .build-workspace { gap: 18px; } .build-bubble { max-width: 97%; } .build-bubble[data-role=user] { max-width: 92%; } }
 @media (prefers-reduced-motion:reduce) { .build-workspace *, .build-workspace *::before, .build-workspace *::after { animation: none !important; transition: none !important; } }
+
+/* 프로그램 실행 화면. xterm 이 그리는 캔버스를 담는 상자다. */
+.build-terminal { margin: 10px 0 0; height: 420px; min-height: 260px; padding: 8px; background: #0b0b0d; border-radius: 9px; overflow: hidden; }
+.build-terminal .xterm { height: 100%; }

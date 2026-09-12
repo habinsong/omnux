@@ -190,7 +190,8 @@ public sealed class CodexCliWrapper
         CancellationToken cancellationToken,
         bool useChatEnvelope = true,
         string? workingDirectoryOverride = null,
-        bool useCodingProfile = false
+        bool useCodingProfile = false,
+        string reasoningEffort = ""
     )
     {
         var input = (prompt ?? string.Empty).Trim();
@@ -223,8 +224,19 @@ public sealed class CodexCliWrapper
             {
                 args.Add("-c");
                 args.Add("mcp_servers.playwright.enabled=false");
+            }
+
+            // 사용자가 고른 추론 강도를 그대로 넘긴다. 고르지 않았으면 코딩 프로파일 기본값(low).
+            var effort = (reasoningEffort ?? string.Empty).Trim();
+            if (effort.Length == 0 && useCodingProfile)
+            {
+                effort = "low";
+            }
+
+            if (effort.Length > 0)
+            {
                 args.Add("-c");
-                args.Add("model_reasoning_effort=\"low\"");
+                args.Add($"model_reasoning_effort=\"{effort}\"");
             }
 
             args.Add("-a");

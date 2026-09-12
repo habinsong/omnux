@@ -277,6 +277,12 @@ public sealed class BackgroundTaskCoordinatorTests
 
     private sealed class PausingCodingExecutor(string root) : ICodingApplicationService
     {
+    public Task<CodingInteractiveRunPlan> BuildInteractiveRunPlanAsync(
+        string conversationId,
+        string? preferredTarget,
+        CancellationToken cancellationToken
+    ) => throw new NotSupportedException();
+
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Task? Cleanup { get; init; }
         public List<CodingRunRequest> Requests { get; } = new();
@@ -385,6 +391,12 @@ public sealed class BackgroundTaskCoordinatorTests
 
     private sealed class FileCodingExecutor(string root) : ICodingApplicationService
     {
+    public Task<CodingInteractiveRunPlan> BuildInteractiveRunPlanAsync(
+        string conversationId,
+        string? preferredTarget,
+        CancellationToken cancellationToken
+    ) => throw new NotSupportedException();
+
         public List<CodingRunRequest> Requests { get; } = new();
         public Task<CodingRunResult> RunCodingOrchestrationAsync(CodingRunRequest request, CancellationToken cancellationToken, Action<CodingProgressUpdate>? progressCallback = null)
         {

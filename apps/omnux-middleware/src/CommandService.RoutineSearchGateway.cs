@@ -66,7 +66,10 @@ public sealed partial class CommandService
             string decisionPath,
             long decisionMs,
             string source,
-            CancellationToken cancellationToken
+            CancellationToken cancellationToken,
+            string? requestedProvider,
+            string? requestedModel,
+            LlmTuning? tuning
         )
         {
             return Owner.ComposeGroundedWebAnswerWithFallbackAsync(
@@ -82,7 +85,10 @@ public sealed partial class CommandService
                 decisionPath,
                 decisionMs,
                 source,
-                cancellationToken
+                cancellationToken,
+                requestedProvider,
+                requestedModel,
+                tuning
             );
         }
     }

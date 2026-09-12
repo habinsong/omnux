@@ -133,4 +133,37 @@ public sealed class SearchAnswerFormatterPolicyTests
 
         Assert.DoesNotContain("|---|", normalized);
     }
+
+    [Fact]
+    public void NormalizeNumberedListResponseKeepsDottedVersionNumbers()
+    {
+        // "3.14.7" 이 목록 번호로 오인돼 "3. 1. 7" 로 깨지던 회귀를 막는다.
+        var normalized = SearchAnswerFormatterPolicy.NormalizeNumberedListResponse(
+            "현재 파이썬 최신 안정 버전은 3.14.7입니다. 릴리스 날짜는 2026-08-05입니다."
+        );
+
+        Assert.Contains("3.14.7", normalized);
+        Assert.DoesNotContain("3. 1. 7", normalized);
+    }
+
+    [Fact]
+    public void NormalizeNumberedListResponseKeepsVersionAtLineStart()
+    {
+        var normalized = SearchAnswerFormatterPolicy.NormalizeNumberedListResponse(
+            "3.14.7 이 가장 최근 유지보수 릴리스입니다."
+        );
+
+        Assert.StartsWith("3.14.7", normalized);
+    }
+
+    [Fact]
+    public void NormalizeNumberedListResponseStillSplitsRealNumberedItems()
+    {
+        var normalized = SearchAnswerFormatterPolicy.NormalizeNumberedListResponse(
+            "오늘 소식입니다. 1. 첫 번째 소식 2. 두 번째 소식"
+        );
+
+        Assert.Contains("1. 첫 번째 소식", normalized);
+        Assert.Contains("2. 두 번째 소식", normalized);
+    }
 }

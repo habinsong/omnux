@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Globe, Paperclip, Plus } from "lucide-react";
 import { useBuildWorkspace, busyBuild } from "./build-state";
-import { modelOptions, providers, type BuildMode, type BuildProvider } from "./build-model";
+import { modelOptions, providers, type BuildMode, type BuildProvider, type ContextBudget, type ReasoningEffort } from "./build-model";
+import { TuningChoices } from "../../components/capsule/tuning";
 import { abbreviateModel } from "../home/composer-intent";
 import {
   AttachmentChip,
@@ -20,7 +21,7 @@ import {
   useCapsuleDismiss
 } from "../../components/capsule/capsule";
 
-type OpenId = "mode" | "model" | "tools" | null;
+type OpenId = "mode" | "model" | "tools" | "reasoning" | "context" | null;
 
 export function BuildComposer({ connected }: { connected: boolean }) {
   const state = useBuildWorkspace();
@@ -96,6 +97,24 @@ export function BuildComposer({ connected }: { connected: boolean }) {
         >
           {modelLabel}
         </button>
+        <TuningChoices
+          provider={provider}
+          model={selectedModel}
+          reasoning={settings.reasoning}
+          context={settings.context}
+          webSearch={settings.webSearch}
+          disabled={busy}
+          openId={open === "reasoning" || open === "context" ? open : null}
+          onToggle={(id) => setOpen((current) => (current === id ? null : id))}
+          onReasoning={(value) => {
+            state.patchSettings({ reasoning: value as ReasoningEffort });
+            setOpen(null);
+          }}
+          onContext={(value) => {
+            state.patchSettings({ context: value as ContextBudget });
+            setOpen(null);
+          }}
+        />
       </ExtrasRow>
       <CapsuleCard
         className="build-compose"

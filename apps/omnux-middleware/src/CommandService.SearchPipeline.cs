@@ -168,10 +168,14 @@ public sealed partial class CommandService
         string conversationId,
         string decisionPath,
         long decisionMs,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? modelOverride = null,
+        LlmTuning? tuning = null
     )
     {
-        var model = ResolveSearchLlmModel();
+        // 사용자가 Gemini 모델을 직접 골랐다면 그 모델이 검색까지 맡는다.
+        // 고르지 않았을 때만 검색 전용 기본 모델로 내려간다.
+        var model = string.IsNullOrWhiteSpace(modelOverride) ? ResolveSearchLlmModel() : modelOverride.Trim();
         var route = "gemini-web-single";
         var chunkIndex = 0;
         Action<string>? deltaCallback = null;
@@ -199,7 +203,8 @@ public sealed partial class CommandService
             maxOutputTokens,
             _context.GeminiWebTimeoutMs,
             deltaCallback,
-            cancellationToken
+            cancellationToken,
+            tuning ?? LlmTuning.Default
         );
         if (SearchPromptPolicy.IsGeminiWebTimeoutText(response.Text))
         {

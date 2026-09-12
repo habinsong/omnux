@@ -53,10 +53,11 @@ public sealed partial class CommandService
         string source,
         CancellationToken cancellationToken,
         int? maxOutputTokens = null,
-        Action<string>? streamCallback = null
+        Action<string>? streamCallback = null,
+        LlmTuning? tuning = null
     )
     {
-        return ChatSingleCoreAsync(input, provider, model, source, cancellationToken, maxOutputTokens, streamCallback);
+        return ChatSingleCoreAsync(input, provider, model, source, cancellationToken, maxOutputTokens, streamCallback, tuning);
     }
 
     public Task<LlmOrchestrationResult> ChatOrchestrationAsync(
@@ -376,7 +377,9 @@ public sealed partial class CommandService
                     resolvedModel,
                     cancellationToken
                 );
-                var shouldFallbackToGeminiWeb = !webDecision.DecisionSucceeded && SearchQueryPolicy.LooksLikeRealtimeQuestion(webLookupInput);
+                // 판정이 실패(타임아웃/에러)했는데 사용자가 웹 검색을 켜 뒀다면 검색하는 쪽으로 기운다.
+                // 예전에는 영어 토큰(latest/today/…)이 있을 때만 폴백해서 한국어 질문은 항상 검색이 스킵됐다.
+                var shouldFallbackToGeminiWeb = !webDecision.DecisionSucceeded;
                 shouldUseGeminiWeb = webDecision.NeedWeb || shouldFallbackToGeminiWeb;
                 selfDecideNeedWeb = shouldFallbackToGeminiWeb;
             }
@@ -405,7 +408,10 @@ public sealed partial class CommandService
                     decisionPath,
                     decisionMs,
                     request.Source,
-                    cancellationToken
+                    cancellationToken,
+                    requestedProvider,
+                    resolvedModel,
+                    LlmTuning.From(request.ReasoningEffort, request.ContextBudget, true)
                 );
                 var webText = webResult.Response.Text;
                 var assistantMeta = string.IsNullOrWhiteSpace(autoRetrieval.RouteLabel)
@@ -550,6 +556,7 @@ public sealed partial class CommandService
                 ));
             };
 
+        var singleTuning = LlmTuning.From(request.ReasoningEffort, request.ContextBudget);
         async Task<LlmSingleChatResult> GenerateSingleAsync(string prompt, CancellationToken token)
         {
             return singleGenerationProvider == "groq"
@@ -558,7 +565,8 @@ public sealed partial class CommandService
                     singleGenerationModel,
                     token,
                     singleMaxOutputTokens,
-                    singleStreamCallback
+                    singleStreamCallback,
+                    singleTuning
                 )
                 : await ChatSingleAsync(
                     prompt,
@@ -567,7 +575,8 @@ public sealed partial class CommandService
                     request.Source,
                     token,
                     singleMaxOutputTokens,
-                    singleStreamCallback
+                    singleStreamCallback,
+                    singleTuning
                 );
         }
 
@@ -1863,7 +1872,8 @@ public sealed partial class CommandService
         string source,
         CancellationToken cancellationToken,
         int? maxOutputTokens = null,
-        Action<string>? streamCallback = null
+        Action<string>? streamCallback = null,
+        LlmTuning? tuning = null
     )
     {
         var text = (input ?? string.Empty).Trim();
@@ -1878,7 +1888,8 @@ public sealed partial class CommandService
             text,
             cancellationToken,
             maxOutputTokens,
-            streamCallback: streamCallback
+            streamCallback: streamCallback,
+            tuning: tuning
         );
         var cleaned = ChatOutputSanitizerPolicy.Sanitize(generated.Text);
         _auditLogger.Log(source, "chat_single", "ok", $"provider={generated.Provider} model={generated.Model}");

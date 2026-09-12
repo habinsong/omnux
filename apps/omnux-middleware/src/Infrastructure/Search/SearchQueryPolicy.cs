@@ -358,10 +358,36 @@ internal static class SearchQueryPolicy
             return false;
         }
 
+        // 어휘 신호(영어 토큰)는 가속기일 뿐이고, 언어와 무관한 구조 신호를 함께 본다.
+        // 여기서 안 잡히면 Unknown 으로 넘어가 LLM 이 판정한다 — 특정 언어 목록에 기대지 않는다.
         return HasNewsToken(normalized)
                || IsoDateRegex.IsMatch(normalized)
+               || ContainsRecentYearToken(normalized)
                || ContainsAny(normalized, "today", "yesterday", "latest", "recent", "current")
                || Regex.IsMatch(normalized, @"\b(?:update|release)s?\b", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    }
+
+    private static readonly Regex YearTokenRegex = new(
+        @"(?<!\d)(20\d{2})(?!\d)",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant
+    );
+
+    /// <summary>
+    /// 올해(또는 작년 이후) 연도가 적혀 있으면 시의성 질문으로 본다. 숫자는 언어에 상관없이 같은 형태라
+    /// "2026년 기준", "as of 2026", "2026年" 모두 같은 신호로 잡힌다.
+    /// </summary>
+    private static bool ContainsRecentYearToken(string normalized)
+    {
+        var currentYear = DateTimeOffset.Now.Year;
+        foreach (Match match in YearTokenRegex.Matches(normalized))
+        {
+            if (int.TryParse(match.Groups[1].Value, out var year) && year >= currentYear - 1)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static bool LooksLikeExplicitWebLookupQuestion(string input)

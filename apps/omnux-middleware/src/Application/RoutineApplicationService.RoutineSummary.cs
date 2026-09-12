@@ -68,7 +68,11 @@ public sealed partial class RoutineApplicationService
             BuildRoutineRunCommand(routine),
             BuildRoutineRunSummaries(routine),
             routine.Running,
-            routine.NextRunUtc.ToUnixTimeMilliseconds()
+            routine.NextRunUtc.ToUnixTimeMilliseconds(),
+            routine.LlmProvider,
+            routine.LlmModel,
+            routine.ReasoningEffort,
+            routine.ContextBudget
         );
     }
 

@@ -12,7 +12,8 @@ internal static class OpenAiCompatibleProtocol
         List<(string Role, string Content)>? multiTurn,
         string maxTokensProperty,
         int maxOutputTokens,
-        bool stream
+        bool stream,
+        IReadOnlyList<string>? extraProperties = null
     )
     {
         string messagesJson;
@@ -33,6 +34,9 @@ internal static class OpenAiCompatibleProtocol
                 + $"{{\"role\":\"user\",\"content\":\"{EscapeJson(userInput)}\"}}";
         }
 
+        var extras = extraProperties == null || extraProperties.Count == 0
+            ? string.Empty
+            : "," + string.Join(",", extraProperties);
         return "{"
             + $"\"model\":\"{EscapeJson(model)}\","
             + "\"temperature\":0.3,"
@@ -41,6 +45,7 @@ internal static class OpenAiCompatibleProtocol
             + "\"messages\":["
             + messagesJson
             + "]"
+            + extras
             + "}";
     }
 
