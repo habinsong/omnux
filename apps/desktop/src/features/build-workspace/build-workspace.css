@@ -43,6 +43,9 @@
 .build-composer { display: block; min-width: 0; padding: 0; }
 .build-workspace .build-composer textarea, .build-workspace .build-compose textarea { min-height: 24px; max-height: 96px; width: auto; flex: 1 1 auto; resize: none; line-height: 1.5; border-radius: 0; padding: 0; background: transparent; border: 0; }
 .build-thread { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 8px 4px 12px; }
+/* 주고받은 말과 결과가 적으면 작성칸 쪽으로 내려 붙인다. 위쪽에 빈 칸을 남기지 않는다. */
+.build-scroll { display: flex; flex-direction: column; }
+.build-scroll > :first-child { margin-top: auto; }
 /* 채팅 규칙: 결과는 왼쪽에 붙고 오른쪽에 여백을 남긴다. 보낸 요청은 오른쪽에 붙는다. */
 .build-bubble { min-width: 0; width: 100%; max-width: min(94%, 1000px); padding: 10px 14px; border-radius: 14px 14px 14px 4px; background: var(--build-paper); border: 1px solid var(--build-line); align-self: flex-start; white-space: pre-wrap; font-size: 15px; line-height: 1.45; }
 .build-bubble[data-role=user] { width: fit-content; max-width: min(84%, 720px); align-self: flex-end; background: var(--muted); color: var(--foreground); border: 1px solid var(--border); border-radius: 14px 14px 4px 14px; }

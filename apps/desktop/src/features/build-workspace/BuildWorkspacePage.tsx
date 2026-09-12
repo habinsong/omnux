@@ -33,6 +33,8 @@ export function BuildWorkspacePage() {
   const notebook = useBuildNotebookSave();
   const dialog = useRef<HTMLDialogElement>(null);
   const attachRule = useRef(false);
+  const log = useRef<HTMLDivElement>(null);
+  const follow = useRef(true);
   const [tab, setTab] = useState<TabId>("build");
 
   useEffect(() => {
@@ -69,6 +71,11 @@ export function BuildWorkspacePage() {
     if (state.confirmation) dialog.current?.showModal();
     else dialog.current?.close();
   }, [state.confirmation]);
+
+  // 새 결과가 나오면 아래로 따라간다. 사용자가 위를 보고 있으면 따라가지 않는다.
+  useEffect(() => {
+    if (follow.current && log.current) log.current.scrollTop = log.current.scrollHeight;
+  }, [state.active?.messages, state.currentResult, state.progress]);
 
   // 다른 화면에서 「모델과 작업 설정」 을 열어 달라고 하면 그 탭으로 옮긴다.
   useEffect(() => {
@@ -152,7 +159,14 @@ export function BuildWorkspacePage() {
 
       <div className="build-workspace flex min-h-0 min-w-0 flex-1 flex-col gap-2">
         {tab === "build" ? (
-          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <div
+            className="build-scroll min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden"
+            ref={log}
+            onScroll={(event) => {
+              const element = event.currentTarget;
+              follow.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
+            }}
+          >
             <BuildThread />
             <BuildResultPanel connected={connected} />
           </div>
