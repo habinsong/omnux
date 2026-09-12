@@ -29,14 +29,24 @@ function resolveReconnectDelayMs() {
   );
 }
 
+// 프로브도 포기하지 않는다. maxAttempts 는 백오프 상한일 뿐이다.
+// 예전에는 한도를 넘으면 error 로 두고 재시도를 멈춰, 미들웨어가 나중에 살아나도
+// 런타임 상태가 error 로 굳었다.
+let exhaustedReported = false;
+
 function scheduleRetry(reason: string) {
   const { runtime, markHealthProbe, scheduleNextReconnect } = useDesktopShellStore.getState();
-  if (runtime.reconnectAttempts >= runtime.reconnectPolicy.maxAttempts) {
+  const exhausted = runtime.reconnectAttempts >= runtime.reconnectPolicy.maxAttempts;
+
+  // 한도를 처음 넘긴 순간에만 error 로 보고한다. 이후에는 재시도 중임을 알리는
+  // not_ready 로 남겨 로그·토스트 폭주를 막는다.
+  if (exhausted && !exhaustedReported) {
+    exhaustedReported = true;
     markHealthProbe("error", reason);
-    return;
+  } else {
+    markHealthProbe("not_ready", reason);
   }
 
-  markHealthProbe("not_ready", reason);
   scheduleNextReconnect();
   const delay = resolveReconnectDelayMs();
   retryTimer = window.setTimeout(() => {
@@ -193,6 +203,7 @@ async function runProbe() {
         const readyAfter = await probeHttpEndpoint("readyz", latestRuntime.readyUrl);
         cleanup();
         if (readyAfter.status === "ok") {
+          exhaustedReported = false;
           markHealthProbe("ok", "healthz/readyz/ws pong");
           return;
         }
@@ -221,6 +232,18 @@ export function triggerMiddlewareRuntimeProbe() {
 export function useMiddlewareRuntimeProbe() {
   useEffect(() => {
     triggerMiddlewareRuntimeProbe();
-    return () => clearRetryTimer();
+    const probeNow = () => triggerMiddlewareRuntimeProbe();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") probeNow();
+    };
+    window.addEventListener("online", probeNow);
+    window.addEventListener("focus", probeNow);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("online", probeNow);
+      window.removeEventListener("focus", probeNow);
+      document.removeEventListener("visibilitychange", onVisible);
+      clearRetryTimer();
+    };
   }, []);
 }

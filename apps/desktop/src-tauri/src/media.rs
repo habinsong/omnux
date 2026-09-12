@@ -21,6 +21,8 @@ fn clean_text(value: &str) -> Option<String> {
     }
 }
 
+// macOS 경로에서만 쓰인다. cfg 없이 두면 Linux/Windows 빌드에서 dead_code 경고가 난다.
+#[cfg(target_os = "macos")]
 fn seek_target(position: f64, duration: f64, offset: f64) -> f64 {
     let lower_bound = (position + offset).max(0.0);
     if duration > 0.0 {

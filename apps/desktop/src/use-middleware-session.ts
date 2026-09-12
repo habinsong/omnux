@@ -13,6 +13,8 @@ type ServerMessage = Record<string, unknown> & {
 
 let sessionSocket: WebSocket | null = null;
 let sessionSocketUrl = "";
+// 재연결 시도 횟수는 백오프 계산에만 쓰이므로 무한히 키우지 않고 상한을 둔다.
+const RECONNECT_ATTEMPT_CEILING = 1000;
 
 function closeSessionSocket(socket: WebSocket | null) {
   if (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
@@ -221,27 +223,46 @@ export function useMiddlewareSessionBridge() {
       initialConnectTimer = null;
     };
 
+    // 재연결은 포기하지 않는다. maxAttempts 는 백오프 상한을 정할 뿐 시도 횟수 제한이 아니다.
+    // 예전에는 5회(약 22초) 실패 후 영구 포기해서, 미들웨어를 재시작하거나 잠깐 끊기기만 해도
+    // 앱을 껐다 켜기 전까지 bridge 가 error 로 고착됐다. 그 상태에서 설정 화면은
+    // "연결되지 않았습니다. 값은 보이지만 저장은 되지 않습니다."를 계속 띄웠다.
     const scheduleReconnect = (wsUrl: string) => {
       if (disposed || !wsUrl) {
         return;
       }
-      if (reconnectAttempts >= DESKTOP_RECONNECT_POLICY.maxAttempts) {
-        useDesktopShellStore.getState().markBridgeStatus(
-          "error",
-          `서버에 다시 연결하지 못했습니다 (${wsUrl})`
-        );
-        return;
-      }
-      reconnectAttempts += 1;
+      reconnectAttempts = Math.min(reconnectAttempts + 1, RECONNECT_ATTEMPT_CEILING);
       const delayMs = Math.min(
         DESKTOP_RECONNECT_POLICY.initialDelayMs * reconnectAttempts,
         DESKTOP_RECONNECT_POLICY.maxDelayMs
       );
-      useDesktopShellStore.getState().markBridgeStatus("connecting");
+      // 백오프가 상한에 처음 닿은 순간에만 한 번 알린다(재시도 자체는 계속한다).
+      if (reconnectAttempts === DESKTOP_RECONNECT_POLICY.maxAttempts) {
+        useDesktopShellStore.getState().markBridgeStatus(
+          "connecting",
+          `서버 연결을 계속 시도합니다 (${wsUrl})`
+        );
+      } else {
+        useDesktopShellStore.getState().markBridgeStatus("connecting");
+      }
       reconnectTimer = window.setTimeout(() => {
         reconnectTimer = null;
         connect(wsUrl);
       }, delayMs);
+    };
+
+    // 네트워크 복귀나 창 포커스처럼 "지금 살아났을 가능성이 큰" 순간에는 백오프를 기다리지 않고
+    // 즉시 다시 붙는다.
+    const reconnectNow = () => {
+      if (disposed) return;
+      if (sessionSocket && sessionSocket.readyState <= WebSocket.OPEN) return;
+      clearReconnectTimer();
+      reconnectAttempts = 0;
+      connect(useDesktopShellStore.getState().runtime.wsUrl || DESKTOP_MIDDLEWARE_WS_URL);
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") reconnectNow();
     };
 
     const connect = (wsUrl: string) => {
@@ -313,11 +334,17 @@ export function useMiddlewareSessionBridge() {
         connect(state.runtime.wsUrl);
       }
     });
+    window.addEventListener("online", reconnectNow);
+    window.addEventListener("focus", reconnectNow);
+    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
       disposed = true;
       clearInitialConnectTimer();
       clearReconnectTimer();
+      window.removeEventListener("online", reconnectNow);
+      window.removeEventListener("focus", reconnectNow);
+      document.removeEventListener("visibilitychange", handleVisibility);
       unsubscribe();
       const socket = sessionSocket;
       sessionSocket = null;
