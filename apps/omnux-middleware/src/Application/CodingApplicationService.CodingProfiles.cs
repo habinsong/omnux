@@ -1626,6 +1626,11 @@ public sealed partial class CodingApplicationService
 
         // 판정에는 프롬프트 전문이 아니라 사용자가 친 요청만 넘긴다(캐시 키와 같은 규칙).
         var request = CodingTaskSignalResolver.BuildKey(objective);
+        if (Environment.GetEnvironmentVariable("OMNUX_DEBUG_CODING_SIGNALS") == "1")
+        {
+            var preview = (objective ?? string.Empty).Replace("\n", "\\n", StringComparison.Ordinal);
+            Console.Error.WriteLine($"[coding-signals-debug] objectiveLen={preview.Length} head={preview[..Math.Min(400, preview.Length)]}");
+        }
         if (request.Length == 0)
         {
             return;
