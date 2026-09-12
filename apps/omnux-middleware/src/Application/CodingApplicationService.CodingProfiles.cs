@@ -1642,17 +1642,18 @@ public sealed partial class CodingApplicationService
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromSeconds(12));
-            // 추론하는 모델은 출력 예산을 생각에 먼저 쓴다. 120 토큰이면 JSON 한 줄도 못 내보내서
-            // 판정이 늘 실패했다(실측: Gemini 에서 결과 줄이 아예 안 찍혔다).
+            timeout.CancelAfter(TimeSpan.FromSeconds(30));
+            // 추론하는 모델은 출력 예산을 생각에 먼저 쓴다. 예산이 빠듯하면 JSON 이 중간에서 잘린다
+            // (실측: 512·compact 조합에서 응답이 `{"game":true,"gui` 로 끊겼다).
+            // 판정은 한 줄짜리라 토큰을 아낄 이유가 없으므로 넉넉히 준다.
             var generated = await GenerateByProviderSafeAsync(
                 provider,
                 model,
                 CodingTaskSignalResolver.BuildClassificationPrompt(request),
                 timeout.Token,
-                maxOutputTokens: 512,
-                timeoutOverrideSeconds: 20,
-                tuning: LlmTuning.From("low", "compact")
+                maxOutputTokens: 2048,
+                timeoutOverrideSeconds: 25,
+                tuning: LlmTuning.From("low", "standard")
             ).ConfigureAwait(false);
             if (CodingProviderFailurePolicy.Classify(generated.Text) != CodingProviderFailureKind.None)
             {
