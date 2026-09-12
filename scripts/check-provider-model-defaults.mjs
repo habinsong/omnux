@@ -88,11 +88,13 @@ if (await buildModelBox.count()) {
 await page.evaluate((id) => window.__nav.getState().setActivePage(id), "settings");
 await page.getByRole("tab", { name: "모델·키", exact: true }).click();
 await page.getByRole("tab", { name: "모델 선택", exact: true }).click();
-const groqSelect = page.getByRole("combobox").filter({ has: page.locator("option", { hasText: "grok-fixture-custom" }) }).first();
-await groqSelect.waitFor({ timeout: 8000 });
-await groqSelect.selectOption("grok-fixture-custom");
-if ((await groqSelect.inputValue()) !== "grok-fixture-custom") {
-  throw new Error(`groq select value ${(await groqSelect.inputValue())}`);
+// 모델 칸은 카탈로그가 비어도 직접 입력할 수 있는 자유 입력이다(목록은 자동완성).
+const groqModelBox = page.getByRole("combobox", { name: "Groq", exact: true }).first();
+await groqModelBox.waitFor({ timeout: 8000 });
+if (await groqModelBox.isDisabled()) throw new Error("groq model box disabled");
+await groqModelBox.fill("grok-fixture-custom");
+if ((await groqModelBox.inputValue()) !== "grok-fixture-custom") {
+  throw new Error(`groq model value ${(await groqModelBox.inputValue())}`);
 }
 await page.getByRole("button", { name: "적용", exact: true }).first().click();
 await page.waitForFunction(() => document.body.innerText.includes("grok-fixture-custom로 적용"), null, { timeout: 8000 });
@@ -102,6 +104,34 @@ if (!(await badge.first().textContent())?.includes("grok-fixture-custom")) {
   throw new Error("settings default badge missing grok-fixture-custom");
 }
 log.push({ surface: "settings", defaultModel: "grok-fixture-custom" });
+
+// 회귀 방지: 연결이 끊겨 있어도 키/코드 입력은 막히면 안 된다. 저장 버튼만 막는다.
+await page.evaluate(async () => {
+  const shell = (await import("/src/shell-store.ts")).useDesktopShellStore;
+  shell.getState().markBridgeStatus("closed");
+});
+await page.getByRole("tab", { name: "연동", exact: true }).click();
+await page.getByRole("tab", { name: "Telegram", exact: true }).click();
+const telegramToken = page.locator('input[type="password"]').first();
+await telegramToken.waitFor({ timeout: 8000 });
+if (await telegramToken.isDisabled()) throw new Error("telegram token input disabled while disconnected");
+await telegramToken.fill("123456:offline-typed");
+if ((await telegramToken.inputValue()) !== "123456:offline-typed") throw new Error("telegram token not editable while disconnected");
+
+await page.getByRole("tab", { name: "모델·키", exact: true }).click();
+await page.getByRole("tab", { name: "연동 키", exact: true }).click();
+const providerKey = page.locator('input[type="password"]').first();
+await providerKey.waitFor({ timeout: 8000 });
+if (await providerKey.isDisabled()) throw new Error("provider key input disabled while disconnected");
+await providerKey.fill("offline-typed-key");
+if ((await providerKey.inputValue()) !== "offline-typed-key") throw new Error("provider key not editable while disconnected");
+log.push({ surface: "settings-offline", secretsEditable: true });
+
+await page.evaluate(async () => {
+  const shell = (await import("/src/shell-store.ts")).useDesktopShellStore;
+  shell.getState().markBridgeStatus("connected");
+});
+await page.getByRole("tab", { name: "모델 선택", exact: true }).click();
 
 await page.screenshot({ path: `${scratch}/ui-settings.png`, animations: "disabled" });
 await page.setViewportSize({ width: 390, height: 900 });

@@ -1,7 +1,7 @@
 import { KeyRound, Send, ShieldCheck, Trash2 } from "lucide-react";
 import { CardBoundary } from "../../CardBoundary";
 import type { ShellCard } from "../../shell-store";
-import { Badge, Button, Input, cn } from "../../components/ui/primitives";
+import { Badge, Button, Input } from "../../components/ui/primitives";
 import { useTelegramSettingsStore } from "./settings-telegram-store";
 
 type CardErrorHandler = (card: ShellCard, message: string, componentStack?: string | null) => void;
@@ -22,6 +22,7 @@ export function SettingsTelegramPanel({ canRequest, onError }: { canRequest: boo
   const store = useTelegramSettingsStore();
   const ready = store.botTokenSet && store.chatIdSet;
   const canSave = !!((store.botTokenInput.trim() || store.botTokenSet) && (store.chatIdInput.trim() || store.chatIdSet));
+  // 입력은 언제나 열어 둔다. 연결/원격 제한은 서버로 보내는 버튼에서만 막는다.
   const disabled = !canRequest || store.loading || store.remoteDashboardClient;
   return (
     <CardBoundary title="Telegram 연동" card="middleware" onError={onError}>
@@ -48,7 +49,6 @@ export function SettingsTelegramPanel({ canRequest, onError }: { canRequest: boo
             value={store.botTokenInput}
             placeholder={store.botTokenMasked || "123456:telegram-bot-token"}
             onChange={(event) => store.setBotTokenInput(event.target.value)}
-            disabled={disabled}
           />
         </label>
         <label className="min-w-0 space-y-1">
@@ -58,18 +58,16 @@ export function SettingsTelegramPanel({ canRequest, onError }: { canRequest: boo
             value={store.chatIdInput}
             placeholder={store.chatIdMasked || "123456789"}
             onChange={(event) => store.setChatIdInput(event.target.value)}
-            disabled={disabled}
           />
         </label>
       </div>
 
-      <label className={cn("flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2", disabled && "opacity-60")}>
+      <label className="flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2">
         <input
           type="checkbox"
           className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
           checked={store.persist}
           onChange={(event) => store.setPersist(event.target.checked)}
-          disabled={disabled}
         />
         <span className="min-w-0">
           <span className="block text-sm font-medium">보안 저장소 저장/삭제</span>

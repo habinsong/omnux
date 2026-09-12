@@ -761,25 +761,25 @@ export function CerebrasCard({ store, canRequest, onError }: { store: Store; can
           {store.loading ? "조회 중…" : "모델 새로고침"}
         </Button>
       </div>
-      {ids.length > 0 ? (
-        <div className="flex min-w-0 flex-wrap gap-2">
-          <select
-            aria-label="Cerebras 기본 모델"
-            className="h-9 min-w-0 flex-1 rounded-md border border-input bg-transparent px-2 text-sm"
-            value={selected}
-            onChange={(event) => store.setLocalDefaultModel("cerebras", event.target.value)}
-          >
-            {ids.map((id) => (
-              <option key={id} value={id}>
-                {id}
-              </option>
-            ))}
-          </select>
-          <Button variant="primary" size="sm" disabled={!canRequest || !selected} onClick={() => store.setLocalDefaultModel("cerebras", selected)}>
-            적용
-          </Button>
-        </div>
-      ) : null}
+      {/* 카탈로그를 못 받아도 모델 이름을 직접 적을 수 있어야 한다. 목록은 자동완성으로만 제공한다. */}
+      <div className="flex min-w-0 flex-wrap gap-2">
+        <input
+          list="cerebras-model-options"
+          aria-label="Cerebras 기본 모델"
+          className="h-9 min-w-0 flex-1 rounded-md border border-input bg-transparent px-2 text-sm"
+          value={selected}
+          placeholder={ids[0] || "모델 이름 입력"}
+          onChange={(event) => store.setLocalDefaultModel("cerebras", event.target.value)}
+        />
+        <datalist id="cerebras-model-options">
+          {ids.map((id) => (
+            <option key={id} value={id} />
+          ))}
+        </datalist>
+        <Button variant="primary" size="sm" disabled={!canRequest || !selected.trim()} onClick={() => store.setLocalDefaultModel("cerebras", selected.trim())}>
+          적용
+        </Button>
+      </div>
       <div className="space-y-1">
         {store.cerebrasModels.items.map((item) => (
           <article key={item.id} className="flex items-center justify-between rounded-md border border-border bg-card px-2.5 py-2">

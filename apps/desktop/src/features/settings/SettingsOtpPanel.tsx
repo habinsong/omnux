@@ -95,7 +95,6 @@ export function SettingsOtpPanel({ bridgeConnected, onError }: { bridgeConnected
                 authenticate();
               }
             }}
-            disabled={!bridgeConnected}
           />
         </label>
         <label className="space-y-1">
@@ -108,7 +107,6 @@ export function SettingsOtpPanel({ bridgeConnected, onError }: { bridgeConnected
               className="w-20 text-center font-mono"
               value={ttlHours}
               onChange={(event) => setTtlHours(clampTtlHours(event.target.value))}
-              disabled={!bridgeConnected}
             />
             <span className="text-xs text-muted-foreground">시간</span>
           </div>
@@ -176,7 +174,6 @@ export function SettingsOtpPanel({ bridgeConnected, onError }: { bridgeConnected
                         totp.confirmEnroll();
                       }
                     }}
-                    disabled={!bridgeConnected}
                   />
                 </label>
                 <div className="flex flex-wrap gap-2">

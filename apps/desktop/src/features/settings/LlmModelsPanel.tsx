@@ -41,6 +41,7 @@ function ModelSelect({
   onRefresh: () => void;
 }) {
   const [choice, setChoice] = useState(models.selected);
+  const optionsId = `model-options-${label.replace(/\s+/g, "-").toLowerCase()}`;
   useEffect(() => {
     setChoice(models.selected || models.items[0] || "");
   }, [models.selected, models.items]);
@@ -52,19 +53,21 @@ function ModelSelect({
         {models.selected ? <Badge tone="primary" className="max-w-[220px] truncate font-mono">{models.selected}</Badge> : <Badge tone="outline">미설정</Badge>}
       </div>
       <div className="flex min-w-0 flex-wrap gap-2">
-        <select
+        {/* 카탈로그가 비어도 모델 이름을 직접 적을 수 있어야 한다. 목록은 자동완성으로만 제공한다. */}
+        <input
+          list={optionsId}
           aria-label={label}
           className={SELECT_CLASS}
           value={choice}
+          placeholder={models.items[0] || "모델 이름 입력"}
           onChange={(event) => setChoice(event.target.value)}
-          disabled={models.items.length === 0}
-        >
-          {models.items.length === 0 ? <option value="">모델 없음. 새로고침</option> : null}
+        />
+        <datalist id={optionsId}>
           {models.items.map((model) => (
-            <option key={model} value={model}>{model}</option>
+            <option key={model} value={model} />
           ))}
-        </select>
-        <Button variant="primary" size="sm" onClick={() => onApply(choice)} disabled={!canRequest || !choice}>적용</Button>
+        </datalist>
+        <Button variant="primary" size="sm" onClick={() => onApply(choice.trim())} disabled={!canRequest || !choice.trim()}>적용</Button>
         <Button variant="outline" size="icon" aria-label={`${label} 카탈로그 새로고침`} onClick={onRefresh} disabled={!canRequest}>
           <RefreshCcw size={15} aria-hidden="true" />
         </Button>
@@ -75,11 +78,9 @@ function ModelSelect({
 
 function ProviderKeyCard({
   card,
-  disabled,
   onChange
 }: {
   card: ProviderCredentialCard;
-  disabled: boolean;
   onChange: (value: string) => void;
 }) {
   return (
@@ -97,7 +98,6 @@ function ProviderKeyCard({
         value={card.input}
         placeholder={card.masked || card.placeholder}
         onChange={(event) => onChange(event.target.value)}
-        disabled={disabled}
         className="mt-2"
       />
     </label>
@@ -148,16 +148,15 @@ export function LlmKeysCard({ canRequest, onError }: { canRequest: boolean; onEr
       </div>
       <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
         {credentials.cards.map((card) => (
-          <ProviderKeyCard key={card.id} card={card} disabled={secretDisabled} onChange={(value) => credentials.setInput(card.id, value)} />
+          <ProviderKeyCard key={card.id} card={card} onChange={(value) => credentials.setInput(card.id, value)} />
         ))}
       </div>
-      <label className={cn("flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2", secretDisabled && "opacity-60")}>
+      <label className="flex items-start gap-2 rounded-md border border-border bg-card px-3 py-2">
         <input
           type="checkbox"
           className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
           checked={credentials.persist}
           onChange={(event) => credentials.setPersist(event.target.checked)}
-          disabled={secretDisabled}
         />
         <span className="min-w-0">
           <span className="block truncate text-sm font-medium">보안 저장소 저장/삭제</span>

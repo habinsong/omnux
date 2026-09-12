@@ -21,7 +21,6 @@ export function SettingsUserRulesPanel({ canRequest }: { canRequest: boolean }) 
         rows={6}
         value={store.text}
         placeholder={"예)\n- 답변은 짧고 직설적으로\n- 표보다 불릿을 선호\n- 내 이름은 하빈"}
-        disabled={!canRequest || store.loading}
         onChange={(event) => store.setText(event.target.value)}
       />
       <div className="flex flex-wrap items-center gap-2">
