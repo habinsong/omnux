@@ -49,10 +49,17 @@ internal static class ProviderTimeoutPolicy
         return Math.Clamp(timeoutMs, 5000, 60000);
     }
 
+    /// <summary>
+    /// 그라운딩 응답의 첫 텍스트까지 기다릴 시간.
+    ///
+    /// 서버측 검색은 첫 토큰 전에 검색 왕복을 끝내야 해서 일반 생성보다 훨씬 늦게 시작한다.
+    /// 예전 상한 7초로는 gemini-3.5-flash 가 늘 걸렸고(실측 8.6초), 대화 맥락이 붙어 프롬프트가
+    /// 커질수록 더 늦어져 사용자가 고른 모델이 매번 검색 전용 폴백 모델로 밀려났다.
+    /// </summary>
     public static int NormalizeGeminiGroundedFirstChunkTimeoutMs(int totalTimeoutMs)
     {
         var normalizedTotal = NormalizeGeminiGroundedTimeoutMs(totalTimeoutMs);
-        var derived = Math.Min(7000, Math.Max(3000, normalizedTotal / 4));
+        var derived = Math.Clamp(normalizedTotal / 2, 12000, 25000);
         return Math.Clamp(derived, 3000, normalizedTotal);
     }
 
