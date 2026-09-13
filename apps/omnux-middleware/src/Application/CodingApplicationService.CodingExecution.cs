@@ -1150,8 +1150,17 @@ public sealed partial class CodingApplicationService
         };
         ApplyWorkspaceExecutablePath(startInfo, command, workDir);
         // pygame/tkinter 등 SDL/GUI 코드가 헤드리스에서 'No available video device' 로 죽지 않게
-        // 더미 드라이버를 기본 제공한다(비-SDL 실행엔 무해). 검증 단계와 동일한 정책.
-        startInfo.Environment["SDL_VIDEODRIVER"] = startInfo.Environment.TryGetValue("SDL_VIDEODRIVER", out var sdlVideo) && !string.IsNullOrWhiteSpace(sdlVideo) ? sdlVideo : "dummy";
+        // 더미 드라이버를 준다. 다만 화면이 있는 자리에서까지 더미를 씌우면 실행 버튼을 눌러도
+        // 창이 안 뜬다. 표시 장치가 실제로 있으면 건드리지 않는다(검증 단계는 스스로 dummy 를 지정한다).
+        var hasDisplay = !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("DISPLAY"))
+                         || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("WAYLAND_DISPLAY"))
+                         || OperatingSystem.IsWindows()
+                         || OperatingSystem.IsMacOS();
+        if (!hasDisplay)
+        {
+            startInfo.Environment["SDL_VIDEODRIVER"] = startInfo.Environment.TryGetValue("SDL_VIDEODRIVER", out var sdlVideo) && !string.IsNullOrWhiteSpace(sdlVideo) ? sdlVideo : "dummy";
+        }
+
         startInfo.Environment["SDL_AUDIODRIVER"] = startInfo.Environment.TryGetValue("SDL_AUDIODRIVER", out var sdlAudio) && !string.IsNullOrWhiteSpace(sdlAudio) ? sdlAudio : "dummy";
 
         var normalizedCommand = RewritePythonInterpreterToWorkspaceVenv(NormalizePythonCommandForShell(command), workDir);
@@ -1295,6 +1304,11 @@ public sealed partial class CodingApplicationService
             pathPrefixes.Add(pythonBin);
         }
 
+        foreach (var toolchainBin in EnumerateUserToolchainBinDirectories())
+        {
+            pathPrefixes.Add(toolchainBin);
+        }
+
         if (pathPrefixes.Count == 0)
         {
             return;
@@ -1305,6 +1319,39 @@ public sealed partial class CodingApplicationService
             .Distinct(StringComparer.Ordinal)
             .Concat(string.IsNullOrWhiteSpace(existing) ? Array.Empty<string>() : new[] { existing });
         startInfo.Environment["PATH"] = string.Join(Path.PathSeparator, merged);
+    }
+
+    /// <summary>
+    /// 홈에 깔린 언어 툴체인 경로. 데스크톱 앱은 로그인 셸 PATH 를 물려받지 못할 때가 많아
+    /// rustup(~/.cargo/bin)·Go(~/.local/go/bin)·SDKMAN 을 직접 찾아 준다. 있는 것만 넣는다.
+    /// </summary>
+    private static IEnumerable<string> EnumerateUserToolchainBinDirectories()
+    {
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (string.IsNullOrWhiteSpace(home))
+        {
+            yield break;
+        }
+
+        var candidates = new[]
+        {
+            Path.Combine(home, ".cargo", "bin"),
+            Path.Combine(home, ".local", "go", "bin"),
+            Path.Combine(home, "go", "bin"),
+            Path.Combine(home, ".local", "bin"),
+            Path.Combine(home, ".sdkman", "candidates", "java", "current", "bin"),
+            Path.Combine(home, ".sdkman", "candidates", "kotlin", "current", "bin"),
+            Path.Combine(home, ".bun", "bin"),
+            "/usr/local/go/bin"
+        };
+
+        foreach (var candidate in candidates)
+        {
+            if (Directory.Exists(candidate))
+            {
+                yield return candidate;
+            }
+        }
     }
 
     private static IEnumerable<string> EnumeratePythonUserBinDirectories()
