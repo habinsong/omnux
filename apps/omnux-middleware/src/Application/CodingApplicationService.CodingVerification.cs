@@ -525,10 +525,10 @@ public sealed partial class CodingApplicationService
         return "( " + envPrefix + pythonRunner + " " + fileArg + " 2>.omni_game.err & __omni_g=$!; "
             + "sleep 6; "
             + "if kill -0 $__omni_g 2>/dev/null; then kill $__omni_g 2>/dev/null; wait $__omni_g 2>/dev/null; "
-            + "echo '[headless] 게임이 6초간 크래시 없이 실행되었습니다'; rm -f .omni_game.err; exit 0; fi; "
+            + "echo '[headless] 6초간 크래시 없이 실행되었습니다'; rm -f .omni_game.err; exit 0; fi; "
             + "wait $__omni_g; __omni_c=$?; "
             + "if [ $__omni_c -ne 0 ]; then cat .omni_game.err >&2; rm -f .omni_game.err; exit $__omni_c; fi; "
-            + "echo '[headless] 게임이 정상 종료되었습니다'; rm -f .omni_game.err; exit 0 )";
+            + "echo '[headless] 정상 종료되었습니다'; rm -f .omni_game.err; exit 0 )";
     }
 
     private static string BuildChangeDirectoryCommand(string directory)
