@@ -441,8 +441,13 @@ public sealed partial class CodingApplicationService
     private LatestCodingExecutionCommandPlan TryBuildPreferredLatestCodingLaunchCommand(LatestCodingExecutionTarget target)
     {
         var normalizedLanguage = CodingLanguagePolicy.NormalizeLanguageForCode(target.Language);
+        // 변경 파일은 절대경로와 작업폴더 상대경로가 섞여 저장된다. 상대경로를 그대로 File.Exists 로
+        // 보면 전부 걸러져서 진입 파일을 하나도 못 찾는다(실측: 실행 요청이 매번 "다시 실행할 명령을
+        // 구성하지 못했습니다" 로 끝났다). 실행 폴더 기준으로 해석한 뒤 존재 여부를 본다.
         var availableFiles = (target.ChangedFiles ?? Array.Empty<string>())
-            .Where(path => !string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => ResolveWorkspacePath(target.RunDirectory, path))
+            .Where(File.Exists)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
         var entryPath = ResolvePreferredExecutionEntryPath(normalizedLanguage, target.RunDirectory, target.EntryFile, availableFiles);
@@ -799,8 +804,11 @@ public sealed partial class CodingApplicationService
     )
     {
         var normalizedLanguage = CodingLanguagePolicy.NormalizeLanguageForCode(language);
+        // 위와 같은 이유로 상대경로를 실행 폴더 기준으로 먼저 해석한다.
         var availableFiles = (changedFiles ?? Array.Empty<string>())
-            .Where(path => !string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => ResolveWorkspacePath(runDirectory, path))
+            .Where(File.Exists)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
