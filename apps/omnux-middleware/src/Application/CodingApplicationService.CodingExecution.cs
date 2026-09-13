@@ -18,6 +18,14 @@ public sealed partial class CodingApplicationService
             return new ShellRunResult(126, string.Empty, BuildDynamicCodeDisabledMessage(), false);
         }
 
+        var missingTools = await FindMissingToolchainExecutablesAsync(command, workDir, cancellationToken);
+        if (missingTools.Count > 0)
+        {
+            // 없는 도구로 만든 명령은 모델이 우회 분기를 넣어 exit 0 으로 끝내기도 한다.
+            // 그대로 두면 "실행 완료"로 보고되므로 여기서 실패로 끊는다.
+            return new ShellRunResult(127, string.Empty, CodingToolchainPolicy.BuildMissingToolchainMessage(missingTools), false);
+        }
+
         var installLogs = new List<string>();
         var installErrors = new List<string>();
 
@@ -44,6 +52,32 @@ public sealed partial class CodingApplicationService
         var mergedStdOut = MergeInstallLogs("[auto-install]", installLogs, shell.StdOut);
         var mergedStdErr = MergeInstallLogs("[auto-install]", installErrors, shell.StdErr);
         return new ShellRunResult(shell.ExitCode, mergedStdOut, mergedStdErr, shell.TimedOut);
+    }
+
+    /// <summary>명령이 요구하는 실행 파일 중 이 기계에 없는 것을 돌려준다.</summary>
+    private async Task<IReadOnlyList<string>> FindMissingToolchainExecutablesAsync(
+        string command,
+        string workDir,
+        CancellationToken cancellationToken
+    )
+    {
+        var required = CodingToolchainPolicy.DetectRequiredExecutables(command);
+        if (required.Count == 0 || OperatingSystem.IsWindows())
+        {
+            return Array.Empty<string>();
+        }
+
+        var missing = new List<string>();
+        foreach (var executable in required)
+        {
+            var probe = await RunWorkspaceCommandAsync($"command -v {EscapeShellArg(executable)} >/dev/null 2>&1", workDir, cancellationToken);
+            if (probe.ExitCode != 0)
+            {
+                missing.Add(executable);
+            }
+        }
+
+        return missing;
     }
 
     private async Task EnsureWorkspaceDependenciesAsync(
