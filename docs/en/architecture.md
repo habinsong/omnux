@@ -101,7 +101,7 @@ Domain services live under `src/Application/`.
 | Coding | `CodingLanguagePolicy`, `CodingPromptPolicy`, `CodingFallbackPolicy`, `CodingExecutionSafetyPolicy`, `CodingTaskSignalPolicy` |
 | Conversation and Telegram | `ChatRetryGuardPolicy`, `AssistantReplyPolicy`, `TelegramNaturalCommandPolicy`, `TelegramResponseFormatterPolicy` |
 | Routines and logic | `RoutineSchedulePolicy`, `LogicGraphValidationPolicy`, `LogicTemplateResolver`, `LogicLeafNodeExecutor` |
-| Providers | `OpenAiCompatibleProtocol`, `ProviderResponseParser`, `GeminiCitationParser`, `GroqRateLimitHeaderParser`, `ProviderTimeoutPolicy` |
+| Providers | `OpenAiCompatibleProtocol`, `ProviderResponseParser`, `GeminiCitationParser`, `ProviderRateLimitHeaderParser`, `ProviderTimeoutPolicy` |
 | Others | `RemoteLimitedMessagePolicy`, `UniversalCodeExecutionSafetyPolicy`, `AdaptiveContextCompressionPolicy`, `PromptCachePolicy`, `RagRetrievalPreflightPolicy`, `MemoryTierPolicy` |
 
 Policies are thoroughly covered by unit tests in `apps/omnux-middleware-tests`, and verified by `scripts/check-security-boundaries.mjs`.

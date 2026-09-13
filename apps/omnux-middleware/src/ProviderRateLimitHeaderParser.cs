@@ -3,7 +3,11 @@ using System.Net.Http.Headers;
 
 namespace Omnux.Middleware;
 
-internal static class GroqRateLimitHeaderParser
+/// <summary>
+/// 표준 `x-ratelimit-*` 헤더와 `retry-after` 를 읽는다. Groq 전용이 아니라 OpenAI 호환 제공자가
+/// 공통으로 쓰는 규격이라 제공자와 무관하게 쓴다.
+/// </summary>
+internal static class ProviderRateLimitHeaderParser
 {
     private static readonly TimeSpan MaxRetryAfterCooldown = TimeSpan.FromMinutes(30);
 
@@ -24,6 +28,32 @@ internal static class GroqRateLimitHeaderParser
             CooldownUntilUtc = isRateLimited ? ParseRetryAfterUntilUtc(headers, capturedAtUtc) : null,
             LastUpdatedUtc = capturedAtUtc
         };
+    }
+
+    /// <summary>한도와 관련된 헤더를 이름째 요약한다. 제공자가 실제로 무엇을 주는지 보려고 쓴다.</summary>
+    public static string DescribeRateLimitHeaders(HttpResponseHeaders headers)
+    {
+        if (headers == null)
+        {
+            return string.Empty;
+        }
+
+        var parts = new List<string>();
+        foreach (var header in headers)
+        {
+            var name = header.Key ?? string.Empty;
+            if (!name.Contains("ratelimit", StringComparison.OrdinalIgnoreCase)
+                && !name.Contains("rate-limit", StringComparison.OrdinalIgnoreCase)
+                && !name.Contains("retry-after", StringComparison.OrdinalIgnoreCase)
+                && !name.Contains("quota", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            parts.Add($"{name}={string.Join("/", header.Value ?? Array.Empty<string>())}");
+        }
+
+        return string.Join(" ", parts);
     }
 
     private static long? ReadHeaderLong(HttpResponseHeaders headers, string key)

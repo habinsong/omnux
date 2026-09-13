@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text;
@@ -55,6 +56,9 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
     private readonly Dictionary<string, GroqUsage> _groqUsageByModel = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, GroqRateLimit> _groqRateByModel = new(StringComparer.OrdinalIgnoreCase);
     private GeminiUsage _geminiUsage = new();
+    /// <summary>제공자·모델별 한도 상태. 응답 헤더와 429 로 실제 한도를 배운다.</summary>
+    public ProviderRateLimitLedger RateLimits { get; } = new();
+    private readonly ConcurrentDictionary<string, string> _rateLimitHeaderLog = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _usageStatePath;
     private string _selectedGroqModel;
     // DeepSeek 출력 예산 상한. 창이 200K 라 상한을 낮게 둘 이유가 없다(추론 토큰이 여기에 포함된다).
@@ -1877,6 +1881,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                         null,
                         "max_completion_tokens",
                         effectiveMaxOutputTokens,
+                        OnResponseHeaders: headers => CaptureProviderRateLimitHeaders("cerebras", effectiveModel, headers),
                         ExtraJsonProperties: tuningExtras
                     ),
                     cancellationToken
@@ -2059,6 +2064,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                         "max_tokens",
                         effectiveMaxOutputTokens,
                         AcceptedResponseResolver: (acceptedBody, token) => PollNvidiaStatusAsync(nvidiaApiKey, acceptedBody, token),
+                        OnResponseHeaders: headers => CaptureProviderRateLimitHeaders("nvidia", model, headers),
                         ExtraJsonProperties: tuningExtras
                     ),
                     cancellationToken
@@ -2183,6 +2189,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                         null,
                         "max_tokens",
                         effectiveMaxOutputTokens,
+                        OnResponseHeaders: headers => CaptureProviderRateLimitHeaders("deepseek", model, headers),
                         ExtraJsonProperties: tuningExtras
                     ),
                     cancellationToken
@@ -2419,14 +2426,51 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
 
     private void CaptureGroqRateLimitHeaders(string model, HttpResponseHeaders headers, bool isRateLimited = false)
     {
-        var snapshot = GroqRateLimitHeaderParser.Parse(headers, DateTimeOffset.UtcNow, isRateLimited);
+        var snapshot = ProviderRateLimitHeaderParser.Parse(headers, DateTimeOffset.UtcNow, isRateLimited);
 
         lock (_groqLock)
         {
             _groqRateByModel[model] = snapshot;
         }
 
+        CaptureProviderRateLimitHeaders("groq", model, headers, isRateLimited);
         SaveUsageState();
+    }
+
+    /// <summary>
+    /// 제공자와 무관하게 한도 헤더를 장부에 넣는다. 제공자마다 어떤 헤더를 주는지는 코드에 박지 않고
+    /// 실제로 온 헤더 이름을 한 번 로그로 남겨 확인한다(규격이 제공자·시점마다 다르다).
+    /// </summary>
+    private void CaptureProviderRateLimitHeaders(
+        string provider,
+        string model,
+        HttpResponseHeaders headers,
+        bool isRateLimited = false
+    )
+    {
+        if (headers == null)
+        {
+            return;
+        }
+
+        RateLimits.Capture(provider, model, headers, DateTimeOffset.UtcNow, isRateLimited);
+
+        var described = ProviderRateLimitHeaderParser.DescribeRateLimitHeaders(headers);
+        var key = $"{provider}|{model}";
+        var previous = _rateLimitHeaderLog.TryGetValue(key, out var known) ? known : string.Empty;
+        if (described.Length == 0 || string.Equals(previous, described, StringComparison.Ordinal))
+        {
+            if (described.Length == 0 && previous.Length == 0)
+            {
+                _rateLimitHeaderLog[key] = "(없음)";
+                Console.Error.WriteLine($"[ratelimit] provider={provider} model={model} headers=(없음)");
+            }
+
+            return;
+        }
+
+        _rateLimitHeaderLog[key] = described;
+        Console.Error.WriteLine($"[ratelimit] provider={provider} model={model} {described}");
     }
 
     private static string BuildGroqCooldownMessage(string model, TimeSpan wait)
