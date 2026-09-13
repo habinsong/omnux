@@ -1006,6 +1006,19 @@ async function waitFor(url, deadlineMs = 12000) {
             || Directory.EnumerateFiles(projectRoot, "test_*.py", SearchOption.AllDirectories).Any()
             || Directory.EnumerateFiles(projectRoot, "*_test.py", SearchOption.AllDirectories).Any())
         {
+            // 모델은 테스트를 만들면서 requirements.txt 에 pytest 를 안 적는 경우가 많다. 그러면 여기서
+            // "No module named pytest" 로 멀쩡한 프로젝트가 거짓 실패한다(실측: 테트리스 프로젝트의
+            // 테스트 10개가 unittest 로는 전부 통과하는데 venv 에는 pytest 가 없었다).
+            // 격리 venv 가 보장된 경우에만 테스트 러너를 채워 넣는다(호스트 파이썬에는 설치하지 않는다).
+            if (requiresWorkspaceVenv)
+            {
+                commands.Add(
+                    OperatingSystem.IsWindows()
+                        ? $"{pythonRunner} -c \"import pytest\" || {pythonRunner} -m pip install --disable-pip-version-check pytest"
+                        : $"{pythonRunner} -c 'import pytest' 2>/dev/null || {pythonRunner} -m pip install --disable-pip-version-check pytest"
+                );
+            }
+
             commands.Add($"{pythonRunner} -m pytest -q");
         }
         else if (shouldRunProgram)
