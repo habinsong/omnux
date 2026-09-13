@@ -435,6 +435,16 @@ public sealed partial class CodingApplicationService
             target.EntryFile,
             target.ChangedFiles
         );
+        if (string.IsNullOrWhiteSpace(fallbackCommand))
+        {
+            // 여기까지 오면 실행 버튼도 "실행해 줘" 요청도 실패한다. 왜 비었는지 바로 알 수 있게 남긴다.
+            Console.Error.WriteLine(
+                $"[coding-rerun] no command lang={target.Language} runDir={target.RunDirectory}"
+                + $" entry={target.EntryFile} files={target.ChangedFiles.Count}"
+                + $" storedCommand={TrimForOutput(target.Execution.Command ?? string.Empty, 120)}"
+            );
+        }
+
         return new LatestCodingExecutionCommandPlan(fallbackCommand, fallbackCommand);
     }
 
