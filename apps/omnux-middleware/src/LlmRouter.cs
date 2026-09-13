@@ -510,6 +510,66 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
     /// (ASK_ORCHESTRATION_PLAN.md P0-4). 키 없음/실패/빈 응답이면 null 을 반환해
     /// 호출측이 기존 실패 흐름을 그대로 타게 한다.
     /// </summary>
+    /// <summary>
+    /// DeepSeek 가 서버측에서 직접 웹을 검색해 답하게 한다.
+    /// OpenAI 호환 엔드포인트에는 서버 검색이 없어서 Anthropic 호환 엔드포인트를 쓴다
+    /// (2026-09-13 실키 호출로 확인). 실패하면 null 을 돌려 호출측이 폴백하게 한다.
+    /// </summary>
+    public async Task<DeepseekWebAnswer?> GenerateDeepseekNativeWebAnswerAsync(
+        string systemPrompt,
+        string userInput,
+        string? modelOverride,
+        LlmTuning tuning,
+        CancellationToken cancellationToken
+    )
+    {
+        var apiKey = _runtimeSettings.GetDeepseekApiKey();
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            return null;
+        }
+
+        var model = string.IsNullOrWhiteSpace(modelOverride) ? _providers.DeepseekModel : modelOverride.Trim();
+        var endpoint = $"{_providers.DeepseekBaseUrl.TrimEnd('/')}/anthropic/v1/messages";
+        var body = DeepseekWebSearchParser.BuildRequestJson(
+            model,
+            systemPrompt,
+            userInput,
+            tuning.ScaleOutput(2048)
+        );
+
+        try
+        {
+            using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutCts.CancelAfter(TimeSpan.FromSeconds(Math.Max(45, _providers.DeepseekTimeoutSec)));
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
+            request.Headers.Add("x-api-key", apiKey);
+            request.Headers.Add("anthropic-version", "2023-06-01");
+            request.Content = new StringContent(body, Encoding.UTF8, "application/json");
+
+            using var response = await _httpClient.SendAsync(request, timeoutCts.Token);
+            var responseBody = await response.Content.ReadAsStringAsync(timeoutCts.Token);
+            if (!response.IsSuccessStatusCode)
+            {
+                var preview = responseBody.Length > 240 ? responseBody[..240] : responseBody;
+                Console.Error.WriteLine($"[deepseek] native web search failed ({(int)response.StatusCode}): {preview}");
+                return null;
+            }
+
+            return DeepseekWebSearchParser.TryParse(responseBody);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[deepseek] native web search error: {ex.Message}");
+            return null;
+        }
+    }
+
     public Task<GroqCompoundWebAnswer?> GenerateGroqCompoundWebAnswerAsync(
         string systemPrompt,
         string userInput,

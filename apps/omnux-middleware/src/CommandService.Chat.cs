@@ -363,7 +363,17 @@ public sealed partial class CommandService
             && !IntroducesNewTopicVersusRecentConversation(thread.Id, rawInput);
 
         // Think+ 모드면 fast-web 단독 라우팅 우회. 기본 LLM이 web context를 prepend 받아 직접 답변하도록.
-        if (request.WebSearchEnabled && !request.ThinkPlusEnabled && !shouldBypassFastWebForSkill && !isAnswerVerificationFollowUp)
+        // CLI 제공자(codex·copilot·grok)는 래퍼가 자체 웹 검색을 수행한다. 여기서 가로채 Gemini 로
+        // 답을 만들면 사용자가 그 제공자를 고른 의미가 사라지므로, 검색 라우팅을 건너뛰고
+        // 일반 생성 경로에서 CLI 자체 검색을 켠 채로 답하게 한다.
+        var selectedCapability = ProviderCapabilityRegistry.Resolve(requestedProvider, resolvedModel);
+        var providerSearchesOnItsOwn = selectedCapability.WebSearch == ProviderWebSearchMode.CliNative;
+
+        if (request.WebSearchEnabled
+            && !providerSearchesOnItsOwn
+            && !request.ThinkPlusEnabled
+            && !shouldBypassFastWebForSkill
+            && !isAnswerVerificationFollowUp)
         {
             var webLookupInput = ResolveContextualWebLookupInput(thread.Id, rawInput);
             var decisionStopwatch = Stopwatch.StartNew();
@@ -559,7 +569,13 @@ public sealed partial class CommandService
                 ));
             };
 
-        var singleTuning = LlmTuning.From(request.ReasoningEffort, request.ContextBudget);
+        // CLI 제공자는 자체 검색을 켜야 최신 정보를 가져온다. 나머지 제공자는 이 시점에
+        // 이미 검색 경로를 지났으므로 일반 생성에서 검색 도구를 다시 켤 필요가 없다.
+        var singleTuning = LlmTuning.From(
+            request.ReasoningEffort,
+            request.ContextBudget,
+            providerSearchesOnItsOwn && request.WebSearchEnabled
+        );
         async Task<LlmSingleChatResult> GenerateSingleAsync(string prompt, CancellationToken token)
         {
             return singleGenerationProvider == "groq"
@@ -753,10 +769,10 @@ public sealed partial class CommandService
     private string ResolveContextualWebLookupInput(string conversationId, string input)
     {
         var normalized = (input ?? string.Empty).Trim();
-        // 모호한 lookup ("찾아봐") 외에도 짧은 follow-up 입력에는 직전 user/assistant turn 을 함께 묶어 보낸다.
-        // 그래야 grounded web 모델이 "잘 돌아가나?" "이 환경에서?" 같은 anaphoric 질문의 대상을 알 수 있다.
+        // 웹검색 경로도 일반 답변 경로와 같은 연속성 판정을 쓴다. 예전에는 "60자 이하"라는
+        // 임의 컷오프라서, 길게 쓴 한국어 후속 질문은 대상을 모른 채 검색이 돌았다.
         var needsContextEnrichment = ChatRetryGuardPolicy.LooksLikeVagueWebLookupRequest(normalized)
-                                     || (normalized.Length <= 60);
+                                     || ShouldUsePriorConversationContext(conversationId, normalized);
         if (!needsContextEnrichment)
         {
             return normalized;

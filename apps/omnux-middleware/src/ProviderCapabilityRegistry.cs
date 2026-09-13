@@ -12,6 +12,7 @@ public enum ProviderWebSearchMode
     GeminiGoogleSearch,
     GroqBrowserSearch,
     GroqCompound,
+    DeepseekWebSearch,
     CliNative
 }
 
@@ -126,7 +127,7 @@ public static class ProviderCapabilityRegistry
     },
     ["deepseek"] = new ProviderCapabilityRule[]
     {
-        new ProviderCapabilityRule(".", ProviderWebSearchMode.None, ProviderReasoningMode.OpenAiEffort, new[] { "low", "medium", "high" }, "medium")
+        new ProviderCapabilityRule(".", ProviderWebSearchMode.DeepseekWebSearch, ProviderReasoningMode.OpenAiEffort, new[] { "low", "medium", "high" }, "medium")
     },
     ["copilot"] = new ProviderCapabilityRule[]
     {

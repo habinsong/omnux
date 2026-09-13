@@ -138,12 +138,13 @@
   },
   "capabilities": {
     "_comment": "제공자/모델별 네이티브 웹 검색·추론 강도 지원표. match 는 모델 ID 정규식이며 위에서부터 먼저 맞는 항목을 쓴다. 실제 API 호출로 확인한 값만 적는다.",
-    "_verified": "2026-09-13 실키 호출 확인: groq browser_search(openai/gpt-oss-*), groq compound_custom(groq/compound*), gemini google_search + thinkingLevel, cerebras 서버측 웹검색 미지원(tools 는 function 전용), nvidia chat_template_kwargs.thinking",
+    "_verified": "2026-09-13 실키 호출 확인: groq browser_search(openai/gpt-oss-*), groq compound_custom(groq/compound*), gemini google_search + thinkingLevel, deepseek web_search_20250305(Anthropic 호환 엔드포인트), cerebras 서버측 웹검색 미지원(tools 는 function 전용), nvidia chat_template_kwargs.thinking, codex CLI --search / model_reasoning_effort",
     "webSearchModes": [
       "none",
       "gemini_google_search",
       "groq_browser_search",
       "groq_compound",
+      "deepseek_web_search",
       "cli_native"
     ],
     "reasoningModes": [
@@ -250,7 +251,7 @@
       "deepseek": [
         {
           "match": ".",
-          "webSearch": "none",
+          "webSearch": "deepseek_web_search",
           "reasoning": "openai_effort",
           "levels": [
             "low",

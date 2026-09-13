@@ -157,6 +157,55 @@ public sealed partial class CommandService
                 );
             }
 
+            case ProviderWebSearchMode.DeepseekWebSearch:
+            {
+                var answer = await _llmRouter.GenerateDeepseekNativeWebAnswerAsync(
+                    BuildGroqCompoundSystemPrompt(memoryHint, allowMarkdownTable, enforceTelegramOutputStyle),
+                    input,
+                    capability.Model,
+                    tuning,
+                    cancellationToken
+                ).ConfigureAwait(false);
+                stopwatch.Stop();
+                if (answer == null || IsGroundedWebAnswerFailureText(answer.Text))
+                {
+                    _auditLogger.Log(
+                        NormalizeAuditToken(source, "web"),
+                        "search_answer_composer",
+                        "fallback",
+                        $"reason=native_web_failure provider=deepseek model={capability.Model}"
+                    );
+                    return null;
+                }
+
+                var deepseekCitations = answer.Sources
+                    .Select((item, index) => new SearchCitationReference(
+                        $"c{index + 1}",
+                        item.Title,
+                        item.Url,
+                        string.Empty,
+                        string.Empty,
+                        "web"
+                    ))
+                    .ToArray();
+                _auditLogger.Log(
+                    NormalizeAuditToken(source, "web"),
+                    "search_answer_composer",
+                    "ok",
+                    $"route=native-deepseek-web model={answer.Model} sources={deepseekCitations.Length} elapsedMs={stopwatch.ElapsedMilliseconds}"
+                );
+                return new SearchAnswerCompositionResult(
+                    new LlmSingleChatResult("deepseek", answer.Model, answer.Text),
+                    "native-deepseek-web",
+                    string.IsNullOrWhiteSpace(decisionPath)
+                        ? null
+                        : new ChatLatencyMetrics(decisionMs, 0, 0, stopwatch.ElapsedMilliseconds, 0, $"{decisionPath}:native_deepseek_web"),
+                    deepseekCitations,
+                    null,
+                    SearchRetrieverPath.GeminiGrounding
+                );
+            }
+
             default:
                 // CLI 제공자(codex·copilot·grok)는 래퍼가 자체 검색을 수행하므로 여기서 가로채지 않는다.
                 return null;

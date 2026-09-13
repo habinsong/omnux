@@ -153,7 +153,8 @@ public sealed partial class CommandService
                 reasoningEffort: ProviderRequestTuningPolicy.BuildCliReasoningEffort(
                     ProviderCapabilityRegistry.Resolve("codex", selected),
                     tuning ?? LlmTuning.Default
-                )
+                ),
+                enableWebSearch: (tuning ?? LlmTuning.Default).WebSearch
             );
             return CompleteTokenUsage("codex", selected, input, response);
         }

@@ -191,7 +191,8 @@ public sealed class CodexCliWrapper
         bool useChatEnvelope = true,
         string? workingDirectoryOverride = null,
         bool useCodingProfile = false,
-        string reasoningEffort = ""
+        string reasoningEffort = "",
+        bool enableWebSearch = false
     )
     {
         var input = (prompt ?? string.Empty).Trim();
@@ -237,6 +238,14 @@ public sealed class CodexCliWrapper
             {
                 args.Add("-c");
                 args.Add($"model_reasoning_effort=\"{effort}\"");
+            }
+
+            // Codex CLI 는 기본이 web_search="cached" 라 최신 정보를 못 가져온다.
+            // 사용자가 웹 검색을 켰을 때만 live 로 올린다(공식 config 키, 2026-09 문서 확인).
+            if (enableWebSearch)
+            {
+                args.Add("-c");
+                args.Add("web_search=\"live\"");
             }
 
             args.Add("-a");

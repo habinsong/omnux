@@ -322,15 +322,13 @@ public sealed partial class CommandService
             return true;
         }
 
-        // 자체 주제가 분명한 새 질문이 아니면서 직전 어시스턴트 답변이 있는 짧은 후속 입력은
-        // 토픽 오버랩이 없어도 직전 맥락에 의존하므로 포함한다.
-        // 예: "대략 예측해봐", "최신 정보 가져온거야?", "코드로 보여줘" — 키워드/어휘 겹침이 없어
-        // 기존 휴리스틱이 놓치지만, 이어지는 대화에선 직전 답변을 기준으로 해석돼야 한다.
+        // 새 대상을 하나도 들고 오지 않은 입력은 길이와 상관없이 직전 맥락 위에서 해석돼야 한다.
+        // 예: "아까 방식 말고 다른 접근으로 다시 설명해줘", "코드로 보여줘", "대략 예측해봐".
+        // 반대로 최근 대화에 없던 주제어가 들어오면(예: 파이썬 얘기 뒤 "도커 컴포즈") 새 질문으로 본다.
         var normalizedFollowup = (input ?? string.Empty).Trim();
         if (normalizedFollowup.Length > 0
-            && normalizedFollowup.Length <= 80
-            && !ConversationContextPolicy.LooksLikeExplicitStandaloneQuestion(normalizedFollowup)
-            && HasAnyRecentAssistantMessage(conversationId))
+            && HasAnyRecentAssistantMessage(conversationId)
+            && !IntroducesNewTopicVersusRecentConversation(conversationId, normalizedFollowup))
         {
             return true;
         }

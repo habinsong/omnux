@@ -76,6 +76,14 @@ function main() {
     !registry.providers.nvidia.fallback.includes("openai/gpt-oss-120b"),
     "NVIDIA 에서 EOL 된 openai/gpt-oss-120b 는 목록에 두지 않는다"
   );
+  check(
+    registry.capabilities.providers.deepseek.every((rule) => rule.webSearch === "deepseek_web_search"),
+    "deepseek 은 Anthropic 호환 엔드포인트의 web_search 서버툴을 쓴다"
+  );
+  check(
+    registry.capabilities.providers.codex.every((rule) => rule.webSearch === "cli_native"),
+    "codex 는 CLI 자체 웹 검색을 쓴다"
+  );
 
   // ── 미들웨어가 능력표대로 라우팅한다 ──
   const composition = read("apps/omnux-middleware/src/CommandService.SearchAnswerComposition.cs");
@@ -94,6 +102,19 @@ function main() {
     composition.indexOf("TryComposeNativeProviderWebAnswerAsync")
       < composition.indexOf("_llmRouter.HasGeminiApiKey()"),
     "Gemini grounding 은 네이티브 경로 뒤의 폴백이어야 한다"
+  );
+
+  // 주력 제공자 3종(gemini·deepseek·codex)의 실제 배선이 살아 있는지
+  const deepseekSearch = read("apps/omnux-middleware/src/DeepseekWebSearch.cs");
+  check(deepseekSearch.includes("web_search_20250305"), "DeepSeek 서버툴 이름이 유지돼야 한다");
+  check(providers.includes("GenerateDeepseekNativeWebAnswerAsync"), "DeepSeek 네이티브 검색이 라우팅에 연결돼야 한다");
+  const codexWrapper = read("apps/omnux-middleware/src/CodexCliWrapper.cs");
+  check(codexWrapper.includes('web_search=\\"live\\"'), "Codex 는 검색을 켤 때 live 로 올려야 한다");
+  check(codexWrapper.includes("model_reasoning_effort"), "Codex 추론 강도 전달이 유지돼야 한다");
+  const chat = read("apps/omnux-middleware/src/CommandService.Chat.cs");
+  check(
+    chat.includes("providerSearchesOnItsOwn"),
+    "CLI 제공자는 검색 라우팅에 가로채이지 않고 자체 검색으로 답해야 한다"
   );
 
   const tuning = read("apps/omnux-middleware/src/LlmTuning.cs");
@@ -135,7 +156,6 @@ function main() {
   check(loop.includes("EnsureCodingTaskSignalsAsync"), "요청 성격을 요청당 1회 판정해야 한다");
 
   // ── 한국어 질의가 검색에서 빠지지 않는다 ──
-  const chat = read("apps/omnux-middleware/src/CommandService.Chat.cs");
   check(
     !chat.includes("!webDecision.DecisionSucceeded && SearchQueryPolicy.LooksLikeRealtimeQuestion"),
     "판정 실패 폴백이 영어 토큰에 걸려 있으면 안 된다"
