@@ -306,7 +306,7 @@ public sealed partial class CodingApplicationService
             -1,
             latest.Provider,
             latest.Model,
-            latest.Language,
+            ResolveRerunLanguage(latest.Language, latest.ChangedFiles),
             NormalizeStoredRunDirectory(latest.Execution.RunDirectory),
             NormalizeStoredEntryFile(latest.Execution.EntryFile),
             "main",
@@ -321,7 +321,7 @@ public sealed partial class CodingApplicationService
                 index,
                 worker.Provider,
                 worker.Model,
-                worker.Language,
+                ResolveRerunLanguage(worker.Language, worker.ChangedFiles),
                 NormalizeStoredRunDirectory(worker.Execution.RunDirectory),
                 NormalizeStoredEntryFile(worker.Execution.EntryFile),
                 $"worker-{index}",
@@ -362,6 +362,52 @@ public sealed partial class CodingApplicationService
         }
 
         return ordered.FirstOrDefault();
+    }
+
+    // 재실행에 쓸 언어. 검증은 셸로 돌리기 때문에 저장된 언어가 파이썬 프로젝트인데도 "bash" 로
+    // 남는다. 그 상태로는 진입 파일도 실행 명령도 못 만들어서 실행 버튼과 "실행해 줘" 요청이 둘 다
+    // "다시 실행할 명령을 구성하지 못했습니다" 로 끝났다(리눅스 실측). 변경 파일로 실제 언어를 찾는다.
+    private static readonly (string Extension, string Language)[] RerunLanguageByExtension =
+    {
+        (".py", "python"),
+        (".html", "html"),
+        (".mjs", "javascript"),
+        (".cjs", "javascript"),
+        (".js", "javascript"),
+        (".ts", "typescript"),
+        (".tsx", "typescript"),
+        (".go", "go"),
+        (".rs", "rust"),
+        (".rb", "ruby"),
+        (".php", "php"),
+        (".swift", "swift"),
+        (".c", "c"),
+        (".cpp", "cpp"),
+        (".cs", "csharp"),
+        (".java", "java"),
+        (".sh", "bash")
+    };
+
+    private static string ResolveRerunLanguage(string storedLanguage, IReadOnlyList<string>? changedFiles)
+    {
+        var normalized = CodingLanguagePolicy.NormalizeLanguageForCode(storedLanguage);
+        if (!string.IsNullOrWhiteSpace(normalized)
+            && !string.Equals(normalized, "bash", StringComparison.OrdinalIgnoreCase))
+        {
+            return normalized;
+        }
+
+        var files = changedFiles ?? Array.Empty<string>();
+        foreach (var (extension, language) in RerunLanguageByExtension)
+        {
+            if (files.Any(path => !string.IsNullOrWhiteSpace(path)
+                                  && path.EndsWith(extension, StringComparison.OrdinalIgnoreCase)))
+            {
+                return language;
+            }
+        }
+
+        return normalized;
     }
 
     private LatestCodingExecutionCommandPlan ResolveLatestCodingExecutionCommandPlan(LatestCodingExecutionTarget target)
