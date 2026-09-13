@@ -96,7 +96,79 @@ internal static class OpenAiCompatibleProtocol
             return $"{name} 결제 필요 ({statusInt}). 계정 크레딧이나 결제 수단을 확인하거나 다른 제공자를 골라 주세요.";
         }
 
-        return $"{name} 요청 실패: {statusInt}";
+        // 모델 이름이 틀렸을 때는 그렇게 말해 준다. 숫자만 주면 사용자도, 모델 체인도 원인을 모른다.
+        if (ProviderModelAvailabilityPolicy.LooksLikeUnknownModel(failureBody))
+        {
+            return $"{name} 모델을 찾을 수 없습니다 ({statusInt}). {SummarizeFailureBody(failureBody)}";
+        }
+
+        // 그 외 실패도 본문 요약을 함께 준다. 숫자만 던지면 사용자가 고칠 수 없다.
+        var summary = SummarizeFailureBody(failureBody);
+        return summary.Length == 0
+            ? $"{name} 요청 실패: {statusInt}"
+            : $"{name} 요청 실패: {statusInt} — {summary}";
+    }
+
+    /// <summary>실패 본문에서 사람이 읽을 부분만 짧게 뽑는다. JSON 이면 message 필드를 먼저 본다.</summary>
+    internal static string SummarizeFailureBody(string? failureBody)
+    {
+        var body = (failureBody ?? string.Empty).Trim();
+        if (body.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(body);
+            var root = document.RootElement;
+            if (root.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                if (root.TryGetProperty("error", out var error))
+                {
+                    if (error.ValueKind == System.Text.Json.JsonValueKind.String)
+                    {
+                        return Shorten(error.GetString());
+                    }
+
+                    if (error.ValueKind == System.Text.Json.JsonValueKind.Object
+                        && error.TryGetProperty("message", out var nested)
+                        && nested.ValueKind == System.Text.Json.JsonValueKind.String)
+                    {
+                        return Shorten(nested.GetString());
+                    }
+                }
+
+                if (root.TryGetProperty("message", out var message)
+                    && message.ValueKind == System.Text.Json.JsonValueKind.String)
+                {
+                    return Shorten(message.GetString());
+                }
+
+                if (root.TryGetProperty("detail", out var detail)
+                    && detail.ValueKind == System.Text.Json.JsonValueKind.String)
+                {
+                    return Shorten(detail.GetString());
+                }
+            }
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            // JSON 이 아니면 본문을 그대로 짧게 쓴다.
+        }
+
+        return Shorten(body);
+    }
+
+    private static string Shorten(string? value)
+    {
+        var text = (value ?? string.Empty).Replace("\r", " ", StringComparison.Ordinal).Replace("\n", " ", StringComparison.Ordinal).Trim();
+        while (text.Contains("  ", StringComparison.Ordinal))
+        {
+            text = text.Replace("  ", " ", StringComparison.Ordinal);
+        }
+
+        return text.Length <= 200 ? text : text[..200] + "…";
     }
 
     public static string DisplayName(string provider)
