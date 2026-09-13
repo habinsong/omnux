@@ -103,6 +103,49 @@ public sealed class ProviderRateLimitLedger
         return state;
     }
 
+    private readonly ConcurrentDictionary<string, (DateTimeOffset UntilUtc, string Reason)> _providerCooldowns =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 제공자 전체를 잠시 쓰지 않는다. 키가 없거나 크레딧이 없어서 나는 실패는 모델을 바꿔도 똑같으므로,
+    /// 그 제공자를 가용 목록에서 빼야 자동 선택·멀티 실행이 죽은 제공자를 계속 고르지 않는다.
+    /// </summary>
+    public void MarkProviderUnavailable(string provider, DateTimeOffset nowUtc, TimeSpan cooldown, string reason)
+    {
+        var key = (provider ?? string.Empty).Trim().ToLowerInvariant();
+        if (key.Length == 0)
+        {
+            return;
+        }
+
+        _providerCooldowns[key] = (nowUtc.Add(cooldown), string.IsNullOrWhiteSpace(reason) ? "unavailable" : reason);
+    }
+
+    public bool IsProviderCoolingDown(string provider, DateTimeOffset nowUtc)
+        => TryGetProviderCooldown(provider, nowUtc, out _);
+
+    public bool TryGetProviderCooldown(string provider, DateTimeOffset nowUtc, out string reason)
+    {
+        reason = string.Empty;
+        var key = (provider ?? string.Empty).Trim().ToLowerInvariant();
+        if (key.Length == 0 || !_providerCooldowns.TryGetValue(key, out var entry))
+        {
+            return false;
+        }
+
+        if (entry.UntilUtc <= nowUtc)
+        {
+            _providerCooldowns.TryRemove(key, out _);
+            return false;
+        }
+
+        reason = entry.Reason;
+        return true;
+    }
+
+    public void ClearProviderCooldown(string provider)
+        => _providerCooldowns.TryRemove((provider ?? string.Empty).Trim().ToLowerInvariant(), out _);
+
     public ProviderRateLimitState? TryGet(string provider, string model)
         => _states.TryGetValue(Key(provider, model), out var state) ? state : null;
 
@@ -150,5 +193,9 @@ public sealed class ProviderRateLimitLedger
             .ToArray();
     }
 
-    public void Clear() => _states.Clear();
+    public void Clear()
+    {
+        _states.Clear();
+        _providerCooldowns.Clear();
+    }
 }

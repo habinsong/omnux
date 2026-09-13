@@ -137,3 +137,41 @@ public sealed class ProviderModelChainPolicyTests
         }
     }
 }
+
+public sealed class ProviderAuthFailureClassificationTests
+{
+    [Theory]
+    [InlineData("Cerebras 결제 필요 (402). 계정 크레딧이나 결제 수단을 확인하거나 다른 제공자를 골라 주세요.")]
+    [InlineData("NVIDIA NIM 인증 실패 (403). API 키를 확인해 주세요.")]
+    [InlineData("Groq 요청 실패: 401")]
+    [InlineData("요청 실패: 402")]
+    public void BillingAndAuthFailuresAreFatalSoWeSwitchProvider(string text)
+    {
+        var kind = CodingProviderFailurePolicy.Classify(text);
+        Assert.Equal(CodingProviderFailureKind.Auth, kind);
+        Assert.True(CodingProviderFailurePolicy.IsFatal(kind));
+    }
+
+    [Fact]
+    public void RateLimitTextStaysRateLimitedNotAuth()
+    {
+        Assert.Equal(
+            CodingProviderFailureKind.RateLimited,
+            CodingProviderFailurePolicy.Classify("Groq 모델 한도에 도달했습니다. 잠시 후 다시 시도하세요.")
+        );
+    }
+
+    [Fact]
+    public void ProviderCooldownHidesTheProviderUntilItExpires()
+    {
+        var ledger = new ProviderRateLimitLedger();
+        var now = DateTimeOffset.UtcNow;
+        ledger.MarkProviderUnavailable("cerebras", now, TimeSpan.FromMinutes(10), "결제 필요 (402)");
+        Assert.True(ledger.TryGetProviderCooldown("cerebras", now, out var reason));
+        Assert.Contains("402", reason, StringComparison.Ordinal);
+        Assert.False(ledger.IsProviderCoolingDown("cerebras", now.AddMinutes(11)));
+        Assert.False(ledger.IsProviderCoolingDown("groq", now));
+        ledger.ClearProviderCooldown("cerebras");
+        Assert.False(ledger.IsProviderCoolingDown("cerebras", now));
+    }
+}

@@ -50,6 +50,19 @@ public sealed class ProviderRegistry
 
     public async Task<IReadOnlyList<ProviderAvailability>> GetAvailabilitySnapshotAsync(CancellationToken cancellationToken)
     {
+        var snapshot = await BuildAvailabilitySnapshotAsync(cancellationToken);
+        // 키가 있어도 크레딧이 없거나(402) 키가 무효면(401/403) 그 제공자는 지금 쓸 수 없다.
+        // 그 사실을 여기서 반영하지 않으면 자동 선택과 멀티 실행이 죽은 제공자를 계속 고른다.
+        var now = DateTimeOffset.UtcNow;
+        return snapshot
+            .Select(item => _llmRouter.RateLimits.TryGetProviderCooldown(item.Provider, now, out var reason)
+                ? item with { Available = false, Reason = reason }
+                : item)
+            .ToArray();
+    }
+
+    private async Task<IReadOnlyList<ProviderAvailability>> BuildAvailabilitySnapshotAsync(CancellationToken cancellationToken)
+    {
         var items = new List<ProviderAvailability>(7)
         {
             _llmRouter.HasGeminiApiKey()

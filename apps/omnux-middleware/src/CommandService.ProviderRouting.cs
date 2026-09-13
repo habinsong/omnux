@@ -229,7 +229,8 @@ public sealed partial class CommandService
         bool optimizeCodexForCoding = false,
         int? timeoutOverrideSeconds = null,
         Action<string>? streamCallback = null,
-        LlmTuning? tuning = null
+        LlmTuning? tuning = null,
+        int crossProviderHopsRemaining = 1
     )
     {
         var normalizedProvider = NormalizeProvider(provider, allowAuto: false);
@@ -242,7 +243,7 @@ public sealed partial class CommandService
         );
         if (chain.Count <= 1)
         {
-            return await GenerateByProviderOnModelAsync(
+            var single = await GenerateByProviderOnModelAsync(
                 normalizedProvider,
                 requestedModel,
                 input,
@@ -255,6 +256,21 @@ public sealed partial class CommandService
                 streamCallback,
                 tuning
             );
+            return CodingProviderFailurePolicy.Classify(single.Text) == CodingProviderFailureKind.Auth
+                ? await HandoffAfterProviderAuthFailureAsync(
+                    normalizedProvider,
+                    single,
+                    input,
+                    cancellationToken,
+                    maxOutputTokens,
+                    useRawCodexPrompt,
+                    codexWorkingDirectoryOverride,
+                    optimizeCodexForCoding,
+                    timeoutOverrideSeconds,
+                    tuning,
+                    crossProviderHopsRemaining
+                )
+                : single;
         }
 
         LlmSingleChatResult? lastRateLimited = null;
@@ -297,7 +313,25 @@ public sealed partial class CommandService
                 index == 0 ? streamCallback : null,
                 tuning
             );
-            if (CodingProviderFailurePolicy.Classify(result.Text) != CodingProviderFailureKind.RateLimited)
+            var failureKind = CodingProviderFailurePolicy.Classify(result.Text);
+            if (failureKind == CodingProviderFailureKind.Auth)
+            {
+                return await HandoffAfterProviderAuthFailureAsync(
+                    normalizedProvider,
+                    result,
+                    input,
+                    cancellationToken,
+                    maxOutputTokens,
+                    useRawCodexPrompt,
+                    codexWorkingDirectoryOverride,
+                    optimizeCodexForCoding,
+                    timeoutOverrideSeconds,
+                    tuning,
+                    crossProviderHopsRemaining
+                );
+            }
+
+            if (failureKind != CodingProviderFailureKind.RateLimited)
             {
                 return result;
             }
@@ -325,6 +359,66 @@ public sealed partial class CommandService
             streamCallback,
             tuning
         );
+    }
+
+    /// <summary>
+    /// 키가 없거나 크레딧이 없어서 난 실패는 같은 키로 다시 시도해도 똑같다. 그 제공자를 잠시 가용
+    /// 목록에서 빼고, 쓸 수 있는 다른 제공자로 한 번 이어받는다. 실패 문구를 답변으로 내보내는 것보다
+    /// 사용자가 원한 결과를 주는 편이 낫다(실측: Cerebras 402·NVIDIA 403 문구가 답변으로 나갔다).
+    /// </summary>
+    private async Task<LlmSingleChatResult> HandoffAfterProviderAuthFailureAsync(
+        string failedProvider,
+        LlmSingleChatResult failure,
+        string input,
+        CancellationToken cancellationToken,
+        int? maxOutputTokens,
+        bool useRawCodexPrompt,
+        string? codexWorkingDirectoryOverride,
+        bool optimizeCodexForCoding,
+        int? timeoutOverrideSeconds,
+        LlmTuning? tuning,
+        int crossProviderHopsRemaining
+    )
+    {
+        _llmRouter.RateLimits.MarkProviderUnavailable(
+            failedProvider,
+            DateTimeOffset.UtcNow,
+            TimeSpan.FromMinutes(10),
+            TrimForOutput(failure.Text, 120)
+        );
+        _auditLogger.Log("local", "provider_unavailable", "warn", $"provider={failedProvider} reason={TrimForOutput(failure.Text, 160)}");
+
+        if (crossProviderHopsRemaining <= 0)
+        {
+            return failure;
+        }
+
+        var substitute = await _providerRegistry.ResolveAutoProviderAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(substitute)
+            || substitute == "none"
+            || substitute.Equals(failedProvider, StringComparison.OrdinalIgnoreCase))
+        {
+            return failure;
+        }
+
+        Console.Error.WriteLine($"[provider-handoff] {failedProvider} 사용 불가 → {substitute} 로 이어받는다.");
+        var handoff = await GenerateByProviderSafeAsync(
+            substitute,
+            null,
+            input,
+            cancellationToken,
+            maxOutputTokens,
+            useRawCodexPrompt,
+            codexWorkingDirectoryOverride,
+            optimizeCodexForCoding,
+            timeoutOverrideSeconds,
+            streamCallback: null,
+            tuning: tuning,
+            crossProviderHopsRemaining: crossProviderHopsRemaining - 1
+        );
+        return CodingProviderFailurePolicy.Classify(handoff.Text) == CodingProviderFailureKind.None
+            ? handoff
+            : failure;
     }
 
     private async Task<LlmSingleChatResult> GenerateByProviderOnModelAsync(

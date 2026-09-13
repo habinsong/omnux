@@ -48,9 +48,13 @@ public static class CodingProviderFailurePolicy
             return CodingProviderFailureKind.RequestTooLarge;
         }
 
+        // 402(결제 필요)도 키·과금 문제라 같은 키로 다시 시도해 봐야 소용없다. 치명적 실패로 본다
+        // (실측: Cerebras 키에 크레딧이 없어 모든 모델이 402 로 막혀 있었고, 그 문구가 답변으로 나갔다).
         if (text.Contains("API 키가 설정되지 않았습니다", StringComparison.Ordinal)
             || text.Contains("인증 실패", StringComparison.Ordinal)
+            || text.Contains("결제 필요", StringComparison.Ordinal)
             || text.Contains("요청 실패: 401", StringComparison.Ordinal)
+            || text.Contains("요청 실패: 402", StringComparison.Ordinal)
             || text.Contains("요청 실패: 403", StringComparison.Ordinal))
         {
             return CodingProviderFailureKind.Auth;
