@@ -18,7 +18,11 @@ public static class ProviderModelAvailabilityPolicy
         "invalid model",
         "no such model",
         "요청 실패: 404",
-        "모델을 찾을 수 없"
+        "모델을 찾을 수 없",
+        // 아래 두 문구는 실측으로 확인한 제공자 오류 표현이다(DeepSeek 은 400 과 함께
+        // "The supported API model names are …, but you passed …" 를 돌려준다).
+        "supported api model names",
+        "but you passed"
     };
 
     /// <summary>실패 문구가 "그 모델이 없다"는 뜻인지. 일반적인 400/500 오류와 구분한다.</summary>

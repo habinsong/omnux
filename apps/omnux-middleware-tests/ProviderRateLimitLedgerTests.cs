@@ -189,6 +189,15 @@ public sealed class ProviderModelAvailabilityPolicyTests
         Assert.True(ProviderModelAvailabilityPolicy.LooksLikeUnknownModel(text));
     }
 
+    [Fact]
+    public void DeepseekStyleModelErrorIsRecognized()
+    {
+        // 실측 문구: 400 과 함께 지원 모델 목록을 돌려준다.
+        Assert.True(ProviderModelAvailabilityPolicy.LooksLikeUnknownModel(
+            "DeepSeek 요청 실패: 400 — The supported API model names are deepseek-flash, deepseek-v4-pro, but you passed foo."
+        ));
+    }
+
     [Theory]
     [InlineData("DeepSeek 요청 실패: 400")]
     [InlineData("Groq 모델 한도에 도달했습니다")]
