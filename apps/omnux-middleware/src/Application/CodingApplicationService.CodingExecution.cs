@@ -243,6 +243,17 @@ public sealed partial class CodingApplicationService
                     errors.Add($"Python 시스템 모듈 자동 설치 차단: host package manager 설치 금지 ({missingModule})");
                 }
 
+                // ModuleNotFoundError 의 이름이 프로젝트 안의 폴더·파일이면 외부 패키지가 아니다.
+                // 그걸 pip 로 설치하려 들면 `pip install src` 처럼 엉뚱한 빌드를 돌리다 실패해 작업이
+                // 통째로 깨진다(실측: 폴더로 나눈 플랫포머에서 'src' 설치 시도로 exit=1).
+                // 이때 필요한 건 설치가 아니라 실행 경로(PYTHONPATH·엔트리) 교정이다.
+                if (!string.IsNullOrWhiteSpace(missingModule)
+                    && IsLocalPythonModule(missingModule, workDir, new[] { workDir }))
+                {
+                    errors.Add($"Python 자동 설치 건너뜀: '{missingModule}' 은 프로젝트 안의 모듈입니다(설치 대상 아님)");
+                    return false;
+                }
+
                 var pythonPackage = ResolvePythonPackageName(missingModule);
                 if (!string.IsNullOrWhiteSpace(pythonPackage))
                 {
@@ -1216,6 +1227,15 @@ public sealed partial class CodingApplicationService
         }
 
         startInfo.Environment["SDL_AUDIODRIVER"] = startInfo.Environment.TryGetValue("SDL_AUDIODRIVER", out var sdlAudio) && !string.IsNullOrWhiteSpace(sdlAudio) ? sdlAudio : "dummy";
+
+        // 폴더로 나눈 프로젝트는 하위 폴더에서 실행하거나 tests/ 에서 패키지를 import 하는 순간
+        // ModuleNotFoundError 가 난다. 그러면 복구 로직이 그 이름을 외부 패키지로 보고 pip 로 설치하려
+        // 들다 작업이 통째로 깨졌다(실측: `pip install src` 가 wheel 빌드 실패). 작업 폴더를 모듈 경로에
+        // 넣어 애초에 그 오류가 나지 않게 한다.
+        var existingPythonPath = startInfo.Environment.TryGetValue("PYTHONPATH", out var pythonPath) ? pythonPath : string.Empty;
+        startInfo.Environment["PYTHONPATH"] = string.IsNullOrWhiteSpace(existingPythonPath)
+            ? workDir
+            : workDir + Path.PathSeparator + existingPythonPath;
 
         var normalizedCommand = RewritePythonInterpreterToWorkspaceVenv(NormalizePythonCommandForShell(command), workDir);
         if (OperatingSystem.IsWindows())
