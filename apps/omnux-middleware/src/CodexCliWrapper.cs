@@ -289,6 +289,11 @@ public sealed class CodexCliWrapper
             if (result.ExitCode != 0)
             {
                 var mergedError = NormalizeText($"{result.StdErr}\n{result.StdOut}");
+                if (LooksLikeMissingCodexBinary(result.ExitCode, mergedError))
+                {
+                    return BuildMissingCodexBinaryMessage();
+                }
+
                 return $"codex 요청 실패: {Trim(string.IsNullOrWhiteSpace(mergedError) ? "unknown error" : mergedError, 700)}";
             }
 
@@ -555,6 +560,33 @@ public sealed class CodexCliWrapper
         {
             return new ProcessResult(127, string.Empty, ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Codex CLI 자체가 없어서 실패한 경우인지. .NET 의 프로세스 시작 실패 메시지를 그대로
+    /// 올리면 사용자는 무엇을 해야 할지 알 수 없다.
+    /// </summary>
+    private static bool LooksLikeMissingCodexBinary(int exitCode, string mergedError)
+    {
+        if (exitCode != 127)
+        {
+            return false;
+        }
+
+        var text = (mergedError ?? string.Empty).ToLowerInvariant();
+        return text.Contains("no such file", StringComparison.Ordinal)
+            || text.Contains("not found", StringComparison.Ordinal)
+            || text.Contains("cannot find", StringComparison.Ordinal)
+            || text.Contains("error occurred trying to start process", StringComparison.Ordinal)
+            || text.Length == 0;
+    }
+
+    private static string BuildMissingCodexBinaryMessage()
+    {
+        return "Codex CLI 를 찾지 못했습니다. 설치한 뒤 로그인하면 이 제공자를 쓸 수 있습니다.\n"
+            + "- 설치: npm install -g @openai/codex\n"
+            + "- 로그인: codex login\n"
+            + "- 다른 경로에 설치했다면 OMNUX_CODEX_BIN 환경변수로 실행 파일 경로를 지정하세요.";
     }
 
     private static void TryKill(Process process)

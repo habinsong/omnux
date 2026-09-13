@@ -7,6 +7,9 @@ namespace Omnux.Middleware;
 
 public sealed partial class WebSocketGateway
 {
+    /// <summary>직전 코딩 실행이 정리될 때까지 기다려 주는 시간. 이어서 요청이 막히지 않게 한다.</summary>
+    private static readonly TimeSpan CodingRunHandoffGrace = TimeSpan.FromSeconds(3);
+
     private async Task HandleWebSocketAsync(HttpListenerContext context, CancellationToken cancellationToken)
     {
         WebSocket? socket = null;
@@ -244,8 +247,11 @@ public sealed partial class WebSocketGateway
                         await SendCodingTerminalAsync(socket, sendLock, message, "coding_request_active", "같은 요청이 실행 중입니다.", cancellationToken);
                         continue;
                     }
-                    if (!codingRun.TryStart(message.RequestId, token => RunCodingSessionCommandAsync(
-                            message, sessionId!, socket, sendLock, token, streamCts.Token)))
+                    if (!await codingRun.TryStartAfterGraceAsync(
+                            message.RequestId,
+                            token => RunCodingSessionCommandAsync(
+                                message, sessionId!, socket, sendLock, token, streamCts.Token),
+                            CodingRunHandoffGrace))
                     {
                         await SendCodingTerminalAsync(socket, sendLock, message, "error", "coding_busy: 진행 중인 작업을 완료하거나 중단한 뒤 다시 요청해 주세요.", cancellationToken);
                     }
