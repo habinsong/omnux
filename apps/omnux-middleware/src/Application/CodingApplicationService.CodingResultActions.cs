@@ -391,8 +391,14 @@ public sealed partial class CodingApplicationService
     private static string ResolveRerunLanguage(string storedLanguage, IReadOnlyList<string>? changedFiles)
     {
         var normalized = CodingLanguagePolicy.NormalizeLanguageForCode(storedLanguage);
-        if (!string.IsNullOrWhiteSpace(normalized)
-            && !string.Equals(normalized, "bash", StringComparison.OrdinalIgnoreCase))
+        // "bash" 는 검증 셸 기준, "auto"/"-" 는 아직 정해지지 않은 값이다. 둘 다 실행 명령을 만들 수
+        // 없으니 변경 파일에서 실제 언어를 찾는다(실측: lang=auto, entry 빈 값, 명령 빈 값이었다).
+        var undecided = string.IsNullOrWhiteSpace(normalized)
+                        || normalized.Equals("bash", StringComparison.OrdinalIgnoreCase)
+                        || normalized.Equals("auto", StringComparison.OrdinalIgnoreCase)
+                        || normalized.Equals("-", StringComparison.Ordinal)
+                        || normalized.Equals("unknown", StringComparison.OrdinalIgnoreCase);
+        if (!undecided)
         {
             return normalized;
         }
