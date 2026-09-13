@@ -178,7 +178,11 @@ public sealed partial class CodingApplicationService
         string? firstFile = null;
         if (shouldRunProgram)
         {
-            firstFile = TrySelectExplicitExecutionTargetPath(objectiveText, workspaceRoot, changedFiles);
+            var explicitTarget = TrySelectExplicitExecutionTargetPath(objectiveText, workspaceRoot, changedFiles);
+            if (!string.IsNullOrWhiteSpace(explicitTarget) && IsRunnableEntryCandidate(normalizedLanguage, explicitTarget))
+            {
+                firstFile = explicitTarget;
+            }
         }
 
         if (requestedPaths != null)
@@ -201,11 +205,17 @@ public sealed partial class CodingApplicationService
             }
         }
 
-        if (string.IsNullOrWhiteSpace(firstFile) && shouldRunProgram)
+        // 관례적인 진입 파일(main.py 등)을 먼저 본다. 예전에는 실행 검증일 때만 봐서,
+        // 게임처럼 실행 대신 스모크를 도는 경우 changedFiles 순서에 따라 requirements.txt 가 잡혔다.
+        if (string.IsNullOrWhiteSpace(firstFile))
         {
             firstFile = SelectEntryLikeChangedFile(normalizedLanguage, changedFiles);
         }
 
+        firstFile ??= changedFiles.FirstOrDefault(path =>
+            !string.IsNullOrWhiteSpace(path)
+            && File.Exists(path)
+            && IsRunnableEntryCandidate(normalizedLanguage, path));
         firstFile ??= changedFiles
             .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path) && File.Exists(path));
         if (string.IsNullOrWhiteSpace(firstFile))
