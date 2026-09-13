@@ -89,9 +89,10 @@ public sealed partial class CodingApplicationService
             }
         }
 
-        if (IsGameLikeCodingTask(objectiveText, normalizedLanguage) || IsInteractiveProgramObjective(objectiveText, normalizedLanguage))
+        var gameLikeObjective = IsGameLikeCodingTask(objectiveText, normalizedLanguage);
+        if (gameLikeObjective || IsInteractiveProgramObjective(objectiveText, normalizedLanguage))
         {
-            EvaluateGameQuality(objectiveText, normalizedLanguage, files, mergedSource, passed, failed);
+            EvaluateGameQuality(objectiveText, normalizedLanguage, files, mergedSource, passed, failed, gameLikeObjective);
         }
 
         if (IsFrontendLikeCodingTask(objectiveText, normalizedLanguage) || LooksLikeBrowserAppObjective(objectiveText))
@@ -205,27 +206,39 @@ public sealed partial class CodingApplicationService
         IReadOnlyList<string> files,
         string mergedSource,
         List<string> passed,
-        List<string> failed
+        List<string> failed,
+        bool gameLikeObjective
     )
     {
         if (language == "python")
         {
             if (LooksLikeInteractivePythonGameSource(files))
             {
-                passed.Add("Python 게임 입력/렌더링 루프 흔적 확인");
+                passed.Add("Python 입력/렌더링 루프 흔적 확인");
             }
-            else
+            else if (gameLikeObjective)
             {
                 failed.Add("Python 게임에 실제 입력 처리/렌더링 루프가 없습니다.");
             }
         }
 
-        if (mergedSource.Contains("print(") && !Regex.IsMatch(mergedSource, @"while\s+[^:\n]+:|requestanimationframe|pygame\.event\.get|addEventListener", RegexOptions.IgnoreCase))
+        // 이 검사는 게임 요청에만 쓴다. 게임이 아닌 대화형 앱(메모장 등)까지 걸면 억울하게 실패한다.
+        // 그리고 tkinter/curses 앱은 `while` 루프가 아니라 mainloop()·after()·getch() 로 돈다.
+        // 예전에는 그걸 못 알아보고, 헤드리스 점검 출력을 print 했다는 이유로 정상 앱을
+        // "print-only 시뮬레이션"으로 실패시켰다(실측: tkinter 메모 앱 quality_failed).
+        if (gameLikeObjective
+            && mergedSource.Contains("print(")
+            && !Regex.IsMatch(
+                mergedSource,
+                @"while\s+[^:\n]+:|requestanimationframe|pygame\.event\.get|addEventListener"
+                + @"|mainloop\s*\(|\.after\s*\(|getch\s*\(|nodelay\s*\(|curses\.wrapper|bind(?:_all)?\s*\(",
+                RegexOptions.IgnoreCase
+            ))
         {
             failed.Add("게임 요청이 print-only 시뮬레이션에 가깝습니다.");
         }
 
-        if (ContainsAny(objectiveText.ToLowerInvariant(), "tetris"))
+        if (ContainsAny(objectiveText.ToLowerInvariant(), "tetris", "테트리스"))
         {
             var checks = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
