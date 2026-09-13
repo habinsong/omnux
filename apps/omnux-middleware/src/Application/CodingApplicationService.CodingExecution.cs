@@ -625,49 +625,7 @@ public sealed partial class CodingApplicationService
         }
 
         var scriptDir = Path.GetDirectoryName(scriptPath) ?? string.Empty;
-        var modules = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (Match match in PythonImportRegex.Matches(text))
-        {
-            var parts = (match.Groups["mods"].Value ?? string.Empty)
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            foreach (var part in parts)
-            {
-                var tokenParts = part.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-                if (tokenParts.Length == 0)
-                {
-                    continue;
-                }
-
-                var token = tokenParts[0].Trim();
-                var rootParts = token.Split('.', StringSplitOptions.RemoveEmptyEntries);
-                if (rootParts.Length == 0)
-                {
-                    continue;
-                }
-
-                var root = rootParts[0].Trim();
-                if (!string.IsNullOrWhiteSpace(root))
-                {
-                    modules.Add(root);
-                }
-            }
-        }
-
-        foreach (Match match in PythonFromImportRegex.Matches(text))
-        {
-            var rootParts = (match.Groups["mod"].Value ?? string.Empty)
-                .Split('.', StringSplitOptions.RemoveEmptyEntries);
-            if (rootParts.Length == 0)
-            {
-                continue;
-            }
-
-            var root = rootParts[0].Trim();
-            if (!string.IsNullOrWhiteSpace(root))
-            {
-                modules.Add(root);
-            }
-        }
+        var modules = PythonImportScanPolicy.ExtractRootModules(text);
 
         var packages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var module in modules)
@@ -1062,7 +1020,7 @@ public sealed partial class CodingApplicationService
             return "설치 명령 없음";
         }
 
-        var matches = Regex.Matches(normalized, @"pip install(?:\s+--[\w-]+(?:[= ]\S+)?)*?\s+(?<args>[^;&|]+)");
+        var matches = Regex.Matches(normalized, @"pip install(?:\s+--[\w-]+(?:=\S+)?)*\s+(?<args>[^;&|]+)");
         if (matches.Count > 0)
         {
             var args = matches[^1].Groups["args"].Value.Trim();
