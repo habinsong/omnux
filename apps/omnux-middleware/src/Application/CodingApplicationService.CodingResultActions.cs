@@ -455,6 +455,8 @@ public sealed partial class CodingApplicationService
         var stderrLog = EscapeShellArg(Path.Combine(runDirectory, ".omnux-interactive-stderr.log"));
         return
             $"cd {workspaceSafe} && " +
+            // 모듈 확인이 작업공간 .venv 파이썬을 쓰므로 여기서 __omni_py 를 먼저 정의해야 한다.
+            $"{BuildPythonRunnerPrefixCommand()} && " +
             $"python3 -m py_compile {sourceArgs} && " +
             $"{moduleCheckCommand} && " +
             $"rm -f {stdoutLog} {stderrLog} && " +
@@ -488,6 +490,7 @@ public sealed partial class CodingApplicationService
         {
             return
                 $"cd {workspaceSafe} && " +
+                $"{BuildPythonRunnerPrefixCommand()} && " +
                 $"python3 -m py_compile {sourceArgs} && " +
                 $"{moduleCheckCommand} && " +
                 $"{{ nohup x-terminal-emulator -e sh -c {EscapeShellArg(terminalScript)} >/dev/null 2>&1 </dev/null & }} && " +
@@ -500,6 +503,7 @@ public sealed partial class CodingApplicationService
         );
         return
             $"cd {workspaceSafe} && " +
+            $"{BuildPythonRunnerPrefixCommand()} && " +
             $"python3 -m py_compile {sourceArgs} && " +
             $"{moduleCheckCommand} && " +
             $"osascript -e {activateStatement} -e {runStatement} >/dev/null && " +
