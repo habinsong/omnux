@@ -459,7 +459,13 @@ public sealed partial class CodingApplicationService
             var structuredHtmlCommand = TryBuildStructuredHtmlVerificationCommand(workspaceRoot, objectiveText, changedFiles, requestedPaths);
             if (!string.IsNullOrWhiteSpace(structuredHtmlCommand))
             {
-                return structuredHtmlCommand;
+                // 정적 검사만으로 끝내면 "파일이 있다"까지만 보고 지나간다. 프로젝트가 자기 테스트를
+                // 만들어 뒀으면 그것까지 실제로 돌려야 동작을 확인한 것이다(실측: 생성된 할 일 웹앱의
+                // 테스트가 전부 통과하는데도 검증은 ls·doctype·node --check 만 하고 통과 처리했다).
+                var webTestCommand = BuildJavaScriptTestFileRunCommand(workspaceRoot, changedFiles);
+                return string.IsNullOrWhiteSpace(webTestCommand)
+                    ? structuredHtmlCommand
+                    : $"{structuredHtmlCommand} && {webTestCommand}";
             }
 
             var htmlSmoke = TryBuildStaticHtmlPlaywrightSmokeCommand(workspaceRoot, changedFiles);
@@ -716,6 +722,36 @@ for ($i = 0; $i -lt $expected.Count; $i++) {
         }
 
         return string.Join(" && ", commands);
+    }
+
+    /// <summary>
+    /// 프로젝트가 만들어 둔 JS 테스트 파일을 직접 실행하는 명령. node:test 로 쓴 파일은 러너 없이
+    /// 그대로 실행된다. `npm test` 는 모델이 남긴 npm init 잔재("no test specified" → exit 1)를
+    /// 밟을 수 있어 쓰지 않는다. 파일이 없으면 빈 문자열(기존 동작 유지).
+    /// </summary>
+    private static string BuildJavaScriptTestFileRunCommand(string workspaceRoot, IReadOnlyCollection<string> changedFiles)
+    {
+        var testFiles = SelectChangedFilesByExtension(workspaceRoot, changedFiles, ".mjs", ".js", ".cjs")
+            .Where(IsJavaScriptTestFileName)
+            .Take(3)
+            .ToArray();
+        if (testFiles.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var runs = string.Join(" && ", testFiles.Select(path => $"node {EscapeShellArg(path)}"));
+        return OperatingSystem.IsWindows()
+            ? runs
+            : $"if command -v node >/dev/null 2>&1; then {runs}; else echo 'node 없음'; exit 1; fi";
+    }
+
+    private static bool IsJavaScriptTestFileName(string path)
+    {
+        var name = Path.GetFileName(path ?? string.Empty);
+        return name.Contains(".test.", StringComparison.OrdinalIgnoreCase)
+               || name.Contains(".spec.", StringComparison.OrdinalIgnoreCase)
+               || name.StartsWith("test_", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string TryBuildStaticHtmlPlaywrightSmokeCommand(string workspaceRoot, IReadOnlyCollection<string> changedFiles)
