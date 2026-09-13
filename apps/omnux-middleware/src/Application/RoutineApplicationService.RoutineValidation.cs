@@ -93,7 +93,7 @@ public sealed partial class RoutineApplicationService
             warnings.Add("요청은 웹/URL/API 작업처럼 보이지만 코드에 네트워크 접근 로직이 없습니다.");
         }
 
-        if (ContainsAny(loweredRequest, "파일", "저장", "csv", "json", "다운로드")
+        if (RoutineCodeIntentPolicy.RequiresFileOutputLogic(loweredRequest)
             && !ContainsAny(loweredCode, "open(", "write", "cat >", "tee ", "download", "curl -o", "out-file"))
         {
             warnings.Add("요청은 파일 생성/저장 작업처럼 보이지만 파일 출력 로직이 부족합니다.");
