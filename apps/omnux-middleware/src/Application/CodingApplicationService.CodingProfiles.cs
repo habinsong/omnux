@@ -569,7 +569,7 @@ public sealed partial class CodingApplicationService
                     lines.Add("- 단순 print 반복이나 턴제 로그 출력으로 끝내지 말고 실제 입력 처리, 렌더링, 상태 갱신이 있는 게임 루프를 구현하라");
                     lines.Add("- headless 검증을 위해 OMNI_HEADLESS_TEST=1이면 초기화, 핵심 객체 생성, 짧은 프레임 루프 후 종료하라");
                     lines.Add("- 일반 실행에서는 OMNI_HEADLESS_TEST 분기가 작동하지 않아야 하며 실제 게임 창과 메인 루프가 실행되어야 한다");
-                    if (ContainsAny(objective.ToLowerInvariant(), "tetris"))
+                    if (ContainsAny(objective.ToLowerInvariant(), "tetris", "테트리스"))
                     {
                         lines.Add("- tetris-like games must include a 10x20 board, piece shapes, move/rotate, collision, line clear, score, level, and game-over logic in real code");
                     }

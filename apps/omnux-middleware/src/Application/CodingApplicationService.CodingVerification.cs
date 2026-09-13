@@ -1360,7 +1360,8 @@ async function waitFor(url, deadlineMs = 12000) {
             "render"
         };
         var text = CodingLanguagePolicy.ExtractLatestCodingRequestText(WebUtility.HtmlDecode(objectiveText ?? string.Empty)).ToLowerInvariant();
-        if (ContainsAny(text, "tetris"))
+        // 한국어로 "테트리스"라고 쓰면 이 엄격 검사가 통째로 빠졌다. 표기와 무관하게 같은 기준을 적용한다.
+        if (ContainsAny(text, "tetris", "테트리스"))
         {
             requiredMarkers.AddRange(new[] { "board", "pieces", "rotation", "collision", "line_clear", "score", "level", "game_over" });
         }
