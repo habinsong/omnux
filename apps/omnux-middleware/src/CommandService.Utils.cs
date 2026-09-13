@@ -136,9 +136,12 @@ public sealed partial class CommandService
         bool includeLocalTimeHint = false,
         string? contextDecisionInput = null,
         string? autoReferenceBlock = null,
-        LlmTuning? tuning = null
+        LlmTuning? tuning = null,
+        string? provider = null
     )
     {
+        // 창이 큰 제공자(DeepSeek·Gemini)는 이력을 깎지 않는다. 나머지는 기존 예산을 그대로 쓴다.
+        var promptCharBudget = ProviderTokenBudgetPolicy.ResolveContextPromptChars(provider);
         var contextDecisionText = contextDecisionInput ?? input;
         var suppressPriorContext = SearchQueryPolicy.LooksLikeStandaloneFreshGreeting(contextDecisionText);
         var includePriorContext = !suppressPriorContext && ShouldUsePriorConversationContext(conversationId, contextDecisionText);
@@ -171,7 +174,8 @@ public sealed partial class CommandService
         {
             var historyRaw = _conversationStore.BuildHistoryText(conversationId, _context.ConversationHistoryMessages);
             // 컨텍스트 예산 선택(간결/기본/넓게)이 실제로 실리는 대화 분량을 바꾼다.
-            var historyBudget = (tuning ?? LlmTuning.Default).ScalePrompt(5200);
+            var historyBudget = (tuning ?? LlmTuning.Default)
+                .ScalePrompt(ProviderTokenBudgetPolicy.ResolveHistoryChars(provider));
             history = ConversationHistoryPolicy.BuildBudgetedContextHistory(historyRaw, historyBudget);
         }
 
@@ -240,23 +244,23 @@ public sealed partial class CommandService
         builder.AppendLine("[새 요청]");
         builder.AppendLine(input.Trim());
         var contextual = builder.ToString().Trim();
-        if (contextual.Length <= 8000)
+        if (contextual.Length <= promptCharBudget)
         {
             return contextual;
         }
 
-        // 8000자 초과 시 꼬리 잘림 대신: 규칙 블록 + 새 요청을 우선 보존하고
+        // 예산 초과 시 꼬리 잘림 대신: 규칙 블록 + 새 요청을 우선 보존하고
         // [최근 대화] 섹션만 축소.
         var requestMarker = "\n[새 요청]";
         var requestIdx = contextual.IndexOf(requestMarker, StringComparison.Ordinal);
         if (requestIdx < 0)
         {
-            return $"[context_truncated]\n{contextual[^8000..]}";
+            return $"[context_truncated]\n{contextual[^promptCharBudget..]}";
         }
 
         var headerAndHistory = contextual[..requestIdx];
         var requestSection = contextual[requestIdx..];
-        var availableForHeaderAndHistory = 8000 - requestSection.Length - 50;
+        var availableForHeaderAndHistory = promptCharBudget - requestSection.Length - 50;
 
         if (availableForHeaderAndHistory <= 200)
         {

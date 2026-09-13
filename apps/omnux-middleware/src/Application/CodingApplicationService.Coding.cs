@@ -246,7 +246,8 @@ public sealed partial class CodingApplicationService
             session.SessionId,
             thinkPlusPreText,
             session.LinkedMemoryNotes,
-            contextDecisionInput: rawInput
+            contextDecisionInput: rawInput,
+            provider: provider
         );
         var rawRequestedPaths = CodingFallbackPolicy.ExtractRequestedCodingPaths(rawInput, request.Language);
         AutonomousCodingOutcome outcome;

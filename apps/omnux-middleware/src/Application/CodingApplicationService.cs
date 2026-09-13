@@ -75,7 +75,8 @@ internal interface ICodingCommandGateway
         string input,
         IReadOnlyList<string>? requestMemoryNotes,
         bool includeLocalTimeHint = false,
-        string? contextDecisionInput = null
+        string? contextDecisionInput = null,
+        string? provider = null
     );
     (IReadOnlyList<SearchCitationSentenceMapping> Mappings, SearchCitationValidationSummary Validation) BuildAndLogCitationMappings(
         string source,
@@ -393,8 +394,9 @@ public sealed partial class CodingApplicationService : ICodingApplicationService
         string input,
         IReadOnlyList<string>? requestMemoryNotes,
         bool includeLocalTimeHint = false,
-        string? contextDecisionInput = null
-    ) => _gateway.BuildContextualInput(conversationId, input, requestMemoryNotes, includeLocalTimeHint, contextDecisionInput);
+        string? contextDecisionInput = null,
+        string? provider = null
+    ) => _gateway.BuildContextualInput(conversationId, input, requestMemoryNotes, includeLocalTimeHint, contextDecisionInput, provider);
 
     private (IReadOnlyList<SearchCitationSentenceMapping> Mappings, SearchCitationValidationSummary Validation) BuildAndLogCitationMappings(
         string source,

@@ -240,10 +240,18 @@ public sealed partial class CommandService
         string input,
         IReadOnlyList<string>? requestMemoryNotes,
         bool includeLocalTimeHint,
-        string? contextDecisionInput
+        string? contextDecisionInput,
+        string? provider
     )
     {
-        return Owner.BuildContextualInput(conversationId, input, requestMemoryNotes, includeLocalTimeHint, contextDecisionInput);
+        return Owner.BuildContextualInput(
+            conversationId,
+            input,
+            requestMemoryNotes,
+            includeLocalTimeHint,
+            contextDecisionInput,
+            provider: provider
+        );
     }
 
     (IReadOnlyList<SearchCitationSentenceMapping> Mappings, SearchCitationValidationSummary Validation) ICodingCommandGateway.BuildAndLogCitationMappings(

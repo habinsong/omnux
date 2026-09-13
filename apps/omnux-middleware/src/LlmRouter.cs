@@ -57,8 +57,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
     private GeminiUsage _geminiUsage = new();
     private readonly string _usageStatePath;
     private string _selectedGroqModel;
-    // DeepSeek 이 받아 주는 출력 예산 상한(실측 16384 통과). 추론 토큰이 여기에 포함된다.
-    private const int MaxDeepseekOutputTokens = 32768;
+    // DeepSeek 출력 예산 상한. 창이 200K 라 상한을 낮게 둘 이유가 없다(추론 토큰이 여기에 포함된다).
+    private const int MaxDeepseekOutputTokens = ProviderTokenBudgetPolicy.LargeWindowTokens;
 
     private readonly AsyncLocal<TokenUsage?> _responseTokenUsage = new();
 
@@ -546,7 +546,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
             model,
             systemPrompt,
             userInput,
-            tuning.ScaleOutput(2048)
+            ProviderTokenBudgetPolicy.ResolveOutputTokens("deepseek", tuning.ScaleOutput(2048))
         );
 
         try
@@ -1066,7 +1066,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         var geminiTuningExtras = geminiTuningExtrasList.Count == 0
             ? string.Empty
             : "," + string.Join(",", geminiTuningExtrasList);
-        var effectiveMaxOutputTokens = NormalizeMaxOutputTokens(
+        var effectiveMaxOutputTokens = NormalizeGeminiMaxOutputTokens(
             (tuning ?? LlmTuning.Default).ScaleOutput(maxOutputTokens),
             _context.ChatMaxOutputTokens
         );
@@ -1157,7 +1157,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         var streamTuningExtras = streamTuningExtrasList.Count == 0
             ? string.Empty
             : "," + string.Join(",", streamTuningExtrasList);
-        var effectiveMaxOutputTokens = NormalizeMaxOutputTokens(
+        var effectiveMaxOutputTokens = NormalizeGeminiMaxOutputTokens(
             streamTuning.ScaleOutput(maxOutputTokens),
             _context.ChatMaxOutputTokens
         );
@@ -1250,7 +1250,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
 
         var selectedModel = string.IsNullOrWhiteSpace(model) ? _providers.GeminiSearchModel : model.Trim();
         var endpoint = $"{_providers.GeminiBaseUrl.TrimEnd('/')}/models/{selectedModel}:generateContent";
-        var effectiveMaxOutputTokens = NormalizeMaxOutputTokens(maxOutputTokens, Math.Min(_context.ChatMaxOutputTokens, 4096));
+        var effectiveMaxOutputTokens = NormalizeGeminiMaxOutputTokens(maxOutputTokens, Math.Min(_context.ChatMaxOutputTokens, 4096));
         var effectiveTimeoutMs = ProviderTimeoutPolicy.NormalizeGeminiGroundedTimeoutMs(timeoutMs);
         var body = GeminiRequestPolicy.BuildGroundedBody(prompt, effectiveMaxOutputTokens);
 
@@ -1305,7 +1305,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         var selectedModel = string.IsNullOrWhiteSpace(model) ? _providers.GeminiSearchModel : model.Trim();
         var endpoint = $"{_providers.GeminiBaseUrl.TrimEnd('/')}/models/{selectedModel}:streamGenerateContent?alt=sse";
         var effectiveTuning = tuning ?? LlmTuning.Default;
-        var effectiveMaxOutputTokens = NormalizeMaxOutputTokens(
+        var effectiveMaxOutputTokens = NormalizeGeminiMaxOutputTokens(
             effectiveTuning.ScaleOutput(maxOutputTokens),
             Math.Min(_context.ChatMaxOutputTokens, 4096)
         );
@@ -1505,7 +1505,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
 
         var selectedModel = string.IsNullOrWhiteSpace(model) ? _providers.GeminiModel : model.Trim();
         var endpoint = $"{_providers.GeminiBaseUrl.TrimEnd('/')}/models/{selectedModel}:generateContent";
-        var effectiveMaxOutputTokens = NormalizeMaxOutputTokens(maxOutputTokens, Math.Min(_context.ChatMaxOutputTokens, 2048));
+        var effectiveMaxOutputTokens = NormalizeGeminiMaxOutputTokens(maxOutputTokens, Math.Min(_context.ChatMaxOutputTokens, 2048));
         var effectiveTimeoutMs = ProviderTimeoutPolicy.NormalizeGeminiGroundedTimeoutMs(timeoutMs);
         var stopwatch = Stopwatch.StartNew();
         var promptForTurn = prompt;
@@ -1611,7 +1611,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
 
         var selectedModel = string.IsNullOrWhiteSpace(model) ? _providers.GeminiModel : model.Trim();
         var endpoint = $"{_providers.GeminiBaseUrl.TrimEnd('/')}/models/{selectedModel}:streamGenerateContent?alt=sse";
-        var effectiveMaxOutputTokens = NormalizeMaxOutputTokens(maxOutputTokens, Math.Min(_context.ChatMaxOutputTokens, 2048));
+        var effectiveMaxOutputTokens = NormalizeGeminiMaxOutputTokens(maxOutputTokens, Math.Min(_context.ChatMaxOutputTokens, 2048));
         var effectiveTimeoutMs = ProviderTimeoutPolicy.NormalizeGeminiGroundedTimeoutMs(timeoutMs);
         var effectiveFirstChunkTimeoutMs = ProviderTimeoutPolicy.NormalizeGeminiUrlContextFirstChunkTimeoutMs(effectiveTimeoutMs);
         var body = GeminiRequestPolicy.BuildUrlContextBody(prompt, effectiveMaxOutputTokens, includeGoogleSearch);
@@ -1765,7 +1765,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
 
         var selectedModel = string.IsNullOrWhiteSpace(modelOverride) ? _providers.GeminiModel : modelOverride.Trim();
         var endpoint = $"{_providers.GeminiBaseUrl.TrimEnd('/')}/models/{selectedModel}:generateContent";
-        var effectiveMaxOutputTokens = NormalizeMaxOutputTokens(maxOutputTokens, _context.ChatMaxOutputTokens);
+        var effectiveMaxOutputTokens = NormalizeGeminiMaxOutputTokens(maxOutputTokens, _context.ChatMaxOutputTokens);
         var binaryAttachments = (attachments ?? Array.Empty<InputAttachment>())
             .Where(item => !string.IsNullOrWhiteSpace(item.DataBase64))
             .Take(6)
@@ -2276,7 +2276,11 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
     private int NormalizeDeepseekMaxOutputTokens(int requested)
     {
         var cap = Math.Max(_context.ChatMaxOutputTokens, _context.CodingMaxOutputTokens);
-        return Math.Clamp(NormalizeMaxOutputTokens(requested, cap), 256, MaxDeepseekOutputTokens);
+        return Math.Clamp(
+            NormalizeMaxOutputTokens(requested, cap, MaxDeepseekOutputTokens),
+            256,
+            MaxDeepseekOutputTokens
+        );
     }
 
     // NVIDIA·DeepSeek 등 OpenAI 호환 제공자가 공유하는 채팅 시스템 프롬프트.
@@ -2299,7 +2303,11 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         return Math.Clamp(NormalizeMaxOutputTokens(requested, Math.Min(_context.ChatMaxOutputTokens, 4096)), 256, 4096);
     }
 
-    private static int NormalizeMaxOutputTokens(int requested, int fallback)
+    private static int NormalizeMaxOutputTokens(
+        int requested,
+        int fallback,
+        int cap = ProviderTokenBudgetPolicy.DefaultOutputTokenCap
+    )
     {
         var value = requested > 0 ? requested : fallback;
         if (value <= 0)
@@ -2307,7 +2315,17 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
             value = 4096;
         }
 
-        return Math.Clamp(value, 256, 32768);
+        return Math.Clamp(value, 256, Math.Max(256, cap));
+    }
+
+    /// <summary>Gemini 는 컨텍스트 창이 커서 출력 예산을 기본 상한으로 깎지 않는다.</summary>
+    private static int NormalizeGeminiMaxOutputTokens(int requested, int fallback)
+    {
+        return NormalizeMaxOutputTokens(
+            requested,
+            fallback,
+            ProviderTokenBudgetPolicy.ResolveOutputTokenCap("gemini")
+        );
     }
 
     private static bool IsImageAttachment(InputAttachment attachment)

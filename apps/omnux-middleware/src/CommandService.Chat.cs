@@ -541,7 +541,12 @@ public sealed partial class CommandService
             );
         }
 
-        var singleMaxOutputTokens = ChatRetryGuardPolicy.ResolveSingleChatMaxOutputTokens(rawInput);
+        // 창이 큰 제공자는 추론 토큰이 출력 예산 안에 들어간다. 휴리스틱 예산(2~4K)을 그대로 주면
+        // 추론이 예산을 다 먹고 본문이 비어 온다.
+        var singleMaxOutputTokens = ProviderTokenBudgetPolicy.ResolveOutputTokens(
+            requestedProvider,
+            ChatRetryGuardPolicy.ResolveSingleChatMaxOutputTokens(rawInput)
+        );
         var effectiveSingleToken = singleRequestToken;
         var singleGenerationProvider = requestedProvider;
         var singleGenerationModel = resolvedModel;
@@ -626,7 +631,8 @@ public sealed partial class CommandService
             includeLocalTimeHint: true,
             contextDecisionInput: rawInput,
             autoReferenceBlock: autoRetrieval.Block,
-            tuning: LlmTuning.From(request.ReasoningEffort, request.ContextBudget)
+            tuning: LlmTuning.From(request.ReasoningEffort, request.ContextBudget),
+            provider: requestedProvider
         );
         LlmSingleChatResult generated;
         try

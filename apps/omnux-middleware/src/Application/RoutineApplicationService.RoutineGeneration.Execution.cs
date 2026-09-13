@@ -22,7 +22,10 @@ public sealed partial class RoutineApplicationService
                 model,
                 prompt,
                 cancellationToken,
-                Math.Min(_context.CodingMaxOutputTokens, 2800)
+                ProviderTokenBudgetPolicy.ResolveOutputTokens(
+                    strategy.Provider,
+                    Math.Min(_context.CodingMaxOutputTokens, 2800)
+                )
             );
             chunks.Add($"[{model}]\n{generated.Text}");
         }
@@ -70,7 +73,10 @@ public sealed partial class RoutineApplicationService
             model,
             objective,
             cancellationToken,
-            Math.Min(_context.CodingMaxOutputTokens, 4200)
+            ProviderTokenBudgetPolicy.ResolveOutputTokens(
+                strategy.Provider,
+                Math.Min(_context.CodingMaxOutputTokens, 4200)
+            )
         );
         var parsed = ParseRoutineGenerationCandidate(generated.Text);
         if (!string.IsNullOrWhiteSpace(parsed.OriginalCode) && RoutineCodeNeedsRepair(parsed.Language, parsed.Code))

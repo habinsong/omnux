@@ -186,6 +186,26 @@ public sealed partial class CodingApplicationService
             )
         };
 
+        // DeepSeek·Gemini 는 창이 200K 라 계획 예산을 1200~3200 으로 깎을 이유가 없다. 특히 DeepSeek 은
+        // 추론 토큰이 출력 예산 안에 들어가서 2400 을 주면 추론만 하다 계획이 비어 온다(실측).
+        // 예산을 늘리면 응답도 그만큼 늦어지므로 호출 제한시간을 함께 올린다.
+        if (ProviderTokenBudgetPolicy.HasLargeWindow(normalizedProvider))
+        {
+            baseProfile = baseProfile with
+            {
+                PlanMaxOutputTokens = ProviderTokenBudgetPolicy.ResolveOutputTokens(
+                    normalizedProvider,
+                    baseProfile.PlanMaxOutputTokens
+                ),
+                RequestTimeoutSeconds = Math.Max(
+                    baseProfile.RequestTimeoutSeconds,
+                    normalizedProvider.Equals("deepseek", StringComparison.OrdinalIgnoreCase)
+                        ? Math.Max(180, _providers.DeepseekTimeoutSec)
+                        : 120
+                )
+            };
+        }
+
         return ApplyLanguageSpecificCodingProfile(baseProfile, objective, languageHint, requestedPaths);
     }
 
@@ -407,6 +427,11 @@ public sealed partial class CodingApplicationService
     private int ResolveDirectGenerationMaxOutputTokens(CodingExecutionProfile profile, bool bundleMode)
     {
         var configured = Math.Max(900, _context.CodingMaxOutputTokens);
+        if (ProviderTokenBudgetPolicy.HasLargeWindow(profile.Provider))
+        {
+            return ProviderTokenBudgetPolicy.ResolveOutputTokens(profile.Provider, configured);
+        }
+
         return profile.Provider switch
         {
             "groq" when IsGroqCompoundLikeCodingModel(profile.Model) => Math.Min(configured, bundleMode ? 1400 : 1200),
@@ -426,6 +451,11 @@ public sealed partial class CodingApplicationService
     private int ResolveDraftGenerationMaxOutputTokens(CodingExecutionProfile profile)
     {
         var configured = Math.Max(1000, _context.CodingMaxOutputTokens);
+        if (ProviderTokenBudgetPolicy.HasLargeWindow(profile.Provider))
+        {
+            return ProviderTokenBudgetPolicy.ResolveOutputTokens(profile.Provider, configured);
+        }
+
         return profile.Provider switch
         {
             "groq" when IsGroqCompoundLikeCodingModel(profile.Model) => Math.Min(configured, 1400),

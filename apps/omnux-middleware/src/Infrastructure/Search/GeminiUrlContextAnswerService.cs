@@ -257,12 +257,16 @@ internal sealed class GeminiUrlContextAnswerService
         return await loader.TryLoadAsync(input, urls, cancellationToken);
     }
 
+    // 위 웹 답변 예산과 같은 이유로 여기서도 깎지 않는다(잘린 응답 = 출처 유실).
     private int ResolveGeminiUrlContextMaxOutputTokens(string input)
     {
-        return SearchPromptPolicy.ResolveGeminiUrlContextMaxOutputTokens(
-            input,
-            _context.WebDefaultNewsCount,
-            _context.WebDefaultListCount
+        return ProviderTokenBudgetPolicy.ResolveOutputTokens(
+            "gemini",
+            SearchPromptPolicy.ResolveGeminiUrlContextMaxOutputTokens(
+                input,
+                _context.WebDefaultNewsCount,
+                _context.WebDefaultListCount
+            )
         );
     }
 

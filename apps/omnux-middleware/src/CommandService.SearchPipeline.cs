@@ -444,12 +444,18 @@ public sealed partial class CommandService
         );
     }
 
+    // 예산이 답변 길이를 늘리지는 않는다. 짧게 잡으면 추론 토큰에 밀려 답변이 잘리고,
+    // 마지막 SSE 이벤트에 실려 오는 groundingMetadata(출처)까지 함께 사라진다(실측: 추론 강도 high 에서
+    // 답변 77자 + 출처 0). Gemini 는 창이 크니 여기서 깎지 않는다.
     private int ResolveGeminiWebAnswerMaxOutputTokens(string input)
     {
-        return SearchPromptPolicy.ResolveGeminiWebAnswerMaxOutputTokens(
-            input,
-            _context.WebDefaultNewsCount,
-            _context.WebDefaultListCount
+        return ProviderTokenBudgetPolicy.ResolveOutputTokens(
+            "gemini",
+            SearchPromptPolicy.ResolveGeminiWebAnswerMaxOutputTokens(
+                input,
+                _context.WebDefaultNewsCount,
+                _context.WebDefaultListCount
+            )
         );
     }
 

@@ -31,7 +31,8 @@ public static class DeepseekWebSearchParser
         var builder = new StringBuilder();
         builder.Append('{');
         builder.Append($"\"model\":\"{EscapeJson(model)}\",");
-        builder.Append($"\"max_tokens\":{Math.Clamp(maxTokens, 256, 8192)},");
+        // DeepSeek 은 추론 토큰이 max_tokens 안에 들어간다. 8192 로 묶으면 긴 검색 답변이 잘린다.
+        builder.Append($"\"max_tokens\":{Math.Clamp(maxTokens, 256, ProviderTokenBudgetPolicy.LargeWindowTokens)},");
         if (!string.IsNullOrWhiteSpace(systemPrompt))
         {
             builder.Append($"\"system\":\"{EscapeJson(systemPrompt)}\",");
