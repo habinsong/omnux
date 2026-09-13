@@ -669,6 +669,13 @@ public sealed partial class CodingApplicationService
                 continue;
             }
 
+            // `__future__`, `__main__` 같은 특수 모듈은 설치 대상이 아니다(실측: pip 가
+            // "Invalid requirement: '__future__'" 로 실패했다).
+            if (module.StartsWith("__", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
             // 프로젝트 루트도 함께 본다. tests/ 아래 파일이 루트의 main.py 나 guess_game/ 을
             // import 하면, 예전에는 그 이름을 외부 패키지로 보고 pip install 을 시도해 실패했다(실측).
             if (IsLocalPythonModule(module, scriptDir, extraLocalRoots))
@@ -689,7 +696,8 @@ public sealed partial class CodingApplicationService
     /// <summary>모듈 이름이 프로젝트 안의 파일·폴더인지. 어느 한 뿌리에서라도 찾히면 외부 패키지가 아니다.</summary>
     private static bool IsLocalPythonModule(string module, string scriptDir, IReadOnlyList<string> extraLocalRoots)
     {
-        foreach (var root in new[] { scriptDir }.Concat(extraLocalRoots ?? Array.Empty<string>()))
+        var roots = new[] { scriptDir }.Concat(extraLocalRoots ?? Array.Empty<string>()).ToArray();
+        foreach (var root in roots)
         {
             if (string.IsNullOrWhiteSpace(root))
             {
@@ -702,7 +710,53 @@ public sealed partial class CodingApplicationService
             }
         }
 
+        // 폴더로 나눈 프로젝트에서는 형제 폴더의 모듈을 import 한다(src/rendering 에서 src/settings.py).
+        // 바로 위 뿌리만 보면 그런 모듈을 외부 패키지로 착각해 pip 로 설치하려다 실패한다(실측:
+        // 'settings', 'tile' 설치 시도). 프로젝트 안을 한 번 훑어본다.
+        foreach (var root in roots)
+        {
+            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+            {
+                continue;
+            }
+
+            try
+            {
+                foreach (var candidate in Directory.EnumerateFiles(root, module + ".py", SearchOption.AllDirectories))
+                {
+                    if (!IsIgnoredLocalModulePath(candidate))
+                    {
+                        return true;
+                    }
+                }
+
+                foreach (var candidate in Directory.EnumerateDirectories(root, module, SearchOption.AllDirectories))
+                {
+                    if (!IsIgnoredLocalModulePath(candidate)
+                        && File.Exists(Path.Combine(candidate, "__init__.py")))
+                    {
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                // 탐색 실패는 치명적이지 않다. 외부 패키지로 보고 넘어간다.
+            }
+        }
+
         return false;
+    }
+
+    /// <summary>가상환경·캐시 폴더 안에서 찾은 건 프로젝트 모듈이 아니다.</summary>
+    private static bool IsIgnoredLocalModulePath(string path)
+    {
+        var normalized = (path ?? string.Empty).Replace('\\', '/');
+        return normalized.Contains("/.venv/", StringComparison.OrdinalIgnoreCase)
+               || normalized.Contains("/venv/", StringComparison.OrdinalIgnoreCase)
+               || normalized.Contains("/site-packages/", StringComparison.OrdinalIgnoreCase)
+               || normalized.Contains("/__pycache__/", StringComparison.OrdinalIgnoreCase)
+               || normalized.Contains("/node_modules/", StringComparison.OrdinalIgnoreCase);
     }
 
     private static List<string> ExtractNodePackagesFromSource(string scriptPath)
