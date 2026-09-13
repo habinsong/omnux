@@ -265,7 +265,11 @@ public sealed partial class CodingApplicationService
                 var pythonFiles = sourceFiles.Length > 0
                     ? sourceFiles.Select(path => ResolveWorkspacePath(workspaceRoot, path)).Where(File.Exists).ToArray()
                     : new[] { firstFile };
-                var gameQualityCommand = BuildPythonGameStaticQualityCommand(objectiveText, pythonFiles);
+                var gameQualityCommand = BuildPythonGameStaticQualityCommand(
+                    objectiveText,
+                    pythonFiles,
+                    IsGameLikeCodingTask(objectiveText, normalizedLanguage)
+                );
                 if (!LooksLikeInteractivePythonGameSource(pythonFiles))
                 {
                     var message = "interactive python game must include real event handling/render loop; print-only simulation is insufficient";
@@ -1448,14 +1452,18 @@ async function waitFor(url, deadlineMs = 12000) {
         return $"{runner} -c {EscapeShellArg(script)} {JoinShellArgs(modules)}";
     }
 
-    private static string BuildPythonGameStaticQualityCommand(string objectiveText, IEnumerable<string> sourceFiles)
+    private static string BuildPythonGameStaticQualityCommand(
+        string objectiveText,
+        IEnumerable<string> sourceFiles,
+        bool gameLikeObjective = true
+    )
     {
-        var requiredMarkers = new List<string>
-        {
-            "loop",
-            "events",
-            "render"
-        };
+        // 게임이 아닌 대화형 앱(tkinter 메모장 등)에 게임 기준을 들이대면 멀쩡한 앱이 떨어진다.
+        // tkinter 는 while 루프도 pygame 렌더도 쓰지 않는다(실측: "print-only simulation is
+        // insufficient; missing game feature marker: loop/render" 로 exit=1).
+        var requiredMarkers = gameLikeObjective
+            ? new List<string> { "loop", "events", "render" }
+            : new List<string> { "loop" };
         var text = CodingLanguagePolicy.ExtractLatestCodingRequestText(WebUtility.HtmlDecode(objectiveText ?? string.Empty)).ToLowerInvariant();
         // 한국어로 "테트리스"라고 쓰면 이 엄격 검사가 통째로 빠졌다. 표기와 무관하게 같은 기준을 적용한다.
         if (ContainsAny(text, "tetris", "테트리스"))
@@ -1466,13 +1474,14 @@ async function waitFor(url, deadlineMs = 12000) {
         const string script = """
 import pathlib, re, sys
 markers = set(sys.argv[1].split(",")) if len(sys.argv) > 1 and sys.argv[1] else set()
-paths = [pathlib.Path(p) for p in sys.argv[2:]]
+game_like = sys.argv[2] == "1"
+paths = [pathlib.Path(p) for p in sys.argv[3:]]
 source = "\n".join(p.read_text(encoding="utf-8", errors="ignore") for p in paths if p.exists()).lower()
 fail = []
 checks = {
-    "loop": r"while\s+[^:\n]+:|for\s+\w+\s+in\s+range\s*\(",
+    "loop": r"while\s+[^:\n]+:|for\s+\w+\s+in\s+range\s*\(|mainloop\s*\(|\.after\s*\(|getch\s*\(|nodelay\s*\(|curses\.wrapper",
     "events": r"pygame\.event\.get|key\.get_pressed|getch\s*\(|bind\s*\(|onkey\s*\(",
-    "render": r"pygame\.display\.flip|pygame\.display\.update|pygame\.draw\.|canvas|screen\.update|refresh\s*\(",
+    "render": r"pygame\.display\.flip|pygame\.display\.update|pygame\.draw\.|canvas|screen\.update|refresh\s*\(|mainloop\s*\(|\.(pack|grid|place)\s*\(|addstr\s*\(",
     "board": r"10\s*,\s*20|cols\s*=\s*10|rows\s*=\s*20|width\s*=\s*10|height\s*=\s*20|board",
     "pieces": r"shape|tetromino|pieces?|blocks?|블록",
     "rotation": r"rotat|회전",
@@ -1482,7 +1491,7 @@ checks = {
     "level": r"level|레벨",
     "game_over": r"game_over|game over|게임\s*오버"
 }
-if source.count("print(") > 0 and not re.search(checks["loop"], source):
+if game_like and source.count("print(") > 0 and not re.search(checks["loop"], source):
     fail.append("print-only simulation is insufficient")
 for marker in sorted(markers):
     if marker in checks and not re.search(checks[marker], source):
@@ -1491,7 +1500,10 @@ if fail:
     print("; ".join(fail), file=sys.stderr)
     sys.exit(1)
 """;
-        return $"python3 -c {EscapeShellArg(script)} {EscapeShellArg(string.Join(",", requiredMarkers.Distinct(StringComparer.OrdinalIgnoreCase)))} {JoinShellArgs(sourceFiles.Select(path => path))}";
+        return $"python3 -c {EscapeShellArg(script)}"
+               + $" {EscapeShellArg(string.Join(",", requiredMarkers.Distinct(StringComparer.OrdinalIgnoreCase)))}"
+               + $" {EscapeShellArg(gameLikeObjective ? "1" : "0")}"
+               + $" {JoinShellArgs(sourceFiles.Select(path => path))}";
     }
 
     /// <summary>
