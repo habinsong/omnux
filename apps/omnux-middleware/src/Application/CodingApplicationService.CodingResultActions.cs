@@ -75,8 +75,13 @@ public sealed partial class CodingApplicationService
         CodingResultExecutionResult executed;
         try
         {
-            executed = await ExecuteLatestCodingResultAsync(session.Thread.Id, null, cancellationToken)
-                .ConfigureAwait(false);
+            executed = await ExecuteLatestCodingResultCoreAsync(
+                session.Thread.Id,
+                null,
+                cancellationToken,
+                null,
+                acquireProjectLease: false
+            ).ConfigureAwait(false);
         }
         catch (InvalidOperationException ex)
         {
@@ -116,11 +121,29 @@ public sealed partial class CodingApplicationService
         );
     }
 
-    public async Task<CodingResultExecutionResult> ExecuteLatestCodingResultAsync(
+    public Task<CodingResultExecutionResult> ExecuteLatestCodingResultAsync(
         string conversationId,
         string? standardInput,
         CancellationToken cancellationToken,
         string? preferredTarget = null
+    ) => ExecuteLatestCodingResultCoreAsync(
+        conversationId,
+        standardInput,
+        cancellationToken,
+        preferredTarget,
+        acquireProjectLease: true
+    );
+
+    /// <summary>
+    /// 실행 본체. 빌드 요청 안에서 불릴 때는 이미 같은 대화의 실행 락을 쥐고 있으므로
+    /// 락을 다시 잡지 않는다(다시 잡으면 "다른 작업이 진행 중"으로 자기 자신에게 막힌다).
+    /// </summary>
+    private async Task<CodingResultExecutionResult> ExecuteLatestCodingResultCoreAsync(
+        string conversationId,
+        string? standardInput,
+        CancellationToken cancellationToken,
+        string? preferredTarget,
+        bool acquireProjectLease
     )
     {
         var normalizedConversationId = (conversationId ?? string.Empty).Trim();
@@ -138,7 +161,9 @@ public sealed partial class CodingApplicationService
         var project = conversation.CodingProject;
         var directProject = project != null && IsPathUnderRoot(target.RunDirectory, project.Path)
             ? _projectBindings.Resolve(null, project) : null;
-        using var projectLease = _projectBindings.Acquire(directProject, normalizedConversationId);
+        using var projectLease = acquireProjectLease
+            ? _projectBindings.Acquire(directProject, normalizedConversationId)
+            : null;
         var normalizedLanguage = CodingLanguagePolicy.NormalizeLanguageForCode(target.Language);
 
         if (string.Equals(normalizedLanguage, "html", StringComparison.OrdinalIgnoreCase))
