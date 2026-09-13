@@ -345,6 +345,52 @@ public sealed partial class CommandService
                && thread.Messages.Any(m => m.Role.Equals("assistant", StringComparison.OrdinalIgnoreCase));
     }
 
+    /// <summary>
+    /// 이번 입력이 최근 대화에 없던 주제어를 새로 들고 왔는지.
+    /// "이거 맞아?" 같은 순수 되묻기는 false, "도커 최신 버전은?" 처럼 새 대상이 들어오면 true.
+    /// 되묻기 우회(웹검색 생략)를 여기에 걸어, 새 주제를 물었는데 검색을 건너뛰는 일을 막는다.
+    /// </summary>
+    private bool IntroducesNewTopicVersusRecentConversation(string conversationId, string input)
+    {
+        var inputTokens = ConversationContextPolicy.ExtractContextTokens(input);
+        if (inputTokens.Count == 0)
+        {
+            return false;
+        }
+
+        var thread = _conversationStore.Get(conversationId);
+        if (thread == null || thread.Messages.Count == 0)
+        {
+            return true;
+        }
+
+        var recentTokens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var message in thread.Messages
+                     .OrderByDescending(item => item.CreatedUtc)
+                     .Take(8))
+        {
+            foreach (var token in ConversationContextPolicy.ExtractContextTokens(message.Text ?? string.Empty))
+            {
+                recentTokens.Add(token);
+            }
+        }
+
+        foreach (var token in inputTokens)
+        {
+            if (!ConversationContextPolicy.IsSubstantialTopicToken(token))
+            {
+                continue;
+            }
+
+            if (!recentTokens.Any(known => ConversationContextPolicy.TokensReferToSameThing(token, known)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private bool HasTopicalOverlapWithRecentConversation(string conversationId, string input)
     {
         var inputTokens = ConversationContextPolicy.ExtractContextTokens(input);

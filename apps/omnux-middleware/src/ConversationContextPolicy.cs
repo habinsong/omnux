@@ -87,7 +87,10 @@ internal static class ConversationContextPolicy
             return false;
         }
 
+        // 자체 주제가 있고 물음표가 있거나 문장이 어느 정도 길면, 어떤 언어로 쓰였든 독립 질문으로 본다.
+        // 예전에는 영어 의문사(what/how/why/explain)만 봐서 한국어 독립 질문이 늘 "후속"으로 분류됐다.
         return HasQuestionMark(text)
+               || text.Length >= 25
                || ContainsAny(text, "what", "how", "why", "explain");
     }
 
@@ -119,7 +122,7 @@ internal static class ConversationContextPolicy
             return false;
         }
 
-        var shared = left.Where(right.Contains).ToArray();
+        var shared = left.Where(token => right.Any(other => TokensReferToSameThing(token, other))).ToArray();
         if (shared.Length == 0)
         {
             return false;
@@ -131,6 +134,85 @@ internal static class ConversationContextPolicy
         }
 
         return shared.Length >= minimumShared;
+    }
+
+    /// <summary>
+    /// 두 토큰이 같은 대상을 가리키는지. 정확히 같거나, 한쪽이 다른 쪽의 접두사면 같은 것으로 본다.
+    ///
+    /// 한국어는 조사가 붙어 "파이썬"과 "파이썬으로"가 다른 토큰이 된다. 정확 일치만 보면 이어지는
+    /// 한국어 질문에서 겹치는 주제를 늘 놓쳤다. 영어의 복수형("python"/"pythons")도 같은 문제다.
+    /// 접두사 길이 하한을 둬서 "파일"·"cat" 같은 짧은 낱말이 아무 데나 붙는 것은 막는다.
+    /// </summary>
+    /// <summary>
+    /// 그 자체로 "무엇에 대한 질문인지"를 담는 토큰인지. 조사·의문사 같은 짧은 낱말은 제외한다.
+    /// 한글·한자·가나는 한 글자의 정보량이 커서 3자, 알파벳은 4자부터 본다.
+    /// </summary>
+    public static bool IsSubstantialTopicToken(string token)
+    {
+        var normalized = (token ?? string.Empty).Trim();
+        if (normalized.Length == 0 || IsContextStopToken(normalized))
+        {
+            return false;
+        }
+
+        if (normalized.Any(char.IsDigit)
+            || normalized.Contains('-', StringComparison.Ordinal)
+            || normalized.Contains('.', StringComparison.Ordinal)
+            || normalized.Contains('/', StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return normalized.Length >= (HasDenseScript(normalized) ? 3 : 4);
+    }
+
+    public static bool TokensReferToSameThing(string left, string right)
+    {
+        var a = (left ?? string.Empty).Trim();
+        var b = (right ?? string.Empty).Trim();
+        if (a.Length == 0 || b.Length == 0)
+        {
+            return false;
+        }
+
+        if (string.Equals(a, b, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var shorter = a.Length <= b.Length ? a : b;
+        var longer = a.Length <= b.Length ? b : a;
+        if (!longer.StartsWith(shorter, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        // 음절 하나가 정보량이 큰 문자(한글·한자·가나)는 2자, 알파벳은 4자부터 인정한다.
+        var minimumPrefix = HasDenseScript(shorter) ? 2 : 4;
+        return shorter.Length >= minimumPrefix;
+    }
+
+    private static bool HasDenseScript(string token)
+    {
+        foreach (var character in token)
+        {
+            if (character >= '\uAC00' && character <= '\uD7A3')
+            {
+                return true;
+            }
+
+            if (character >= '\u3040' && character <= '\u30FF')
+            {
+                return true;
+            }
+
+            if (character >= '\u4E00' && character <= '\u9FFF')
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static IReadOnlySet<string> ExtractContextTokens(string text)

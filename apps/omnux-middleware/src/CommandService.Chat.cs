@@ -355,9 +355,12 @@ public sealed partial class CommandService
         // "최신 정보 가져온거야?", "이거 맞아?" 같이 직전 답변을 되묻는 확인성 후속 질문은
         // 새 웹검색을 다시 돌리면 같은 결과만 재나열된다. 직전 대화 맥락을 기준으로 답하도록
         // fast-web 라우팅을 우회하고 일반 LLM 경로(BuildContextualInput에서 history 포함)로 넘긴다.
+        // 되묻기 우회는 "직전 답변을 확인하는" 경우만이다. 같은 자리에서 새 대상을 물으면
+        // (예: 파이썬 얘기 뒤 "도커 최신 버전은?") 웹검색을 건너뛰면 안 된다.
         var isAnswerVerificationFollowUp =
             ConversationContextPolicy.LooksLikeAnswerVerificationFollowUp(rawInput)
-            && HasAnyRecentAssistantMessage(thread.Id);
+            && HasAnyRecentAssistantMessage(thread.Id)
+            && !IntroducesNewTopicVersusRecentConversation(thread.Id, rawInput);
 
         // Think+ 모드면 fast-web 단독 라우팅 우회. 기본 LLM이 web context를 prepend 받아 직접 답변하도록.
         if (request.WebSearchEnabled && !request.ThinkPlusEnabled && !shouldBypassFastWebForSkill && !isAnswerVerificationFollowUp)
