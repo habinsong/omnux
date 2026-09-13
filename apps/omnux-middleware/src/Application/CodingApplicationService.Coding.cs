@@ -308,7 +308,11 @@ public sealed partial class CodingApplicationService
             ("summary", outcome.Summary)
         );
         var citationValidationGuardFailure = BuildCitationValidationGuardFailure(citationBundle.Validation);
-        var effectiveGuardFailure = preparedInput.GuardFailure ?? citationValidationGuardFailure;
+        // 빌드 결과 보고서는 '출처를 단 답변'이 아니라 만든 파일과 실행 결과다. 인용 태그가 없다고
+        // 보고서를 통째로 "인용 검증 실패" 문구로 바꾸면, 파일을 제대로 만들고도 사용자는 아무 결과도
+        // 못 본다(실측: URL 을 준 코딩 요청에서 missing=23 으로 결과가 가려졌다).
+        // 검증 기록은 남기되 결과는 가리지 않는다.
+        var effectiveGuardFailure = preparedInput.GuardFailure;
         var responseSummary = outcome.Summary;
         var assistantText = BuildCodingAssistantText(
             "single",
@@ -322,8 +326,6 @@ public sealed partial class CodingApplicationService
         if (citationValidationGuardFailure is not null)
         {
             LogCitationValidationGuardBlocked(request.Source, "coding-single", citationValidationGuardFailure);
-            responseSummary = BuildCitationValidationBlockedResponseText(citationValidationGuardFailure);
-            assistantText = responseSummary;
         }
 
         _conversationStore.AppendMessage(thread.Id, "user", rawInput, $"coding:{provider}:{model}");
@@ -781,7 +783,11 @@ public sealed partial class CodingApplicationService
             ("summary", orchestrationSummary)
         );
         var citationValidationGuardFailure = BuildCitationValidationGuardFailure(citationBundleOrchestration.Validation);
-        var effectiveGuardFailure = sharedPrepared.GuardFailure ?? citationValidationGuardFailure;
+        // 빌드 결과 보고서는 '출처를 단 답변'이 아니라 만든 파일과 실행 결과다. 인용 태그가 없다고
+        // 보고서를 통째로 "인용 검증 실패" 문구로 바꾸면, 파일을 제대로 만들고도 사용자는 아무 결과도
+        // 못 본다(실측: URL 을 준 코딩 요청에서 missing=23 으로 결과가 가려졌다).
+        // 검증 기록은 남기되 결과는 가리지 않는다.
+        var effectiveGuardFailure = sharedPrepared.GuardFailure;
         var responseSummary = orchestrationSummary;
         var assistantText = BuildCodingAssistantText(
             "orchestration",
@@ -795,8 +801,6 @@ public sealed partial class CodingApplicationService
         if (citationValidationGuardFailure is not null)
         {
             LogCitationValidationGuardBlocked(request.Source, "coding-orchestration", citationValidationGuardFailure);
-            responseSummary = BuildCitationValidationBlockedResponseText(citationValidationGuardFailure);
-            assistantText = responseSummary;
         }
         var conversationUserText = autoRoleMode
             ? "[AUTO] 입력 없이 실행: 워커 자동 역할 협의 모드"
@@ -1254,14 +1258,16 @@ public sealed partial class CodingApplicationService
             ("summary", multiSummary)
         );
         var citationValidationGuardFailure = BuildCitationValidationGuardFailure(citationBundleMulti.Validation);
-        var effectiveGuardFailure = sharedPrepared.GuardFailure ?? citationValidationGuardFailure;
+        // 빌드 결과 보고서는 '출처를 단 답변'이 아니라 만든 파일과 실행 결과다. 인용 태그가 없다고
+        // 보고서를 통째로 "인용 검증 실패" 문구로 바꾸면, 파일을 제대로 만들고도 사용자는 아무 결과도
+        // 못 본다(실측: URL 을 준 코딩 요청에서 missing=23 으로 결과가 가려졌다).
+        // 검증 기록은 남기되 결과는 가리지 않는다.
+        var effectiveGuardFailure = sharedPrepared.GuardFailure;
         var responseSummary = multiSummary;
         var assistantText = summaryAssistantText;
         if (citationValidationGuardFailure is not null)
         {
             LogCitationValidationGuardBlocked(request.Source, "coding-multi", citationValidationGuardFailure);
-            responseSummary = BuildCitationValidationBlockedResponseText(citationValidationGuardFailure);
-            assistantText = responseSummary;
         }
         _conversationStore.AppendMessage(thread.Id, "user", rawInput, "coding-multi");
         if (citationValidationGuardFailure is null)
@@ -1311,10 +1317,10 @@ public sealed partial class CodingApplicationService
             sharedPrepared.RetryAttempt,
             sharedPrepared.RetryMaxAttempts,
             sharedPrepared.RetryStopReason,
-            citationValidationGuardFailure is null ? summarySections.CommonSummary : responseSummary,
-            citationValidationGuardFailure is null ? summarySections.CommonPoints : string.Empty,
-            citationValidationGuardFailure is null ? summarySections.Differences : string.Empty,
-            citationValidationGuardFailure is null ? summarySections.Recommendation : string.Empty
+            summarySections.CommonSummary,
+            summarySections.CommonPoints,
+            summarySections.Differences,
+            summarySections.Recommendation
         ));
     }
 
