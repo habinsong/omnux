@@ -7,6 +7,58 @@ public sealed partial class CodingApplicationService
 {
     private const string CodingPreviewApiPrefix = "/api/coding-preview";
 
+    /// <summary>
+    /// "실행해봐" 요청을 직전 코딩 결과 실행으로 처리한다. 실행할 대상이 없으면 null 을 돌려
+    /// 일반 빌드 경로로 넘긴다(실행할 게 없는데 실행만 하고 끝나면 사용자는 아무 결과도 못 본다).
+    /// </summary>
+    private async Task<CodingRunResult?> TryRerunLatestCodingResultAsync(
+        SessionContext session,
+        string rawInput,
+        CancellationToken cancellationToken
+    )
+    {
+        CodingResultExecutionResult executed;
+        try
+        {
+            executed = await ExecuteLatestCodingResultAsync(session.Thread.Id, null, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+
+        var view = _conversationStore.Get(session.Thread.Id) ?? session.Thread;
+        var latest = view.LatestCodingResult;
+        var execution = executed.Execution ?? latest?.Execution;
+        if (execution == null)
+        {
+            return null;
+        }
+
+        var summary = string.IsNullOrWhiteSpace(executed.Message)
+            ? "직전 결과를 실행했습니다."
+            : executed.Message;
+        _conversationStore.AppendMessage(session.Thread.Id, "user", rawInput, "coding-single");
+        _conversationStore.AppendMessage(session.Thread.Id, "assistant", summary, "coding-single:rerun");
+        view = _conversationStore.Get(session.Thread.Id) ?? view;
+        return new CodingRunResult(
+            "single",
+            view.Id,
+            executed.TargetProvider,
+            executed.TargetModel,
+            executed.Language,
+            string.Empty,
+            execution,
+            Array.Empty<CodingWorkerResult>(),
+            latest?.ChangedFiles ?? Array.Empty<string>(),
+            summary,
+            view,
+            null,
+            Evidence: executed.Evidence
+        );
+    }
+
     public async Task<CodingResultExecutionResult> ExecuteLatestCodingResultAsync(
         string conversationId,
         string? standardInput,

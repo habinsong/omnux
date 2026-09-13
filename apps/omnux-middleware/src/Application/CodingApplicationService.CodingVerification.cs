@@ -233,6 +233,20 @@ public sealed partial class CodingApplicationService
             var pythonRunner = BuildPythonRunnerToken();
             var relativeFirstFile = ToWorkspaceRelativePath(workspaceRoot, firstFile);
             var interactivePython = IsInteractiveProgramObjective(objectiveText, normalizedLanguage);
+            // 게임·GUI 요청인데 실행 진입점이 없으면 "실행했다"고 볼 수 없다. 모듈만 몇 개 만들고
+            // py_compile 만 통과해 성공으로 끝나던 일이 있었다(실측: Gemini 테트리스가 38초에
+            // board/constants/input/renderer 4개만 만들고 main.py 없이 exit=0).
+            if (interactivePython)
+            {
+                var runnableEntry = TryResolvePythonRunnableEntry(workspaceRoot, changedFiles);
+                if (string.IsNullOrWhiteSpace(runnableEntry))
+                {
+                    const string entryMessage = "실행 진입점이 없습니다. main.py 를 만들고 `if __name__ == \"__main__\":` 에서 게임 루프를 시작하세요";
+                    return $"printf '%s\\n' {EscapeShellArg(entryMessage)} >&2; exit 1";
+                }
+
+                relativeFirstFile = runnableEntry;
+            }
             var projectCommand = interactivePython
                 ? string.Empty
                 : TryBuildPythonProjectVerificationCommand(workspaceRoot, changedFiles, hasExpectedOutput || shouldRunProgram);
@@ -1383,6 +1397,40 @@ async function waitFor(url, deadlineMs = 12000) {
     /// 모듈 존재 확인은 반드시 작업공간 .venv 의 파이썬으로 해야 한다. 시스템 python3 로 확인하면
     /// pygame 처럼 .venv 에만 설치한 패키지를 "없다"고 판정해 빌드가 error 로 끝났다(실측).
     /// </summary>
+    /// <summary>
+    /// 실제로 실행할 수 있는 파이썬 진입 파일(워크스페이스 상대경로)을 고른다.
+    /// main.py 를 먼저 보고, 없으면 `if __name__ == "__main__"` 가드가 있는 파일을 찾는다.
+    /// 둘 다 없으면 빈 문자열 — 그 프로젝트는 실행할 방법이 없다.
+    /// </summary>
+    private static string TryResolvePythonRunnableEntry(string workspaceRoot, IReadOnlyCollection<string> changedFiles)
+    {
+        var candidates = SelectChangedFilesByExtension(workspaceRoot, changedFiles, ".py");
+        var conventional = candidates.FirstOrDefault(path =>
+            Path.GetFileName(path).Equals("main.py", StringComparison.OrdinalIgnoreCase)
+            || Path.GetFileName(path).Equals("__main__.py", StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrWhiteSpace(conventional))
+        {
+            return conventional;
+        }
+
+        foreach (var candidate in candidates)
+        {
+            var full = ResolveWorkspacePath(workspaceRoot, candidate);
+            if (!File.Exists(full))
+            {
+                continue;
+            }
+
+            var text = SafeReadAllText(full);
+            if (text.Contains("__main__", StringComparison.Ordinal))
+            {
+                return candidate;
+            }
+        }
+
+        return string.Empty;
+    }
+
     private static string BuildInteractivePythonModuleAvailabilityCommand(IEnumerable<string> moduleNames)
     {
         var runner = BuildPythonRunnerToken();

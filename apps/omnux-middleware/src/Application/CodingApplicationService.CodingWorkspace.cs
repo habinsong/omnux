@@ -443,8 +443,38 @@ public sealed partial class CodingApplicationService
             return false;
         }
 
-        return CodingExpectedOutputPolicy.LooksLikeStdoutVerificationRequest(objective)
-               || CodingTaskSignalPolicy.LooksLikeProgramRunRequest(objective);
+        if (CodingExpectedOutputPolicy.LooksLikeStdoutVerificationRequest(objective)
+            || CodingTaskSignalPolicy.LooksLikeProgramRunRequest(objective))
+        {
+            return true;
+        }
+
+        // 만들고 나서 한 번도 돌려 보지 않으면 "동작한다"는 근거가 없다. 예전에는 요청 문장에
+        // '실행'/'출력' 같은 말이 있을 때만 실행해서, 그냥 "만들어 줘"로 끝난 요청은 컴파일만 하고
+        // 끝났다. 실행 가능한 언어이고 대화형(입력 대기·GUI·게임)도 상주 서비스도 아니면 기본으로
+        // 실행한다. 실행 직후 stdin 이 닫히므로 input() 을 기다리다 멈추지 않는다(EOF 로 즉시 종료).
+        return !LooksLikeLongRunningServiceObjective(objective);
+    }
+
+    /// <summary>서버·데몬·감시처럼 끝나지 않는 프로그램인지. 이런 건 검증에서 직접 실행하지 않는다.</summary>
+    private static bool LooksLikeLongRunningServiceObjective(string objective)
+    {
+        var text = (objective ?? string.Empty).ToLowerInvariant();
+        return ContainsAny(
+            text,
+            "서버",
+            "server",
+            "daemon",
+            "데몬",
+            "상주",
+            "watch",
+            "감시",
+            "실시간",
+            "webhook",
+            "웹훅",
+            "listen",
+            "포트를 열"
+        );
     }
 
     private static IReadOnlyList<string> CollectWorkspaceMaterializedFiles(string workspaceRoot)
