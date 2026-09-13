@@ -59,6 +59,13 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
     private string _selectedGroqModel;
     private readonly AsyncLocal<TokenUsage?> _responseTokenUsage = new();
 
+    // 네이티브 웹 검색은 실패해도 예외가 아니라 null 을 돌려준다. 그러면 호출측이 "왜 폴백했는지"를
+    // 알 수 없어 화면에 "Groq 대체"만 뜨고 이유가 사라진다. 마지막 실패 사유를 요청 단위로 남긴다.
+    private readonly AsyncLocal<string?> _nativeWebSearchFailure = new();
+
+    /// <summary>직전 네이티브 웹 검색 실패를 설명하는 한국어 문자열. 성공했거나 시도하지 않았으면 빈 문자열.</summary>
+    public string LastNativeWebSearchFailure => _nativeWebSearchFailure.Value ?? string.Empty;
+
     public LlmRouter(
         ProviderOptions providers,
         PathOptions paths,
@@ -530,6 +537,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         }
 
         var model = string.IsNullOrWhiteSpace(modelOverride) ? _providers.DeepseekModel : modelOverride.Trim();
+        _nativeWebSearchFailure.Value = null;
         var endpoint = $"{_providers.DeepseekBaseUrl.TrimEnd('/')}/anthropic/v1/messages";
         var body = DeepseekWebSearchParser.BuildRequestJson(
             model,
@@ -554,6 +562,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
             {
                 var preview = responseBody.Length > 240 ? responseBody[..240] : responseBody;
                 Console.Error.WriteLine($"[deepseek] native web search failed ({(int)response.StatusCode}): {preview}");
+                _nativeWebSearchFailure.Value = $"DeepSeek 웹검색 요청 실패: {(int)response.StatusCode}";
                 return null;
             }
 
@@ -566,6 +575,9 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         catch (Exception ex)
         {
             Console.Error.WriteLine($"[deepseek] native web search error: {ex.Message}");
+            _nativeWebSearchFailure.Value = ex is OperationCanceledException
+                ? "DeepSeek 웹검색 응답 시간이 초과되었습니다."
+                : $"DeepSeek 웹검색 호출 오류: {ex.Message}";
             return null;
         }
     }
@@ -607,6 +619,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         var model = string.IsNullOrWhiteSpace(modelOverride)
             ? GroqCompoundResponseParser.ResolveCompoundModel()
             : modelOverride.Trim();
+        _nativeWebSearchFailure.Value = null;
         var capability = ProviderCapabilityRegistry.Resolve("groq", model);
         if (!capability.SupportsNativeWebSearch)
         {
@@ -668,6 +681,7 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                         continue;
                     }
 
+                    _nativeWebSearchFailure.Value = $"Groq 웹검색 요청 실패: {(int)response.StatusCode}";
                     return null;
                 }
 
@@ -681,6 +695,9 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
             catch (Exception ex)
             {
                 Console.Error.WriteLine($"[groq] native web search error (model={model}): {ex.Message}");
+                _nativeWebSearchFailure.Value = ex is OperationCanceledException
+                    ? "Groq 웹검색 응답 시간이 초과되었습니다."
+                    : $"Groq 웹검색 호출 오류: {ex.Message}";
                 return null;
             }
         }
@@ -2270,8 +2287,18 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                || name.EndsWith(".gif", StringComparison.Ordinal);
     }
 
-    public Task<string> GenerateGrokChatAsync(string input, string? model, CancellationToken cancellationToken)
-        => GrokClient.GenerateTextAsync(input, string.IsNullOrWhiteSpace(model) ? _providers.GrokModel : model, cancellationToken);
+    public Task<string> GenerateGrokChatAsync(
+        string input,
+        string? model,
+        CancellationToken cancellationToken,
+        LlmTuning? tuning = null
+    )
+        => GrokClient.GenerateTextAsync(
+            input,
+            string.IsNullOrWhiteSpace(model) ? _providers.GrokModel : model,
+            cancellationToken,
+            (tuning ?? LlmTuning.Default).WebSearch
+        );
 
     public void Dispose()
     {

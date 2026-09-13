@@ -48,7 +48,8 @@ public sealed record LlmTuning(
         var normalized = (value ?? string.Empty).Trim().ToLowerInvariant();
         return normalized switch
         {
-            "off" or "minimal" or "low" or "medium" or "high" or "auto" => normalized,
+            // nvidia 는 off/on, codex 는 minimal~xhigh 를 쓴다. 여기서 떨어뜨리면 그 값이 통째로 무시된다.
+            "off" or "on" or "minimal" or "low" or "medium" or "high" or "xhigh" or "auto" => normalized,
             _ => string.Empty
         };
     }

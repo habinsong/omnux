@@ -131,7 +131,7 @@ public sealed class GrokCliClient : IDisposable
         return result.ExitCode == 0;
     }
 
-    public async Task<string> GenerateTextAsync(string prompt, string model, CancellationToken token)
+    public async Task<string> GenerateTextAsync(string prompt, string model, CancellationToken token, bool enableWebSearch = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
         ArgumentException.ThrowIfNullOrWhiteSpace(model);
@@ -141,13 +141,31 @@ public sealed class GrokCliClient : IDisposable
             var promptPath = Path.Combine(directory, "prompt.txt");
             await File.WriteAllTextAsync(promptPath, prompt, token);
             if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(promptPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
-            var info = StartInfo(new[] {
+            // 웹 검색을 켠 요청은 CLI 자체 검색을 써야 한다. 예전에는 항상 --disable-web-search 라
+            // 능력표에 "CLI 자체 웹 검색"이라 적어 두고도 실제로는 검색을 못 했다.
+            var args = new List<string> {
                 "--no-auto-update", "--prompt-file", promptPath, "--model", model,
                 "--output-format", "plain", "--verbatim", "--max-turns", "1",
-                "--deny", "*", "--no-plan", "--no-subagents", "--no-memory", "--disable-web-search"
-            });
+                "--deny", "*", "--no-plan", "--no-subagents", "--no-memory"
+            };
+            if (!enableWebSearch)
+            {
+                args.Add("--disable-web-search");
+            }
+
+            var info = StartInfo(args);
             info.WorkingDirectory = directory;
             var result = await _run(info, null, token);
+            if (result.ExitCode == 127)
+            {
+                throw new InvalidOperationException(
+                    "Grok CLI 를 찾지 못했습니다. 설치한 뒤 로그인하면 이 제공자를 쓸 수 있습니다.\n"
+                    + "- 설치: npm install -g @vibe-kit/grok-cli\n"
+                    + "- 로그인: grok (첫 실행에서 로그인)\n"
+                    + "- 다른 경로에 설치했다면 OMNUX_GROK_BIN 환경변수로 실행 파일 경로를 지정하세요."
+                );
+            }
+
             if (result.ExitCode != 0) throw new InvalidOperationException($"Grok CLI 실행 실패 (exit={result.ExitCode}). 로그인 상태와 선택한 모델을 확인해 주세요.");
             var text = StripAnsi(result.StdOut).Trim();
             if (text.Length == 0) throw new InvalidOperationException("Grok 응답이 비어 있습니다.");

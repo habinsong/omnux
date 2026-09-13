@@ -135,103 +135,70 @@ internal static class ConversationHistoryPolicy
         }
 
         var olderMessages = messages.Take(olderCount).ToList();
-        var olderSummary = BuildMessageLevelSummary(olderMessages, 1200);
+        // 남은 예산을 전부 옛 대화에 쓴다. 1200자 고정이면 예산이 5000자여도 대화 앞부분이 버려졌다.
+        var olderBudget = Math.Max(1200, maxChars - recent.Length - 200);
+        var olderSummary = BuildMessageLevelSummary(olderMessages, olderBudget);
         var combined = string.IsNullOrWhiteSpace(olderSummary)
             ? recent
             : $"[이전 대화 압축]\n{olderSummary}\n\n[최근 턴]\n{recent}";
         return combined.Length <= maxChars ? combined : TrimContextHistory(combined, maxChars);
     }
 
+    /// <summary>
+    /// 최근 턴 앞의 대화를 예산 안에서 그대로 남긴다.
+    /// 예전에는 "요구/오류/검색/api" 같은 낱말 목록에 걸리는 줄만 최대 4개 남겼는데,
+    /// 낱말에 안 걸리는 사실(이름·버전·결정 사항)이 통째로 사라져 몇 턴 뒤에 다시 물으면
+    /// 모델이 "그런 얘기 없었다"고 답했다(실측). 이제는 최신 것부터 예산이 닿는 데까지 채운다.
+    /// </summary>
     public static string BuildMessageLevelSummary(IReadOnlyList<(string Role, string Text)> olderMessages, int maxChars)
     {
-        if (olderMessages.Count == 0)
+        if (olderMessages.Count == 0 || maxChars <= 0)
         {
             return string.Empty;
         }
 
-        const int MaxCharsPerOlderMessage = 300;
+        const int MaxCharsPerOlderMessage = 400;
         var selected = new List<string>();
+        var used = 0;
+        var dropped = 0;
 
-        foreach (var msg in olderMessages)
+        // 최신 것부터 담아야 예산이 모자랄 때 오래된 쪽이 밀린다.
+        for (var index = olderMessages.Count - 1; index >= 0; index -= 1)
         {
-            var lines = msg.Text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            var hasHighSignal = lines.Any(IsHighSignalHistoryLine);
-            if (!hasHighSignal)
+            var message = olderMessages[index];
+            var text = (message.Text ?? string.Empty).Trim();
+            if (text.Length == 0)
             {
                 continue;
             }
 
-            var text = msg.Text.Length <= MaxCharsPerOlderMessage
-                ? msg.Text
-                : msg.Text[..MaxCharsPerOlderMessage] + "...";
-            selected.Add($"[{msg.Role}] {text}");
-            if (selected.Count >= 4)
+            if (text.Length > MaxCharsPerOlderMessage)
             {
+                text = text[..MaxCharsPerOlderMessage] + "...";
+            }
+
+            var line = $"[{message.Role}] {text}";
+            if (used + line.Length + 1 > maxChars && selected.Count > 0)
+            {
+                dropped = index + 1;
                 break;
             }
+
+            selected.Add(line);
+            used += line.Length + 1;
         }
 
         if (selected.Count == 0)
         {
-            foreach (var msg in olderMessages.TakeLast(Math.Min(2, olderMessages.Count)))
-            {
-                var text = msg.Text.Length <= MaxCharsPerOlderMessage
-                    ? msg.Text
-                    : msg.Text[..MaxCharsPerOlderMessage] + "...";
-                selected.Add($"[{msg.Role}] {text}");
-            }
+            return string.Empty;
         }
 
-        var summary = string.Join('\n', selected);
-        return summary.Length <= maxChars ? summary : summary[..maxChars].TrimEnd() + "...";
-    }
-
-    public static bool IsHighSignalHistoryLine(string line)
-    {
-        if (string.IsNullOrWhiteSpace(line))
+        selected.Reverse();
+        if (dropped > 0)
         {
-            return false;
+            selected.Insert(0, $"...(앞선 {dropped}개 메시지 생략)");
         }
 
-        var lowered = line.ToLowerInvariant();
-        return lowered.Contains("요구", StringComparison.Ordinal)
-               || lowered.Contains("수정", StringComparison.Ordinal)
-               || lowered.Contains("오류", StringComparison.Ordinal)
-               || lowered.Contains("결정", StringComparison.Ordinal)
-               || lowered.Contains("파일", StringComparison.Ordinal)
-               || lowered.Contains("설정", StringComparison.Ordinal)
-               || lowered.Contains("스킬", StringComparison.Ordinal)
-               || lowered.Contains("think+", StringComparison.Ordinal)
-               || lowered.Contains("nvidia", StringComparison.Ordinal)
-               || lowered.Contains("error", StringComparison.Ordinal)
-               || lowered.Contains("fix", StringComparison.Ordinal)
-               || lowered.Contains("bug", StringComparison.Ordinal)
-               || lowered.Contains("todo", StringComparison.Ordinal)
-               || lowered.Contains("requirement", StringComparison.Ordinal)
-               || lowered.Contains("검색", StringComparison.Ordinal)
-               || lowered.Contains("api", StringComparison.Ordinal)
-               || lowered.Contains("llm", StringComparison.Ordinal)
-               || lowered.Contains("모델", StringComparison.Ordinal)
-               || lowered.Contains("결과", StringComparison.Ordinal)
-               || lowered.Contains("답변", StringComparison.Ordinal)
-               || lowered.Contains("추천", StringComparison.Ordinal)
-               || lowered.Contains("비교", StringComparison.Ordinal)
-               || lowered.Contains("분석", StringComparison.Ordinal)
-               || lowered.Contains("search", StringComparison.Ordinal)
-               || lowered.Contains("web", StringComparison.Ordinal)
-               || lowered.Contains("result", StringComparison.Ordinal)
-               || lowered.Contains("recommend", StringComparison.Ordinal)
-               || lowered.Contains("tavily", StringComparison.Ordinal)
-               || lowered.Contains("rag", StringComparison.Ordinal)
-               || lowered.Contains("프레임워크", StringComparison.Ordinal)
-               || lowered.Contains("도구", StringComparison.Ordinal)
-               || lowered.Contains("tool", StringComparison.Ordinal)
-               || lowered.Contains("service", StringComparison.Ordinal)
-               || lowered.Contains("framework", StringComparison.Ordinal)
-               || lowered.Contains("통합", StringComparison.Ordinal)
-               || lowered.Contains("구현", StringComparison.Ordinal)
-               || lowered.Contains("서비스", StringComparison.Ordinal)
-               || lowered.Contains("필터", StringComparison.Ordinal)
-               || lowered.Contains("filter", StringComparison.Ordinal);
+        return string.Join('\n', selected);
     }
 }

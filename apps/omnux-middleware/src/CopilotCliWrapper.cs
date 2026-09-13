@@ -147,6 +147,15 @@ public sealed class CopilotCliWrapper
         return matches[^1].Groups[1].Value.Trim();
     }
 
+    /// <summary>CLI 가 없을 때 무엇을 해야 하는지 알려 준다. "copilot cli not found" 한 줄로는 못 고친다.</summary>
+    private static string BuildMissingCopilotBinaryMessage()
+    {
+        return "Copilot CLI 를 찾지 못했습니다. 설치한 뒤 로그인하면 이 제공자를 쓸 수 있습니다.\n"
+            + "- 설치: npm install -g @github/copilot\n"
+            + "- 로그인: copilot (첫 실행에서 GitHub 로그인)\n"
+            + "- 다른 경로에 설치했다면 OMNUX_COPILOT_BIN 환경변수로 실행 파일 경로를 지정하세요.";
+    }
+
     public async Task<string> GenerateChatAsync(string prompt, string? modelOverride, CancellationToken cancellationToken)
     {
         var input = (prompt ?? string.Empty).Trim();
@@ -158,7 +167,7 @@ public sealed class CopilotCliWrapper
         var mode = await ResolveModeAsync(cancellationToken);
         if (mode == CopilotMode.None)
         {
-            return "copilot cli not found";
+            return BuildMissingCopilotBinaryMessage();
         }
 
         var model = NormalizeSelectedModel(string.IsNullOrWhiteSpace(modelOverride) ? GetSelectedModel() : modelOverride);

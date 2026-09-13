@@ -84,8 +84,9 @@ public sealed partial class CommandService
 
         if (normalized == "gemini")
         {
-            var requested = NormalizeModelSelection(model) ?? _providers.GeminiModel;
-            var selected = ResolveGeminiSingleModelForLatency(requested, input);
+            // 고른 모델로만 답한다. 예전에는 입력 낱말을 보고 검색 전용 경량 모델로 바꿔 치웠는데,
+            // "설명" 같은 흔한 낱말에 걸려 사용자가 고른 모델이 사실상 무시됐다.
+            var selected = NormalizeModelSelection(model) ?? _providers.GeminiModel;
             var response = streamCallback == null
                 ? await _llmRouter.GenerateGeminiChatAsync(input, selected, requestedMaxOutputTokens, cancellationToken, tuning)
                 : await _llmRouter.GenerateGeminiChatStreamingAsync(input, selected, requestedMaxOutputTokens, streamCallback, cancellationToken, tuning);
@@ -135,7 +136,7 @@ public sealed partial class CommandService
         if (normalized == "grok")
         {
             var selected = NormalizeModelSelection(model) ?? _providers.GrokModel;
-            var response = await _llmRouter.GenerateGrokChatAsync(input, selected, cancellationToken);
+            var response = await _llmRouter.GenerateGrokChatAsync(input, selected, cancellationToken, tuning);
             streamCallback?.Invoke(response);
             return CompleteTokenUsage("grok", selected, input, response);
         }
@@ -210,44 +211,6 @@ public sealed partial class CommandService
         var measured = _llmRouter.ConsumeLastResponseTokenUsage();
         var usage = measured ?? TokenUsageEstimator.Estimate(input, response, TokenUsageEstimator.SourceEstimated);
         return new LlmSingleChatResult(provider, model, response, usage);
-    }
-
-    private string ResolveGeminiSingleModelForLatency(string requestedModel, string input)
-    {
-        var requested = NormalizeModelSelection(requestedModel) ?? _providers.GeminiModel;
-        if (!_context.EnableFastWebPipeline)
-        {
-            return requested;
-        }
-
-        if (requested.Contains("flash-lite", StringComparison.OrdinalIgnoreCase))
-        {
-            return requested;
-        }
-
-        var normalizedInput = (input ?? string.Empty).Trim().ToLowerInvariant();
-        var looksHeavy = ContainsAny(
-            normalizedInput,
-            "비교",
-            "compare",
-            "요약",
-            "정리",
-            "설명",
-            "분석",
-            "컨텍스트",
-            "context",
-            "토큰",
-            "api",
-            "비용",
-            "가격"
-        );
-        if (!looksHeavy)
-        {
-            return requested;
-        }
-
-        var fastModel = ResolveSearchLlmModel();
-        return string.IsNullOrWhiteSpace(fastModel) ? requested : fastModel;
     }
 
     private async Task<LlmSingleChatResult> GenerateByProviderSafeAsync(

@@ -293,6 +293,16 @@ public sealed partial class CodingApplicationService
             "database",
             "migration"
         );
+        // 요청당 한 번 판정해 둔 신호가 있으면 그것이 진실이다(언어 무관).
+        // 예전에는 이 확인이 함수 맨 끝에 있어서, 언어가 javascript 라는 이유만으로 먼저 true 가 났다.
+        // 그 탓에 "1부터 10까지 짝수를 출력하는 Node.js 스크립트" 요청이 index.html/styles.css/app.js
+        // 정적 웹으로 만들어지고 실행은 파일 목록만 찍혔다(실측).
+        var resolvedFrontend = CodingTaskSignalResolver.TryGet(objective);
+        if (resolvedFrontend != null)
+        {
+            return resolvedFrontend.Frontend;
+        }
+
         if (string.IsNullOrWhiteSpace(text))
         {
             return lang is "html" or "css" or "javascript" or "typescript" or "react-vite";
@@ -323,12 +333,6 @@ public sealed partial class CodingApplicationService
             "vite",
             "browser"
         );
-
-        var resolvedFrontend = CodingTaskSignalResolver.TryGet(objective);
-        if (resolvedFrontend != null)
-        {
-            return resolvedFrontend.Frontend;
-        }
 
         return (lang is "html" or "css" or "javascript" or "typescript" or "react-vite" || frontendSignals) && !backendSignals;
     }

@@ -17,7 +17,7 @@ export type AskConversationItem = {
 };
 
 export type AskChatMode = "single" | "orchestration" | "multi";
-export type AskReasoningEffort = "auto" | "off" | "minimal" | "low" | "medium" | "high";
+export type AskReasoningEffort = "auto" | "off" | "on" | "minimal" | "low" | "medium" | "high" | "xhigh";
 export type AskContextBudget = "compact" | "standard" | "full";
 
 export type AskProvider = "auto" | "groq" | "gemini" | "cerebras" | "nvidia" | "deepseek" | "copilot" | "codex" | "grok";

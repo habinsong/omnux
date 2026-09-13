@@ -18,7 +18,7 @@ public sealed partial class RoutineApplicationService
             var model = strategy.Models[i];
             var prompt = objective + $"\n\n[{partLabels[Math.Min(i, partLabels.Length - 1)]}] 관점으로 설계/코드 초안을 작성하세요.";
             var generated = await _llmGateway.GenerateByProviderSafeAsync(
-                "groq",
+                strategy.Provider,
                 model,
                 prompt,
                 cancellationToken,
@@ -35,6 +35,7 @@ public sealed partial class RoutineApplicationService
             var repaired = await TryRepairRoutineCodeAsync(
                 objective,
                 merged,
+                strategy.Provider,
                 strategy.Models[0],
                 request,
                 schedule,
@@ -44,6 +45,7 @@ public sealed partial class RoutineApplicationService
         }
 
         return BuildRoutineGenerationResult(
+            provider: strategy.Provider,
             plannerModel: "split",
             coderModel: string.Join(",", strategy.Models),
             rawText: parsed.RawText,
@@ -64,7 +66,7 @@ public sealed partial class RoutineApplicationService
     {
         var model = strategy.Models[0];
         var generated = await _llmGateway.GenerateByProviderSafeAsync(
-            "groq",
+            strategy.Provider,
             model,
             objective,
             cancellationToken,
@@ -77,6 +79,7 @@ public sealed partial class RoutineApplicationService
             var repaired = await TryRepairRoutineCodeAsync(
                 objective,
                 generated.Text,
+                strategy.Provider,
                 model,
                 request,
                 schedule,
@@ -86,6 +89,7 @@ public sealed partial class RoutineApplicationService
         }
 
         return BuildRoutineGenerationResult(
+            provider: strategy.Provider,
             plannerModel: model,
             coderModel: model,
             rawText: parsed.RawText,
@@ -106,6 +110,7 @@ public sealed partial class RoutineApplicationService
     }
 
     private static RoutineGenerationResult BuildRoutineGenerationResult(
+        string provider,
         string plannerModel,
         string coderModel,
         string rawText,
@@ -116,7 +121,7 @@ public sealed partial class RoutineApplicationService
     {
         var quality = ValidateRoutineGeneratedCode(language, code, request);
         return new RoutineGenerationResult(
-            PlannerProvider: "groq",
+            PlannerProvider: provider,
             PlannerModel: plannerModel,
             CoderModel: coderModel,
             Plan: ExtractPlanText(rawText),

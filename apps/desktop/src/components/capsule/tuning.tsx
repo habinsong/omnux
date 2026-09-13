@@ -1,5 +1,5 @@
 import { ExpandChoice, ExpandDivider } from "./capsule";
-import { REASONING_LEVEL_LABEL, resolveCapability, webSearchRouteLabel, type ReasoningLevel } from "../../features/ask/model-registry";
+import { reasoningLevelLabel, resolveCapability, webSearchRouteLabel, type ReasoningLevel } from "../../features/ask/model-registry";
 
 export type ContextBudget = "compact" | "standard" | "full";
 
@@ -46,7 +46,7 @@ export function TuningChoices({
   const levels = capability.levels;
   const activeLevel = reasoning === "auto" ? capability.defaultLevel : reasoning;
   const reasoningLabel =
-    capability.reasoningControl && activeLevel ? `추론 ${REASONING_LEVEL_LABEL[activeLevel as ReasoningLevel]}` : "";
+    capability.reasoningControl && activeLevel ? `추론 ${reasoningLevelLabel(activeLevel)}` : "";
 
   return (
     <>
@@ -60,7 +60,7 @@ export function TuningChoices({
             disabled={disabled}
             options={levels
               .filter((level) => level !== activeLevel)
-              .map((level) => ({ value: level, label: REASONING_LEVEL_LABEL[level] }))}
+              .map((level) => ({ value: level, label: reasoningLevelLabel(level) }))}
             onToggle={() => onToggle("reasoning")}
             onSelect={(value) => onReasoning(value as ReasoningLevel)}
           />

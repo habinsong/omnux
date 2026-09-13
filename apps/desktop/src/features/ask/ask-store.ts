@@ -98,6 +98,7 @@ export const useAskStore = create<AskState>((set, get) => ({
     requestDesktopSettings.cerebrasModels();
     requestDesktopLlm.geminiModels();
     requestDesktopLlm.nvidiaModels();
+    requestDesktopLlm.deepseekModels();
     requestDesktopLlm.codexModels();
     requestDesktopLlm.grokModels();
   },

@@ -7,6 +7,7 @@ public sealed partial class RoutineApplicationService
     private async Task<(string Language, string Code, string RawText)> TryRepairRoutineCodeAsync(
         string objective,
         string rawText,
+        string provider,
         string model,
         string request,
         RoutineSchedule schedule,
@@ -38,7 +39,7 @@ public sealed partial class RoutineApplicationService
                            """;
 
         var regenerated = await _llmGateway.GenerateByProviderSafeAsync(
-            "groq",
+            provider,
             model,
             repairPrompt,
             cancellationToken,

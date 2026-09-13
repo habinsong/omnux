@@ -203,7 +203,7 @@ public sealed class CodexCliWrapper
 
         if (!await IsInstalledAsync(cancellationToken))
         {
-            return "codex cli not found";
+            return BuildMissingCodexBinaryMessage();
         }
 
         var status = await GetStatusAsync(cancellationToken);

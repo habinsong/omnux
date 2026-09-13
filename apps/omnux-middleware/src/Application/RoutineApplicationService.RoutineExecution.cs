@@ -108,7 +108,8 @@ public sealed partial class RoutineApplicationService
             normalizedAgentProvider,
             normalizedAgentModel,
             normalizedAgentStartUrl,
-            normalizedAgentToolProfile
+            normalizedAgentToolProfile,
+            routineLlm.Provider
         );
         ReportRoutineCreateProgress(
             progressCallback,
@@ -124,11 +125,11 @@ public sealed partial class RoutineApplicationService
 
         if (string.Equals(executionRoute.Mode, "script", StringComparison.Ordinal))
         {
-            if (!_llmRouter.HasGroqApiKey())
+            if (!HasRoutineScriptProviderKey(routineLlm.Provider))
             {
                 return new RoutineActionResult(
                     false,
-                    "루틴 스크립트 생성 실패: Groq API 키가 없어 실행 코드를 만들 수 없습니다. 설정에서 Groq 키를 저장하거나 실행 모드를 일반 답변/URL 참조/브라우저 에이전트로 바꾸세요.",
+                    BuildRoutineScriptProviderKeyMessage(routineLlm.Provider, "생성"),
                     null
                 );
             }
@@ -136,6 +137,8 @@ public sealed partial class RoutineApplicationService
             generation = await GenerateRoutineImplementationAsync(
                 taskRequest,
                 new RoutineSchedule(scheduleConfig.Hour, scheduleConfig.Minute, scheduleConfig.Display),
+                routineLlm.Provider,
+                routineLlm.Model,
                 cancellationToken,
                 progressCallback
             );
@@ -609,15 +612,21 @@ public sealed partial class RoutineApplicationService
         string? agentProvider,
         string? agentModel,
         string? agentStartUrl,
-        string? agentToolProfile
+        string? agentToolProfile,
+        string? llmProvider = null
     )
     {
+        // 답변을 만들 주체는 사용자가 고른 제공자다. 예전에는 늘 "gemini-web-single" 이라고 적어
+        // DeepSeek 을 골라 둔 사람이 잘못된 안내를 봤다.
+        var answerProvider = string.IsNullOrWhiteSpace(llmProvider) || llmProvider == "auto"
+            ? "자동 선택 모델"
+            : ModelRegistry.GetLabel(llmProvider!);
         return string.Equals(mode, "browser_agent", StringComparison.Ordinal)
             ? $"이 루틴은 브라우저 에이전트로 실행합니다. provider={agentProvider ?? "acp"} model={agentModel ?? "-"} startUrl={agentStartUrl ?? "(요청 원문 URL 사용)"} toolProfile={BuildRoutineToolProfileLabel(agentToolProfile)}"
             : string.Equals(mode, "gemini-url-single", StringComparison.Ordinal)
-            ? "이 루틴은 실행 시 gemini-url-single 경로로 URL 참조 답변을 생성합니다."
+            ? $"이 루틴은 실행 시 {answerProvider}이(가) URL 참조 답변을 생성합니다."
             : string.Equals(mode, "gemini-web-single", StringComparison.Ordinal)
-                ? "이 루틴은 실행 시 gemini-web-single 경로로 최신 웹검색 답변을 생성합니다."
+                ? $"이 루틴은 실행 시 {answerProvider}이(가) 웹 검색으로 최신 답변을 생성합니다."
                 : "이 루틴은 실행 시 생성된 스크립트를 수행합니다.";
     }
 

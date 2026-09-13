@@ -81,9 +81,15 @@ export function getDefaultVisionModel(): { provider: "gemini"; model: string } {
 // ── 제공자/모델별 능력 (네이티브 웹 검색·추론 강도) ──
 // model-registry.json 의 capabilities 를 그대로 읽는다. UI 는 여기 없는 기능을 보여 주지 않는다.
 
-export type WebSearchMode = "none" | "gemini_google_search" | "groq_browser_search" | "groq_compound" | "cli_native";
+export type WebSearchMode =
+  | "none"
+  | "gemini_google_search"
+  | "groq_browser_search"
+  | "groq_compound"
+  | "deepseek_web_search"
+  | "cli_native";
 export type ReasoningMode = "none" | "openai_effort" | "gemini_thinking_level" | "nvidia_thinking" | "cli_effort";
-export type ReasoningLevel = "off" | "minimal" | "low" | "medium" | "high";
+export type ReasoningLevel = "off" | "on" | "minimal" | "low" | "medium" | "high" | "xhigh";
 
 interface CapabilityRule {
   match: string;
@@ -143,11 +149,18 @@ export function resolveCapability(provider: AnyProvider | string, model?: string
 
 export const REASONING_LEVEL_LABEL: Record<ReasoningLevel, string> = {
   off: "끄기",
+  on: "켜기",
   minimal: "최소",
   low: "낮게",
   medium: "보통",
-  high: "높게"
+  high: "높게",
+  xhigh: "최대"
 };
+
+/** 레지스트리에 새 단계가 생겨도 화면에 undefined 가 나오지 않게 값 자체로 되돌린다. */
+export function reasoningLevelLabel(level: string): string {
+  return REASONING_LEVEL_LABEL[level as ReasoningLevel] || level;
+}
 
 /** 웹 검색을 어떤 경로로 처리하는지 사람이 읽을 설명. 배지 tooltip 용. */
 export function webSearchRouteLabel(capability: ProviderCapability): string {
@@ -157,6 +170,8 @@ export function webSearchRouteLabel(capability: ProviderCapability): string {
     case "groq_browser_search":
       return "모델이 직접 브라우저 검색";
     case "groq_compound":
+      return "모델이 직접 웹 검색";
+    case "deepseek_web_search":
       return "모델이 직접 웹 검색";
     case "cli_native":
       return "CLI 자체 웹 검색";

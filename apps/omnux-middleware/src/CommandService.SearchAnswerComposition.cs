@@ -114,6 +114,12 @@ public sealed partial class CommandService
             ).ConfigureAwait(false);
             if (!IsGroundedWebAnswerFailureText(geminiResult.Response.Text))
             {
+                _auditLogger.Log(
+                    NormalizeAuditToken(source, "web"),
+                    "search_answer_composer",
+                    "ok",
+                    $"route=gemini-web-single model={geminiResult.Response.Model} sources={geminiResult.Citations?.Count ?? 0}"
+                );
                 return MarkFallback(new SearchAnswerCompositionResult(
                     geminiResult.Response,
                     "gemini-web-single",

@@ -62,27 +62,39 @@ public sealed class ConversationHistoryPolicyTests
     }
 
     [Fact]
-    public void BuildMessageLevelSummaryFallsBackToRecentOlderMessages()
+    public void BuildMessageLevelSummaryKeepsEveryOlderMessageWithinBudget()
     {
+        // 예전에는 낱말 목록에 안 걸리는 메시지를 버려서 이름·버전 같은 사실이 사라졌다.
         var summary = ConversationHistoryPolicy.BuildMessageLevelSummary(
             new[]
             {
-                (Role: "user", Text: "잡담 하나"),
-                (Role: "assistant", Text: "잡담 둘"),
+                (Role: "user", Text: "내 이름은 하빈이야"),
+                (Role: "assistant", Text: "기억하겠습니다"),
                 (Role: "user", Text: "잡담 셋")
             },
             2000
         );
 
-        Assert.DoesNotContain("잡담 하나", summary);
-        Assert.Contains("잡담 둘", summary);
+        Assert.Contains("하빈", summary);
+        Assert.Contains("기억하겠습니다", summary);
         Assert.Contains("잡담 셋", summary);
     }
 
     [Fact]
-    public void IsHighSignalHistoryLineDetectsImplementationSignal()
+    public void BuildMessageLevelSummaryDropsOldestWhenBudgetRunsOut()
     {
-        Assert.True(ConversationHistoryPolicy.IsHighSignalHistoryLine("파일 구현 결과를 확인했습니다"));
-        Assert.False(ConversationHistoryPolicy.IsHighSignalHistoryLine("좋은 아침입니다"));
+        var summary = ConversationHistoryPolicy.BuildMessageLevelSummary(
+            new[]
+            {
+                (Role: "user", Text: new string('가', 300)),
+                (Role: "assistant", Text: new string('나', 300)),
+                (Role: "user", Text: "마지막 메시지")
+            },
+            360
+        );
+
+        Assert.Contains("마지막 메시지", summary);
+        Assert.Contains("생략", summary);
+        Assert.DoesNotContain(new string('가', 300), summary);
     }
 }

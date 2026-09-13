@@ -1041,13 +1041,38 @@ public sealed partial class CodingApplicationService
             return;
         }
 
+        // 실패 사유부터 적는다. 예전에는 venv 준비 boilerplate 가 먼저 와서, 화면 요약이 잘리면
+        // 무엇을 설치하다 실패했는지도 실제 오류도 하나도 안 보였다.
         errors.Add($"{title}: error(exit={result.ExitCode})");
-        errors.Add($"command={installCommand}");
         var stderr = TrimInstallLog(result.StdErr, 1400);
         if (!string.IsNullOrWhiteSpace(stderr))
         {
             errors.Add(stderr);
         }
+
+        errors.Add(SummarizeInstallCommand(installCommand));
+    }
+
+    /// <summary>설치 명령에서 사람이 읽어야 할 부분(설치 대상)만 남긴다.</summary>
+    private static string SummarizeInstallCommand(string installCommand)
+    {
+        var normalized = Regex.Replace(installCommand ?? string.Empty, @"\s+", " ").Trim();
+        if (normalized.Length == 0)
+        {
+            return "설치 명령 없음";
+        }
+
+        var matches = Regex.Matches(normalized, @"pip install(?:\s+--[\w-]+(?:[= ]\S+)?)*?\s+(?<args>[^;&|]+)");
+        if (matches.Count > 0)
+        {
+            var args = matches[^1].Groups["args"].Value.Trim();
+            if (args.Length > 0)
+            {
+                return $"설치 대상: {(args.Length <= 200 ? args : args[..200] + "...")}";
+            }
+        }
+
+        return $"설치 명령: {(normalized.Length <= 200 ? normalized : normalized[..200] + "...")}";
     }
 
     private static string MergeInstallLogs(string header, IReadOnlyList<string> installLogs, string originalText)

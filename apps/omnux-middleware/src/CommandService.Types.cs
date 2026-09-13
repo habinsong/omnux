@@ -820,7 +820,7 @@ internal sealed record RoutineScheduleConfig(
     int? DayOfMonth,
     IReadOnlyList<int> Weekdays
 );
-internal sealed record RoutineModelStrategy(string Mode, IReadOnlyList<string> Models, string Reason);
+internal sealed record RoutineModelStrategy(string Mode, IReadOnlyList<string> Models, string Reason, string Provider = "groq");
 internal sealed record RoutineGenerationResult(
     string PlannerProvider,
     string PlannerModel,

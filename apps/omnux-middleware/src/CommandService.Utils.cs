@@ -135,7 +135,8 @@ public sealed partial class CommandService
         IReadOnlyList<string>? requestMemoryNotes,
         bool includeLocalTimeHint = false,
         string? contextDecisionInput = null,
-        string? autoReferenceBlock = null
+        string? autoReferenceBlock = null,
+        LlmTuning? tuning = null
     )
     {
         var contextDecisionText = contextDecisionInput ?? input;
@@ -169,7 +170,9 @@ public sealed partial class CommandService
         if (includePriorContext)
         {
             var historyRaw = _conversationStore.BuildHistoryText(conversationId, _context.ConversationHistoryMessages);
-            history = ConversationHistoryPolicy.BuildBudgetedContextHistory(historyRaw, 5200);
+            // 컨텍스트 예산 선택(간결/기본/넓게)이 실제로 실리는 대화 분량을 바꾼다.
+            var historyBudget = (tuning ?? LlmTuning.Default).ScalePrompt(5200);
+            history = ConversationHistoryPolicy.BuildBudgetedContextHistory(historyRaw, historyBudget);
         }
 
         var builder = new StringBuilder();

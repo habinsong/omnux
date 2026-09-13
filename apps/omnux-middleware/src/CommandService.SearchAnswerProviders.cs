@@ -93,7 +93,7 @@ public sealed partial class CommandService
                     NormalizeAuditToken(source, "web"),
                     "search_answer_composer",
                     "ok",
-                    $"route=native-gemini-web model={capability.Model} elapsedMs={stopwatch.ElapsedMilliseconds}"
+                    $"route=native-gemini-web model={capability.Model} sources={detailed.Citations?.Count ?? 0} elapsedMs={stopwatch.ElapsedMilliseconds}"
                 );
                 return new SearchAnswerCompositionResult(
                     detailed.Response,
@@ -123,11 +123,15 @@ public sealed partial class CommandService
                 stopwatch.Stop();
                 if (answer == null || IsGroundedWebAnswerFailureText(answer.Text))
                 {
+                    var groqFailure = answer == null ? _llmRouter.LastNativeWebSearchFailure : answer.Text;
+                    LastProviderFallbackReason = DescribeProviderFallbackReason(
+                        CodingProviderFailurePolicy.Classify(groqFailure)
+                    );
                     _auditLogger.Log(
                         NormalizeAuditToken(source, "web"),
                         "search_answer_composer",
                         "fallback",
-                        $"reason=native_web_failure provider=groq model={capability.Model}"
+                        $"reason=native_web_failure provider=groq model={capability.Model} detail={TrimForAudit(groqFailure, 120)}"
                     );
                     return null;
                 }
@@ -172,11 +176,15 @@ public sealed partial class CommandService
                 stopwatch.Stop();
                 if (answer == null || IsGroundedWebAnswerFailureText(answer.Text))
                 {
+                    var deepseekFailure = answer == null ? _llmRouter.LastNativeWebSearchFailure : answer.Text;
+                    LastProviderFallbackReason = DescribeProviderFallbackReason(
+                        CodingProviderFailurePolicy.Classify(deepseekFailure)
+                    );
                     _auditLogger.Log(
                         NormalizeAuditToken(source, "web"),
                         "search_answer_composer",
                         "fallback",
-                        $"reason=native_web_failure provider=deepseek model={capability.Model}"
+                        $"reason=native_web_failure provider=deepseek model={capability.Model} detail={TrimForAudit(deepseekFailure, 120)}"
                     );
                     return null;
                 }

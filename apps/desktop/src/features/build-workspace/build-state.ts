@@ -54,7 +54,7 @@ export const useBuildWorkspace = create<State>((set, get) => ({
   previewProject: () => { if (!busyBuild(get())) get().request("projectPreview", "project_build_preview", { conversationId: get().activeId, target: get().target }); },
   applyProject: () => { if (get().projectReview && !busyBuild(get())) get().request("projectApply", "project_build_apply", { previewId: get().projectReview!.id }); },
   loadReferences: () => { get().request("skills", "skills_list", { projectKey: get().settings.projectKey || undefined }); get().request("memory", "list_memory_notes"); },
-  loadModels: () => { requestDesktopLlm.cerebrasModels(); requestDesktopLlm.groqModels(); requestDesktopLlm.geminiModels(); requestDesktopLlm.copilotModels(); requestDesktopLlm.codexModels(); requestDesktopLlm.nvidiaModels(); requestDesktopLlm.grokModels(); },
+  loadModels: () => { requestDesktopLlm.cerebrasModels(); requestDesktopLlm.groqModels(); requestDesktopLlm.geminiModels(); requestDesktopLlm.copilotModels(); requestDesktopLlm.codexModels(); requestDesktopLlm.nvidiaModels(); requestDesktopLlm.deepseekModels(); requestDesktopLlm.grokModels(); },
   attach: async files => {
     if (busyBuild(get())) return;
     set({ readingFiles: true, error: "" });

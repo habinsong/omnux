@@ -7,6 +7,8 @@ public sealed partial class RoutineApplicationService
     private async Task<RoutineGenerationResult> GenerateRoutineImplementationAsync(
         string request,
         RoutineSchedule schedule,
+        string? requestedProvider,
+        string? requestedModel,
         CancellationToken cancellationToken,
         Action<RoutineProgressUpdate>? progressCallback = null
     )
@@ -25,14 +27,14 @@ public sealed partial class RoutineApplicationService
             "모델 가용성과 예산을 기준으로 최적 경로를 선택합니다.",
             2
         );
-        var strategy = await SelectRoutineCodingStrategyAsync(objective, cancellationToken);
+        var strategy = await SelectRoutineCodingStrategyAsync(objective, requestedProvider, requestedModel, cancellationToken);
         ReportRoutineCreateProgress(
             progressCallback,
             "실행 구성을 생성하는 중입니다.",
             52,
             "implementation",
             "실행 구성 생성",
-            $"선택 전략: {strategy.Mode} / 모델: {string.Join(", ", strategy.Models)}",
+            $"선택 전략: {strategy.Mode} / 제공자: {strategy.Provider} / 모델: {string.Join(", ", strategy.Models)}",
             3
         );
 

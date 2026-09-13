@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Button, Input, cn } from "../../components/ui/primitives";
 import { CAPSULE_FIELD, CapsuleCard, Fold } from "../../components/capsule/capsule";
-import { PROVIDER_KEYS, PROVIDER_LABEL, REASONING_LEVEL_LABEL, STATIC_MODEL_OPTIONS, resolveCapability, type ReasoningLevel } from "../ask/model-registry";
+import { PROVIDER_KEYS, PROVIDER_LABEL, STATIC_MODEL_OPTIONS, reasoningLevelLabel, resolveCapability } from "../ask/model-registry";
 import { statusLabel, type Automation, type AutomationForm } from "./automation-model";
 import { useDesktopNavigationStore } from "../shell/navigation-store";
 import { useAutomationWorkspace } from "./automation-state";
@@ -285,7 +285,7 @@ export function AutomationFormPanel({ connected }: { connected: boolean }) {
                   <option value="auto">모델 기본값</option>
                   {automationCapability(form).levels.map((level) => (
                     <option key={level} value={level}>
-                      {REASONING_LEVEL_LABEL[level as ReasoningLevel]}
+                      {reasoningLevelLabel(level)}
                     </option>
                   ))}
                 </select>

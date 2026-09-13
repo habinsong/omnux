@@ -8,7 +8,7 @@ export const providers = [{ value: "auto" as BuildProvider, label: "자동 선�
 export const modeNames: Record<BuildMode, string> = { single: "싱글", orchestration: "오케스트레이션", multi: "멀티" };
 export const modelOptions = (provider: BuildProvider, catalogs: Partial<Record<ModelProvider, string[]>>) => provider === "auto" ? [] : catalogs[provider]?.length ? catalogs[provider]! : STATIC_MODEL_OPTIONS[provider] || [];
 export type Attachment = { name: string; mimeType: string; sizeBytes: number; dataBase64: string; isImage: boolean };
-export type ReasoningEffort = "auto" | "off" | "minimal" | "low" | "medium" | "high";
+export type ReasoningEffort = "auto" | "off" | "on" | "minimal" | "low" | "medium" | "high" | "xhigh";
 export type ContextBudget = "compact" | "standard" | "full";
 export type Settings = { mode: BuildMode; provider: BuildProvider; models: Record<ModelProvider, string>; workers: Record<ModelProvider, string>; language: string; webSearch: boolean; think: boolean; reasoning: ReasoningEffort; context: ContextBudget; title: string; project: string; projectKey: string; projectPath: string; memory: string[]; skill: string };
 export type Execution = { language: string; runDirectory: string; entryFile: string; command: string; exitCode: number | null; status: string; stdout: string; stderr: string; rawOut: string; rawError: string };

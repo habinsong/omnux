@@ -625,7 +625,8 @@ public sealed partial class CommandService
             session.LinkedMemoryNotes,
             includeLocalTimeHint: true,
             contextDecisionInput: rawInput,
-            autoReferenceBlock: autoRetrieval.Block
+            autoReferenceBlock: autoRetrieval.Block,
+            tuning: LlmTuning.From(request.ReasoningEffort, request.ContextBudget)
         );
         LlmSingleChatResult generated;
         try
@@ -1470,7 +1471,8 @@ public sealed partial class CommandService
             session.LinkedMemoryNotes,
             includeLocalTimeHint: true,
             contextDecisionInput: rawInput,
-            autoReferenceBlock: autoRetrieval.Block
+            autoReferenceBlock: autoRetrieval.Block,
+            tuning: LlmTuning.From(request.ReasoningEffort, request.ContextBudget)
         );
 
         var generated = await ChatOrchestrationAsync(
@@ -1751,7 +1753,8 @@ public sealed partial class CommandService
             session.LinkedMemoryNotes,
             includeLocalTimeHint: true,
             contextDecisionInput: rawInput,
-            autoReferenceBlock: autoRetrieval.Block
+            autoReferenceBlock: autoRetrieval.Block,
+            tuning: LlmTuning.From(request.ReasoningEffort, request.ContextBudget)
         );
 
         var generated = await ChatMultiAsync(

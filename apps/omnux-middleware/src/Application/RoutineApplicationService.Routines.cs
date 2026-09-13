@@ -405,11 +405,11 @@ public sealed partial class RoutineApplicationService
         if ((requestChanged || scheduleChanged || scheduleSourceChanged || executionModeChanged)
             && string.Equals(nextExecutionRoute.Mode, "script", StringComparison.Ordinal))
         {
-            if (!_llmRouter.HasGroqApiKey())
+            if (!HasRoutineScriptProviderKey(llmSettings?.Provider))
             {
                 return new RoutineActionResult(
                     false,
-                    "루틴 스크립트 수정 실패: Groq API 키가 없어 실행 코드를 다시 만들 수 없습니다. 설정에서 Groq 키를 저장하거나 실행 모드를 일반 답변/URL 참조/브라우저 에이전트로 바꾸세요.",
+                    BuildRoutineScriptProviderKeyMessage(llmSettings?.Provider, "수정"),
                     null
                 );
             }
@@ -417,6 +417,8 @@ public sealed partial class RoutineApplicationService
             generation = await GenerateRoutineImplementationAsync(
                 taskRequest,
                 new RoutineSchedule(scheduleConfig.Hour, scheduleConfig.Minute, scheduleConfig.Display),
+                llmSettings?.Provider,
+                llmSettings?.Model,
                 cancellationToken
             );
             var generationValidation = ValidateRoutineGeneratedCode(generation.Language, generation.Code, taskRequest);
@@ -496,7 +498,8 @@ public sealed partial class RoutineApplicationService
                     normalizedAgentProvider,
                     normalizedAgentModel,
                     normalizedAgentStartUrl,
-                    normalizedAgentToolProfile
+                    normalizedAgentToolProfile,
+                    update.LlmProvider
                 );
             }
 
@@ -549,7 +552,7 @@ public sealed partial class RoutineApplicationService
                 update.CronPayloadThinking = null;
                 update.CronPayloadTimeoutSeconds = null;
                 update.CronPayloadLightContext = null;
-                update.LastOutput = BuildRoutineExecutionPreview(nextExecutionRoute.Mode, null, null, null, null);
+                update.LastOutput = BuildRoutineExecutionPreview(nextExecutionRoute.Mode, null, null, null, null, update.LlmProvider);
             }
             else if (string.Equals(nextExecutionRoute.Mode, "script", StringComparison.Ordinal))
             {
@@ -774,11 +777,11 @@ public sealed partial class RoutineApplicationService
 
                     if (!ShouldRunCronAgentTurnBridge(routine) && RoutineCodeNeedsRepair(routine.Language, routine.Code))
                     {
-                        if (!_llmRouter.HasGroqApiKey())
+                        if (!HasRoutineScriptProviderKey(routine.LlmProvider))
                         {
                             runStatus = "error";
                             lastStatus = "error";
-                            runError = "루틴 실행 코드 보정이 필요하지만 Groq API 키가 없어 재생성할 수 없습니다.";
+                            runError = BuildRoutineScriptProviderKeyMessage(routine.LlmProvider, "보정");
                             output = runError;
                             break;
                         }
@@ -786,6 +789,8 @@ public sealed partial class RoutineApplicationService
                         var regenerated = await GenerateRoutineImplementationAsync(
                             taskRequest,
                             new RoutineSchedule(routine.Hour, routine.Minute, routine.ScheduleText),
+                            routine.LlmProvider,
+                            routine.LlmModel,
                             cancellationToken
                         );
                         var regeneratedValidation = ValidateRoutineGeneratedCode(regenerated.Language, regenerated.Code, taskRequest);
