@@ -1921,7 +1921,10 @@ public sealed partial class CommandService
 
         if (blocks.Count == 0)
         {
-            return string.Empty;
+            // 본문을 못 받았을 때가 더 위험하다. 아무 말도 안 해 두면 모델이 페이지를 읽은 척 지어낸다.
+            return "[페이지 원문]\n"
+                   + "- 그 주소의 내용을 가져오지 못했습니다. 페이지에 무엇이 있는지 추측해서 말하지 말고, "
+                   + "가져오지 못했다고 밝힌 뒤 검색으로 확인된 사실만 쓰세요.";
         }
 
         return "[페이지 원문]\n"
