@@ -579,6 +579,7 @@ public sealed partial class CodingApplicationService
                 if (frontendLike || effectiveRequestedPaths.Count > 1)
                 {
                     lines.Add("- 브라우저형 JavaScript/TypeScript는 package.json이 있으면 npm scripts(build/test/start)를 실제로 맞추고, 없으면 index.html/styles.css/app.js 같은 실행 가능한 번들 구조를 우선하라");
+                    lines.Add("- package.json은 프로젝트 루트에 하나만 둬라. 하위 폴더마다 package.json을 만들거나 npm init 기본값(\"no test specified\")을 그대로 남기지 마라");
                     lines.Add("- React/Vite 요청은 package.json, src/main.jsx 또는 src/main.tsx, index.html을 포함하고 root 렌더링이 실제 DOM에 연결되게 하라");
                     lines.Add("- 화면 검증 문자열은 console.log가 아니라 document.body에 실제 텍스트로 보여야 한다");
                 }
@@ -653,6 +654,8 @@ public sealed partial class CodingApplicationService
             case "html":
             case "css":
                 lines.Add("- HTML/CSS 과제는 index.html, styles.css, app.js 구조를 우선하고 index.html이 명확한 엔트리가 되게 작성하라");
+                lines.Add("- package.json은 프로젝트 루트에 하나만 둬라. css/, js/, tests/ 같은 하위 폴더에 package.json을 만들지 마라");
+                lines.Add("- 테스트를 만들면 tests/ 아래 *.test.mjs 로 두고 node:test 로 작성해 `node tests/<파일>` 만으로 실행되게 하라");
                 lines.Add("- bucket-card 같은 검증 selector는 실제 DOM에 존재해야 하고 border-radius 같은 스타일은 CSS 파일에 명시하라");
                 lines.Add("- 보이는 문자열은 화면 텍스트로 렌더링해야 하며 console 로그만 남기고 끝내면 실패다");
                 lines.Add("- visible text로 요구된 token/summary 문구는 대소문자와 문자 형태를 그대로 보여야 하며 text-transform으로 변형하지 말라");
