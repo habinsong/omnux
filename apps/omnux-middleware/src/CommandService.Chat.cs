@@ -769,15 +769,13 @@ public sealed partial class CommandService
     private string ResolveContextualWebLookupInput(string conversationId, string input)
     {
         var normalized = (input ?? string.Empty).Trim();
-        // 웹검색 경로도 일반 답변 경로와 같은 연속성 판정을 쓴다. 예전에는 "60자 이하"라는
-        // 임의 컷오프라서, 길게 쓴 한국어 후속 질문은 대상을 모른 채 검색이 돌았다.
-        var needsContextEnrichment = ChatRetryGuardPolicy.LooksLikeVagueWebLookupRequest(normalized)
-                                     || ShouldUsePriorConversationContext(conversationId, normalized);
-        if (!needsContextEnrichment)
-        {
-            return normalized;
-        }
-
+        // 진행 중인 대화라면 검색 경로에도 직전 턴을 항상 싣는다.
+        //
+        // 예전에는 "60자 이하" 같은 컷오프나 휴리스틱 판정으로 골랐는데, 실측에서
+        // "그 버전에서 새로 생긴 기능 알려줘" 같은 지시어 후속이 맥락 없이 검색으로 넘어가
+        // 모델이 "어떤 버전인지 이 대화에는 정보가 없다"고 답했다. 반대로 맥락을 붙인 채
+        // 새 주제를 물어도(도커 컴포즈) 모델은 새 주제를 정확히 처리했다.
+        // 즉 붙여서 생기는 손해보다 빠뜨려서 생기는 손해가 훨씬 크다.
         var thread = _conversationStore.Get(conversationId);
         if (thread == null || thread.Messages == null || thread.Messages.Count == 0)
         {

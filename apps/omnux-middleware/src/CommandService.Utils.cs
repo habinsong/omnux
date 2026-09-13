@@ -322,18 +322,14 @@ public sealed partial class CommandService
             return true;
         }
 
-        // 새 대상을 하나도 들고 오지 않은 입력은 길이와 상관없이 직전 맥락 위에서 해석돼야 한다.
-        // 예: "아까 방식 말고 다른 접근으로 다시 설명해줘", "코드로 보여줘", "대략 예측해봐".
-        // 반대로 최근 대화에 없던 주제어가 들어오면(예: 파이썬 얘기 뒤 "도커 컴포즈") 새 질문으로 본다.
+        // 이미 오간 대화가 있으면 이전 맥락을 싣는다.
+        //
+        // 예전에는 어휘 신호로 "후속인지"를 맞히려 했는데, 언어마다 신호가 달라 계속 놓쳤다.
+        // 실측에서도 맥락을 빠뜨려 "그 버전이 뭘 말하는지 모르겠다"는 답이 나왔고, 반대로 맥락을
+        // 실은 채 새 주제를 물었을 때는 모델이 새 주제를 정확히 처리했다.
+        // 오염은 [컨텍스트 사용 규칙] 프롬프트와 off-topic 재시도 가드가 막는다.
         var normalizedFollowup = (input ?? string.Empty).Trim();
-        if (normalizedFollowup.Length > 0
-            && HasAnyRecentAssistantMessage(conversationId)
-            && !IntroducesNewTopicVersusRecentConversation(conversationId, normalizedFollowup))
-        {
-            return true;
-        }
-
-        return false;
+        return normalizedFollowup.Length > 0 && HasAnyRecentAssistantMessage(conversationId);
     }
 
     private bool HasAnyRecentAssistantMessage(string conversationId)
