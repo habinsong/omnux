@@ -191,7 +191,9 @@ public sealed partial class CodingApplicationService
                 }
 
                 var candidate = ResolveWorkspacePath(workspaceRoot, requestedPath);
-                if (changedFiles.Contains(candidate, StringComparer.OrdinalIgnoreCase) && File.Exists(candidate))
+                if (changedFiles.Contains(candidate, StringComparer.OrdinalIgnoreCase)
+                    && File.Exists(candidate)
+                    && IsRunnableEntryCandidate(normalizedLanguage, candidate))
                 {
                     firstFile = candidate;
                     break;
@@ -1374,6 +1376,29 @@ if fail:
     sys.exit(1)
 """;
         return $"python3 -c {EscapeShellArg(script)} {EscapeShellArg(string.Join(",", requiredMarkers.Distinct(StringComparer.OrdinalIgnoreCase)))} {JoinShellArgs(sourceFiles.Select(path => path))}";
+    }
+
+    /// <summary>
+    /// 요청문에 적힌 경로 중 "실행 진입점이 될 수 있는" 것만 고른다.
+    /// 언어 규칙 문구에 requirements.txt·package.json 같은 파일이 섞여 있어서, 그대로 집으면
+    /// 검증이 requirements.txt 를 파이썬으로 실행해 NameError 로 죽는다(리눅스 실측).
+    /// </summary>
+    private static bool IsRunnableEntryCandidate(string normalizedLanguage, string path)
+    {
+        var language = CodingLanguagePolicy.NormalizeLanguageForCode(normalizedLanguage);
+        if (string.IsNullOrWhiteSpace(language) || language == "auto")
+        {
+            return true;
+        }
+
+        var guessed = CodingLanguagePolicy.GuessLanguageFromPath(path, string.Empty);
+        if (guessed.Length == 0)
+        {
+            // 확장자로 언어를 모르는 파일(requirements.txt, Makefile 등)은 진입점이 아니다.
+            return false;
+        }
+
+        return string.Equals(guessed, language, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ToWorkspaceRelativePath(string workspaceRoot, string path)
