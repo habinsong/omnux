@@ -1838,7 +1838,8 @@ public sealed partial class CommandService
             var summaryResponse = await _llmRouter.GenerateGeminiUrlContextChatAsync(
                 summaryPrompt,
                 ResolveUrlContextLlmModel(),
-                maxOutputTokens: 768,
+                // 768 로 묶으면 추론이 예산을 먹고 본문이 비어 원문 fetch 로 떨어진다(Gemini 는 창이 크다).
+                maxOutputTokens: ProviderTokenBudgetPolicy.ResolveOutputTokens("gemini", 768),
                 _context.GeminiWebTimeoutMs,
                 includeGoogleSearch: false,
                 cancellationToken
