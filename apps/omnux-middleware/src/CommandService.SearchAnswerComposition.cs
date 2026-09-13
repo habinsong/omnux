@@ -51,19 +51,22 @@ public sealed partial class CommandService
         // 아래 폴백들은 사용자가 고른 제공자가 아닌 모델이 답하게 된다.
         // 그 사실이 화면에 남도록 경로 이름에 표시한다(고른 제공자가 왜 안 나왔는지 보이게).
         var requested = NormalizeProvider(requestedProvider ?? string.Empty, allowAuto: true);
-        var fallbackNote = requested.Length > 0 && requested != "auto" && requested != "none"
-            ? $"{ModelRegistry.GetLabel(requested)} 대체"
-            : string.Empty;
+        var requestedIsReal = requested.Length > 0 && requested != "auto" && requested != "none";
+        LastProviderFallbackReason = string.Empty;
 
         SearchAnswerCompositionResult MarkFallback(SearchAnswerCompositionResult result)
         {
-            if (fallbackNote.Length == 0
+            if (!requestedIsReal
                 || string.Equals(result.Response.Provider, requested, StringComparison.OrdinalIgnoreCase))
             {
                 return result;
             }
 
-            return result with { Route = $"{result.Route} · {fallbackNote}" };
+            var reason = LastProviderFallbackReason;
+            var note = reason.Length > 0
+                ? $"{ModelRegistry.GetLabel(requested)} 대체({reason})"
+                : $"{ModelRegistry.GetLabel(requested)} 대체";
+            return result with { Route = $"{result.Route} · {note}" };
         }
 
         // 2순위 — 서버측 검색이 없는 제공자면 근거만 따로 모아서 "사용자가 고른 모델"이 직접 답한다.

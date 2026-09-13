@@ -77,6 +77,9 @@ public sealed partial class CommandService
                 ).ConfigureAwait(false);
                 if (IsGroundedWebAnswerFailureText(detailed.Response.Text))
                 {
+                    LastProviderFallbackReason = DescribeProviderFallbackReason(
+                        CodingProviderFailurePolicy.Classify(detailed.Response.Text)
+                    );
                     _auditLogger.Log(
                         NormalizeAuditToken(source, "web"),
                         "search_answer_composer",
@@ -324,14 +327,16 @@ public sealed partial class CommandService
         stopwatch.Stop();
 
         var answerText = ChatOutputSanitizerPolicy.Sanitize(generated.Text);
-        if (CodingProviderFailurePolicy.Classify(answerText) != CodingProviderFailureKind.None
-            || IsGroundedWebAnswerFailureText(answerText))
+        var providerFailure = CodingProviderFailurePolicy.Classify(answerText);
+        if (providerFailure != CodingProviderFailureKind.None || IsGroundedWebAnswerFailureText(answerText))
         {
+            // 왜 다른 모델이 답하게 됐는지 화면에도 남긴다(키 만료·한도 초과가 대부분이다).
+            LastProviderFallbackReason = DescribeProviderFallbackReason(providerFailure);
             _auditLogger.Log(
                 NormalizeAuditToken(source, "web"),
                 "search_answer_composer",
                 "fallback",
-                $"reason=evidence_answer_failed provider={provider} model={capability.Model}"
+                $"reason=evidence_answer_failed provider={provider} model={capability.Model} kind={providerFailure}"
             );
             return null;
         }
@@ -383,5 +388,27 @@ public sealed partial class CommandService
                 StrictTodayWindow: false
             )
         );
+    }
+
+    /// <summary>이번 요청에서 고른 제공자가 밀려난 사유. 경로 이름에 붙여 사용자에게 보여 준다.</summary>
+    private static readonly AsyncLocal<string?> ProviderFallbackReasonScope = new();
+
+    private static string LastProviderFallbackReason
+    {
+        get => ProviderFallbackReasonScope.Value ?? string.Empty;
+        set => ProviderFallbackReasonScope.Value = value;
+    }
+
+    private static string DescribeProviderFallbackReason(CodingProviderFailureKind kind)
+    {
+        return kind switch
+        {
+            CodingProviderFailureKind.Auth => "인증 실패",
+            CodingProviderFailureKind.RateLimited => "요청 한도",
+            CodingProviderFailureKind.RequestTooLarge => "요청 크기 초과",
+            CodingProviderFailureKind.Timeout => "응답 지연",
+            CodingProviderFailureKind.Other => "호출 실패",
+            _ => string.Empty
+        };
     }
 }
