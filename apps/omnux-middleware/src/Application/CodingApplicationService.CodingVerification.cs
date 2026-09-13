@@ -1215,7 +1215,10 @@ async function waitFor(url, deadlineMs = 12000) {
             .ToArray();
     }
 
-    private static IReadOnlyList<string> CollectPythonThirdPartyPackagesFromSources(IEnumerable<string> sourceFiles)
+    private static IReadOnlyList<string> CollectPythonThirdPartyPackagesFromSources(
+        IEnumerable<string> sourceFiles,
+        params string[] localRoots
+    )
     {
         var packages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var sourceFile in sourceFiles ?? Array.Empty<string>())
@@ -1225,7 +1228,7 @@ async function waitFor(url, deadlineMs = 12000) {
                 continue;
             }
 
-            foreach (var package in ExtractPythonPackagesFromSource(sourceFile))
+            foreach (var package in ExtractPythonPackagesFromSource(sourceFile, localRoots))
             {
                 if (!string.IsNullOrWhiteSpace(package))
                 {

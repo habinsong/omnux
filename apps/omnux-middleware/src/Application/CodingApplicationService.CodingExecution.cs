@@ -85,7 +85,7 @@ public sealed partial class CodingApplicationService
                 var pythonSourceFiles = EnumeratePythonDependencySourceFiles(command, pythonBaseDir, workDir).ToArray();
                 if (pythonSourceFiles.Length > 0)
                 {
-                    var packages = CollectPythonThirdPartyPackagesFromSources(pythonSourceFiles);
+                    var packages = CollectPythonThirdPartyPackagesFromSources(pythonSourceFiles, pythonBaseDir, workDir);
                     if (pythonEnvironmentReady && packages.Count > 0)
                     {
                         var pipCommand = BuildPipPackageInstallCommand(packages);
@@ -612,7 +612,7 @@ public sealed partial class CodingApplicationService
         return null;
     }
 
-    private static List<string> ExtractPythonPackagesFromSource(string scriptPath)
+    private static List<string> ExtractPythonPackagesFromSource(string scriptPath, params string[] extraLocalRoots)
     {
         string text;
         try
@@ -635,9 +635,9 @@ public sealed partial class CodingApplicationService
                 continue;
             }
 
-            var localModulePath = Path.Combine(scriptDir, module + ".py");
-            var localPackagePath = Path.Combine(scriptDir, module);
-            if (File.Exists(localModulePath) || Directory.Exists(localPackagePath))
+            // 프로젝트 루트도 함께 본다. tests/ 아래 파일이 루트의 main.py 나 guess_game/ 을
+            // import 하면, 예전에는 그 이름을 외부 패키지로 보고 pip install 을 시도해 실패했다(실측).
+            if (IsLocalPythonModule(module, scriptDir, extraLocalRoots))
             {
                 continue;
             }
@@ -650,6 +650,25 @@ public sealed partial class CodingApplicationService
         }
 
         return packages.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>모듈 이름이 프로젝트 안의 파일·폴더인지. 어느 한 뿌리에서라도 찾히면 외부 패키지가 아니다.</summary>
+    private static bool IsLocalPythonModule(string module, string scriptDir, IReadOnlyList<string> extraLocalRoots)
+    {
+        foreach (var root in new[] { scriptDir }.Concat(extraLocalRoots ?? Array.Empty<string>()))
+        {
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                continue;
+            }
+
+            if (File.Exists(Path.Combine(root, module + ".py")) || Directory.Exists(Path.Combine(root, module)))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static List<string> ExtractNodePackagesFromSource(string scriptPath)

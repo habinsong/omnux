@@ -1325,12 +1325,22 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         var groundingCitations = new List<SearchCitationReference>();
         var groundingUrls = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        var groundingEventCount = 0;
+        var groundingMetadataEventCount = 0;
+
         void CollectGroundingCitations(string eventPayload)
         {
+            if (eventPayload.Contains("groundingMetadata", StringComparison.Ordinal))
+            {
+                groundingMetadataEventCount += 1;
+            }
+
             if (!eventPayload.Contains("groundingChunks", StringComparison.Ordinal))
             {
                 return;
             }
+
+            groundingEventCount += 1;
 
             foreach (var citation in GeminiCitationParser.ExtractGroundingCitations(eventPayload))
             {
@@ -1378,6 +1388,14 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
             }
 
             var content = mergedBuilder.ToString().Trim();
+            if (string.Equals(Environment.GetEnvironmentVariable("OMNUX_GEMINI_GROUNDING_DEBUG"), "1", StringComparison.Ordinal))
+            {
+                Console.Error.WriteLine(
+                    $"[gemini-grounding] model={selectedModel} metadataEvents={groundingMetadataEventCount}"
+                    + $" chunkEvents={groundingEventCount} citations={groundingCitations.Count}"
+                );
+            }
+
             return new GeminiGroundedChatResponse(
                 string.IsNullOrWhiteSpace(content) ? "Gemini 웹검색 응답이 비어 있습니다." : content,
                 firstChunkMs,
