@@ -1961,7 +1961,7 @@ public sealed partial class CommandService
             {
                 var titleMatch = HtmlTitleRegex.Match(raw);
                 var title = titleMatch.Success ? WebUtility.HtmlDecode(titleMatch.Groups[1].Value).Trim() : string.Empty;
-                var stripped = HtmlTagStripRegex.Replace(raw, " ");
+                var stripped = HtmlTagStripRegex.Replace(HtmlNonContentBlockRegex.Replace(raw, " "), " ");
                 stripped = WebUtility.HtmlDecode(stripped);
                 stripped = Regex.Replace(stripped, @"\s{2,}", " ").Trim();
                 if (stripped.Length > 8000)

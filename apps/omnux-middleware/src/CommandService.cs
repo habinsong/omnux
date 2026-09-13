@@ -45,6 +45,13 @@ public sealed partial class CommandService :
         @"<[^>]+>",
         RegexOptions.Compiled
     );
+    // 태그만 벗기면 script·style 안의 코드가 본문으로 남는다. 요즘 페이지는 그 분량이 본문보다 커서
+    // 앞부분을 잘라 쓰면 실제 내용이 한 글자도 안 들어온다(실측: GitHub 프로필 8,000자가 전부
+    // importmap JSON 이었다). 블록을 내용째 먼저 버린다.
+    private static readonly Regex HtmlNonContentBlockRegex = new(
+        @"<(script|style|noscript|template|svg)\b[^>]*>[\s\S]*?</\1\s*>",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase
+    );
     private static readonly HttpClient WebFetchClient = CreateWebFetchClient();
     private readonly ProviderOptions _providers;
     private readonly PathOptions _paths;
