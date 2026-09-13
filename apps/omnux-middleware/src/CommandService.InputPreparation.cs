@@ -1832,6 +1832,23 @@ public sealed partial class CommandService
             return string.Empty;
         }
 
+        // 직접 받아 온 원문이 있으면 그걸 쓴다. 모델 요약만 믿으면 페이지에 없는 내용이 섞인다(실측).
+        var fetchedBlocks = new List<string>();
+        foreach (var url in urls.Take(3))
+        {
+            var fetched = await FetchWebSnippetAsync(url, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(fetched))
+            {
+                fetchedBlocks.Add($"### {url}\n{fetched}");
+            }
+        }
+
+        if (fetchedBlocks.Count > 0)
+        {
+            return "[웹 참조]\n- 아래는 해당 주소에서 실제로 받아 온 내용입니다. 여기에 없는 사실을 지어내지 마세요.\n"
+                   + string.Join("\n\n", fetchedBlocks);
+        }
+
         if (_llmRouter.HasGeminiApiKey())
         {
             var summaryPrompt = BuildGeminiUrlContextSummaryPrompt(input, urls);
@@ -1854,24 +1871,7 @@ public sealed partial class CommandService
             }
         }
 
-        var blocks = new List<string>();
-        foreach (var url in urls.Take(3))
-        {
-            var snippet = await FetchWebSnippetAsync(url, cancellationToken);
-            if (string.IsNullOrWhiteSpace(snippet))
-            {
-                continue;
-            }
-
-            blocks.Add($"### {url}\n{snippet}");
-        }
-
-        if (blocks.Count == 0)
-        {
-            return string.Empty;
-        }
-
-        return "[웹 참조]\n" + string.Join("\n\n", blocks);
+        return string.Empty;
     }
 
     private string BuildGeminiUrlContextSummaryPrompt(string input, IReadOnlyList<string> urls)
@@ -1898,6 +1898,38 @@ public sealed partial class CommandService
         return builder.ToString().Trim();
     }
 
+    /// <summary>
+    /// 주소에서 실제로 받아 온 본문을 프롬프트 블록으로 만든다.
+    /// Gemini 의 url_context 는 페이지를 읽지 않고 그럴듯한 내용을 지어내는 경우가 있다
+    /// (실측: GitHub 프로필에서 존재하지 않는 저장소 이름을 나열했다). 받아 온 원문을 같이 줘서
+    /// 그 안에 있는 내용으로만 답하게 한다.
+    /// </summary>
+    private async Task<string> BuildFetchedPageContextAsync(
+        IReadOnlyList<string> urls,
+        CancellationToken cancellationToken
+    )
+    {
+        var blocks = new List<string>();
+        foreach (var url in (urls ?? Array.Empty<string>()).Take(2))
+        {
+            var snippet = await FetchWebSnippetAsync(url, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(snippet))
+            {
+                blocks.Add($"### {url}\n{snippet}");
+            }
+        }
+
+        if (blocks.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        return "[페이지 원문]\n"
+               + "- 아래는 그 주소에서 실제로 받아 온 내용입니다. 여기에 없는 사실을 지어내지 말고, "
+               + "필요하면 '페이지에서 확인되지 않음'이라고 적으세요.\n"
+               + string.Join("\n\n", blocks);
+    }
+
     private async Task<string> FetchWebSnippetAsync(string url, CancellationToken cancellationToken)
     {
         try
@@ -1917,9 +1949,12 @@ public sealed partial class CommandService
                 return string.Empty;
             }
 
-            if (raw.Length > 24_000)
+            // 예전에는 원본 HTML 을 24KB 에서 잘랐다. 요즘 페이지는 head·스크립트만으로 그 분량을 넘겨서
+            // 정작 본문(예: GitHub 프로필의 저장소 목록)이 통째로 잘려 나갔다. 넉넉히 받고 태그를 벗긴
+            // 뒤 본문 기준으로 자른다.
+            if (raw.Length > 600_000)
             {
-                raw = raw[..24_000];
+                raw = raw[..600_000];
             }
 
             if (contentType.Contains("html", StringComparison.OrdinalIgnoreCase))
@@ -1929,9 +1964,9 @@ public sealed partial class CommandService
                 var stripped = HtmlTagStripRegex.Replace(raw, " ");
                 stripped = WebUtility.HtmlDecode(stripped);
                 stripped = Regex.Replace(stripped, @"\s{2,}", " ").Trim();
-                if (stripped.Length > 1800)
+                if (stripped.Length > 8000)
                 {
-                    stripped = stripped[..1800] + "...";
+                    stripped = stripped[..8000] + "...";
                 }
 
                 if (!string.IsNullOrWhiteSpace(title))
@@ -1943,9 +1978,9 @@ public sealed partial class CommandService
             }
 
             var normalized = raw.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal).Trim();
-            if (normalized.Length > 1800)
+            if (normalized.Length > 8000)
             {
-                normalized = normalized[..1800] + "...";
+                normalized = normalized[..8000] + "...";
             }
 
             return WrapWebFetchSnippet(normalized);

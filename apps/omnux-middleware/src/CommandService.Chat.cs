@@ -296,6 +296,16 @@ public sealed partial class CommandService
                 ),
                 autoRetrieval.Block
             );
+            // 페이지를 우리가 직접 받아 함께 넘긴다. url_context 만 믿으면 없는 내용을 지어낸다(실측).
+            var fetchedPageContext = await BuildFetchedPageContextAsync(resolvedWebUrls, cancellationToken)
+                .ConfigureAwait(false);
+            if (fetchedPageContext.Length > 0)
+            {
+                memoryHint = string.IsNullOrWhiteSpace(memoryHint)
+                    ? fetchedPageContext
+                    : fetchedPageContext + "\n\n" + memoryHint;
+            }
+
             var urlResult = await GenerateGeminiUrlContextAnswerDetailedAsync(
                 rawInput,
                 resolvedWebUrls,
