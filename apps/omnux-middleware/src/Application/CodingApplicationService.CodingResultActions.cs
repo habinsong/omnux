@@ -8,6 +8,61 @@ public sealed partial class CodingApplicationService
     private const string CodingPreviewApiPrefix = "/api/coding-preview";
 
     /// <summary>
+    /// 이 요청이 "이미 만든 결과를 그대로 실행해 달라"는 뜻인지 모델에게 한 번 묻는다.
+    /// 어휘 목록으로 맞히려 들면 표현이 조금만 달라도 놓친다("그거 켜봐", "동작하는지 보여줘"…).
+    /// 호출이 실패하거나 응답을 못 읽으면 어휘 폴백으로 판단한다.
+    /// </summary>
+    private async Task<bool> ShouldRunExistingCodingResultAsync(
+        string provider,
+        string model,
+        string rawInput,
+        CancellationToken cancellationToken
+    )
+    {
+        if (!CodingRunRequestIntentPolicy.CouldBeFollowUpRunRequest(rawInput))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(30));
+            var generated = await GenerateByProviderSafeAsync(
+                provider,
+                model,
+                CodingRunRequestIntentPolicy.BuildClassificationPrompt(rawInput),
+                timeout.Token,
+                maxOutputTokens: 2048,
+                timeoutOverrideSeconds: 25,
+                tuning: LlmTuning.From("low", "standard")
+            ).ConfigureAwait(false);
+            if (CodingProviderFailurePolicy.Classify(generated.Text) == CodingProviderFailureKind.None
+                && CodingRunRequestIntentPolicy.TryParse(generated.Text, out var runExisting))
+            {
+                Console.Error.WriteLine(
+                    $"[coding-run-intent] runExisting={runExisting} source=llm provider={provider} request=\"{TrimForOutput(rawInput, 60).Replace("\n", " ", StringComparison.Ordinal)}\""
+                );
+                return runExisting;
+            }
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // 판정 실패는 치명적이지 않다. 아래 폴백으로 계속한다.
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[coding-run-intent] classification skipped: {ex.Message}");
+        }
+
+        var fallback = CodingRunRequestIntentPolicy.FallbackLooksLikeRunOnlyRequest(rawInput);
+        Console.Error.WriteLine(
+            $"[coding-run-intent] runExisting={fallback} source=fallback request=\"{TrimForOutput(rawInput, 60).Replace("\n", " ", StringComparison.Ordinal)}\""
+        );
+        return fallback;
+    }
+
+    /// <summary>
     /// "실행해봐" 요청을 직전 코딩 결과 실행으로 처리한다. 실행할 대상이 없으면 null 을 돌려
     /// 일반 빌드 경로로 넘긴다(실행할 게 없는데 실행만 하고 끝나면 사용자는 아무 결과도 못 본다).
     /// </summary>

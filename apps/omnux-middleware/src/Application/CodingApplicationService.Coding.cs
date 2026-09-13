@@ -103,19 +103,6 @@ public sealed partial class CodingApplicationService
         if (request.BoundProject != null) session = session with { Thread = _conversationStore.BindCodingProject(session.Thread.Id, request.BoundProject) };
         var thread = session.Thread;
         var rawInput = (request.Input ?? string.Empty).Trim();
-        // "실행해봐" 처럼 이미 만든 결과를 돌려 달라는 요청은 새로 빌드하지 않고 그 결과를 실행한다.
-        // 새 코딩 루프로 보내면 모델이 목표를 '실행'으로 오해해 파일을 다시 쓰거나 아무것도 안 한다.
-        if (CodingRunRequestIntentPolicy.LooksLikeRunExistingResultRequest(rawInput)
-            && thread.LatestCodingResult != null)
-        {
-            var rerun = await TryRerunLatestCodingResultAsync(session, rawInput, cancellationToken)
-                .ConfigureAwait(false);
-            if (rerun != null)
-            {
-                return rerun;
-            }
-        }
-
         var codingRunRoot = ResolveOrCreateCodingRunWorkspaceRoot(session, "single");
         if (TryHandleBrowserCodingIntent(session, rawInput, "single", codingRunRoot, request.Language) is { } browserIntentResult)
         {
@@ -167,6 +154,20 @@ public sealed partial class CodingApplicationService
         }
 
         var model = ResolveModelForCategory(routingCategory, provider, request.Model);
+        // 이미 만든 결과를 "그대로 실행해 줘"라는 뜻의 요청이면 새로 빌드하지 않고 그 결과를 실행한다.
+        // 표현은 모델에게 의미로 판정하게 한다(어휘 목록은 판정 실패 시 폴백).
+        if (thread.LatestCodingResult != null
+            && await ShouldRunExistingCodingResultAsync(provider, model, rawInput, cancellationToken)
+                .ConfigureAwait(false))
+        {
+            var rerun = await TryRerunLatestCodingResultAsync(session, rawInput, cancellationToken)
+                .ConfigureAwait(false);
+            if (rerun != null)
+            {
+                return rerun;
+            }
+        }
+
         var requestedSkillName = ResolvePromptOrUiSkillName(request.SkillName, rawInput);
         var preparedInput = await PrepareInputForProviderAsync(
             rawInput,
