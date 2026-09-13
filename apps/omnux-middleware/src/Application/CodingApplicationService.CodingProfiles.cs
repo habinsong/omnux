@@ -367,11 +367,27 @@ public sealed partial class CodingApplicationService
         }
 
         var explicitLanguage = CodingLanguagePolicy.ResolveExplicitObjectiveLanguage(objective);
-        // 요청당 한 번 판정해 둔 신호가 있으면 그것이 진실이다(언어 무관).
-        // 아래 영어 토큰 매칭은 판정이 없을 때만 쓰는 폴백이다.
+        // 판정 신호를 우선 믿되, 오해할 수 없는 단어가 있으면 판정이 false 로 와도 게임으로 본다.
+        // LLM 판정은 한 번 호출이라 틀릴 수 있고, 틀리면 게임 프로파일·게임 검증이 통째로 빠진다.
         var resolved = CodingTaskSignalResolver.TryGet(objective);
-        var gameSignals = resolved?.Game
-            ?? ContainsAny(text, "game", "arcade", "shooter", "shooting", "platformer", "tetris", "pong", "snake");
+        var gameSignals = (resolved?.Game ?? false)
+            || ContainsAny(
+                text,
+                "game",
+                "arcade",
+                "shooter",
+                "shooting",
+                "platformer",
+                "tetris",
+                "pong",
+                "snake",
+                "게임",
+                "테트리스",
+                "벽돌깨기",
+                "슈팅",
+                "마리오",
+                "아케이드"
+            );
         if (!gameSignals)
         {
             return false;

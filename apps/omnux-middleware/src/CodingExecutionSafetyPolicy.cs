@@ -77,14 +77,24 @@ internal static class CodingExecutionSafetyPolicy
             return false;
         }
 
-        // 요청당 한 번 판정해 둔 신호가 있으면 언어와 무관하게 그것을 따른다.
-        // 아래 토큰 목록은 판정이 없을 때의 폴백이다.
+        // 요청당 한 번 판정해 둔 신호가 있으면 우선 따른다. 다만 그 판정은 LLM 한 번 호출이라
+        // 틀릴 수 있는데, "pygame", "테트리스" 처럼 오해할 수 없는 단어가 요청에 박혀 있으면
+        // 판정이 false 로 와도 게임으로 본다(실측: 판정이 false 로 떨어지면 게임 검증이 통째로
+        // 빠지고 모델이 쓴 단위 테스트가 최종 검증이 되어 실패했다). 둘 중 하나라도 켜지면 대화형이다.
         var resolved = CodingTaskSignalResolver.TryGet(objective);
-        if (resolved != null)
-        {
-            return resolved.Interactive || resolved.Gui || resolved.Game;
-        }
+        var resolvedInteractive = resolved != null && (resolved.Interactive || resolved.Gui || resolved.Game);
+        return resolvedInteractive
+               || MatchesInteractiveKeywords(text, language, objective ?? string.Empty, isFrontendLikeCodingTask);
+    }
 
+    /// <summary>판정 신호가 없거나 놓쳤을 때 쓰는 어휘 폴백. 한국어 요청도 여기서 걸러진다.</summary>
+    private static bool MatchesInteractiveKeywords(
+        string text,
+        string language,
+        string objective,
+        Func<string, string, bool>? isFrontendLikeCodingTask
+    )
+    {
         if (language == "python")
         {
             return ContainsAny(
@@ -106,14 +116,26 @@ internal static class CodingExecutionSafetyPolicy
                 "mainloop",
                 "canvas",
                 "keyboard",
-                "mouse"
+                "mouse",
+                "게임",
+                "테트리스",
+                "벽돌깨기",
+                "슈팅",
+                "마리오",
+                "아케이드",
+                "미로",
+                "퍼즐",
+                "창을 띄",
+                "키보드",
+                "마우스",
+                "애니메이션"
             );
         }
 
         if (language is "javascript" or "typescript" or "react-vite")
         {
             return (isFrontendLikeCodingTask?.Invoke(objective ?? string.Empty, language) ?? false)
-                   || ContainsAny(text, "canvas", "animation", "sprite", "dom", "browser");
+                   || ContainsAny(text, "canvas", "animation", "sprite", "dom", "browser", "게임", "애니메이션");
         }
 
         if (language == "bash")
