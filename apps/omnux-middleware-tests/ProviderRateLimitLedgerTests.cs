@@ -86,3 +86,14 @@ public sealed class ProviderRateLimitLedgerTests
         Assert.False(ledger.IsCoolingDown("cerebras", "qwen-3.8-27b", now.AddSeconds(21)));
     }
 }
+
+public sealed class TelegramOtpSuppressionTests
+{
+    [Fact]
+    public void DisableTelegramOtpDefaultsToOffSoTheRealAppKeepsSendingOtp()
+    {
+        // 기본값이 켜지면 실제 사용자가 OTP 를 못 받는다. 검증용 인스턴스에서만 끄는 스위치다.
+        var config = AppConfig.LoadFromEnvironment();
+        Assert.False(config.Security.DisableTelegramOtp);
+    }
+}

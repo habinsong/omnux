@@ -123,6 +123,12 @@ public sealed class AppConfig
     public int GatewayStartupProbePollIntervalMs { get; init; } = 150;
     public string GatewayStartupProbeMode { get; init; } = "live";
     public bool EnableLocalOtpFallback { get; init; } = true;
+
+    /// <summary>
+    /// OTP 를 텔레그램으로 보내지 않는다. 검증용 인스턴스를 띄울 때 사용자 텔레그램에 OTP 가
+    /// 쌓이는 것을 막기 위한 스위치다(기본은 꺼짐 — 실제 앱 동작은 그대로).
+    /// </summary>
+    public bool DisableTelegramOtp { get; init; }
     public string KillAllowlistCsv { get; init; } = string.Empty;
     public int DoctorTimeoutSeconds { get; init; } = 15;
     public bool DoctorEnableSandboxSmoke { get; init; } = true;
@@ -220,6 +226,7 @@ public sealed class AppConfig
         EnableDynamicCode,
         ExternalDashboardEnabled,
         EnableLocalOtpFallback,
+        DisableTelegramOtp,
         KillAllowlistCsv,
         GuardAlertWebhookUrl,
         GuardAlertLogCollectorUrl,
@@ -454,6 +461,7 @@ public sealed class AppConfig
             GatewayStartupProbePollIntervalMs = Math.Max(50, GetIntEnv("OMNUX_GATEWAY_STARTUP_PROBE_POLL_INTERVAL_MS", 150)),
             GatewayStartupProbeMode = GetStringEnv("OMNUX_GATEWAY_STARTUP_PROBE_MODE", "live"),
             EnableLocalOtpFallback = GetBoolEnv("OMNUX_ENABLE_LOCAL_OTP_FALLBACK", true),
+            DisableTelegramOtp = GetBoolEnv("OMNUX_DISABLE_TELEGRAM_OTP", false),
             KillAllowlistCsv = GetStringEnv("OMNUX_KILL_ALLOWLIST", string.Empty),
             DoctorTimeoutSeconds = Math.Max(3, GetIntEnv("OMNUX_DOCTOR_TIMEOUT_SECONDS", 15)),
             DoctorEnableSandboxSmoke = GetBoolEnv("OMNUX_DOCTOR_ENABLE_SANDBOX_SMOKE", true),
@@ -659,6 +667,7 @@ public sealed record SecurityOptions(
     bool EnableDynamicCode,
     bool ExternalDashboardEnabled,
     bool EnableLocalOtpFallback,
+    bool DisableTelegramOtp,
     string KillAllowlistCsv,
     string GuardAlertWebhookUrl,
     string GuardAlertLogCollectorUrl,

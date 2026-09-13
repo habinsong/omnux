@@ -10,18 +10,21 @@ internal sealed class AuthSessionGateway
     private readonly TelegramClient _telegramClient;
     private readonly TotpAuthenticatorStore _totp;
     private readonly bool _enableLocalOtpFallback;
+    private readonly bool _disableTelegramOtp;
 
     public AuthSessionGateway(
         IAuthSessionStore sessionManager,
         TelegramClient telegramClient,
         TotpAuthenticatorStore totp,
-        bool enableLocalOtpFallback
+        bool enableLocalOtpFallback,
+        bool disableTelegramOtp = false
     )
     {
         _sessionManager = sessionManager;
         _telegramClient = telegramClient;
         _totp = totp;
         _enableLocalOtpFallback = enableLocalOtpFallback;
+        _disableTelegramOtp = disableTelegramOtp;
     }
 
     public async Task<string> CreatePendingSessionAsync(
@@ -202,7 +205,8 @@ internal sealed class AuthSessionGateway
         }
 
         var otpSent = false;
-        if (_telegramClient.IsConfigured)
+        // 검증용 인스턴스에서는 텔레그램으로 OTP 를 보내지 않는다. 사용자 텔레그램에 OTP 가 쌓인다.
+        if (_telegramClient.IsConfigured && !_disableTelegramOtp)
         {
             otpSent = await _telegramClient.SendOtpAsync(currentOtp, cancellationToken);
         }

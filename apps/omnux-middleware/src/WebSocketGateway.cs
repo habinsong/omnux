@@ -223,7 +223,13 @@ public sealed partial class WebSocketGateway
         _auditLogger = auditLogger;
         _staticFileEndpoint = new HttpStaticFileEndpoint(paths.DashboardIndexPath);
         _apiEndpoint = new GatewayApiEndpoint(guardRetryTimelineStore, conversationService, paths);
-        _authSessionGateway = new AuthSessionGateway(sessionManager, telegramClient, settingsService.TotpAuthenticator, securityOptions.EnableLocalOtpFallback);
+        _authSessionGateway = new AuthSessionGateway(
+            sessionManager,
+            telegramClient,
+            settingsService.TotpAuthenticator,
+            securityOptions.EnableLocalOtpFallback,
+            securityOptions.DisableTelegramOtp
+        );
         _setupCommandDispatcher = new WsSetupCommandDispatcher(
             settingsService,
             groqModelCatalog,
