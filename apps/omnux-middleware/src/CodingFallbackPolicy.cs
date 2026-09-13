@@ -731,11 +731,56 @@ internal static class CodingFallbackPolicy
             return normalized;
         }
 
+        // 따옴표 안의 줄바꿈은 명령 구분이 아니라 데이터다. 여기서 공백으로 이어 붙이면
+        // `python3 -c '<여러 줄 스크립트>'` 가 한 줄로 뭉개져 SyntaxError 로 죽는다.
+        if (HasNewlineInsideQuotes(normalized))
+        {
+            return normalized;
+        }
+
         var lines = normalized
             .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Where(line => !string.IsNullOrWhiteSpace(line))
             .ToArray();
         return StripTrailingDisplayCommandHints(string.Join(' ', lines));
+    }
+
+    /// <summary>
+    /// 따옴표가 열린 채로 줄바꿈을 넘는 구간이 있는지. 있으면 그 줄바꿈은 셸 명령 구분자가 아니라
+    /// 인용된 문자열의 일부이므로 손대면 안 된다.
+    /// </summary>
+    private static bool HasNewlineInsideQuotes(string command)
+    {
+        var inSingle = false;
+        var inDouble = false;
+        for (var i = 0; i < command.Length; i += 1)
+        {
+            var current = command[i];
+            if (current == '\\' && inDouble && i + 1 < command.Length)
+            {
+                i += 1;
+                continue;
+            }
+
+            if (current == '\'' && !inDouble)
+            {
+                inSingle = !inSingle;
+                continue;
+            }
+
+            if (current == '"' && !inSingle)
+            {
+                inDouble = !inDouble;
+                continue;
+            }
+
+            if (current == '\n' && (inSingle || inDouble))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string ResolveAutoBundleLanguage(string? languageHint, string objective)

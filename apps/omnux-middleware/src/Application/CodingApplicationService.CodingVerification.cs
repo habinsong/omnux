@@ -12,7 +12,9 @@ public sealed partial class CodingApplicationService
         IReadOnlyList<string>? expectedOutputLines = null
     )
     {
-        var normalizedCommand = CodingFallbackPolicy.NormalizeGeneratedRunCommand(command);
+        // 이 명령은 우리가 조립한 것이라 모델 출력용 정규화(줄바꿈 정리)를 태우지 않는다.
+        // 정규화를 태우면 안에 박힌 여러 줄 파이썬 스크립트가 한 줄로 뭉개진다.
+        var normalizedCommand = (command ?? string.Empty).Trim();
         var resolvedExpectedLines = ResolveExpectedOutputAssertionLines(expectedOutput, expectedOutputLines);
         if (string.IsNullOrWhiteSpace(normalizedCommand) || resolvedExpectedLines.Count == 0)
         {
