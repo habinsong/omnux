@@ -55,6 +55,17 @@ public sealed partial class CommandService
         }
 
         var result = _browserTool.Execute(command.Action, command.Url);
+        // 브라우저를 못 띄웠는데 읽을 주소가 있으면 오류를 답으로 주지 않는다. "이 페이지 열어서 알려줘"의
+        // 목적은 내용을 아는 것이므로, 일반 경로(URL 내용 가져오기·웹 검색)가 처리하게 넘긴다
+        // (실측: Chromium 실행 실패 한 줄만 답으로 오고 페이지 내용은 전혀 못 가져왔다).
+        if (!result.Ok && !string.IsNullOrWhiteSpace(command.Url))
+        {
+            Console.Error.WriteLine(
+                $"[browser-intent] launch failed, falling back to page fetch: {TrimForOutput(result.Error ?? "-", 160)}"
+            );
+            return null;
+        }
+
         var assistantText = BuildBrowserIntentAssistantText(command, result);
         _conversationStore.AppendMessage(session.Thread.Id, "user", rawInput, "browser:intent");
         _conversationStore.AppendMessage(session.Thread.Id, "assistant", assistantText, "browser:intent");
@@ -92,6 +103,17 @@ public sealed partial class CommandService
         }
 
         var result = _browserTool.Execute(command.Action, command.Url);
+        // 브라우저를 못 띄웠는데 읽을 주소가 있으면 오류를 답으로 주지 않는다. "이 페이지 열어서 알려줘"의
+        // 목적은 내용을 아는 것이므로, 일반 경로(URL 내용 가져오기·웹 검색)가 처리하게 넘긴다
+        // (실측: Chromium 실행 실패 한 줄만 답으로 오고 페이지 내용은 전혀 못 가져왔다).
+        if (!result.Ok && !string.IsNullOrWhiteSpace(command.Url))
+        {
+            Console.Error.WriteLine(
+                $"[browser-intent] launch failed, falling back to page fetch: {TrimForOutput(result.Error ?? "-", 160)}"
+            );
+            return null;
+        }
+
         var assistantText = BuildBrowserIntentAssistantText(command, result);
         _conversationStore.AppendMessage(session.Thread.Id, "user", rawInput, "browser:intent");
         _conversationStore.AppendMessage(session.Thread.Id, "assistant", assistantText, "browser:intent");
@@ -157,6 +179,17 @@ public sealed partial class CommandService
 
         Directory.CreateDirectory(codingRunRoot);
         var result = _browserTool.Execute(command.Action, command.Url);
+        // 브라우저를 못 띄웠는데 읽을 주소가 있으면 오류를 답으로 주지 않는다. "이 페이지 열어서 알려줘"의
+        // 목적은 내용을 아는 것이므로, 일반 경로(URL 내용 가져오기·웹 검색)가 처리하게 넘긴다
+        // (실측: Chromium 실행 실패 한 줄만 답으로 오고 페이지 내용은 전혀 못 가져왔다).
+        if (!result.Ok && !string.IsNullOrWhiteSpace(command.Url))
+        {
+            Console.Error.WriteLine(
+                $"[browser-intent] launch failed, falling back to page fetch: {TrimForOutput(result.Error ?? "-", 160)}"
+            );
+            return null;
+        }
+
         var assistantText = BuildBrowserIntentAssistantText(command, result);
         _conversationStore.AppendMessage(session.Thread.Id, "user", rawInput, "browser:intent");
         _conversationStore.AppendMessage(session.Thread.Id, "assistant", assistantText, "browser:intent");

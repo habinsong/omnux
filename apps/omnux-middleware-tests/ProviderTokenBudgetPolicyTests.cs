@@ -26,23 +26,24 @@ public sealed class ProviderTokenBudgetPolicyTests
     }
 
     [Fact]
-    public void LargeWindowProvidersGetAReasoningSafeFloor()
+    public void LargeWindowProvidersGetTheWholeWindow()
     {
-        // 추론 토큰이 출력 예산 안에 들어가므로, 작은 예산을 그대로 주면 본문이 비거나 잘린다.
+        // 추론 토큰이 출력 예산 안에 들어간다. 예산을 깎으면 본문이 비거나 잘리므로 창 전체를 준다.
+        ProviderTokenBudgetPolicy.ResetLearnedOutputLimits();
         Assert.Equal(
-            ProviderTokenBudgetPolicy.LargeWindowMinOutputTokens,
+            ProviderTokenBudgetPolicy.LargeWindowTokens,
             ProviderTokenBudgetPolicy.ResolveOutputTokens("deepseek", 1024)
         );
         Assert.Equal(
-            ProviderTokenBudgetPolicy.LargeWindowMinOutputTokens,
+            ProviderTokenBudgetPolicy.LargeWindowTokens,
             ProviderTokenBudgetPolicy.ResolveOutputTokens("gemini", 2400)
         );
     }
 
     [Fact]
-    public void LargeWindowProvidersKeepBiggerRequestsUpToTheWindow()
+    public void RequestsBeyondTheWindowAreClampedToIt()
     {
-        Assert.Equal(64_000, ProviderTokenBudgetPolicy.ResolveOutputTokens("deepseek", 64_000));
+        ProviderTokenBudgetPolicy.ResetLearnedOutputLimits();
         Assert.Equal(
             ProviderTokenBudgetPolicy.LargeWindowTokens,
             ProviderTokenBudgetPolicy.ResolveOutputTokens("gemini", 1_000_000)
@@ -72,5 +73,38 @@ public sealed class ProviderTokenBudgetPolicyTests
             ProviderTokenBudgetPolicy.ResolveHistoryChars("gemini")
             > ProviderTokenBudgetPolicy.DefaultHistoryChars
         );
+    }
+}
+
+public sealed class ProviderTokenBudgetLearnedLimitTests
+{
+    [Fact]
+    public void LargeWindowProvidersGetTheWholeWindowNotABudget()
+    {
+        ProviderTokenBudgetPolicy.ResetLearnedOutputLimits();
+        Assert.Equal(ProviderTokenBudgetPolicy.LargeWindowTokens, ProviderTokenBudgetPolicy.ResolveOutputTokens("deepseek", 1024));
+        Assert.Equal(ProviderTokenBudgetPolicy.LargeWindowTokens, ProviderTokenBudgetPolicy.ResolveOutputTokens("gemini", 2400));
+    }
+
+    [Fact]
+    public void RejectedLimitIsLearnedAndUsedAfterwards()
+    {
+        ProviderTokenBudgetPolicy.ResetLearnedOutputLimits();
+        const string error = "{\"error\":{\"message\":\"max_tokens must be less than or equal to 65536\"}}";
+        Assert.True(ProviderTokenBudgetPolicy.TryLearnOutputLimit("deepseek", error, out var limit));
+        Assert.Equal(65536, limit);
+        Assert.Equal(65536, ProviderTokenBudgetPolicy.ResolveOutputTokens("deepseek", 1024));
+        // 같은 한도를 다시 배우지는 않는다(무한 재시도 방지).
+        Assert.False(ProviderTokenBudgetPolicy.TryLearnOutputLimit("deepseek", error, out _));
+        ProviderTokenBudgetPolicy.ResetLearnedOutputLimits();
+    }
+
+    [Fact]
+    public void SmallWindowProvidersAndUnrelatedErrorsAreIgnored()
+    {
+        ProviderTokenBudgetPolicy.ResetLearnedOutputLimits();
+        Assert.False(ProviderTokenBudgetPolicy.TryLearnOutputLimit("groq", "max_tokens must be <= 8192", out _));
+        Assert.False(ProviderTokenBudgetPolicy.TryLearnOutputLimit("gemini", "rate limit exceeded", out _));
+        Assert.Equal(2048, ProviderTokenBudgetPolicy.ResolveOutputTokens("groq", 2048));
     }
 }

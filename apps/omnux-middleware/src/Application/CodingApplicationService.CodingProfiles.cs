@@ -197,11 +197,13 @@ public sealed partial class CodingApplicationService
                     normalizedProvider,
                     baseProfile.PlanMaxOutputTokens
                 ),
+                // 예산을 창 전체로 주면 추론이 길어져 응답도 그만큼 늦다. 180초에서는 큰 요청(플랫포머 등)의
+                // 계획 호출이 취소돼 파일 한 개 없이 끝났다(실측 544초 소요 후 error). 넉넉히 잡는다.
                 RequestTimeoutSeconds = Math.Max(
                     baseProfile.RequestTimeoutSeconds,
                     normalizedProvider.Equals("deepseek", StringComparison.OrdinalIgnoreCase)
-                        ? Math.Max(180, _providers.DeepseekTimeoutSec)
-                        : 120
+                        ? Math.Max(420, _providers.DeepseekTimeoutSec)
+                        : 240
                 )
             };
         }

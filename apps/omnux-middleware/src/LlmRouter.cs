@@ -1093,6 +1093,15 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                 );
                 if (!result.IsSuccess)
                 {
+                    // 창 전체를 예산으로 보내는데 제공자가 범위 초과라고 하면, 알려 준 한도로 줄여 다시 보낸다.
+                    if (ProviderTokenBudgetPolicy.TryLearnOutputLimit("gemini", result.ResponseBody, out var learnedLimitGm)
+                        && learnedLimitGm < effectiveMaxOutputTokens)
+                    {
+                        Console.Error.WriteLine($"[gemini] 출력 한도 {learnedLimitGm} 확인. 그 값으로 재시도한다.");
+                        effectiveMaxOutputTokens = learnedLimitGm;
+                        continue;
+                    }
+
                     Console.Error.WriteLine($"[gemini] chat failed ({(int)result.StatusCode}): {result.ResponseBody}");
                     return $"Gemini 요청 실패: {(int)result.StatusCode}";
                 }
@@ -2180,6 +2189,15 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                 );
                 if (!result.IsSuccess)
                 {
+                    // 창 전체를 예산으로 보내는데 제공자가 범위 초과라고 하면, 알려 준 한도로 줄여 다시 보낸다.
+                    if (ProviderTokenBudgetPolicy.TryLearnOutputLimit("deepseek", result.ResponseBody, out var learnedLimitDs)
+                        && learnedLimitDs < effectiveMaxOutputTokens)
+                    {
+                        Console.Error.WriteLine($"[deepseek] 출력 한도 {learnedLimitDs} 확인. 그 값으로 재시도한다.");
+                        effectiveMaxOutputTokens = learnedLimitDs;
+                        continue;
+                    }
+
                     return result.FailureMessage;
                 }
 
