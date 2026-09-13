@@ -55,6 +55,17 @@ internal static class CerebrasErrorPolicy
             return "Cerebras 요청 실패: 503 (service unavailable). Cerebras 서버가 일시적으로 과부하이거나 불안정한 상태입니다. 잠시 후 다시 시도해 주세요.";
         }
 
+        if (statusCode == System.Net.HttpStatusCode.PaymentRequired)
+        {
+            return "Cerebras 요청 실패: 402 (payment required). 계정 크레딧이 없거나 결제 수단이 필요합니다. "
+                + "Cerebras 콘솔에서 결제 상태를 확인하거나 다른 제공자를 골라 주세요.";
+        }
+
+        if (statusCode == System.Net.HttpStatusCode.Unauthorized || statusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            return $"Cerebras 요청 실패: {(int)statusCode} (인증 실패). 설정 탭에서 Cerebras API 키를 다시 저장해 주세요.";
+        }
+
         return $"Cerebras 요청 실패: {(int)statusCode}";
     }
 

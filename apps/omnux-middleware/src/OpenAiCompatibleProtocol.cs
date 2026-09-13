@@ -85,6 +85,17 @@ internal static class OpenAiCompatibleProtocol
             return $"{name} rate limit ({statusInt}). 잠시 후 다시 시도해 주세요.";
         }
 
+        // 제공자를 가리지 않고 "무엇을 해야 하는지"까지 알려 준다. 숫자만 던지면 사용자가 못 고친다.
+        if (statusCode == System.Net.HttpStatusCode.Unauthorized || statusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            return $"{name} 인증 실패 ({statusInt}). 설정 탭에서 {name} API 키를 다시 저장해 주세요.";
+        }
+
+        if (statusCode == System.Net.HttpStatusCode.PaymentRequired)
+        {
+            return $"{name} 결제 필요 ({statusInt}). 계정 크레딧이나 결제 수단을 확인하거나 다른 제공자를 골라 주세요.";
+        }
+
         return $"{name} 요청 실패: {statusInt}";
     }
 
