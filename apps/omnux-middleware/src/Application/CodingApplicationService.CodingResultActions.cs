@@ -78,8 +78,10 @@ public sealed partial class CodingApplicationService
             executed = await ExecuteLatestCodingResultAsync(session.Thread.Id, null, cancellationToken)
                 .ConfigureAwait(false);
         }
-        catch (InvalidOperationException)
+        catch (InvalidOperationException ex)
         {
+            // 왜 실행으로 못 갔는지 남긴다. 이유를 모르면 조용히 빌드 루프로 새 파일이 생겨 버린다.
+            Console.Error.WriteLine($"[coding-run-intent] rerun unavailable: {ex.Message}");
             return null;
         }
 
