@@ -1330,8 +1330,13 @@ async function waitFor(url, deadlineMs = 12000) {
         return modules.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
+    /// <summary>
+    /// 모듈 존재 확인은 반드시 작업공간 .venv 의 파이썬으로 해야 한다. 시스템 python3 로 확인하면
+    /// pygame 처럼 .venv 에만 설치한 패키지를 "없다"고 판정해 빌드가 error 로 끝났다(실측).
+    /// </summary>
     private static string BuildInteractivePythonModuleAvailabilityCommand(IEnumerable<string> moduleNames)
     {
+        var runner = BuildPythonRunnerToken();
         var modules = (moduleNames ?? Array.Empty<string>())
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -1339,11 +1344,11 @@ async function waitFor(url, deadlineMs = 12000) {
             .ToArray();
         if (modules.Length == 0)
         {
-            return "python3 -c 'import sys; sys.exit(0)'";
+            return $"{runner} -c 'import sys; sys.exit(0)'";
         }
 
         const string script = "import importlib, sys; missing = []; exec(\"for mod in sys.argv[1:]:\\n    try:\\n        importlib.import_module(mod)\\n    except Exception as ex:\\n        missing.append(f\\\"{mod}: {ex.__class__.__name__}: {ex}\\\")\"); missing and print(\"interactive python game unavailable modules: \" + \" | \".join(missing), file=sys.stderr); sys.exit(1 if missing else 0)";
-        return $"python3 -c {EscapeShellArg(script)} {JoinShellArgs(modules)}";
+        return $"{runner} -c {EscapeShellArg(script)} {JoinShellArgs(modules)}";
     }
 
     private static string BuildPythonGameStaticQualityCommand(string objectiveText, IEnumerable<string> sourceFiles)
