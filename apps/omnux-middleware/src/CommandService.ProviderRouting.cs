@@ -213,7 +213,121 @@ public sealed partial class CommandService
         return new LlmSingleChatResult(provider, model, response, usage);
     }
 
+    /// <summary>
+    /// 제공자 호출 공통 진입점. 분당 호출·토큰 한도에 걸리면 같은 제공자의 다른 모델로 이어받는다.
+    /// 한도는 `ProviderRateLimitLedger` 가 응답 헤더와 429 로 배운 값을 쓴다(숫자를 코드에 박지 않는다).
+    /// 이어받을 모델 목록은 모델 레지스트리에서 온다.
+    /// </summary>
     private async Task<LlmSingleChatResult> GenerateByProviderSafeAsync(
+        string provider,
+        string? model,
+        string input,
+        CancellationToken cancellationToken,
+        int? maxOutputTokens = null,
+        bool useRawCodexPrompt = false,
+        string? codexWorkingDirectoryOverride = null,
+        bool optimizeCodexForCoding = false,
+        int? timeoutOverrideSeconds = null,
+        Action<string>? streamCallback = null,
+        LlmTuning? tuning = null
+    )
+    {
+        var normalizedProvider = NormalizeProvider(provider, allowAuto: false);
+        var requestedModel = normalizedProvider == "groq"
+            ? ResolveGroqModelForInput(input, model)
+            : ResolveProviderModel(normalizedProvider, model);
+        var chain = ProviderModelChainPolicy.BuildChain(
+            requestedModel,
+            ModelRegistry.GetFallbackModels(normalizedProvider)
+        );
+        if (chain.Count <= 1)
+        {
+            return await GenerateByProviderOnModelAsync(
+                normalizedProvider,
+                requestedModel,
+                input,
+                cancellationToken,
+                maxOutputTokens,
+                useRawCodexPrompt,
+                codexWorkingDirectoryOverride,
+                optimizeCodexForCoding,
+                timeoutOverrideSeconds,
+                streamCallback,
+                tuning
+            );
+        }
+
+        LlmSingleChatResult? lastRateLimited = null;
+        for (var index = 0; index < chain.Count; index++)
+        {
+            var candidate = chain[index];
+            var now = DateTimeOffset.UtcNow;
+            var unusable = _llmRouter.RateLimits.IsCoolingDown(normalizedProvider, candidate, now)
+                           || _llmRouter.RateLimits.IsExhaustionImminent(
+                               normalizedProvider,
+                               candidate,
+                               Math.Max(256, maxOutputTokens ?? 0),
+                               now
+                           );
+            // 마지막 후보는 냉각 중이어도 시도한다. 아무것도 시도하지 않고 실패로 끝내면 더 나쁘다.
+            if (unusable && index + 1 < chain.Count)
+            {
+                Console.Error.WriteLine($"[provider-chain] {normalizedProvider}/{candidate} 한도 근접. 건너뛴다.");
+                continue;
+            }
+
+            if (!candidate.Equals(requestedModel, StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine(
+                    $"[provider-chain] {normalizedProvider}: {requestedModel} 대신 {candidate} 로 이어받는다."
+                );
+            }
+
+            var result = await GenerateByProviderOnModelAsync(
+                normalizedProvider,
+                candidate,
+                input,
+                cancellationToken,
+                maxOutputTokens,
+                useRawCodexPrompt,
+                codexWorkingDirectoryOverride,
+                optimizeCodexForCoding,
+                timeoutOverrideSeconds,
+                // 델타를 두 번 보내지 않도록 첫 시도에만 스트리밍을 연결한다.
+                index == 0 ? streamCallback : null,
+                tuning
+            );
+            if (CodingProviderFailurePolicy.Classify(result.Text) != CodingProviderFailureKind.RateLimited)
+            {
+                return result;
+            }
+
+            _llmRouter.RateLimits.MarkRateLimited(
+                normalizedProvider,
+                candidate,
+                DateTimeOffset.UtcNow,
+                TimeSpan.FromSeconds(20)
+            );
+            lastRateLimited = result;
+            Console.Error.WriteLine($"[provider-chain] {normalizedProvider}/{candidate} 한도 응답. 다음 모델로 넘어간다.");
+        }
+
+        return lastRateLimited ?? await GenerateByProviderOnModelAsync(
+            normalizedProvider,
+            requestedModel,
+            input,
+            cancellationToken,
+            maxOutputTokens,
+            useRawCodexPrompt,
+            codexWorkingDirectoryOverride,
+            optimizeCodexForCoding,
+            timeoutOverrideSeconds,
+            streamCallback,
+            tuning
+        );
+    }
+
+    private async Task<LlmSingleChatResult> GenerateByProviderOnModelAsync(
         string provider,
         string? model,
         string input,
@@ -250,7 +364,7 @@ public sealed partial class CommandService
             {
                 lastResult = await GenerateByProviderAsync(
                     normalized,
-                    model,
+                    effectiveModel,
                     input,
                     timeoutCts.Token,
                     maxOutputTokens,

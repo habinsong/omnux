@@ -97,3 +97,43 @@ public sealed class TelegramOtpSuppressionTests
         Assert.False(config.Security.DisableTelegramOtp);
     }
 }
+
+public sealed class ProviderModelChainPolicyTests
+{
+    [Fact]
+    public void RequestedModelComesFirstAndDuplicatesAreDropped()
+    {
+        var chain = ProviderModelChainPolicy.BuildChain("b", new[] { "a", "b", "c", "b" });
+        Assert.Equal(new[] { "b", "a", "c" }, chain);
+    }
+
+    [Fact]
+    public void EmptyRequestedModelStillUsesProviderFallbacks()
+    {
+        var chain = ProviderModelChainPolicy.BuildChain("  ", new[] { "a", "b" });
+        Assert.Equal(new[] { "a", "b" }, chain);
+    }
+
+    [Fact]
+    public void ProvidersWithoutFallbackListGetASingleEntryChain()
+    {
+        // codex·copilot 처럼 레지스트리에 대체 목록이 없는 제공자는 체인이 1개라 동작이 바뀌지 않는다.
+        Assert.Equal(new[] { "only" }, ProviderModelChainPolicy.BuildChain("only", Array.Empty<string>()));
+        Assert.Empty(ProviderModelChainPolicy.BuildChain(null, null));
+    }
+
+    [Fact]
+    public void RegistryProvidesRealFallbackChainsForRateLimitedProviders()
+    {
+        // 모델 이름을 코드에 박지 않고 레지스트리에서 온다는 것을 고정한다.
+        foreach (var provider in new[] { "groq", "cerebras", "nvidia", "deepseek", "gemini" })
+        {
+            var chain = ProviderModelChainPolicy.BuildChain(
+                ModelRegistry.GetDefaultModel(provider),
+                ModelRegistry.GetFallbackModels(provider)
+            );
+            Assert.True(chain.Count >= 2, $"{provider} 는 이어받을 모델이 2개 이상이어야 한다");
+            Assert.Equal(ModelRegistry.GetDefaultModel(provider), chain[0]);
+        }
+    }
+}
