@@ -396,6 +396,13 @@ public sealed partial class CodingApplicationService
             var plan = CodingLoopPlanParser.Parse(generated.Text);
             if (plan == null)
             {
+                // 왜 못 읽었는지 남긴다. 잘린 응답인지 형식이 다른지는 끝부분을 봐야 안다.
+                var planText = generated.Text ?? string.Empty;
+                Console.Error.WriteLine(
+                    $"[coding-plan] parse failed iter={i} len={planText.Length}"
+                    + $" head={TrimForOutput(planText, 200).Replace("\n", " ", StringComparison.Ordinal)}"
+                    + $" tail={TrimForOutput(planText.Length > 200 ? planText[^200..] : planText, 200).Replace("\n", " ", StringComparison.Ordinal)}"
+                );
                 consecutivePlanParseFailures++;
                 consecutiveNoActionPlans = 0;
                 iterations.Add($"iter={i} plan_parse_failed");

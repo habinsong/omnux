@@ -61,6 +61,13 @@ public static class CodingProviderFailurePolicy
             return CodingProviderFailureKind.Timeout;
         }
 
+        // "…응답이 비어 있습니다."는 모델이 만든 계획이 아니라 호출 실패다. 이걸 계획으로 파싱하려 들면
+        // "계획 파싱 실패"로 두 번 헛돌다 파일 한 개 없이 끝난다(실측: DeepSeek 추론이 예산을 다 먹은 경우).
+        if (text.Contains("응답이 비어 있습니다", StringComparison.Ordinal))
+        {
+            return CodingProviderFailureKind.Other;
+        }
+
         if (text.Contains("요청 실패:", StringComparison.Ordinal) || text.Contains("호출 오류:", StringComparison.Ordinal))
         {
             return CodingProviderFailureKind.Other;

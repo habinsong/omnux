@@ -57,6 +57,9 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
     private GeminiUsage _geminiUsage = new();
     private readonly string _usageStatePath;
     private string _selectedGroqModel;
+    // DeepSeek 이 받아 주는 출력 예산 상한(실측 16384 통과). 추론 토큰이 여기에 포함된다.
+    private const int MaxDeepseekOutputTokens = 32768;
+
     private readonly AsyncLocal<TokenUsage?> _responseTokenUsage = new();
 
     // 네이티브 웹 검색은 실패해도 예외가 아니라 null 을 돌려준다. 그러면 호출측이 "왜 폴백했는지"를
@@ -2193,9 +2196,25 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                     mergedBuilder.Append(chunkText);
                 }
 
-                if (!ProviderResponseParser.IsOpenAiCompatibleTruncated(chunk.FinishReason) || string.IsNullOrWhiteSpace(chunkText))
+                var truncated = ProviderResponseParser.IsOpenAiCompatibleTruncated(chunk.FinishReason);
+                if (!truncated)
                 {
                     break;
+                }
+
+                if (string.IsNullOrWhiteSpace(chunkText))
+                {
+                    // 추론만 하다 예산이 끊긴 경우다. 같은 예산으로 다시 물어도 결과가 같으니 늘려서 한 번 더 받는다.
+                    if (mergedBuilder.Length > 0 || effectiveMaxOutputTokens >= MaxDeepseekOutputTokens)
+                    {
+                        break;
+                    }
+
+                    effectiveMaxOutputTokens = Math.Min(MaxDeepseekOutputTokens, effectiveMaxOutputTokens * 2);
+                    Console.Error.WriteLine(
+                        $"[deepseek] 본문 없이 예산이 끊겼다(추론만 채움). max_tokens={effectiveMaxOutputTokens} 로 재시도한다."
+                    );
+                    continue;
                 }
 
                 promptForTurn = ChatStreamingContinuation.BuildContinuationPrompt(userInput, mergedBuilder.ToString());
@@ -2248,9 +2267,16 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         );
     }
 
+    /// <summary>
+    /// DeepSeek 은 추론 토큰이 max_tokens 안에 들어간다. 8192 로 묶으면 추론이 예산을 다 먹고
+    /// 본문이 0 이 되어 "응답이 비어 있습니다"가 나온다(실측: reasoning_tokens=8192, content=0,
+    /// finish_reason=length. 16384 를 주면 reasoning 10221 + content 6214 로 정상 종료).
+    /// 그래서 채팅 상한이 아니라 호출자가 요청한 예산(코딩은 16384)을 존중한다.
+    /// </summary>
     private int NormalizeDeepseekMaxOutputTokens(int requested)
     {
-        return Math.Clamp(NormalizeMaxOutputTokens(requested, Math.Min(_context.ChatMaxOutputTokens, 8192)), 256, 8192);
+        var cap = Math.Max(_context.ChatMaxOutputTokens, _context.CodingMaxOutputTokens);
+        return Math.Clamp(NormalizeMaxOutputTokens(requested, cap), 256, MaxDeepseekOutputTokens);
     }
 
     // NVIDIA·DeepSeek 등 OpenAI 호환 제공자가 공유하는 채팅 시스템 프롬프트.
