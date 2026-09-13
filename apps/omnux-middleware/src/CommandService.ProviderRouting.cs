@@ -331,6 +331,25 @@ public sealed partial class CommandService
                 );
             }
 
+            // 제공자가 "그 모델 없다"고 하면 그 이름은 한동안 후보에서 빼고 다음 모델로 넘어간다.
+            // 레지스트리에 남은 옛 이름이나 오타를 사용자가 대신 겪지 않게 한다(실측: 없는 모델은 400).
+            if (ProviderModelAvailabilityPolicy.LooksLikeUnknownModel(result.Text))
+            {
+                _llmRouter.RateLimits.MarkRateLimited(
+                    normalizedProvider,
+                    candidate,
+                    DateTimeOffset.UtcNow,
+                    TimeSpan.FromHours(6)
+                );
+                Console.Error.WriteLine($"[provider-chain] {normalizedProvider}/{candidate} 없는 모델. 후보에서 뺀다.");
+                if (index + 1 < chain.Count)
+                {
+                    continue;
+                }
+
+                return result;
+            }
+
             if (failureKind != CodingProviderFailureKind.RateLimited)
             {
                 return result;

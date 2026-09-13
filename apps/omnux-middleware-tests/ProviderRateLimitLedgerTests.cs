@@ -175,3 +175,34 @@ public sealed class ProviderAuthFailureClassificationTests
         Assert.False(ledger.IsProviderCoolingDown("cerebras", now));
     }
 }
+
+public sealed class ProviderModelAvailabilityPolicyTests
+{
+    [Theory]
+    [InlineData("{\"code\":\"model_not_found\"}")]
+    [InlineData("The model `foo` does not exist")]
+    [InlineData("Unknown model: bar")]
+    [InlineData("Groq 요청 실패: 404")]
+    [InlineData("모델을 찾을 수 없습니다")]
+    public void UnknownModelErrorsAreRecognized(string text)
+    {
+        Assert.True(ProviderModelAvailabilityPolicy.LooksLikeUnknownModel(text));
+    }
+
+    [Theory]
+    [InlineData("DeepSeek 요청 실패: 400")]
+    [InlineData("Groq 모델 한도에 도달했습니다")]
+    [InlineData("")]
+    public void OtherFailuresAreNotTreatedAsMissingModel(string text)
+    {
+        // 일반 400/한도 오류로 모델을 후보에서 빼면 멀쩡한 모델이 사라진다.
+        Assert.False(ProviderModelAvailabilityPolicy.LooksLikeUnknownModel(text));
+    }
+
+    [Fact]
+    public void LongAnswersAreNeverTreatedAsModelErrors()
+    {
+        var body = new string('가', 900) + " does not exist";
+        Assert.False(ProviderModelAvailabilityPolicy.LooksLikeUnknownModel(body));
+    }
+}
