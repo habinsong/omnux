@@ -90,6 +90,12 @@ public sealed partial class CodingApplicationService
         }
 
         var gameLikeObjective = IsGameLikeCodingTask(objectiveText, normalizedLanguage);
+        Console.Error.WriteLine(
+            $"[quality-gate] 적용 기준: game={gameLikeObjective} "
+            + $"frontend={IsFrontendLikeCodingTask(objectiveText, normalizedLanguage)} "
+            + $"browser={LooksLikeBrowserAppObjective(objectiveText)} "
+            + $"cli={LooksLikeCliObjective(objectiveText)} language={normalizedLanguage}"
+        );
         if (gameLikeObjective || IsInteractiveProgramObjective(objectiveText, normalizedLanguage))
         {
             EvaluateGameQuality(objectiveText, normalizedLanguage, files, mergedSource, passed, failed, gameLikeObjective);
@@ -97,7 +103,7 @@ public sealed partial class CodingApplicationService
 
         if (IsFrontendLikeCodingTask(objectiveText, normalizedLanguage) || LooksLikeBrowserAppObjective(objectiveText))
         {
-            EvaluateFrontendQuality(workspaceRoot, files, mergedSource, passed, failed);
+            EvaluateFrontendQuality(workspaceRoot, files, mergedSource, sourceByFile, passed, failed);
         }
 
         if (LooksLikeCliObjective(objectiveText))
@@ -269,6 +275,7 @@ public sealed partial class CodingApplicationService
         string workspaceRoot,
         IReadOnlyList<string> files,
         string mergedSource,
+        IReadOnlyDictionary<string, string> sourceByFile,
         List<string> passed,
         List<string> failed
     )
@@ -295,10 +302,25 @@ public sealed partial class CodingApplicationService
             failed.Add("실제 DOM 렌더링 코드가 부족합니다.");
         }
 
-        if (mergedSource.Contains("cat > ") || mergedSource.Contains("#!/usr/bin/env bash"))
+        // 프로젝트에 .sh 파일이 같이 들어 있는 것은 정상이다. 합쳐 놓은 본문을 보면 그 내용까지
+        // 걸려서, 웹 UI 와 실행 스크립트를 함께 만든 멀쩡한 결과물이 실패했다(실측).
+        var webSource = string.Join(
+            "\n",
+            sourceByFile
+                .Where(entry => IsWebSourceFile(entry.Key))
+                .Select(entry => entry.Value)
+        );
+        if (webSource.Contains("cat > ", StringComparison.Ordinal)
+            || webSource.Contains("#!/usr/bin/env bash", StringComparison.Ordinal))
         {
             failed.Add("HTML/CSS/JS 파일에 셸 스크립트 생성 코드가 섞여 있습니다.");
         }
+    }
+
+    private static bool IsWebSourceFile(string path)
+    {
+        var ext = Path.GetExtension(path).ToLowerInvariant();
+        return ext is ".html" or ".htm" or ".css" or ".js" or ".mjs" or ".cjs" or ".jsx" or ".ts" or ".tsx";
     }
 
     private static void EvaluateCliQuality(string language, string mergedSource, List<string> passed, List<string> failed)
