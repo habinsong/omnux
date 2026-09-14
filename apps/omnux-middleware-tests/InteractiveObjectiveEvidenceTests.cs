@@ -21,4 +21,24 @@ public sealed class InteractiveObjectiveEvidenceTests
     {
         Assert.True(CodingExecutionSafetyPolicy.HasInteractiveKeywordEvidence(objective, "python"));
     }
+
+    [Theory]
+    [InlineData("bash")]
+    [InlineData("html")]
+    [InlineData("auto")]
+    [InlineData("javascript")]
+    public void 언어가_다르게_판정돼도_게임_요청은_근거로_인정한다(string language)
+    {
+        const string objective = "파이썬으로 숫자 맞히기 게임을 만들어 주세요. 1~50 사이 숫자를 맞힐 때까지 입력을 받고, 위/아래 힌트를 주세요.";
+
+        Assert.True(CodingExecutionSafetyPolicy.HasInteractiveKeywordEvidence(objective, language));
+    }
+
+    [Theory]
+    [InlineData("bash")]
+    [InlineData("html")]
+    public void 언어가_달라도_문서_요청은_여전히_근거가_없다(string language)
+    {
+        Assert.False(CodingExecutionSafetyPolicy.HasInteractiveKeywordEvidence(DocumentObjective, language));
+    }
 }

@@ -125,11 +125,37 @@ internal static class CodingExecutionSafetyPolicy
         Func<string, string, bool>? isFrontendLikeCodingTask = null
     )
     {
-        var language = CodingLanguagePolicy.NormalizeLanguageForCode(normalizedLanguage);
         var text = CodingLanguagePolicy.ExtractLatestCodingRequestText(WebUtility.HtmlDecode(objective ?? string.Empty)).ToLowerInvariant();
-        return !string.IsNullOrWhiteSpace(text)
-               && MatchesInteractiveKeywords(text, language, objective ?? string.Empty, isFrontendLikeCodingTask);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        // 언어에 기대지 않는다. 검증 시점의 언어는 만들어진 산출물로 다시 판정되기 때문에,
+        // "게임"이라고 적힌 요청인데도 언어가 bash/html 로 잡히면 근거가 0 이 되어 게임 검증이
+        // 통째로 꺼졌다(실측: "숫자 맞히기 게임" 요청에서 6회). 요청에 그런 말이 있으면
+        // 언어가 무엇으로 판정되든 대화형 근거다.
+        if (ContainsAny(text, InteractiveObjectiveWords))
+        {
+            return true;
+        }
+
+        var language = CodingLanguagePolicy.NormalizeLanguageForCode(normalizedLanguage);
+        return MatchesInteractiveKeywords(text, language, objective ?? string.Empty, isFrontendLikeCodingTask);
     }
+
+    /// <summary>
+    /// 언어와 무관하게 "대화형/게임"을 뜻하는 말. 근거 확인 전용이며, 언어별 기본 판정
+    /// (MatchesInteractiveKeywords)과 달리 분기 없이 요청 문장만 본다.
+    /// </summary>
+    private static readonly string[] InteractiveObjectiveWords =
+    {
+        "game", "shooter", "shooting", "tetris", "pong", "snake",
+        "tkinter", "pygame", "arcade", "sprite", "animation", "graphic",
+        "gui", "window", "mainloop", "canvas", "keyboard", "mouse",
+        "게임", "테트리스", "벽돌깨기", "슈팅", "마리오", "아케이드", "미로", "퍼즐",
+        "창을 띄", "키보드", "마우스", "애니메이션"
+    };
 
     /// <summary>판정 신호가 없거나 놓쳤을 때 쓰는 어휘 폴백. 한국어 요청도 여기서 걸러진다.</summary>
     private static bool MatchesInteractiveKeywords(

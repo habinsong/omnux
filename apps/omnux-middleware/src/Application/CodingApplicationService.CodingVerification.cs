@@ -1335,7 +1335,42 @@ async function waitFor(url, deadlineMs = 12000) {
             ? sourceFiles.Select(path => ResolveWorkspacePath(workspaceRoot, path)).Where(File.Exists).ToArray()
             : new[] { firstFile };
         return CollectInteractivePythonModulesFromSources(pythonFiles).Count > 0
-               || LooksLikeInteractivePythonGameSource(pythonFiles);
+               || LooksLikeInteractivePythonGameSource(pythonFiles)
+               || LooksLikeConsoleInteractivePythonSource(pythonFiles);
+    }
+
+    /// <summary>
+    /// 콘솔에서 input() 으로 입력을 받는 대화형인지. pygame·tkinter 계열만 보던 검사로는
+    /// "숫자 맞히기 게임" 같은 순수 콘솔 대화형이 근거 없음으로 떨어졌다(실측).
+    /// 이 판정은 가드 전용이다. 게임이 진짜인지 보는 print-only 차단에는 쓰지 않는다.
+    /// </summary>
+    private static bool LooksLikeConsoleInteractivePythonSource(IEnumerable<string> sourceFiles)
+    {
+        foreach (var sourceFile in sourceFiles ?? Array.Empty<string>())
+        {
+            if (string.IsNullOrWhiteSpace(sourceFile) || !File.Exists(sourceFile))
+            {
+                continue;
+            }
+
+            string text;
+            try
+            {
+                text = File.ReadAllText(sourceFile);
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (Regex.IsMatch(text, @"\binput\s*\(", RegexOptions.CultureInvariant)
+                || Regex.IsMatch(text, @"\bsys\.stdin\b", RegexOptions.CultureInvariant))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool LooksLikeInteractivePythonGameSource(IEnumerable<string> sourceFiles)
