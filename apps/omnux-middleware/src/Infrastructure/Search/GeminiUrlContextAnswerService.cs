@@ -140,6 +140,10 @@ internal sealed class GeminiUrlContextAnswerService
             fetchedPageContext
         );
         var maxOutputTokens = ResolveGeminiUrlContextMaxOutputTokens(input);
+        // 원문을 실었는데도 모델이 "못 읽었다"고 하면 원인이 프롬프트인지 모델인지 가려야 한다.
+        Console.Error.WriteLine(
+            $"[url-context] 프롬프트 {prompt.Length}자 (원문 {(fetchedPageContext ?? string.Empty).Length}자), URL {urls.Count}개"
+        );
         var promptBuildMs = Math.Max(0L, promptStopwatch.ElapsedMilliseconds);
         GeminiUrlContextChatResponse response;
         if (repositoryContext.HasValue)
