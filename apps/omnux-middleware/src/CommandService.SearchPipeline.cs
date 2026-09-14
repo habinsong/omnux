@@ -224,7 +224,9 @@ public sealed partial class CommandService
                 retryResponse.FirstChunkMs > 0
                     ? response.FullResponseMs + retryResponse.FirstChunkMs
                     : 0,
-                response.FullResponseMs + retryResponse.FullResponseMs
+                response.FullResponseMs + retryResponse.FullResponseMs,
+                // 재시도 응답의 출처를 버리면 답은 나오는데 출처만 0건이 된다.
+                retryResponse.Citations
             );
         }
 

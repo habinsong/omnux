@@ -101,14 +101,19 @@ public sealed partial class CodingApplicationService
             EvaluateGameQuality(objectiveText, normalizedLanguage, files, mergedSource, passed, failed, gameLikeObjective);
         }
 
+        // 프로파일(웹앱/CLI) 적합성은 "요청 종류를 무엇으로 봤는가"에 달려 있어 한 번의 오판으로
+        // 멀쩡한 결과물을 떨어뜨린다(실측: CSV 파이썬 프로그램이 '브라우저 엔트리 없음'으로 0점,
+        // 웹 UI 와 실행 스크립트를 같이 만든 결과물이 '셸 혼입'으로 실패). 실행이 성공했으면
+        // 이 항목들은 참고로만 남긴다.
+        var profileNotes = new List<string>();
         if (IsFrontendLikeCodingTask(objectiveText, normalizedLanguage) || LooksLikeBrowserAppObjective(objectiveText))
         {
-            EvaluateFrontendQuality(workspaceRoot, files, mergedSource, sourceByFile, passed, failed);
+            EvaluateFrontendQuality(workspaceRoot, files, mergedSource, sourceByFile, passed, profileNotes);
         }
 
         if (LooksLikeCliObjective(objectiveText))
         {
-            EvaluateCliQuality(normalizedLanguage, mergedSource, passed, failed);
+            EvaluateCliQuality(normalizedLanguage, mergedSource, passed, profileNotes);
         }
 
         EvaluateLanguageProjectQuality(normalizedLanguage, workspaceRoot, files, mergedSource, objectiveText, passed, failed);
@@ -122,9 +127,20 @@ public sealed partial class CodingApplicationService
             failed.Add($"최종 실행 상태가 성공이 아닙니다: {execution.Status}");
         }
 
-        var score = Math.Max(0, passed.Count * 10 - failed.Count * 25);
+        var executionSucceeded = string.Equals(execution.Status, "ok", StringComparison.OrdinalIgnoreCase);
+        var advisory = new List<string>();
+        if (executionSucceeded)
+        {
+            advisory.AddRange(profileNotes);
+        }
+        else
+        {
+            failed.AddRange(profileNotes);
+        }
+
+        var score = Math.Max(0, passed.Count * 10 - failed.Count * 25 - advisory.Count * 5);
         var ok = failed.Count == 0;
-        var summary = BuildCodingQualityGateSummary(ok, score, passed, failed);
+        var summary = BuildCodingQualityGateSummary(ok, score, passed, failed, advisory);
         return new CodingQualityGateResult(ok, score, summary, passed, failed);
     }
 
@@ -401,7 +417,13 @@ public sealed partial class CodingApplicationService
         return CodingTaskSignalPolicy.LooksLikeCli(objectiveText);
     }
 
-    private static string BuildCodingQualityGateSummary(bool ok, int score, IReadOnlyList<string> passed, IReadOnlyList<string> failed)
+    private static string BuildCodingQualityGateSummary(
+        bool ok,
+        int score,
+        IReadOnlyList<string> passed,
+        IReadOnlyList<string> failed,
+        IReadOnlyList<string>? advisory = null
+    )
     {
         var builder = new StringBuilder();
         builder.AppendLine(ok ? $"[quality-gate] ok score={score}" : $"[quality-gate] failed score={score}");
@@ -418,6 +440,15 @@ public sealed partial class CodingApplicationService
         {
             builder.AppendLine("미충족:");
             foreach (var item in failed.Take(12))
+            {
+                builder.AppendLine($"- {item}");
+            }
+        }
+
+        if (advisory != null && advisory.Count > 0)
+        {
+            builder.AppendLine("참고:");
+            foreach (var item in advisory.Take(12))
             {
                 builder.AppendLine($"- {item}");
             }
