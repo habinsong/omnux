@@ -61,7 +61,35 @@ internal static class CodingExecutionSafetyPolicy
             return false;
         }
 
+        if (!CanCommandFailOnBrokenCode(command))
+        {
+            return false;
+        }
+
         return normalizedLanguage is "python" or "javascript" or "typescript" or "go" or "rust" or "php" or "ruby" or "swift" or "bash";
+    }
+
+    /// <summary>
+    /// 모델이 고른 명령이 "깨진 코드에서 실패할 수 있는" 명령인지. 포맷 검사처럼 결과를 출력만 하고
+    /// 항상 0 으로 끝나는 명령을 최종 검증으로 믿으면, 컴파일도 테스트도 안 한 채 성공으로 끝난다
+    /// (실측: Go 프로젝트가 `gofmt -l .` 로 검증돼 exit=0 으로 통과했고, 그 명령은 어긋난 파일을
+    /// 출력만 했을 뿐이다).
+    ///
+    /// 도구 이름을 나열해 막는 대신 "실행·빌드·테스트를 실제로 하는 동사가 있는가"로 본다.
+    /// 동사는 명령 토큰이어야 한다. 앞에 점이 오면 확장자다(`cat main.go` 의 `.go` 를 실행으로
+    /// 오인하면 파일을 출력만 하는 명령이 검증으로 통과한다).
+    /// </summary>
+    private static bool CanCommandFailOnBrokenCode(string command)
+    {
+        return Regex.IsMatch(
+            command,
+            @"(?ix)(?<![\w.])(?:
+                  run | build | test | compile | vet | exec
+                | pytest | unittest | tox | jest | vitest | mocha
+                | python3? | node | deno | bun | ruby | php | swift | bash | sh
+                | cargo | dotnet | make | mvn | gradle | npm | pnpm | yarn | go
+              )\b"
+        );
     }
 
     public static bool IsInteractiveProgramObjective(
