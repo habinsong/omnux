@@ -533,8 +533,9 @@ public sealed partial class CommandService
             tuning
         ).ConfigureAwait(false);
         startedAt.Stop();
+        // 기록 열쇠는 호출한 제공자 이름이다. 응답이 돌려주는 이름은 비어 있을 수 있다.
         _llmRouter.Health.Record(
-            result.Provider,
+            NormalizeProvider(provider, allowAuto: false),
             CodingProviderFailurePolicy.Classify(result.Text) == CodingProviderFailureKind.None,
             startedAt.Elapsed.TotalMilliseconds,
             DateTimeOffset.UtcNow
