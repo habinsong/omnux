@@ -479,16 +479,28 @@ public sealed partial class CodingApplicationService
         CancellationToken cancellationToken
     )
     {
+        // PYTHONSAFEPATH 를 켜서 작업 폴더의 pip.py 가 표준 pip 모듈을 가리지 못하게 한다.
+        // 모델이 만든 pip.py 가 대신 실행돼 검사 자체가 엉뚱하게 실패한 적이 있다(실측 exit=120).
+        // -P 플래그 대신 환경변수를 쓰는 이유: 3.10 이하는 이 변수를 조용히 무시하지만,
+        // 모르는 플래그는 오류로 죽어서 멀쩡한 환경을 고장으로 오판하게 된다.
         var checkCommand = OperatingSystem.IsWindows()
-            ? "python --version >NUL 2>NUL && python -m pip --version >NUL 2>NUL"
-            : "command -v python3 >/dev/null 2>&1 && python3 -m pip --version >/dev/null 2>&1";
+            ? "set \"PYTHONSAFEPATH=1\" && python --version >NUL 2>NUL && python -m pip --version >NUL 2>NUL"
+            : "PYTHONSAFEPATH=1 command -v python3 >/dev/null 2>&1 && PYTHONSAFEPATH=1 python3 -m pip --version >/dev/null 2>&1";
         var checkResult = await RunWorkspaceCommandAsync(checkCommand, workDir, cancellationToken);
         if (checkResult.ExitCode == 0)
         {
             return true;
         }
 
-        errors.Add("Python toolchain 자동 설치 차단: python/pip 없음, host package manager 설치 금지");
+        // 실패 원인을 단정하지 않는다. 디스크가 꽉 차서 venv 를 못 만든 경우에도 이 자리로 오는데,
+        // "python/pip 없음"이라고 적으면 사용자가 멀쩡한 python 을 설치하러 간다(실측:
+        // tmpfs 가 가득 차 Disk quota exceeded 였는데 같은 문구가 나갔다).
+        var checkDetail = TrimForOutput(checkResult.StdErr, 200);
+        errors.Add(
+            checkDetail.Length == 0
+                ? "Python 실행 환경 확인 실패: python3/pip 확인 명령이 실패했습니다(자동 설치는 하지 않습니다)."
+                : $"Python 실행 환경 확인 실패: {checkDetail}"
+        );
         return false;
     }
 

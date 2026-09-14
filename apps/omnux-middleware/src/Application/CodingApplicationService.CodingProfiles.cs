@@ -565,6 +565,7 @@ public sealed partial class CodingApplicationService
                 lines.Add("- import 경로, f-string, 들여쓰기 블록을 중간 줄바꿈으로 끊지 말고 파일 전체를 완성본으로 작성하라");
                 lines.Add("- 필요한 외부 pip 패키지는 실제 import와 requirements.txt로 명확히 사용하라. 런타임은 자동 설치를 시도한다");
                 lines.Add("- run 액션에서 pip/pip3 install, python -m venv, 가상환경 생성/활성화를 직접 실행하지 마라. 의존성은 requirements.txt에만 선언하면 런타임이 격리 venv에 자동 설치한다. 직접 pip를 호출하면 'command not found'로 실패하고 반복만 낭비된다");
+                lines.Add("- pip.py, pytest.py, json.py, types.py 처럼 표준 모듈이나 도구와 같은 이름의 파일을 작업 폴더 최상단에 만들지 마라. python -m pip 나 python -m pytest 가 그 파일을 대신 실행해 검증이 엉뚱하게 실패한다");
                 if (gameLike)
                 {
                     lines.Add("- Python 게임/시각화는 요청한 라이브러리를 그대로 사용하라. Pygame을 요구하거나 적합하면 pygame 기반 구현을 우선하라");
