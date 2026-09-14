@@ -103,32 +103,7 @@ public sealed partial class CodingApplicationService
         if (request.BoundProject != null) session = session with { Thread = _conversationStore.BindCodingProject(session.Thread.Id, request.BoundProject) };
         var thread = session.Thread;
         var rawInput = (request.Input ?? string.Empty).Trim();
-        var codingRunRoot = ResolveOrCreateCodingRunWorkspaceRoot(session, "single");
-        if (TryHandleBrowserCodingIntent(session, rawInput, "single", codingRunRoot, request.Language) is { } browserIntentResult)
-        {
-            return browserIntentResult;
-        }
-
-        using var checkpoint = new CodingCheckpoint(_conversationStore, request, thread.Id, codingRunRoot, cancellationToken);
-        progressCallback = checkpoint.Bind(progressCallback);
-
         var routingCategory = ResolveCodingTaskCategory(request.Category, rawInput);
-
-        var multiSkillRejectionSingle = TryBuildCodingMultiSkillRejectionResult(
-            "single",
-            thread,
-            rawInput,
-            "-",
-            "-",
-            codingRunRoot,
-            request.Language,
-            request.Source
-        );
-        if (multiSkillRejectionSingle != null)
-        {
-            return multiSkillRejectionSingle;
-        }
-
         var provider = NormalizeProvider(request.Provider, allowAuto: true);
         if (provider == "auto")
         {
@@ -154,11 +129,15 @@ public sealed partial class CodingApplicationService
         }
 
         var model = ResolveModelForCategory(routingCategory, provider, request.Model);
-        // 이미 만든 결과를 "그대로 실행해 줘"라는 뜻의 요청이면 새로 빌드하지 않고 그 결과를 실행한다.
-        // 표현은 모델에게 의미로 판정하게 한다(어휘 목록은 판정 실패 시 폴백).
-        if (thread.LatestCodingResult != null
-            && await ShouldRunExistingCodingResultAsync(provider, model, rawInput, cancellationToken)
-                .ConfigureAwait(false))
+
+        // 이번 요청이 "이미 만든 걸 그대로 실행"인지, "이전 작업을 이어가는" 것인지 한 번에 판정한다.
+        // 표현은 모델에게 의미로 묻는다(어휘 목록은 판정 실패 시 폴백).
+        var followUp = thread.LatestCodingResult == null
+            ? CodingFollowUpIntent.NewWork
+            : await ResolveCodingFollowUpIntentAsync(provider, model, rawInput, cancellationToken)
+                .ConfigureAwait(false);
+
+        if (followUp.RunExisting)
         {
             var rerun = await TryRerunLatestCodingResultAsync(session, rawInput, cancellationToken)
                 .ConfigureAwait(false);
@@ -166,6 +145,33 @@ public sealed partial class CodingApplicationService
             {
                 return rerun;
             }
+        }
+
+        // 이어가는 작업만 이전 폴더를 재사용한다. 같은 대화에서 전혀 다른 것을 만들라고 했는데 이전
+        // 결과물이 쌓인 폴더를 쓰면, 무관한 파일이 워크스페이스 스냅샷을 채워 루프가 헛돈다
+        // (실측: 잔재가 있는 폴더에서 bash 스크립트 한 건이 900초를 넘겼고, 새 폴더에서는 94초였다).
+        var codingRunRoot = ResolveOrCreateCodingRunWorkspaceRoot(session, "single", followUp.ContinuesPrevious);
+        if (TryHandleBrowserCodingIntent(session, rawInput, "single", codingRunRoot, request.Language) is { } browserIntentResult)
+        {
+            return browserIntentResult;
+        }
+
+        using var checkpoint = new CodingCheckpoint(_conversationStore, request, thread.Id, codingRunRoot, cancellationToken);
+        progressCallback = checkpoint.Bind(progressCallback);
+
+        var multiSkillRejectionSingle = TryBuildCodingMultiSkillRejectionResult(
+            "single",
+            thread,
+            rawInput,
+            "-",
+            "-",
+            codingRunRoot,
+            request.Language,
+            request.Source
+        );
+        if (multiSkillRejectionSingle != null)
+        {
+            return multiSkillRejectionSingle;
         }
 
         var requestedSkillName = ResolvePromptOrUiSkillName(request.SkillName, rawInput);

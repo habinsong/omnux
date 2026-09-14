@@ -19,17 +19,23 @@ public static class CodingRunRequestIntentPolicy
     {
         return "You classify one message sent to a coding assistant that has ALREADY produced a project in this conversation.\n"
             + "Answer with one JSON object and nothing else.\n"
-            + "Schema: {\"run_existing\":bool}\n"
+            + "Schema: {\"run_existing\":bool,\"continues_previous\":bool}\n"
             + "run_existing = true when the message only asks to run / launch / start / try / play / demo the thing that was already built, without asking for any new or changed code.\n"
             + "run_existing = false when the message asks to create, add, change, fix, refactor, explain, or test something new, or reports that it does not work.\n"
+            + "continues_previous = true when the message is about the SAME project that was already built (adding to it, fixing it, running it, asking about it).\n"
+            + "continues_previous = false when the message asks for a DIFFERENT, unrelated project that should start from an empty folder.\n"
             + "The message may be written in any language and any style. Judge the intent, not the words.\n\n"
             + "Message:\n"
             + (userRequest ?? string.Empty);
     }
 
-    /// <summary>판정 응답을 읽는다. 읽지 못하면 false 를 돌려 호출측이 폴백을 쓰게 한다.</summary>
-    public static bool TryParse(string? responseText, out bool runExisting)
+    /// <summary>
+    /// 판정 응답을 읽는다. 읽지 못하면 false 를 돌려 호출측이 폴백을 쓰게 한다.
+    /// `continues_previous` 가 없으면 true 로 본다(이어가는 쪽이 기존 동작이라 안전하다).
+    /// </summary>
+    public static bool TryParse(string? responseText, out bool runExisting, out bool continuesPrevious)
     {
+        continuesPrevious = true;
         runExisting = false;
         var text = (responseText ?? string.Empty).Trim();
         var start = text.IndexOf('{');
@@ -48,20 +54,28 @@ public static class CodingRunRequestIntentPolicy
                 return false;
             }
 
-            runExisting = value.ValueKind switch
-            {
-                JsonValueKind.True => true,
-                JsonValueKind.False => false,
-                JsonValueKind.String => bool.TryParse(value.GetString(), out var parsed) && parsed,
-                JsonValueKind.Number => value.TryGetInt32(out var number) && number != 0,
-                _ => false
-            };
+            runExisting = ReadBool(value, false);
+            continuesPrevious = document.RootElement.TryGetProperty("continues_previous", out var continues)
+                ? ReadBool(continues, true)
+                : true;
             return true;
         }
         catch (JsonException)
         {
             return false;
         }
+    }
+
+    private static bool ReadBool(JsonElement value, bool fallback)
+    {
+        return value.ValueKind switch
+        {
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.String => bool.TryParse(value.GetString(), out var parsed) ? parsed : fallback,
+            JsonValueKind.Number => value.TryGetInt32(out var number) ? number != 0 : fallback,
+            _ => fallback
+        };
     }
 
     /// <summary>길이만으로 후속 실행 요청일 가능성을 걸러 판정 호출을 아낀다.</summary>

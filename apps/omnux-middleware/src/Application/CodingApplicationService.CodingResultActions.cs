@@ -12,7 +12,17 @@ public sealed partial class CodingApplicationService
     /// 어휘 목록으로 맞히려 들면 표현이 조금만 달라도 놓친다("그거 켜봐", "동작하는지 보여줘"…).
     /// 호출이 실패하거나 응답을 못 읽으면 어휘 폴백으로 판단한다.
     /// </summary>
-    private async Task<bool> ShouldRunExistingCodingResultAsync(
+    /// <summary>요청 하나에 대한 후속 판정. 판정 호출은 한 번만 한다.</summary>
+    private sealed record CodingFollowUpIntent(bool RunExisting, bool ContinuesPrevious)
+    {
+        /// <summary>판정할 이유가 없을 때(직전 결과가 없을 때)의 기본값.</summary>
+        public static readonly CodingFollowUpIntent NewWork = new(false, false);
+
+        /// <summary>판정에 실패했을 때의 기본값 — 이어가는 쪽이 기존 동작이라 안전하다.</summary>
+        public static readonly CodingFollowUpIntent Unknown = new(false, true);
+    }
+
+    private async Task<CodingFollowUpIntent> ResolveCodingFollowUpIntentAsync(
         string provider,
         string model,
         string rawInput,
@@ -21,7 +31,8 @@ public sealed partial class CodingApplicationService
     {
         if (!CodingRunRequestIntentPolicy.CouldBeFollowUpRunRequest(rawInput))
         {
-            return false;
+            // 긴 요청은 새 작업 지시로 본다. 판정 호출도 아끼고, 폴더도 새로 만든다.
+            return new CodingFollowUpIntent(false, false);
         }
 
         try
@@ -38,12 +49,13 @@ public sealed partial class CodingApplicationService
                 tuning: LlmTuning.From("low", "standard")
             ).ConfigureAwait(false);
             if (CodingProviderFailurePolicy.Classify(generated.Text) == CodingProviderFailureKind.None
-                && CodingRunRequestIntentPolicy.TryParse(generated.Text, out var runExisting))
+                && CodingRunRequestIntentPolicy.TryParse(generated.Text, out var runExisting, out var continuesPrevious))
             {
                 Console.Error.WriteLine(
-                    $"[coding-run-intent] runExisting={runExisting} source=llm provider={provider} request=\"{TrimForOutput(rawInput, 60).Replace("\n", " ", StringComparison.Ordinal)}\""
+                    $"[coding-run-intent] runExisting={runExisting} continuesPrevious={continuesPrevious} source=llm provider={provider}"
+                    + $" request=\"{TrimForOutput(rawInput, 60).Replace("\n", " ", StringComparison.Ordinal)}\""
                 );
-                return runExisting;
+                return new CodingFollowUpIntent(runExisting, continuesPrevious);
             }
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
@@ -59,7 +71,7 @@ public sealed partial class CodingApplicationService
         Console.Error.WriteLine(
             $"[coding-run-intent] runExisting={fallback} source=fallback request=\"{TrimForOutput(rawInput, 60).Replace("\n", " ", StringComparison.Ordinal)}\""
         );
-        return fallback;
+        return fallback ? new CodingFollowUpIntent(true, true) : CodingFollowUpIntent.Unknown;
     }
 
     /// <summary>

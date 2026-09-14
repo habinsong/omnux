@@ -131,11 +131,25 @@ public sealed partial class CodingApplicationService
 
     // 같은 대화에서 이전 코딩 실행 폴더가 있으면 이어서 작업하도록 재사용한다.
     // Claude Code/Codex 처럼 한 대화 안에서 같은 프로젝트를 계속 다듬기 위함(싱글/오케스트레이션).
-    private string ResolveOrCreateCodingRunWorkspaceRoot(SessionContext session, string modeLabel)
+    /// <param name="continuesPreviousWork">
+    /// 이번 요청이 이전 작업을 이어가는지. 거짓이면 이전 결과물이 쌓인 폴더를 재사용하지 않는다.
+    /// 프로젝트를 직접 연결한 대화는 항상 그 프로젝트 폴더를 쓴다(사용자가 지정한 위치라서).
+    /// </param>
+    private string ResolveOrCreateCodingRunWorkspaceRoot(
+        SessionContext session,
+        string modeLabel,
+        bool continuesPreviousWork = true
+    )
     {
         if (modeLabel != "multi" && session.Thread.CodingProject != null) return session.Thread.CodingProject.Path;
-        var reusable = TryResolveReusableConversationRunDirectory(session, modeLabel);
-        if (string.IsNullOrWhiteSpace(reusable) && session.Thread.LatestCodingResult?.CheckpointId is { Length: > 0 })
+        var reusable = continuesPreviousWork
+            ? TryResolveReusableConversationRunDirectory(session, modeLabel)
+            : null;
+        // 이 가드는 "중단한 작업을 이어간다"는 전제에서만 의미가 있다. 전혀 다른 작업을 새로 시작하는
+        // 요청이면 중단된 폴더가 없어도 정상이다.
+        if (continuesPreviousWork
+            && string.IsNullOrWhiteSpace(reusable)
+            && session.Thread.LatestCodingResult?.CheckpointId is { Length: > 0 })
         {
             throw new InvalidOperationException("중단한 작업 폴더를 찾을 수 없거나 안전하게 열 수 없습니다. 원래 폴더를 복원하거나 새 작업을 만들어 주세요.");
         }

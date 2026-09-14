@@ -12,8 +12,25 @@ public sealed class CodingRunRequestIntentPolicyTests
     [InlineData("{\"run_existing\":1}", true)]
     public void ClassificationResponseIsParsed(string response, bool expected)
     {
-        Assert.True(CodingRunRequestIntentPolicy.TryParse(response, out var runExisting));
+        Assert.True(CodingRunRequestIntentPolicy.TryParse(response, out var runExisting, out _));
         Assert.Equal(expected, runExisting);
+    }
+
+    [Theory]
+    [InlineData("{\"run_existing\":false,\"continues_previous\":true}", true)]
+    [InlineData("{\"run_existing\":false,\"continues_previous\":false}", false)]
+    public void ContinuationFlagIsParsed(string response, bool expected)
+    {
+        Assert.True(CodingRunRequestIntentPolicy.TryParse(response, out _, out var continuesPrevious));
+        Assert.Equal(expected, continuesPrevious);
+    }
+
+    [Fact]
+    public void MissingContinuationFlagKeepsTheSaferContinuingBehaviour()
+    {
+        // 필드가 없으면 이어가는 쪽으로 본다. 후속 요청을 새 폴더로 보내면 연속성이 깨진다.
+        Assert.True(CodingRunRequestIntentPolicy.TryParse("{\"run_existing\":true}", out _, out var continuesPrevious));
+        Assert.True(continuesPrevious);
     }
 
     [Theory]
@@ -22,7 +39,7 @@ public sealed class CodingRunRequestIntentPolicyTests
     [InlineData("{\"other\":true}")]
     public void UnreadableResponseFallsBack(string response)
     {
-        Assert.False(CodingRunRequestIntentPolicy.TryParse(response, out _));
+        Assert.False(CodingRunRequestIntentPolicy.TryParse(response, out _, out _));
     }
 
     [Fact]
@@ -30,6 +47,7 @@ public sealed class CodingRunRequestIntentPolicyTests
     {
         var prompt = CodingRunRequestIntentPolicy.BuildClassificationPrompt("그거 한번 켜봐");
         Assert.Contains("run_existing", prompt, StringComparison.Ordinal);
+        Assert.Contains("continues_previous", prompt, StringComparison.Ordinal);
         Assert.Contains("그거 한번 켜봐", prompt, StringComparison.Ordinal);
     }
 
