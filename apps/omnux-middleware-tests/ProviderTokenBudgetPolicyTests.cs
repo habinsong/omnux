@@ -107,4 +107,26 @@ public sealed class ProviderTokenBudgetLearnedLimitTests
         Assert.False(ProviderTokenBudgetPolicy.TryLearnOutputLimit("gemini", "rate limit exceeded", out _));
         Assert.Equal(2048, ProviderTokenBudgetPolicy.ResolveOutputTokens("groq", 2048));
     }
+
+    [Theory]
+    [InlineData("gemini")]
+    [InlineData("deepseek")]
+    public void 창이_큰_제공자는_페이지_원문을_더_많이_싣는다(string provider)
+    {
+        Assert.True(
+            ProviderTokenBudgetPolicy.ResolveFetchedPageCount(provider)
+            > ProviderTokenBudgetPolicy.ResolveFetchedPageCount("groq")
+        );
+        Assert.True(
+            ProviderTokenBudgetPolicy.ResolveFetchedPageChars(provider)
+            > ProviderTokenBudgetPolicy.ResolveFetchedPageChars("groq")
+        );
+    }
+
+    [Fact]
+    public void 그_외_제공자의_페이지_예산은_기존값을_지킨다()
+    {
+        Assert.Equal(2, ProviderTokenBudgetPolicy.ResolveFetchedPageCount("groq"));
+        Assert.Equal(8_000, ProviderTokenBudgetPolicy.ResolveFetchedPageChars("groq"));
+    }
 }

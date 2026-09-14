@@ -34,6 +34,14 @@ public static class ProviderTokenBudgetPolicy
     private const int LargeWindowContextPromptChars = 200_000;
     private const int LargeWindowHistoryChars = 150_000;
 
+    /// <summary>한 번에 원문을 받아 올 페이지 수(기존 동작).</summary>
+    private const int DefaultFetchedPageCount = 2;
+    private const int LargeWindowFetchedPageCount = 6;
+
+    /// <summary>페이지 한 개에서 본문으로 실을 문자 수(기존 동작).</summary>
+    private const int DefaultFetchedPageChars = 8_000;
+    private const int LargeWindowFetchedPageChars = 24_000;
+
     /// <summary>컨텍스트 창이 커서 예산 상한이 사실상 의미 없는 제공자인지.</summary>
     public static bool HasLargeWindow(string? provider)
     {
@@ -131,5 +139,17 @@ public static class ProviderTokenBudgetPolicy
     public static int ResolveHistoryChars(string? provider)
     {
         return HasLargeWindow(provider) ? LargeWindowHistoryChars : DefaultHistoryChars;
+    }
+
+    /// <summary>사용자가 준 주소 중 원문을 실제로 받아 올 개수. 창이 크면 더 많이 읽는다.</summary>
+    public static int ResolveFetchedPageCount(string? provider)
+    {
+        return HasLargeWindow(provider) ? LargeWindowFetchedPageCount : DefaultFetchedPageCount;
+    }
+
+    /// <summary>페이지 한 개에서 본문으로 실을 문자 수.</summary>
+    public static int ResolveFetchedPageChars(string? provider)
+    {
+        return HasLargeWindow(provider) ? LargeWindowFetchedPageChars : DefaultFetchedPageChars;
     }
 }

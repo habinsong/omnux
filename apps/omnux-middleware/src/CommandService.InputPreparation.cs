@@ -62,7 +62,8 @@ public sealed partial class CommandService
         string? threadBindingKey = null,
         string? requestedSkillName = null,
         string? requestedSkillScope = null,
-        bool allowForcedWebSearch = true
+        bool allowForcedWebSearch = true,
+        string? provider = null
     )
     {
         var normalizedInput = (input ?? string.Empty).Trim();
@@ -320,7 +321,7 @@ public sealed partial class CommandService
 
         if (urls.Count > 0)
         {
-            var webBlock = await BuildWebContextBlockAsync(normalizedInput, urls, cancellationToken);
+            var webBlock = await BuildWebContextBlockAsync(normalizedInput, urls, provider, cancellationToken);
             if (!string.IsNullOrWhiteSpace(webBlock))
             {
                 builder.AppendLine();
@@ -439,7 +440,9 @@ public sealed partial class CommandService
                 threadBindingKey,
                 requestedSkillName,
                 requestedSkillScope,
-                allowForcedWebSearch
+                allowForcedWebSearch,
+                // 창이 큰 제공자면 페이지 원문을 더 많이, 더 길게 싣는다.
+                NormalizeProvider(provider, allowAuto: false)
             )
             : new InputPreparationResult((input ?? string.Empty).Trim(), string.Empty);
         var normalizedAttachments = InputAttachmentPolicy.Normalize(attachments);
@@ -1831,7 +1834,12 @@ public sealed partial class CommandService
         return uri.AbsoluteUri;
     }
 
-    private async Task<string> BuildWebContextBlockAsync(string input, IReadOnlyList<string> urls, CancellationToken cancellationToken)
+    private async Task<string> BuildWebContextBlockAsync(
+        string input,
+        IReadOnlyList<string> urls,
+        string? provider,
+        CancellationToken cancellationToken
+    )
     {
         if (urls.Count == 0)
         {
@@ -1839,13 +1847,17 @@ public sealed partial class CommandService
         }
 
         // 직접 받아 온 원문이 있으면 그걸 쓴다. 모델 요약만 믿으면 페이지에 없는 내용이 섞인다(실측).
+        // 주소가 여러 개면 하나씩 기다리지 않고 동시에 받는다(순서는 원래대로 맞춘다).
+        var targets = urls.Take(Math.Max(3, ProviderTokenBudgetPolicy.ResolveFetchedPageCount(provider))).ToArray();
+        var fetchedSnippets = await Task.WhenAll(
+            targets.Select(url => FetchWebSnippetAsync(url, provider, cancellationToken))
+        ).ConfigureAwait(false);
         var fetchedBlocks = new List<string>();
-        foreach (var url in urls.Take(3))
+        for (var i = 0; i < targets.Length; i++)
         {
-            var fetched = await FetchWebSnippetAsync(url, cancellationToken);
-            if (!string.IsNullOrWhiteSpace(fetched))
+            if (!string.IsNullOrWhiteSpace(fetchedSnippets[i]))
             {
-                fetchedBlocks.Add($"### {url}\n{fetched}");
+                fetchedBlocks.Add($"### {targets[i]}\n{fetchedSnippets[i]}");
             }
         }
 
@@ -1912,16 +1924,23 @@ public sealed partial class CommandService
     /// </summary>
     private async Task<string> BuildFetchedPageContextAsync(
         IReadOnlyList<string> urls,
+        string? provider,
         CancellationToken cancellationToken
     )
     {
+        // 주소를 여러 개 받으면 하나씩 기다릴 이유가 없다. 동시에 받아서 순서만 원래대로 맞춘다.
+        var targets = (urls ?? Array.Empty<string>())
+            .Take(ProviderTokenBudgetPolicy.ResolveFetchedPageCount(provider))
+            .ToArray();
+        var snippets = await Task.WhenAll(
+            targets.Select(url => FetchWebSnippetAsync(url, provider, cancellationToken))
+        ).ConfigureAwait(false);
         var blocks = new List<string>();
-        foreach (var url in (urls ?? Array.Empty<string>()).Take(2))
+        for (var i = 0; i < targets.Length; i++)
         {
-            var snippet = await FetchWebSnippetAsync(url, cancellationToken);
-            if (!string.IsNullOrWhiteSpace(snippet))
+            if (!string.IsNullOrWhiteSpace(snippets[i]))
             {
-                blocks.Add($"### {url}\n{snippet}");
+                blocks.Add($"### {targets[i]}\n{snippets[i]}");
             }
         }
 
@@ -1939,8 +1958,9 @@ public sealed partial class CommandService
                + string.Join("\n\n", blocks);
     }
 
-    private async Task<string> FetchWebSnippetAsync(string url, CancellationToken cancellationToken)
+    private async Task<string> FetchWebSnippetAsync(string url, string? provider, CancellationToken cancellationToken)
     {
+        var pageChars = ProviderTokenBudgetPolicy.ResolveFetchedPageChars(provider);
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -1973,9 +1993,9 @@ public sealed partial class CommandService
                 var stripped = HtmlTagStripRegex.Replace(HtmlNonContentBlockRegex.Replace(raw, " "), " ");
                 stripped = WebUtility.HtmlDecode(stripped);
                 stripped = Regex.Replace(stripped, @"\s{2,}", " ").Trim();
-                if (stripped.Length > 8000)
+                if (stripped.Length > pageChars)
                 {
-                    stripped = stripped[..8000] + "...";
+                    stripped = stripped[..pageChars] + "...";
                 }
 
                 if (!string.IsNullOrWhiteSpace(title))
@@ -1987,9 +2007,9 @@ public sealed partial class CommandService
             }
 
             var normalized = raw.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal).Trim();
-            if (normalized.Length > 8000)
+            if (normalized.Length > pageChars)
             {
-                normalized = normalized[..8000] + "...";
+                normalized = normalized[..pageChars] + "...";
             }
 
             return WrapWebFetchSnippet(normalized);
