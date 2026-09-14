@@ -60,6 +60,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
     public ProviderRateLimitLedger RateLimits { get; } = new();
     /// <summary>제공자별 최근 성공률·응답 속도. 자동 선택이 "지금 잘 되는 쪽"을 먼저 쓰게 한다.</summary>
     public ProviderHealthStats Health { get; } = new();
+    /// <summary>어떤 Gemini 모델이 검색 근거를 실제로 붙여 주는지 호출 결과로 배운다.</summary>
+    public GeminiGroundingCapabilityLedger Grounding { get; } = new();
     private readonly ConcurrentDictionary<string, string> _rateLimitHeaderLog = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _usageStatePath;
     private string _selectedGroqModel;
@@ -1454,6 +1456,9 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                     + $" chunkEvents={groundingEventCount} citations={groundingCitations.Count}"
                 );
             }
+
+            // 근거를 붙여 줬는지 기록해 둔다. 안 붙여 주는 모델은 다음 검색부터 쓰지 않는다.
+            Grounding.Record(selectedModel, groundingMetadataEventCount > 0);
 
             return new GeminiGroundedChatResponse(
                 string.IsNullOrWhiteSpace(content) ? "Gemini 웹검색 응답이 비어 있습니다." : content,

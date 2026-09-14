@@ -585,15 +585,18 @@ public sealed partial class CommandService
         );
     }
 
+    /// <summary>
+    /// 검색 답변에 쓸 Gemini 모델. 설정값을 우선 쓰되, 그 모델이 검색 근거를 안 붙여 준다고
+    /// 배운 상태면 근거를 붙여 주는 다른 모델로 넘긴다(실측: 출처 0건으로 답하던 모델이 있었다).
+    /// </summary>
     private string ResolveSearchLlmModel()
     {
         var configured = NormalizeModelSelection(_providers.GeminiSearchModel);
-        if (!string.IsNullOrWhiteSpace(configured))
-        {
-            return configured!;
-        }
-
-        return _providers.GeminiModel;
+        var preferred = string.IsNullOrWhiteSpace(configured) ? _providers.GeminiModel : configured!;
+        return _llmRouter.Grounding.ResolveGroundingModel(
+            preferred,
+            ModelRegistry.GetFallbackModels("gemini")
+        );
     }
 
     private string ResolveUrlContextLlmModel()
