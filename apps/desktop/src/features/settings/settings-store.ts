@@ -62,6 +62,17 @@ type SettingsState = {
     copilotUsedRequests: string;
     copilotMonthlyQuota: string;
     copilotPercentUsed: string;
+    /** 제공자·모델별 남은 한도. 응답 헤더를 받은 항목만 들어온다. */
+    providerLimits: {
+      provider: string;
+      model: string;
+      remainingRequests: number | null;
+      limitRequests: number | null;
+      remainingTokens: number | null;
+      limitTokens: number | null;
+      resetTokens: string;
+      cooldownUntilMs: number | null;
+    }[];
   } | null;
   llmMessage: string;
   lastMessage: string;
@@ -630,7 +641,21 @@ export function useSettingsPageBridge() {
           copilotPlan: String(premium.plan_name || "-"),
           copilotUsedRequests: String(premium.used_requests || "0.0"),
           copilotMonthlyQuota: String(premium.monthly_quota || "0.0"),
-          copilotPercentUsed: String(premium.percent_used || "0.00")
+          copilotPercentUsed: String(premium.percent_used || "0.00"),
+          providerLimits: (Array.isArray(message.providerLimits) ? message.providerLimits : []).map((raw) => {
+            const row = (raw || {}) as Record<string, unknown>;
+            const num = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
+            return {
+              provider: String(row.provider || ""),
+              model: String(row.model || ""),
+              remainingRequests: num(row.remainingRequests),
+              limitRequests: num(row.limitRequests),
+              remainingTokens: num(row.remainingTokens),
+              limitTokens: num(row.limitTokens),
+              resetTokens: String(row.resetTokens || ""),
+              cooldownUntilMs: num(row.cooldownUntilMs)
+            };
+          })
         }
       });
       return;

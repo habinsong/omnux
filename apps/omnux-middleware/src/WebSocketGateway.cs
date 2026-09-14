@@ -777,6 +777,31 @@ public sealed partial class WebSocketGateway
         var builder = new StringBuilder();
         builder.Append("{");
         builder.Append("\"type\":\"usage_stats\",");
+        // 제공자·모델별 남은 한도와 냉각 상태. 왜 다른 모델로 넘어갔는지 화면에서 보이게 한다.
+        builder.Append("\"providerLimits\":[");
+        var limitStates = _llmRouter.RateLimits.Snapshot();
+        for (var i = 0; i < limitStates.Count; i++)
+        {
+            var state = limitStates[i];
+            if (i > 0)
+            {
+                builder.Append(',');
+            }
+
+            builder.Append('{');
+            builder.Append($"\"provider\":\"{EscapeJson(state.Provider)}\",");
+            builder.Append($"\"model\":\"{EscapeJson(state.Model)}\",");
+            builder.Append($"\"limitRequests\":{state.LimitRequests?.ToString(CultureInfo.InvariantCulture) ?? "null"},");
+            builder.Append($"\"remainingRequests\":{state.RemainingRequests?.ToString(CultureInfo.InvariantCulture) ?? "null"},");
+            builder.Append($"\"limitTokens\":{state.LimitTokens?.ToString(CultureInfo.InvariantCulture) ?? "null"},");
+            builder.Append($"\"remainingTokens\":{state.RemainingTokens?.ToString(CultureInfo.InvariantCulture) ?? "null"},");
+            builder.Append($"\"resetRequests\":\"{EscapeJson(state.ResetRequests ?? string.Empty)}\",");
+            builder.Append($"\"resetTokens\":\"{EscapeJson(state.ResetTokens ?? string.Empty)}\",");
+            builder.Append($"\"cooldownUntilMs\":{(state.CooldownUntilUtc?.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture) ?? "null")}");
+            builder.Append('}');
+        }
+
+        builder.Append("],");
         builder.Append("\"gemini\":{");
         builder.Append($"\"requests\":{gemini.Requests},");
         builder.Append($"\"prompt_tokens\":{gemini.PromptTokens},");

@@ -257,7 +257,7 @@ public sealed partial class CommandService
                 tuning
             );
             return CodingProviderFailurePolicy.Classify(single.Text) == CodingProviderFailureKind.Auth
-                ? await HandoffAfterProviderAuthFailureAsync(
+                ? await HandoffToAnotherProviderAsync(
                     normalizedProvider,
                     single,
                     input,
@@ -268,7 +268,8 @@ public sealed partial class CommandService
                     optimizeCodexForCoding,
                     timeoutOverrideSeconds,
                     tuning,
-                    crossProviderHopsRemaining
+                    crossProviderHopsRemaining,
+                    TimeSpan.FromMinutes(10)
                 )
                 : single;
         }
@@ -316,7 +317,7 @@ public sealed partial class CommandService
             var failureKind = CodingProviderFailurePolicy.Classify(result.Text);
             if (failureKind == CodingProviderFailureKind.Auth)
             {
-                return await HandoffAfterProviderAuthFailureAsync(
+                return await HandoffToAnotherProviderAsync(
                     normalizedProvider,
                     result,
                     input,
@@ -327,7 +328,8 @@ public sealed partial class CommandService
                     optimizeCodexForCoding,
                     timeoutOverrideSeconds,
                     tuning,
-                    crossProviderHopsRemaining
+                    crossProviderHopsRemaining,
+                    TimeSpan.FromMinutes(10)
                 );
             }
 
@@ -365,7 +367,27 @@ public sealed partial class CommandService
             Console.Error.WriteLine($"[provider-chain] {normalizedProvider}/{candidate} 한도 응답. 다음 모델로 넘어간다.");
         }
 
-        return lastRateLimited ?? await GenerateByProviderOnModelAsync(
+        // 같은 제공자의 모델을 다 써도 전부 한도면, 그때는 다른 제공자로 넘긴다. 예전에는 Groq 채팅
+        // 경로에만 이 처리가 있어서 다른 제공자는 한도 문구가 그대로 답변이 됐다.
+        if (lastRateLimited != null)
+        {
+            return await HandoffToAnotherProviderAsync(
+                normalizedProvider,
+                lastRateLimited,
+                input,
+                cancellationToken,
+                maxOutputTokens,
+                useRawCodexPrompt,
+                codexWorkingDirectoryOverride,
+                optimizeCodexForCoding,
+                timeoutOverrideSeconds,
+                tuning,
+                crossProviderHopsRemaining,
+                TimeSpan.FromMinutes(1)
+            );
+        }
+
+        return await GenerateByProviderOnModelAsync(
             normalizedProvider,
             requestedModel,
             input,
@@ -385,7 +407,7 @@ public sealed partial class CommandService
     /// 목록에서 빼고, 쓸 수 있는 다른 제공자로 한 번 이어받는다. 실패 문구를 답변으로 내보내는 것보다
     /// 사용자가 원한 결과를 주는 편이 낫다(실측: Cerebras 402·NVIDIA 403 문구가 답변으로 나갔다).
     /// </summary>
-    private async Task<LlmSingleChatResult> HandoffAfterProviderAuthFailureAsync(
+    private async Task<LlmSingleChatResult> HandoffToAnotherProviderAsync(
         string failedProvider,
         LlmSingleChatResult failure,
         string input,
@@ -396,13 +418,14 @@ public sealed partial class CommandService
         bool optimizeCodexForCoding,
         int? timeoutOverrideSeconds,
         LlmTuning? tuning,
-        int crossProviderHopsRemaining
+        int crossProviderHopsRemaining,
+        TimeSpan providerCooldown
     )
     {
         _llmRouter.RateLimits.MarkProviderUnavailable(
             failedProvider,
             DateTimeOffset.UtcNow,
-            TimeSpan.FromMinutes(10),
+            providerCooldown,
             TrimForOutput(failure.Text, 120)
         );
         _auditLogger.Log("local", "provider_unavailable", "warn", $"provider={failedProvider} reason={TrimForOutput(failure.Text, 160)}");

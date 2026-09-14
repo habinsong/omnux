@@ -302,6 +302,33 @@ export function LlmUsageCard({ store, onError }: { store: Store; onError: CardEr
       ) : (
         <p className="py-4 text-center text-xs text-muted-foreground">상태 조회 시 Gemini 토큰과 Copilot Premium 쿼터가 표시됩니다.</p>
       )}
+      {store.llmUsage && store.llmUsage.providerLimits.length > 0 ? (
+        <div className="mt-3 space-y-1">
+          <div className="text-xs text-muted-foreground">제공자 남은 한도</div>
+          <ul className="space-y-1">
+            {store.llmUsage.providerLimits.map((row) => {
+              const cooling = row.cooldownUntilMs !== null && row.cooldownUntilMs > Date.now();
+              const requests = row.remainingRequests !== null && row.limitRequests !== null
+                ? `요청 ${row.remainingRequests.toLocaleString()}/${row.limitRequests.toLocaleString()}`
+                : "";
+              const tokens = row.remainingTokens !== null && row.limitTokens !== null
+                ? `토큰 ${row.remainingTokens.toLocaleString()}/${row.limitTokens.toLocaleString()}`
+                : "";
+              const reset = row.resetTokens ? `재충전 ${row.resetTokens}` : "";
+              const detail = [requests, tokens, reset].filter(Boolean).join(" · ");
+              return (
+                <li key={`${row.provider}/${row.model}`} className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2 py-1">
+                  <span className="truncate font-mono text-[11px]">{row.provider} / {row.model}</span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span className="text-[11px] text-muted-foreground">{detail || "한도 정보 없음"}</span>
+                    {cooling ? <Badge tone="outline">대기 중</Badge> : null}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
     </CardBoundary>
   );
 }
