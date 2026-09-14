@@ -297,14 +297,9 @@ public sealed partial class CommandService
                 autoRetrieval.Block
             );
             // 페이지를 우리가 직접 받아 함께 넘긴다. url_context 만 믿으면 없는 내용을 지어낸다(실측).
+            // 보조 메모리로 넘기면 "충돌 시 무시" 규칙에 걸려 원문을 읽고도 못 읽었다고 답한다(실측).
             var fetchedPageContext = await BuildFetchedPageContextAsync(resolvedWebUrls, "gemini", cancellationToken)
                 .ConfigureAwait(false);
-            if (fetchedPageContext.Length > 0)
-            {
-                memoryHint = string.IsNullOrWhiteSpace(memoryHint)
-                    ? fetchedPageContext
-                    : fetchedPageContext + "\n\n" + memoryHint;
-            }
 
             var urlResult = await GenerateGeminiUrlContextAnswerDetailedAsync(
                 rawInput,
@@ -318,7 +313,8 @@ public sealed partial class CommandService
                 thread.Id,
                 "heuristic_url_context",
                 0,
-                cancellationToken
+                cancellationToken,
+                fetchedPageContext
             );
             var urlText = urlResult.Response.Text;
             var assistantMeta = string.IsNullOrWhiteSpace(autoRetrieval.RouteLabel)

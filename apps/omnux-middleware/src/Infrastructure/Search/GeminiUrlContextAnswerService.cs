@@ -67,7 +67,8 @@ internal sealed class GeminiUrlContextAnswerService
         string conversationId,
         string decisionPath,
         long decisionMs,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        string? fetchedPageContext = null
     )
     {
         var model = ResolveUrlContextLlmModel();
@@ -135,7 +136,8 @@ internal sealed class GeminiUrlContextAnswerService
             allowMarkdownTable,
             enforceTelegramOutputStyle,
             includeGoogleSearch,
-            repositoryContext
+            repositoryContext,
+            fetchedPageContext
         );
         var maxOutputTokens = ResolveGeminiUrlContextMaxOutputTokens(input);
         var promptBuildMs = Math.Max(0L, promptStopwatch.ElapsedMilliseconds);
@@ -224,7 +226,8 @@ internal sealed class GeminiUrlContextAnswerService
         bool allowMarkdownTable,
         bool enforceTelegramOutputStyle,
         bool includeGoogleSearch,
-        SearchRepositoryContextSnapshot? repositoryContext = null
+        SearchRepositoryContextSnapshot? repositoryContext = null,
+        string? fetchedPageContext = null
     )
     {
         var promptRepositoryContext = repositoryContext.HasValue
@@ -243,7 +246,8 @@ internal sealed class GeminiUrlContextAnswerService
             includeGoogleSearch,
             _context.WebDefaultNewsCount,
             _context.WebDefaultListCount,
-            promptRepositoryContext
+            promptRepositoryContext,
+            fetchedPageContext
         );
     }
 

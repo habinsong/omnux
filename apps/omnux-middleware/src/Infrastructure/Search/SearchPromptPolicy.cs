@@ -36,9 +36,11 @@ internal static class SearchPromptPolicy
         bool includeGoogleSearch,
         int webDefaultNewsCount,
         int webDefaultListCount,
-        SearchPromptRepositoryContext? repositoryContext = null
+        SearchPromptRepositoryContext? repositoryContext = null,
+        string? fetchedPageContext = null
     )
     {
+        var normalizedFetchedPageContext = (fetchedPageContext ?? string.Empty).Trim();
         var normalizedInput = (input ?? string.Empty).Trim();
         var effectiveInput = SearchUrlContextPolicy.ResolveImplicitUrlRequest(normalizedInput, urls);
         var normalizedMemoryHint = (memoryHint ?? string.Empty).Trim();
@@ -64,11 +66,18 @@ internal static class SearchPromptPolicy
         if (includeGoogleSearch)
         {
             builder.AppendLine("- google_search가 가능하면 배경 보강이나 최신성 확인에만 보조적으로 사용해라.");
-            builder.AppendLine("- URL에 없는 내용은 추정하지 말고, 검색으로도 확인되지 않으면 없다고 말해라.");
+            builder.AppendLine("- URL에 없는 내용은 추정하지 말고, 검색으로도 확인되지 않으면 '확인되지 않았다'고 말해라.");
         }
         else
         {
-            builder.AppendLine("- URL에 없는 내용은 추정하지 말고, URL에서 직접 확인되지 않으면 없다고 말해라.");
+            builder.AppendLine("- URL에 없는 내용은 추정하지 말고, 확인되지 않으면 '확인되지 않았다'고 말해라.");
+        }
+
+        // 페이지가 목록을 화면에서 그리면 원문에 안 실린다. 안 보인다고 '없다'로 바꿔 말하면 거짓이 된다.
+        builder.AppendLine("- 원문에서 안 보이는 것을 '존재하지 않는다'로 바꿔 말하지 마라. 확인 여부만 말해라.");
+        if (normalizedFetchedPageContext.Length > 0)
+        {
+            builder.AppendLine("- 아래 [직접 받아 온 페이지 원문]이 1차 근거다. URL 도구 결과보다 우선한다.");
         }
 
         builder.AppendLine("- 허위/기억 기반 문장 금지.");
@@ -170,6 +179,12 @@ internal static class SearchPromptPolicy
             builder.AppendLine(normalizedMemoryHint);
         }
 
+        if (normalizedFetchedPageContext.Length > 0)
+        {
+            builder.AppendLine();
+            builder.AppendLine(normalizedFetchedPageContext);
+        }
+
         if (repositoryContext.HasValue)
         {
             builder.AppendLine();
@@ -186,7 +201,7 @@ internal static class SearchPromptPolicy
 
         builder.AppendLine();
         builder.AppendLine("참조 URL:");
-        foreach (var url in urls.Take(3))
+        foreach (var url in urls.Take(ProviderTokenBudgetPolicy.ResolveFetchedPageCount("gemini")))
         {
             builder.AppendLine($"- {url}");
         }
