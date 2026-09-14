@@ -233,6 +233,16 @@ public sealed partial class CodingApplicationService
             var pythonRunner = BuildPythonRunnerToken();
             var relativeFirstFile = ToWorkspaceRelativePath(workspaceRoot, firstFile);
             var interactivePython = IsInteractiveProgramObjective(objectiveText, normalizedLanguage);
+            // 판정은 LLM 한 번 호출이라 틀릴 수 있다. 요청 문장에도, 만들어진 코드에도 대화형 근거가
+            // 하나도 없으면 게임 기준을 강요하지 않는다(실측: REST API 문서 요청이 "게임 루프가
+            // 없다"는 이유로 실패했다). 근거가 있으면 예전처럼 엄격하게 검증한다.
+            if (interactivePython && !HasInteractivePythonEvidence(workspaceRoot, objectiveText, normalizedLanguage, sourceFiles, firstFile))
+            {
+                Console.Error.WriteLine(
+                    "[coding-verify] 대화형 판정이지만 요청·코드에 근거가 없어 일반 프로젝트로 검증한다."
+                );
+                interactivePython = false;
+            }
             // 게임·GUI 요청인데 실행 진입점이 없으면 "실행했다"고 볼 수 없다. 모듈만 몇 개 만들고
             // py_compile 만 통과해 성공으로 끝나던 일이 있었다(실측: Gemini 테트리스가 38초에
             // board/constants/input/renderer 4개만 만들고 main.py 없이 exit=0).
@@ -1305,6 +1315,27 @@ async function waitFor(url, deadlineMs = 12000) {
         }
 
         return packages.OrderBy(path => path, StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    /// <summary>요청 문장이나 실제 만들어진 파이썬 코드에 대화형 근거가 있는지.</summary>
+    private static bool HasInteractivePythonEvidence(
+        string workspaceRoot,
+        string objectiveText,
+        string normalizedLanguage,
+        IReadOnlyList<string> sourceFiles,
+        string firstFile
+    )
+    {
+        if (CodingExecutionSafetyPolicy.HasInteractiveKeywordEvidence(objectiveText, normalizedLanguage))
+        {
+            return true;
+        }
+
+        var pythonFiles = sourceFiles.Count > 0
+            ? sourceFiles.Select(path => ResolveWorkspacePath(workspaceRoot, path)).Where(File.Exists).ToArray()
+            : new[] { firstFile };
+        return CollectInteractivePythonModulesFromSources(pythonFiles).Count > 0
+               || LooksLikeInteractivePythonGameSource(pythonFiles);
     }
 
     private static bool LooksLikeInteractivePythonGameSource(IEnumerable<string> sourceFiles)

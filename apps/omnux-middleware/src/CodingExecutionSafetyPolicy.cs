@@ -87,6 +87,22 @@ internal static class CodingExecutionSafetyPolicy
                || MatchesInteractiveKeywords(text, language, objective ?? string.Empty, isFrontendLikeCodingTask);
     }
 
+    /// <summary>
+    /// 요청 문장 자체에 대화형 근거가 있는지. LLM 판정이 대화형이라고 해도 요청에도, 만들어진
+    /// 코드에도 근거가 없으면 게임 기준을 강요하지 않기 위해 쓴다.
+    /// </summary>
+    public static bool HasInteractiveKeywordEvidence(
+        string objective,
+        string normalizedLanguage,
+        Func<string, string, bool>? isFrontendLikeCodingTask = null
+    )
+    {
+        var language = CodingLanguagePolicy.NormalizeLanguageForCode(normalizedLanguage);
+        var text = CodingLanguagePolicy.ExtractLatestCodingRequestText(WebUtility.HtmlDecode(objective ?? string.Empty)).ToLowerInvariant();
+        return !string.IsNullOrWhiteSpace(text)
+               && MatchesInteractiveKeywords(text, language, objective ?? string.Empty, isFrontendLikeCodingTask);
+    }
+
     /// <summary>판정 신호가 없거나 놓쳤을 때 쓰는 어휘 폴백. 한국어 요청도 여기서 걸러진다.</summary>
     private static bool MatchesInteractiveKeywords(
         string text,
