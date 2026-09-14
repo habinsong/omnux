@@ -201,25 +201,7 @@ public sealed partial class CodingApplicationService
 
     private static bool LooksLikeDummyOrPlaceholderImplementation(IReadOnlyDictionary<string, string> sources)
     {
-        var text = string.Join("\n", sources.Values);
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return false;
-        }
-
-        // 주의: 파이썬의 관용적 `pass`(빈 예외 클래스/추상 메서드/빈 except)는 placeholder 가
-        // 아니다. 과거 `pass\s*(#|$)` 패턴이 정상 코드를 더미로 오탐해 quality_failed→repair
-        // 재시도로 토큰을 낭비시켰다. 실제 미구현이면 옆 주석의 TODO/미구현이 이미 잡힌다.
-        var dummyMatches = Regex.Matches(
-            text,
-            @"\b(TODO|FIXME|placeholder|not implemented|미구현|NotImplementedException|throw\s+new\s+NotImplementedException)\b",
-            RegexOptions.IgnoreCase | RegexOptions.Multiline
-        ).Count;
-        var meaningfulLines = text
-            .Split('\n')
-            .Select(line => line.Trim())
-            .Count(line => line.Length > 0 && !line.StartsWith("//", StringComparison.Ordinal) && !line.StartsWith("#", StringComparison.Ordinal));
-        return dummyMatches >= 2 || (dummyMatches >= 1 && meaningfulLines < 25);
+        return CodingPlaceholderCodePolicy.LooksPlaceholderHeavy(sources);
     }
 
     private static void EvaluateGameQuality(
