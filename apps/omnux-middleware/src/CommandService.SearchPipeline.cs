@@ -50,7 +50,7 @@ public sealed partial class CommandService
         LlmSingleChatResult decision;
         try
         {
-            decision = await GenerateByProviderAsync(
+            decision = await GenerateByProviderSafeAsync(
                 normalizedProvider,
                 resolvedModel,
                 prompt,

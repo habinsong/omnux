@@ -187,14 +187,9 @@ public sealed partial class CommandService
                 }
             }
 
-            var fallback = await TryFallbackFromGroqRateLimitAsync(input, cancellationToken);
-            if (fallback != null)
-            {
-                return fallback.TokenUsage == null
-                    ? CompleteTokenUsage(fallback.Provider, fallback.Model, input, fallback.Text)
-                    : fallback;
-            }
-
+            // 여기서 다른 제공자로 바꾸지 않는다. 그러면 같은 제공자의 다른 모델을 시도해 볼 기회가
+            // 사라진다. 한도 문구를 그대로 돌려주면 공통 진입점이 같은 제공자 모델 → 다른 제공자
+            // 순서로 이어받는다.
             return CompleteTokenUsage(
                 "groq",
                 groqModel,

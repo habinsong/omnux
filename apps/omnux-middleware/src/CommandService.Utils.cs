@@ -502,7 +502,7 @@ public sealed partial class CommandService
                             [어시스턴트]
                             {ConversationTitlePolicy.TruncateForTitle(selectedAssistant)}
                             """;
-                var generated = await GenerateByProviderAsync(provider, model, prompt, cancellationToken);
+                var generated = await GenerateByProviderSafeAsync(provider, model, prompt, cancellationToken);
                 if (!ConversationTitlePolicy.IsLikelyProviderFailureText(generated.Text))
                 {
                     title = ConversationTitlePolicy.NormalizeConversationTitle(generated.Text);
@@ -584,7 +584,7 @@ public sealed partial class CommandService
                             {sourceText}
                             """;
 
-        var summaryResult = await GenerateByProviderAsync(provider, model, summaryPrompt, cancellationToken);
+        var summaryResult = await GenerateByProviderSafeAsync(provider, model, summaryPrompt, cancellationToken);
         var summary = summaryResult.Text.Trim();
         if (string.IsNullOrWhiteSpace(summary))
         {
@@ -683,31 +683,6 @@ public sealed partial class CommandService
             "grok" => _providers.GrokModel,
             _ => _llmRouter.GetSelectedGroqModel()
         };
-    }
-
-    private async Task<LlmSingleChatResult?> TryFallbackFromGroqRateLimitAsync(string input, CancellationToken cancellationToken)
-    {
-        if (IsCopilotResponseTestPrompt(input))
-        {
-            var model = _copilotWrapper.GetSelectedModel();
-            return new LlmSingleChatResult("copilot", model, BuildMockCopilotTestResponse(model));
-        }
-
-        if (_llmRouter.HasGeminiApiKey())
-        {
-            var gemini = await _llmRouter.GenerateGeminiChatAsync(input, cancellationToken);
-            return new LlmSingleChatResult("gemini", _providers.GeminiModel, gemini);
-        }
-
-        var copilotStatus = await _copilotWrapper.GetStatusAsync(cancellationToken);
-        if (copilotStatus.Installed && copilotStatus.Authenticated)
-        {
-            var model = _copilotWrapper.GetSelectedModel();
-            var copilot = await _copilotWrapper.GenerateChatAsync(input, model, cancellationToken);
-            return new LlmSingleChatResult("copilot", model, copilot);
-        }
-
-        return null;
     }
 
     private async Task<IReadOnlyList<string>> GetAvailableProvidersAsync(CancellationToken cancellationToken)
