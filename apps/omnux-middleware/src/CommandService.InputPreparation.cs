@@ -1968,6 +1968,7 @@ public sealed partial class CommandService
             using var response = await WebFetchClient.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
+                Console.Error.WriteLine($"[web-fetch] {url} 응답 {(int)response.StatusCode}");
                 return string.Empty;
             }
 
@@ -2000,10 +2001,10 @@ public sealed partial class CommandService
 
                 if (!string.IsNullOrWhiteSpace(title))
                 {
-                    return WrapWebFetchSnippet($"제목: {title}\n요약: {stripped}");
+                    return LogWebFetchOutcome(url, WrapWebFetchSnippet($"제목: {title}\n요약: {stripped}"));
                 }
 
-                return WrapWebFetchSnippet(stripped);
+                return LogWebFetchOutcome(url, WrapWebFetchSnippet(stripped));
             }
 
             var normalized = raw.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\r", "\n", StringComparison.Ordinal).Trim();
@@ -2012,12 +2013,25 @@ public sealed partial class CommandService
                 normalized = normalized[..pageChars] + "...";
             }
 
-            return WrapWebFetchSnippet(normalized);
+            return LogWebFetchOutcome(url, WrapWebFetchSnippet(normalized));
         }
-        catch
+        catch (Exception ex)
         {
+            Console.Error.WriteLine($"[web-fetch] {url} 실패: {ex.Message}");
             return string.Empty;
         }
+    }
+
+    /// <summary>어떤 주소에서 본문을 얼마나 받아 왔는지 남긴다. 답이 이상할 때 원인을 가린다.</summary>
+    private static string LogWebFetchOutcome(string url, string snippet)
+    {
+        var length = (snippet ?? string.Empty).Length;
+        Console.Error.WriteLine(
+            length == 0
+                ? $"[web-fetch] {url} 본문 없음"
+                : $"[web-fetch] {url} 본문 {length}자"
+        );
+        return snippet ?? string.Empty;
     }
 
     private static string WrapWebFetchSnippet(string snippet)
