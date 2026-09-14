@@ -33,7 +33,7 @@ export OMNUX_GROQ_API_KEY_FILE="$HOME/.omnux/keys/groq_api_key"
 |---|---|
 | `OMNUX_GEMINI_MODEL` | The model registry default, currently `gemini-3.5-flash-lite` |
 | `OMNUX_GEMINI_FLASH_MODEL` | `gemini-3-flash-preview` |
-| `OMNUX_GEMINI_FLASH_LITE_MODEL` | `gemini-3.1-flash-lite`, used for search support |
+| `OMNUX_GEMINI_FLASH_LITE_MODEL` | Gemini model used for search support (defaults to the registry's Gemini default) |
 | `OMNUX_GROQ_MODEL`, `OMNUX_CEREBRAS_MODEL`, `OMNUX_NVIDIA_MODEL`, `OMNUX_COPILOT_MODEL`, `OMNUX_CODEX_MODEL`, `OMNUX_GROK_MODEL` | The per-provider default in `apps/shared/model-registry.json` |
 
 ## Timeouts

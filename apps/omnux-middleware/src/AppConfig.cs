@@ -37,7 +37,9 @@ public sealed class AppConfig
     public string GeminiBaseUrl { get; init; } = "https://generativelanguage.googleapis.com/v1beta";
     public string GeminiModel { get; init; } = ModelRegistry.GetDefaultModel("gemini");
     public string GeminiFlashModel { get; init; } = "gemini-3-flash-preview";
-    public string GeminiSearchModel { get; init; } = "gemini-3.1-flash-lite";
+    // 검색 답변용 기본값은 레지스트리 기본 모델을 쓴다. 예전 기본값(gemini-3.1-flash-lite)은
+    // google_search 근거를 전혀 돌려주지 않아 출처가 0건으로 나갔다(실측).
+    public string GeminiSearchModel { get; init; } = ModelRegistry.GetDefaultModel("gemini");
     public string CerebrasBaseUrl { get; init; } = "https://api.cerebras.ai/v1";
     public string CerebrasModel { get; init; } = ModelRegistry.GetDefaultModel("cerebras");
     public int CerebrasTimeoutSec { get; init; } = 40;
@@ -336,7 +338,7 @@ public sealed class AppConfig
             GeminiFlashModel = GetStringEnv("OMNUX_GEMINI_FLASH_MODEL", "gemini-3-flash-preview"),
             GeminiSearchModel = GetStringEnv(
                 "OMNUX_GEMINI_FLASH_LITE_MODEL",
-                "gemini-3.1-flash-lite"
+                ModelRegistry.GetDefaultModel("gemini")
             ),
             CerebrasBaseUrl = GetStringEnv("OMNUX_CEREBRAS_BASE_URL", "https://api.cerebras.ai/v1"),
             CerebrasModel = GetStringEnv("OMNUX_CEREBRAS_MODEL", ModelRegistry.GetDefaultModel("cerebras")),
