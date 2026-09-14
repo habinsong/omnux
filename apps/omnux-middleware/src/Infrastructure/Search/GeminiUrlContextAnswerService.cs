@@ -323,13 +323,5 @@ internal sealed class GeminiUrlContextAnswerService
         return string.Equals(trimmed, "none", StringComparison.OrdinalIgnoreCase) ? null : trimmed;
     }
 
-    private static HttpClient CreateWebFetchClient()
-    {
-        var client = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(10)
-        };
-        client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "omnux/1.0");
-        return client;
-    }
+    private static HttpClient CreateWebFetchClient() => WebFetchHttpClientFactory.Create();
 }

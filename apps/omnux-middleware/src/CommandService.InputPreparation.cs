@@ -1989,6 +1989,13 @@ public sealed partial class CommandService
                 return string.Empty;
             }
 
+            // 압축·바이너리 응답을 글자로 해석한 결과는 본문이 아니다. 실으면 모델이 못 읽었다고 답한다.
+            if (WebPageTextPolicy.LooksUnreadable(raw))
+            {
+                Console.Error.WriteLine($"[web-fetch] {url} 본문을 읽을 수 없는 형식");
+                return string.Empty;
+            }
+
             // 예전에는 원본 HTML 을 24KB 에서 잘랐다. 요즘 페이지는 head·스크립트만으로 그 분량을 넘겨서
             // 정작 본문(예: GitHub 프로필의 저장소 목록)이 통째로 잘려 나갔다. 넉넉히 받고 태그를 벗긴
             // 뒤 본문 기준으로 자른다.

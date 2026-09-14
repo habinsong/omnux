@@ -1018,15 +1018,7 @@ public sealed partial class CommandService
         );
     }
 
-    private static HttpClient CreateWebFetchClient()
-    {
-        var client = new HttpClient
-        {
-            Timeout = TimeSpan.FromSeconds(10)
-        };
-        client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "omnux/1.0");
-        return client;
-    }
+    private static HttpClient CreateWebFetchClient() => WebFetchHttpClientFactory.Create();
 
     private static string ParseHelpTopicFromInput(string text)
     {
