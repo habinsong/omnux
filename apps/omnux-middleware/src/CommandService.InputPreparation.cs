@@ -1864,6 +1864,7 @@ public sealed partial class CommandService
         if (fetchedBlocks.Count > 0)
         {
             return "[웹 참조]\n- 아래는 해당 주소에서 실제로 받아 온 내용입니다. 여기에 없는 사실을 지어내지 마세요.\n"
+                   + "- 원문에 안 보이는 것은 '페이지에서 확인되지 않음'이라고만 쓰고, 없다고 단정하지 마세요.\n"
                    + string.Join("\n\n", fetchedBlocks);
         }
 
@@ -1953,8 +1954,9 @@ public sealed partial class CommandService
         }
 
         return "[페이지 원문]\n"
-               + "- 아래는 그 주소에서 실제로 받아 온 내용입니다. 여기에 없는 사실을 지어내지 말고, "
-               + "필요하면 '페이지에서 확인되지 않음'이라고 적으세요.\n"
+               + "- 아래는 그 주소에서 실제로 받아 온 내용입니다. 여기에 없는 사실을 지어내지 마세요.\n"
+               + "- 원문에 안 보이는 것은 '페이지에서 확인되지 않음'이라고만 쓰고, 없다고 단정하지 마세요. "
+               + "목록을 화면에서 그리는 페이지는 원문에 그 목록이 실리지 않습니다.\n"
                + string.Join("\n\n", blocks);
     }
 

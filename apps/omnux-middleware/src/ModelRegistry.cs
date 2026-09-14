@@ -60,7 +60,7 @@ public static class ModelRegistry
 
     private static readonly FrozenDictionary<string, string[]> Fallbacks = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
     {
-    ["groq"] = new[] { "qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.6-27b", "groq/compound", "groq/compound-mini" },
+    ["groq"] = new[] { "qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.6-27b", "groq/compound", "groq/compound-mini", "llama-3.3-70b-versatile", "meta-llama/llama-4-scout-17b-16e-instruct", "qwen/qwen3-32b", "llama-3.1-8b-instant" },
     ["gemini"] = new[] { "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.1-pro-preview" },
     ["cerebras"] = new[] { "gpt-oss-120b", "qwen-3.8-27b" },
     ["nvidia"] = new[] { "moonshotai/kimi-k3", "deepseek-ai/deepseek-v4-pro-0813", "nvidia/nemotron-3-super-120b-a12b" },
