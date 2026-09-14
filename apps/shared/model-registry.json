@@ -38,8 +38,7 @@
       "workerDefault": "gpt-oss-120b",
       "fallback": [
         "gpt-oss-120b",
-        "qwen-3.8-27b",
-        "gemma-4-31b"
+        "qwen-3.8-27b"
       ]
     },
     "nvidia": {
@@ -49,12 +48,7 @@
       "fallback": [
         "moonshotai/kimi-k3",
         "deepseek-ai/deepseek-v4-pro-0813",
-        "nvidia/nemotron-3-super-120b-a12b",
-        "nvidia/nemotron-3.5-lightning-30b-a3b",
-        "nvidia/nemotron-nano-3-30b-a3b",
-        "moonshotai/kimi-k2.6",
-        "deepseek-ai/deepseek-v4-flash-0731",
-        "nvidia/llama-3.1-nemotron-70b-instruct"
+        "nvidia/nemotron-3-super-120b-a12b"
       ]
     },
     "deepseek": {

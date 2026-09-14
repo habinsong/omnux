@@ -62,8 +62,8 @@ public static class ModelRegistry
     {
     ["groq"] = new[] { "qwen/qwen3.8-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.6-27b", "groq/compound", "groq/compound-mini", "llama-3.3-70b-versatile", "meta-llama/llama-4-scout-17b-16e-instruct", "qwen/qwen3-32b", "llama-3.1-8b-instant" },
     ["gemini"] = new[] { "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.1-pro-preview" },
-    ["cerebras"] = new[] { "gpt-oss-120b", "qwen-3.8-27b", "gemma-4-31b" },
-    ["nvidia"] = new[] { "moonshotai/kimi-k3", "deepseek-ai/deepseek-v4-pro-0813", "nvidia/nemotron-3-super-120b-a12b", "nvidia/nemotron-3.5-lightning-30b-a3b", "nvidia/nemotron-nano-3-30b-a3b", "moonshotai/kimi-k2.6", "deepseek-ai/deepseek-v4-flash-0731", "nvidia/llama-3.1-nemotron-70b-instruct" },
+    ["cerebras"] = new[] { "gpt-oss-120b", "qwen-3.8-27b" },
+    ["nvidia"] = new[] { "moonshotai/kimi-k3", "deepseek-ai/deepseek-v4-pro-0813", "nvidia/nemotron-3-super-120b-a12b" },
     ["deepseek"] = new[] { "deepseek-flash", "deepseek-v4-pro", "deepseek-v4-flash" },
     ["copilot"] = new[] { "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.4-mini", "gpt-5-mini", "claude-sonnet-4.6", "claude-haiku-4.5", "gemini-3.8-flash" },
     ["codex"] = new[] { "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.3-codex" },
