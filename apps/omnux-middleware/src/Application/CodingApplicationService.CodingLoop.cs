@@ -338,6 +338,9 @@ public sealed partial class CodingApplicationService
                 retrievalBlock
             );
 
+            // 한 번의 빌드가 90초로 끝나기도 하고 650초가 걸리기도 한다. 어느 반복에서 시간을
+            // 쓰는지 남겨 두지 않으면 무엇을 줄여야 할지 알 수 없다.
+            var iterationStopwatch = System.Diagnostics.Stopwatch.StartNew();
             var generated = await GenerateByProviderSafeAsync(
                 provider,
                 model,
@@ -348,6 +351,12 @@ public sealed partial class CodingApplicationService
                 codexWorkingDirectoryOverride: workspaceRoot,
                 optimizeCodexForCoding: profile.OptimizeCodexCli,
                 timeoutOverrideSeconds: profile.RequestTimeoutSeconds
+            );
+            iterationStopwatch.Stop();
+            Console.Error.WriteLine(
+                $"[coding-loop] iter={i}/{maxIterations} {provider}/{model} "
+                + $"계획요청 {iterationStopwatch.ElapsedMilliseconds}ms 프롬프트 {loopPrompt.Length}자 "
+                + $"응답 {(generated.Text ?? string.Empty).Length}자"
             );
             totalTokenUsage = TokenUsageEstimator.Combine(totalTokenUsage, generated.TokenUsage);
             lastRawResponse = generated.Text;
