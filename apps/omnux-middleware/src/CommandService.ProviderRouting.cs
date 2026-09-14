@@ -500,6 +500,10 @@ public sealed partial class CommandService
             : failure;
     }
 
+    /// <summary>
+    /// 실제 호출을 감싸서 제공자별 성공률·응답 속도를 기록한다. 자동 선택이 고정 순서 대신
+    /// "지금 잘 되는 쪽"을 먼저 쓰게 하려면 실측값이 필요하다.
+    /// </summary>
     private async Task<LlmSingleChatResult> GenerateByProviderOnModelAsync(
         string provider,
         string? model,
@@ -512,6 +516,44 @@ public sealed partial class CommandService
         int? timeoutOverrideSeconds = null,
         Action<string>? streamCallback = null,
         LlmTuning? tuning = null
+    )
+    {
+        var startedAt = System.Diagnostics.Stopwatch.StartNew();
+        var result = await GenerateByProviderOnModelCoreAsync(
+            provider,
+            model,
+            input,
+            cancellationToken,
+            maxOutputTokens,
+            useRawCodexPrompt,
+            codexWorkingDirectoryOverride,
+            optimizeCodexForCoding,
+            timeoutOverrideSeconds,
+            streamCallback,
+            tuning
+        ).ConfigureAwait(false);
+        startedAt.Stop();
+        _llmRouter.Health.Record(
+            result.Provider,
+            CodingProviderFailurePolicy.Classify(result.Text) == CodingProviderFailureKind.None,
+            startedAt.Elapsed.TotalMilliseconds,
+            DateTimeOffset.UtcNow
+        );
+        return result;
+    }
+
+    private async Task<LlmSingleChatResult> GenerateByProviderOnModelCoreAsync(
+        string provider,
+        string? model,
+        string input,
+        CancellationToken cancellationToken,
+        int? maxOutputTokens,
+        bool useRawCodexPrompt,
+        string? codexWorkingDirectoryOverride,
+        bool optimizeCodexForCoding,
+        int? timeoutOverrideSeconds,
+        Action<string>? streamCallback,
+        LlmTuning? tuning
     )
     {
         var normalized = NormalizeProvider(provider, allowAuto: false);

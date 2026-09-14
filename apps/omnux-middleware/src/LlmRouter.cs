@@ -58,6 +58,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
     private GeminiUsage _geminiUsage = new();
     /// <summary>제공자·모델별 한도 상태. 응답 헤더와 429 로 실제 한도를 배운다.</summary>
     public ProviderRateLimitLedger RateLimits { get; } = new();
+    /// <summary>제공자별 최근 성공률·응답 속도. 자동 선택이 "지금 잘 되는 쪽"을 먼저 쓰게 한다.</summary>
+    public ProviderHealthStats Health { get; } = new();
     private readonly ConcurrentDictionary<string, string> _rateLimitHeaderLog = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _usageStatePath;
     private string _selectedGroqModel;

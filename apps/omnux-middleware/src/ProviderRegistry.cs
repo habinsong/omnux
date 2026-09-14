@@ -34,18 +34,23 @@ public sealed class ProviderRegistry
             .ToArray();
     }
 
+    /// <summary>
+    /// 자동 선택. 기본 순서(AutoPriority)는 아무 기록도 없을 때의 출발점일 뿐이고, 실제로는 최근
+    /// 성공률과 응답 속도가 좋은 제공자를 먼저 고른다. 어떤 제공자가 빠른지는 키 티어·시간대·모델에
+    /// 따라 달라져서 순서를 코드에 박아 두면 금방 틀린다.
+    /// </summary>
     public async Task<string> ResolveAutoProviderAsync(CancellationToken cancellationToken)
     {
         var available = await GetAvailableProvidersAsync(cancellationToken);
-        foreach (var provider in AutoPriority)
+        var ordered = AutoPriority
+            .Where(provider => available.Contains(provider, StringComparer.OrdinalIgnoreCase))
+            .ToArray();
+        if (ordered.Length == 0)
         {
-            if (available.Contains(provider, StringComparer.OrdinalIgnoreCase))
-            {
-                return provider;
-            }
+            return "none";
         }
 
-        return "none";
+        return _llmRouter.Health.OrderByHealth(ordered).FirstOrDefault() ?? "none";
     }
 
     public async Task<IReadOnlyList<ProviderAvailability>> GetAvailabilitySnapshotAsync(CancellationToken cancellationToken)

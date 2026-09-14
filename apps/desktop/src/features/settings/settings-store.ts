@@ -75,6 +75,8 @@ type SettingsState = {
       resetTokens: string;
       cooldownUntilMs: number | null;
     }[];
+    /** 제공자별 최근 성공률·응답 속도. 자동 선택이 이 값을 보고 순서를 정한다. */
+    providerHealth: { provider: string; samples: number; successRate: number; averageLatencyMs: number }[];
   } | null;
   llmMessage: string;
   lastMessage: string;
@@ -664,6 +666,16 @@ export function useSettingsPageBridge() {
               limitTokens: num(row.limitTokens),
               resetTokens: String(row.resetTokens || ""),
               cooldownUntilMs: num(row.cooldownUntilMs)
+            };
+          }),
+          providerHealth: (Array.isArray(message.providerHealth) ? message.providerHealth : []).map((raw) => {
+            const row = (raw || {}) as Record<string, unknown>;
+            const toNumber = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : 0);
+            return {
+              provider: String(row.provider || ""),
+              samples: toNumber(row.samples),
+              successRate: toNumber(row.successRate),
+              averageLatencyMs: toNumber(row.averageLatencyMs)
             };
           })
         }

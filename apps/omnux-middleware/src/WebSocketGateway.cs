@@ -820,6 +820,25 @@ public sealed partial class WebSocketGateway
         }
 
         builder.Append("],");
+        // 최근 호출 실적. 자동 선택이 왜 그 제공자를 골랐는지 화면에서 보이게 한다.
+        builder.Append("\"providerHealth\":[");
+        var health = _llmRouter.Health.Snapshot();
+        for (var i = 0; i < health.Count; i++)
+        {
+            if (i > 0)
+            {
+                builder.Append(',');
+            }
+
+            builder.Append('{');
+            builder.Append($"\"provider\":\"{EscapeJson(health[i].Provider)}\",");
+            builder.Append($"\"samples\":{health[i].Samples.ToString(CultureInfo.InvariantCulture)},");
+            builder.Append($"\"successRate\":{health[i].SuccessRate.ToString("F3", CultureInfo.InvariantCulture)},");
+            builder.Append($"\"averageLatencyMs\":{((long)Math.Round(health[i].AverageLatencyMs)).ToString(CultureInfo.InvariantCulture)}");
+            builder.Append('}');
+        }
+
+        builder.Append("],");
         builder.Append("\"gemini\":{");
         builder.Append($"\"requests\":{gemini.Requests},");
         builder.Append($"\"prompt_tokens\":{gemini.PromptTokens},");

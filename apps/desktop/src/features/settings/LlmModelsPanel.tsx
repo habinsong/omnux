@@ -345,6 +345,21 @@ export function LlmUsageCard({ store, onError }: { store: Store; onError: CardEr
           </ul>
         </div>
       ) : null}
+      {store.llmUsage && store.llmUsage.providerHealth.length > 0 ? (
+        <div className="mt-3 space-y-1">
+          <div className="text-xs text-muted-foreground">제공자 최근 실적</div>
+          <ul className="space-y-1">
+            {store.llmUsage.providerHealth.map((row) => (
+              <li key={row.provider} className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2 py-1">
+                <span className="truncate font-mono text-[11px]">{row.provider}</span>
+                <span className="shrink-0 text-[11px] text-muted-foreground">
+                  성공 {Math.round(row.successRate * 100)}% · 평균 {(row.averageLatencyMs / 1000).toFixed(1)}초 · {row.samples}회
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </CardBoundary>
   );
 }
