@@ -802,6 +802,24 @@ public sealed partial class WebSocketGateway
         }
 
         builder.Append("],");
+        // 키·결제 문제로 아예 못 쓰는 제공자는 모델 행이 없다. 그 사실을 따로 알려 준다.
+        builder.Append("\"providerCooldowns\":[");
+        var cooldowns = _llmRouter.RateLimits.SnapshotProviderCooldowns(DateTimeOffset.UtcNow);
+        for (var i = 0; i < cooldowns.Count; i++)
+        {
+            if (i > 0)
+            {
+                builder.Append(',');
+            }
+
+            builder.Append('{');
+            builder.Append($"\"provider\":\"{EscapeJson(cooldowns[i].Provider)}\",");
+            builder.Append($"\"untilMs\":{cooldowns[i].UntilUtc.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)},");
+            builder.Append($"\"reason\":\"{EscapeJson(cooldowns[i].Reason)}\"");
+            builder.Append('}');
+        }
+
+        builder.Append("],");
         builder.Append("\"gemini\":{");
         builder.Append($"\"requests\":{gemini.Requests},");
         builder.Append($"\"prompt_tokens\":{gemini.PromptTokens},");

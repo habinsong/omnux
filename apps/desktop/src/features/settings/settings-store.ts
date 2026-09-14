@@ -62,6 +62,8 @@ type SettingsState = {
     copilotUsedRequests: string;
     copilotMonthlyQuota: string;
     copilotPercentUsed: string;
+    /** 키·결제 문제로 지금 쓸 수 없는 제공자. 모델 행이 없어도 이유가 보여야 한다. */
+    providerCooldowns: { provider: string; untilMs: number; reason: string }[];
     /** 제공자·모델별 남은 한도. 응답 헤더를 받은 항목만 들어온다. */
     providerLimits: {
       provider: string;
@@ -642,6 +644,14 @@ export function useSettingsPageBridge() {
           copilotUsedRequests: String(premium.used_requests || "0.0"),
           copilotMonthlyQuota: String(premium.monthly_quota || "0.0"),
           copilotPercentUsed: String(premium.percent_used || "0.00"),
+          providerCooldowns: (Array.isArray(message.providerCooldowns) ? message.providerCooldowns : []).map((raw) => {
+            const row = (raw || {}) as Record<string, unknown>;
+            return {
+              provider: String(row.provider || ""),
+              untilMs: typeof row.untilMs === "number" ? row.untilMs : 0,
+              reason: String(row.reason || "")
+            };
+          }),
           providerLimits: (Array.isArray(message.providerLimits) ? message.providerLimits : []).map((raw) => {
             const row = (raw || {}) as Record<string, unknown>;
             const num = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);

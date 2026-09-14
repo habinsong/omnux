@@ -171,6 +171,16 @@ public sealed class ProviderRateLimitLedger
         return true;
     }
 
+    /// <summary>지금 냉각 중인 제공자 목록. 모델 행이 없는(키·결제 문제로 아예 못 쓴) 제공자도 보여야 한다.</summary>
+    public IReadOnlyList<(string Provider, DateTimeOffset UntilUtc, string Reason)> SnapshotProviderCooldowns(DateTimeOffset nowUtc)
+    {
+        return _providerCooldowns
+            .Where(pair => pair.Value.UntilUtc > nowUtc)
+            .Select(pair => (pair.Key, pair.Value.UntilUtc, pair.Value.Reason))
+            .OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
     public void ClearProviderCooldown(string provider)
         => _providerCooldowns.TryRemove((provider ?? string.Empty).Trim().ToLowerInvariant(), out _);
 

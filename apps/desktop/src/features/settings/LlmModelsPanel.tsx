@@ -302,6 +302,22 @@ export function LlmUsageCard({ store, onError }: { store: Store; onError: CardEr
       ) : (
         <p className="py-4 text-center text-xs text-muted-foreground">상태 조회 시 Gemini 토큰과 Copilot Premium 쿼터가 표시됩니다.</p>
       )}
+      {store.llmUsage && store.llmUsage.providerCooldowns.length > 0 ? (
+        <div className="mt-3 space-y-1">
+          <div className="text-xs text-muted-foreground">지금 쓸 수 없는 제공자</div>
+          <ul className="space-y-1">
+            {store.llmUsage.providerCooldowns.map((row) => (
+              <li key={row.provider} className="rounded-md border border-border bg-card px-2 py-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate font-mono text-[11px]">{row.provider}</span>
+                  <Badge tone="outline" className="shrink-0">대기 중</Badge>
+                </div>
+                <div className="truncate text-[11px] text-muted-foreground">{row.reason}</div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
       {store.llmUsage && store.llmUsage.providerLimits.length > 0 ? (
         <div className="mt-3 space-y-1">
           <div className="text-xs text-muted-foreground">제공자 남은 한도</div>
