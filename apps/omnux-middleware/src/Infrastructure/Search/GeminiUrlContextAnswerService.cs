@@ -168,7 +168,7 @@ internal sealed class GeminiUrlContextAnswerService
                 prompt,
                 model,
                 maxOutputTokens,
-                _context.GeminiWebTimeoutMs,
+                ProviderTimeoutPolicy.ResolveUrlContextTimeoutMs(_context.GeminiWebTimeoutMs, prompt.Length),
                 includeGoogleSearch,
                 deltaCallback,
                 cancellationToken

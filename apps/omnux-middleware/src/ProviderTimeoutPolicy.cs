@@ -13,6 +13,28 @@ internal static class ProviderTimeoutPolicy
         return TimeSpan.FromMilliseconds(Math.Max(Math.Max(llmTimeoutMs, providerTimeoutMs + 5000), geminiWebTimeoutMs + 5000));
     }
 
+    /// <summary>
+    /// URL 참조 답변의 제한 시간. 페이지 원문을 함께 보내면 모델이 읽을 양이 늘어 기본 30초로는
+    /// 모자란다(실측: 세 페이지 1.8만 자에서 33초 초과). 보내는 양에 비례해 늘리되 세 배에서 멈춘다.
+    /// </summary>
+    public static int ResolveUrlContextTimeoutMs(int baseTimeoutMs, int promptChars)
+    {
+        var normalizedBase = Math.Max(5_000, baseTimeoutMs);
+        if (promptChars <= UrlContextPromptCharsPerStep)
+        {
+            return normalizedBase;
+        }
+
+        var steps = (promptChars - 1) / UrlContextPromptCharsPerStep;
+        var extra = (long)normalizedBase * steps / 2;
+        var total = normalizedBase + extra;
+        return (int)Math.Min(total, (long)normalizedBase * UrlContextMaxTimeoutMultiplier);
+    }
+
+    /// <summary>이만큼 늘어날 때마다 제한 시간을 절반씩 더 준다.</summary>
+    private const int UrlContextPromptCharsPerStep = 10_000;
+    private const int UrlContextMaxTimeoutMultiplier = 3;
+
     public static int ResolveSingleChatTimeoutSeconds(
         string normalizedProvider,
         ProviderOptions providers,
