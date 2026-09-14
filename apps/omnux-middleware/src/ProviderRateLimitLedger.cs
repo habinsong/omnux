@@ -103,14 +103,24 @@ public sealed class ProviderRateLimitLedger
         return state;
     }
 
-    private readonly ConcurrentDictionary<string, (DateTimeOffset UntilUtc, string Reason)> _providerCooldowns =
+    private readonly ConcurrentDictionary<string, (DateTimeOffset UntilUtc, string Reason, string CredentialFingerprint)> _providerCooldowns =
         new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// 제공자 전체를 잠시 쓰지 않는다. 키가 없거나 크레딧이 없어서 나는 실패는 모델을 바꿔도 똑같으므로,
     /// 그 제공자를 가용 목록에서 빼야 자동 선택·멀티 실행이 죽은 제공자를 계속 고르지 않는다.
     /// </summary>
-    public void MarkProviderUnavailable(string provider, DateTimeOffset nowUtc, TimeSpan cooldown, string reason)
+    /// <param name="credentialFingerprint">
+    /// 그 제공자의 자격증명을 식별하는 값(키 자체가 아니다). 사용자가 키를 바꾸면 달라지므로,
+    /// 달라진 순간 이 냉각은 낡은 것으로 보고 버린다. 그래야 키를 고친 직후 바로 쓸 수 있다.
+    /// </param>
+    public void MarkProviderUnavailable(
+        string provider,
+        DateTimeOffset nowUtc,
+        TimeSpan cooldown,
+        string reason,
+        string credentialFingerprint = ""
+    )
     {
         var key = (provider ?? string.Empty).Trim().ToLowerInvariant();
         if (key.Length == 0)
@@ -118,13 +128,22 @@ public sealed class ProviderRateLimitLedger
             return;
         }
 
-        _providerCooldowns[key] = (nowUtc.Add(cooldown), string.IsNullOrWhiteSpace(reason) ? "unavailable" : reason);
+        _providerCooldowns[key] = (
+            nowUtc.Add(cooldown),
+            string.IsNullOrWhiteSpace(reason) ? "unavailable" : reason,
+            credentialFingerprint ?? string.Empty
+        );
     }
 
-    public bool IsProviderCoolingDown(string provider, DateTimeOffset nowUtc)
-        => TryGetProviderCooldown(provider, nowUtc, out _);
+    public bool IsProviderCoolingDown(string provider, DateTimeOffset nowUtc, string credentialFingerprint = "")
+        => TryGetProviderCooldown(provider, nowUtc, out _, credentialFingerprint);
 
-    public bool TryGetProviderCooldown(string provider, DateTimeOffset nowUtc, out string reason)
+    public bool TryGetProviderCooldown(
+        string provider,
+        DateTimeOffset nowUtc,
+        out string reason,
+        string credentialFingerprint = ""
+    )
     {
         reason = string.Empty;
         var key = (provider ?? string.Empty).Trim().ToLowerInvariant();
@@ -134,6 +153,15 @@ public sealed class ProviderRateLimitLedger
         }
 
         if (entry.UntilUtc <= nowUtc)
+        {
+            _providerCooldowns.TryRemove(key, out _);
+            return false;
+        }
+
+        // 자격증명이 바뀌었으면 이 냉각은 더 이상 유효하지 않다(키를 고쳤을 수 있다).
+        if (credentialFingerprint.Length > 0
+            && entry.CredentialFingerprint.Length > 0
+            && !string.Equals(entry.CredentialFingerprint, credentialFingerprint, StringComparison.Ordinal))
         {
             _providerCooldowns.TryRemove(key, out _);
             return false;

@@ -232,6 +232,43 @@ public sealed partial class CommandService
         var requestedModel = normalizedProvider == "groq"
             ? ResolveGroqModelForInput(input, model)
             : ResolveProviderModel(normalizedProvider, model);
+        // 방금 키·크레딧 문제로 막힌 제공자라면 또 호출해 볼 필요가 없다. 바로 다른 제공자로 넘긴다.
+        // (자격증명이 바뀌면 냉각은 자동으로 무효가 되므로 키를 고친 직후에는 정상 시도한다.)
+        var credentialFingerprint = _llmRouter.GetCredentialFingerprint(normalizedProvider);
+        if (crossProviderHopsRemaining > 0
+            && _llmRouter.RateLimits.TryGetProviderCooldown(
+                normalizedProvider,
+                DateTimeOffset.UtcNow,
+                out var cooldownReason,
+                credentialFingerprint
+            ))
+        {
+            var skipped = new LlmSingleChatResult(
+                normalizedProvider,
+                requestedModel,
+                cooldownReason,
+                TokenUsageEstimator.Estimate(input, cooldownReason, TokenUsageEstimator.SourceEstimated)
+            );
+            Console.Error.WriteLine($"[provider-handoff] {normalizedProvider} 냉각 중({cooldownReason}). 호출을 생략한다.");
+            var substituteResult = await HandoffToAnotherProviderAsync(
+                normalizedProvider,
+                skipped,
+                input,
+                cancellationToken,
+                maxOutputTokens,
+                useRawCodexPrompt,
+                codexWorkingDirectoryOverride,
+                optimizeCodexForCoding,
+                timeoutOverrideSeconds,
+                tuning,
+                crossProviderHopsRemaining,
+                TimeSpan.Zero
+            );
+            if (!ReferenceEquals(substituteResult, skipped))
+            {
+                return substituteResult;
+            }
+        }
         var chain = ProviderModelChainPolicy.BuildChain(
             requestedModel,
             ModelRegistry.GetFallbackModels(normalizedProvider)
@@ -417,12 +454,17 @@ public sealed partial class CommandService
         TimeSpan providerCooldown
     )
     {
-        _llmRouter.RateLimits.MarkProviderUnavailable(
-            failedProvider,
-            DateTimeOffset.UtcNow,
-            providerCooldown,
-            TrimForOutput(failure.Text, 120)
-        );
+        if (providerCooldown > TimeSpan.Zero)
+        {
+            _llmRouter.RateLimits.MarkProviderUnavailable(
+                failedProvider,
+                DateTimeOffset.UtcNow,
+                providerCooldown,
+                TrimForOutput(failure.Text, 120),
+                _llmRouter.GetCredentialFingerprint(failedProvider)
+            );
+        }
+
         _auditLogger.Log("local", "provider_unavailable", "warn", $"provider={failedProvider} reason={TrimForOutput(failure.Text, 160)}");
 
         if (crossProviderHopsRemaining <= 0)

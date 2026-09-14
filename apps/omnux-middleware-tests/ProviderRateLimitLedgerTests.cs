@@ -215,3 +215,30 @@ public sealed class ProviderModelAvailabilityPolicyTests
         Assert.False(ProviderModelAvailabilityPolicy.LooksLikeUnknownModel(body));
     }
 }
+
+public sealed class ProviderCooldownCredentialTests
+{
+    [Fact]
+    public void ChangingCredentialsInvalidatesTheCooldown()
+    {
+        var ledger = new ProviderRateLimitLedger();
+        var now = DateTimeOffset.UtcNow;
+        ledger.MarkProviderUnavailable("cerebras", now, TimeSpan.FromMinutes(10), "결제 필요 (402)", "AAAA11");
+
+        // 같은 키로는 계속 냉각 상태다.
+        Assert.True(ledger.IsProviderCoolingDown("cerebras", now, "AAAA11"));
+        // 키를 바꿨으면 곧바로 다시 시도해야 한다(10분 기다리게 하면 사용자가 고친 뒤에도 막힌다).
+        Assert.False(ledger.IsProviderCoolingDown("cerebras", now, "BBBB22"));
+    }
+
+    [Fact]
+    public void UnknownFingerprintDoesNotClearTheCooldown()
+    {
+        var ledger = new ProviderRateLimitLedger();
+        var now = DateTimeOffset.UtcNow;
+        ledger.MarkProviderUnavailable("nvidia", now, TimeSpan.FromMinutes(5), "인증 실패 (403)", "CCCC33");
+        // 지문을 모르는 호출자는 냉각을 해제하지 못한다.
+        Assert.True(ledger.IsProviderCoolingDown("nvidia", now));
+        Assert.True(ledger.IsProviderCoolingDown("nvidia", now, ""));
+    }
+}

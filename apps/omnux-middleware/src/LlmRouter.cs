@@ -167,6 +167,30 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         }
     }
 
+    /// <summary>
+    /// 제공자 자격증명을 식별하는 짧은 지문. 키 자체는 돌려주지 않는다(로그·비교 용도).
+    /// 사용자가 키를 바꾸면 값이 달라지므로, 키 문제로 걸어 둔 냉각을 자동으로 무효화할 수 있다.
+    /// </summary>
+    public string GetCredentialFingerprint(string provider)
+    {
+        var key = (provider ?? string.Empty).Trim().ToLowerInvariant() switch
+        {
+            "groq" => _runtimeSettings.GetGroqApiKey(),
+            "gemini" => _runtimeSettings.GetGeminiApiKey(),
+            "cerebras" => _runtimeSettings.GetCerebrasApiKey(),
+            "nvidia" => _runtimeSettings.GetNvidiaApiKey(),
+            "deepseek" => _runtimeSettings.GetDeepseekApiKey(),
+            _ => null
+        };
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return string.Empty;
+        }
+
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(key));
+        return Convert.ToHexString(hash, 0, 6);
+    }
+
     public IReadOnlyDictionary<string, GroqRateLimit> GetGroqRateLimitSnapshot()
     {
         lock (_groqLock)
