@@ -110,7 +110,7 @@ public sealed partial class CommandService
         string decisionPath,
         long decisionMs,
         CancellationToken cancellationToken,
-        string? fetchedPageContext = null
+        FetchedPageContext? fetchedPage = null
     )
     {
         // 단일 소스: URL context answer 로직은 GeminiUrlContextAnswerService가 소유한다.
@@ -128,7 +128,7 @@ public sealed partial class CommandService
             decisionPath,
             decisionMs,
             cancellationToken,
-            fetchedPageContext
+            fetchedPage
         );
     }
 

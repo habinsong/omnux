@@ -68,9 +68,10 @@ internal sealed class GeminiUrlContextAnswerService
         string decisionPath,
         long decisionMs,
         CancellationToken cancellationToken,
-        string? fetchedPageContext = null
+        FetchedPageContext? fetchedPage = null
     )
     {
+        var fetchedPageContext = fetchedPage?.Block;
         var model = ResolveUrlContextLlmModel();
         const bool includeGoogleSearch = false;
         const string route = "gemini-url-single";
@@ -142,11 +143,17 @@ internal sealed class GeminiUrlContextAnswerService
         var maxOutputTokens = ResolveGeminiUrlContextMaxOutputTokens(input);
         // 원문을 실었는데도 모델이 "못 읽었다"고 하면 원인이 프롬프트인지 모델인지 가려야 한다.
         Console.Error.WriteLine(
-            $"[url-context] 프롬프트 {prompt.Length}자 (원문 {(fetchedPageContext ?? string.Empty).Length}자), URL {urls.Count}개"
+            $"[url-context] 프롬프트 {prompt.Length}자 (원문 {(fetchedPageContext ?? string.Empty).Length}자), "
+            + $"URL {urls.Count}개, 원문이 전부 있으면 도구 생략"
         );
         var promptBuildMs = Math.Max(0L, promptStopwatch.ElapsedMilliseconds);
         GeminiUrlContextChatResponse response;
-        if (repositoryContext.HasValue)
+        // 우리가 모든 주소의 원문을 이미 받아 왔다면 url_context 도구가 같은 페이지를 다시 받을 이유가
+        // 없다. 도구를 빼면 응답이 빨라지고, 도구가 못 읽은 페이지를 "읽지 못함"으로 답하는 모순도 없다.
+        var coversEveryUrl = fetchedPage != null
+            && urls.Count > 0
+            && urls.All(url => fetchedPage.CoveredUrls.Contains(url, StringComparer.OrdinalIgnoreCase));
+        if (repositoryContext.HasValue || coversEveryUrl)
         {
             var directStopwatch = Stopwatch.StartNew();
             var directText = await _llmRouter.GenerateGeminiChatAsync(
@@ -159,7 +166,9 @@ internal sealed class GeminiUrlContextAnswerService
                 directText,
                 0,
                 Math.Max(0L, directStopwatch.ElapsedMilliseconds),
-                Array.Empty<SearchCitationReference>()
+                coversEveryUrl && !repositoryContext.HasValue
+                    ? BuildFetchedPageCitations(fetchedPage!.CoveredUrls)
+                    : Array.Empty<SearchCitationReference>()
             );
             if (deltaCallback != null && !string.IsNullOrWhiteSpace(directText))
             {
@@ -221,6 +230,21 @@ internal sealed class GeminiUrlContextAnswerService
         }
 
         return _providers.GeminiModel;
+    }
+
+    /// <summary>직접 읽은 페이지가 곧 출처다. 도구를 안 써도 출처가 비지 않게 만든다.</summary>
+    private static IReadOnlyList<SearchCitationReference> BuildFetchedPageCitations(IReadOnlyList<string> urls)
+    {
+        return urls
+            .Select((url, index) => new SearchCitationReference(
+                $"c{index + 1}",
+                Uri.TryCreate(url, UriKind.Absolute, out var parsed) ? parsed.Host : url,
+                url,
+                string.Empty,
+                string.Empty,
+                "page"
+            ))
+            .ToArray();
     }
 
     private string BuildGeminiUrlContextAnswerPrompt(

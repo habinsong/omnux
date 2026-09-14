@@ -142,6 +142,9 @@ public sealed record InputAttachment(
     long SizeBytes = 0,
     bool IsImage = false
 );
+/// <summary>직접 받아 온 페이지 원문 블록과, 그 안에 실제로 실린 주소들.</summary>
+public sealed record FetchedPageContext(string Block, IReadOnlyList<string> CoveredUrls);
+
 public sealed record SearchCitationReference(
     string CitationId,
     string Title,

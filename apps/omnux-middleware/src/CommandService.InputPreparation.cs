@@ -1923,7 +1923,7 @@ public sealed partial class CommandService
     /// (실측: GitHub 프로필에서 존재하지 않는 저장소 이름을 나열했다). 받아 온 원문을 같이 줘서
     /// 그 안에 있는 내용으로만 답하게 한다.
     /// </summary>
-    private async Task<string> BuildFetchedPageContextAsync(
+    private async Task<FetchedPageContext> BuildFetchedPageContextAsync(
         IReadOnlyList<string> urls,
         string? provider,
         CancellationToken cancellationToken
@@ -1937,27 +1937,35 @@ public sealed partial class CommandService
             targets.Select(url => FetchWebSnippetAsync(url, provider, cancellationToken))
         ).ConfigureAwait(false);
         var blocks = new List<string>();
+        var covered = new List<string>();
         for (var i = 0; i < targets.Length; i++)
         {
             if (!string.IsNullOrWhiteSpace(snippets[i]))
             {
                 blocks.Add($"### {targets[i]}\n{snippets[i]}");
+                covered.Add(targets[i]);
             }
         }
 
         if (blocks.Count == 0)
         {
             // 본문을 못 받았을 때가 더 위험하다. 아무 말도 안 해 두면 모델이 페이지를 읽은 척 지어낸다.
-            return "[페이지 원문]\n"
-                   + "- 그 주소의 내용을 가져오지 못했습니다. 페이지에 무엇이 있는지 추측해서 말하지 말고, "
-                   + "가져오지 못했다고 밝힌 뒤 검색으로 확인된 사실만 쓰세요.";
+            return new FetchedPageContext(
+                "[페이지 원문]\n"
+                + "- 그 주소의 내용을 가져오지 못했습니다. 페이지에 무엇이 있는지 추측해서 말하지 말고, "
+                + "가져오지 못했다고 밝힌 뒤 검색으로 확인된 사실만 쓰세요.",
+                Array.Empty<string>()
+            );
         }
 
-        return "[페이지 원문]\n"
-               + "- 아래는 그 주소에서 실제로 받아 온 내용입니다. 여기에 없는 사실을 지어내지 마세요.\n"
-               + "- 원문에 안 보이는 것은 '페이지에서 확인되지 않음'이라고만 쓰고, 없다고 단정하지 마세요. "
-               + "목록을 화면에서 그리는 페이지는 원문에 그 목록이 실리지 않습니다.\n"
-               + string.Join("\n\n", blocks);
+        return new FetchedPageContext(
+            "[페이지 원문]\n"
+            + "- 아래는 그 주소에서 실제로 받아 온 내용입니다. 여기에 없는 사실을 지어내지 마세요.\n"
+            + "- 원문에 안 보이는 것은 '페이지에서 확인되지 않음'이라고만 쓰고, 없다고 단정하지 마세요. "
+            + "목록을 화면에서 그리는 페이지는 원문에 그 목록이 실리지 않습니다.\n"
+            + string.Join("\n\n", blocks),
+            covered
+        );
     }
 
     private async Task<string> FetchWebSnippetAsync(string url, string? provider, CancellationToken cancellationToken)
