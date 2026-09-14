@@ -64,12 +64,16 @@ public sealed partial class CommandService
         {
             using var llmCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             llmCts.CancelAfter(TimeSpan.FromSeconds(AskMemoryCapturePolicy.LlmTimeoutSeconds));
-            var llmOutput = await _llmRouter.GenerateGroqChatAsync(
-                AskMemoryCapturePolicy.BuildExtractionPrompt(userText, assistantText),
+            // 공통 진입점을 쓴다. Groq 한도에 걸렸을 때 같은 제공자의 다른 모델 → 다른 제공자로
+            // 이어받아야 메모리 추출이 조용히 실패하지 않는다.
+            var extractionCall = await GenerateByProviderSafeAsync(
+                "groq",
                 null,
-                220,
-                llmCts.Token
+                AskMemoryCapturePolicy.BuildExtractionPrompt(userText, assistantText),
+                llmCts.Token,
+                maxOutputTokens: 220
             ).ConfigureAwait(false);
+            var llmOutput = extractionCall.Text;
             extraction = AskMemoryCapturePolicy.TryParseExtraction(llmOutput);
         }
         catch (Exception ex)

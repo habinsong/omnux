@@ -51,14 +51,15 @@ public sealed partial class CommandService
             return BuildMockCopilotTestResponse(_copilotWrapper.GetSelectedModel());
         }
 
+        // 공통 진입점을 거쳐야 한도·키 문제에서 모델·제공자를 이어받는다.
         if (_llmRouter.HasGeminiApiKey())
         {
-            return await _llmRouter.GenerateGeminiChatAsync(text, cancellationToken);
+            return (await GenerateByProviderSafeAsync("gemini", null, text, cancellationToken)).Text;
         }
 
         if (_llmRouter.HasGroqApiKey())
         {
-            return await _llmRouter.GenerateGroqChatAsync(text, _llmRouter.GetSelectedGroqModel(), cancellationToken);
+            return (await GenerateByProviderSafeAsync("groq", null, text, cancellationToken)).Text;
         }
 
         var copilotStatus = await _copilotWrapper.GetStatusAsync(cancellationToken);

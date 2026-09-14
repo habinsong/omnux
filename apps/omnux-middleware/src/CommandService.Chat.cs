@@ -2175,44 +2175,44 @@ public sealed partial class CommandService
         Task<LlmSingleChatResult> groqTask = IsDisabledModelSelection(groqModel)
             ? Task.FromResult(new LlmSingleChatResult("groq", "none", "선택 안함"))
             : _llmRouter.HasGroqApiKey()
-                ? ExecuteProviderChatWithPreparedInputAsync("groq", hasGroqOverride ? groqSelected : null, text, attachments, cancellationToken)
+                ? ExecuteProviderChatWithPreparedInputAsync("groq", hasGroqOverride ? groqSelected : null, text, attachments, cancellationToken, allowCrossProviderHandoff: false)
                 : Task.FromResult(new LlmSingleChatResult("groq", groqSelected, "Groq API 키가 설정되지 않았습니다."));
 
         Task<LlmSingleChatResult> geminiTask = IsDisabledModelSelection(geminiModel)
             ? Task.FromResult(new LlmSingleChatResult("gemini", "none", "선택 안함"))
             : _llmRouter.HasGeminiApiKey()
-                ? ExecuteProviderChatWithPreparedInputAsync("gemini", geminiSelected, text, attachments, cancellationToken)
+                ? ExecuteProviderChatWithPreparedInputAsync("gemini", geminiSelected, text, attachments, cancellationToken, allowCrossProviderHandoff: false)
                 : Task.FromResult(new LlmSingleChatResult("gemini", geminiSelected, "Gemini API 키가 설정되지 않았습니다."));
 
         Task<LlmSingleChatResult> cerebrasTask = IsDisabledModelSelection(cerebrasModel)
             ? Task.FromResult(new LlmSingleChatResult("cerebras", "none", "선택 안함"))
             : _llmRouter.HasCerebrasApiKey()
-                ? ExecuteProviderChatWithPreparedInputAsync("cerebras", cerebrasSelected, text, attachments, cancellationToken)
+                ? ExecuteProviderChatWithPreparedInputAsync("cerebras", cerebrasSelected, text, attachments, cancellationToken, allowCrossProviderHandoff: false)
                 : Task.FromResult(new LlmSingleChatResult("cerebras", cerebrasSelected, "Cerebras API 키가 설정되지 않았습니다."));
 
         Task<LlmSingleChatResult> nvidiaTask = IsDisabledModelSelection(nvidiaModel)
             ? Task.FromResult(new LlmSingleChatResult("nvidia", "none", "선택 안함"))
             : _llmRouter.HasNvidiaApiKey()
-                ? ExecuteProviderChatWithPreparedInputAsync("nvidia", nvidiaSelected, text, attachments, cancellationToken)
+                ? ExecuteProviderChatWithPreparedInputAsync("nvidia", nvidiaSelected, text, attachments, cancellationToken, allowCrossProviderHandoff: false)
                 : Task.FromResult(new LlmSingleChatResult("nvidia", nvidiaSelected, "NVIDIA NIM API 키가 설정되지 않았습니다."));
 
         Task<LlmSingleChatResult> deepseekTask = IsDisabledModelSelection(deepseekModel)
             ? Task.FromResult(new LlmSingleChatResult("deepseek", "none", "선택 안함"))
             : _llmRouter.HasDeepseekApiKey()
-                ? ExecuteProviderChatWithPreparedInputAsync("deepseek", deepseekSelected, text, attachments, cancellationToken)
+                ? ExecuteProviderChatWithPreparedInputAsync("deepseek", deepseekSelected, text, attachments, cancellationToken, allowCrossProviderHandoff: false)
                 : Task.FromResult(new LlmSingleChatResult("deepseek", deepseekSelected, "DeepSeek API 키가 설정되지 않았습니다."));
 
         var copilotStatus = await _copilotWrapper.GetStatusAsync(cancellationToken);
         Task<LlmSingleChatResult> copilotTask = IsDisabledModelSelection(copilotModel)
             ? Task.FromResult(new LlmSingleChatResult("copilot", "none", "선택 안함"))
             : (copilotStatus.Installed && copilotStatus.Authenticated
-                ? ExecuteProviderChatWithPreparedInputAsync("copilot", copilotSelected, text, attachments, cancellationToken)
+                ? ExecuteProviderChatWithPreparedInputAsync("copilot", copilotSelected, text, attachments, cancellationToken, allowCrossProviderHandoff: false)
                 : Task.FromResult(new LlmSingleChatResult("copilot", copilotSelected, "Copilot 인증이 필요합니다.")));
         var codexStatus = await _codexWrapper.GetStatusAsync(cancellationToken);
         Task<LlmSingleChatResult> codexTask = IsDisabledModelSelection(codexModel)
             ? Task.FromResult(new LlmSingleChatResult("codex", "none", "선택 안함"))
             : (codexStatus.Installed && codexStatus.Authenticated
-                ? ExecuteProviderChatWithPreparedInputAsync("codex", codexSelected, text, attachments, cancellationToken)
+                ? ExecuteProviderChatWithPreparedInputAsync("codex", codexSelected, text, attachments, cancellationToken, allowCrossProviderHandoff: false)
                 : Task.FromResult(new LlmSingleChatResult("codex", codexSelected, "Codex 인증이 필요합니다.")));
 
         Task<LlmSingleChatResult> grokTask;
@@ -2221,7 +2221,7 @@ public sealed partial class CommandService
         {
             var status = await _llmRouter.GrokClient.GetStatusAsync(cancellationToken);
             grokTask = status.Installed && status.Authenticated
-                ? ExecuteProviderChatWithPreparedInputAsync("grok", grokSelected, text, attachments, cancellationToken)
+                ? ExecuteProviderChatWithPreparedInputAsync("grok", grokSelected, text, attachments, cancellationToken, allowCrossProviderHandoff: false)
                 : Task.FromResult(new LlmSingleChatResult("grok", grokSelected, "Grok OAuth 인증이 필요합니다."));
         }
         await Task.WhenAll(groqTask, geminiTask, cerebrasTask, nvidiaTask, deepseekTask, copilotTask, codexTask, grokTask);

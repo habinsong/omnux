@@ -18,7 +18,8 @@ internal sealed record GeminiStreamingAdapterRequest(
     CancellationToken RequestCancellationToken,
     CancellationToken FailureBodyCancellationToken,
     Func<CancellationToken> ReadLineCancellationToken,
-    Action<string> OnPayload
+    Action<string> OnPayload,
+    Action<System.Net.Http.Headers.HttpResponseHeaders>? OnResponseHeaders = null
 );
 
 internal sealed record GeminiStreamingAdapterResult(
@@ -50,6 +51,7 @@ internal sealed class GeminiStreamingAdapter : IGeminiStreamingAdapter
             HttpCompletionOption.ResponseHeadersRead,
             request.RequestCancellationToken
         );
+        request.OnResponseHeaders?.Invoke(response.Headers);
         if (!response.IsSuccessStatusCode)
         {
             var failureBody = await response.Content.ReadAsStringAsync(request.FailureBodyCancellationToken);

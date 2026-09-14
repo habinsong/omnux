@@ -7,12 +7,17 @@ namespace Omnux.Middleware;
 
 public sealed partial class CommandService
 {
+    /// <param name="allowCrossProviderHandoff">
+    /// 그 제공자가 못 답할 때 다른 제공자가 대신 답하게 할지. 멀티 비교에서는 거짓이어야 한다.
+    /// 참으로 두면 막힌 제공자들이 모두 같은 제공자로 대체돼 같은 답이 여러 칸에 중복된다.
+    /// </param>
     private async Task<LlmSingleChatResult> ExecuteProviderChatWithPreparedInputAsync(
         string provider,
         string? model,
         string input,
         IReadOnlyList<InputAttachment>? attachments,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        bool allowCrossProviderHandoff = true
     )
     {
         var resolvedProvider = NormalizeProvider(provider, allowAuto: false);
@@ -41,7 +46,8 @@ public sealed partial class CommandService
             resolvedProvider,
             resolvedModel,
             prepared.Text,
-            cancellationToken
+            cancellationToken,
+            crossProviderHopsRemaining: allowCrossProviderHandoff ? 1 : 0
         );
     }
 

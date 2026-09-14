@@ -374,7 +374,12 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
         try
         {
             var result = await _geminiGenerateContentAdapter.SendAsync(
-                new GeminiGenerateContentRequest(endpoint, geminiApiKey, body),
+                new GeminiGenerateContentRequest(
+                    endpoint,
+                    geminiApiKey,
+                    body,
+                    OnResponseHeaders: headers => CaptureProviderRateLimitHeaders("gemini", _providers.GeminiModel, headers)
+                ),
                 cancellationToken
             );
             if (!result.IsSuccess)
@@ -1116,7 +1121,12 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                     + "}";
 
                 var result = await _geminiGenerateContentAdapter.SendAsync(
-                    new GeminiGenerateContentRequest(endpoint, geminiApiKey, body),
+                    new GeminiGenerateContentRequest(
+                    endpoint,
+                    geminiApiKey,
+                    body,
+                    OnResponseHeaders: headers => CaptureProviderRateLimitHeaders("gemini", selectedModel, headers)
+                ),
                     cancellationToken
                 );
                 if (!result.IsSuccess)
@@ -1221,7 +1231,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                     cancellationToken,
                     cancellationToken,
                     () => cancellationToken,
-                    ConsumeEvent
+                    ConsumeEvent,
+                    OnResponseHeaders: headers => CaptureProviderRateLimitHeaders("gemini", selectedModel, headers)
                 ),
                 cancellationToken
             );
@@ -1296,7 +1307,12 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
             using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(effectiveTimeoutMs));
             var result = await _geminiGenerateContentAdapter.SendAsync(
-                new GeminiGenerateContentRequest(endpoint, geminiApiKey, body),
+                new GeminiGenerateContentRequest(
+                    endpoint,
+                    geminiApiKey,
+                    body,
+                    OnResponseHeaders: headers => CaptureProviderRateLimitHeaders("gemini", selectedModel, headers)
+                ),
                 timeoutCts.Token
             );
             if (!result.IsSuccess)
@@ -1408,7 +1424,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                     firstChunkTimeoutCts.Token,
                     totalTimeoutCts.Token,
                     () => streamedTextStarted ? totalTimeoutCts.Token : firstChunkTimeoutCts.Token,
-                    ConsumeEvent
+                    ConsumeEvent,
+                    OnResponseHeaders: headers => CaptureProviderRateLimitHeaders("gemini", selectedModel, headers)
                 ),
                 totalTimeoutCts.Token
             );
@@ -1557,7 +1574,12 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                 using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 timeoutCts.CancelAfter(TimeSpan.FromMilliseconds(effectiveTimeoutMs));
                 var result = await _geminiGenerateContentAdapter.SendAsync(
-                    new GeminiGenerateContentRequest(endpoint, geminiApiKey, body),
+                    new GeminiGenerateContentRequest(
+                    endpoint,
+                    geminiApiKey,
+                    body,
+                    OnResponseHeaders: headers => CaptureProviderRateLimitHeaders("gemini", selectedModel, headers)
+                ),
                     timeoutCts.Token
                 );
                 if (!result.IsSuccess)
@@ -1676,7 +1698,8 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                     firstChunkTimeoutCts.Token,
                     totalTimeoutCts.Token,
                     () => streamedTextStarted ? totalTimeoutCts.Token : firstChunkTimeoutCts.Token,
-                    ConsumeEvent
+                    ConsumeEvent,
+                    OnResponseHeaders: headers => CaptureProviderRateLimitHeaders("gemini", selectedModel, headers)
                 ),
                 totalTimeoutCts.Token
             );
@@ -1834,7 +1857,12 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
             var body = bodyBuilder.ToString();
 
             var result = await _geminiGenerateContentAdapter.SendAsync(
-                new GeminiGenerateContentRequest(endpoint, geminiApiKey, body),
+                new GeminiGenerateContentRequest(
+                    endpoint,
+                    geminiApiKey,
+                    body,
+                    OnResponseHeaders: headers => CaptureProviderRateLimitHeaders("gemini", selectedModel, headers)
+                ),
                 cancellationToken
             );
             if (!result.IsSuccess)
@@ -2661,9 +2689,18 @@ public sealed class LlmRouter : IDisposable, IGeminiUrlContextLlm
                         AcceptedResponseResolver: provider.Equals("nvidia", StringComparison.OrdinalIgnoreCase)
                             ? (acceptedBody, token) => PollNvidiaStatusAsync(apiKey, acceptedBody, token)
                             : null,
-                        OnResponseHeaders: provider.Equals("groq", StringComparison.OrdinalIgnoreCase)
-                            ? headers => CaptureGroqRateLimitHeaders(model, headers)
-                            : null,
+                        // 제공자를 가리지 않고 한도 헤더를 모은다. groq 는 기존 저장소에도 함께 넣는다.
+                        OnResponseHeaders: headers =>
+                        {
+                            if (provider.Equals("groq", StringComparison.OrdinalIgnoreCase))
+                            {
+                                CaptureGroqRateLimitHeaders(model, headers);
+                            }
+                            else
+                            {
+                                CaptureProviderRateLimitHeaders(provider, model, headers);
+                            }
+                        },
                         OnRawPayload: CaptureOpenAiCompatibleTokenUsage,
                         OnDelta: delta =>
                         {

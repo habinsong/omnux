@@ -14,7 +14,8 @@ internal interface IGeminiGenerateContentAdapter
 internal sealed record GeminiGenerateContentRequest(
     string Endpoint,
     string ApiKey,
-    string Body
+    string Body,
+    Action<System.Net.Http.Headers.HttpResponseHeaders>? OnResponseHeaders = null
 );
 
 internal sealed record GeminiGenerateContentResult(
@@ -42,6 +43,7 @@ internal sealed class GeminiGenerateContentAdapter : IGeminiGenerateContentAdapt
         httpRequest.Content = new StringContent(request.Body, Encoding.UTF8, "application/json");
 
         using var response = await _httpClient.SendAsync(httpRequest, cancellationToken);
+        request.OnResponseHeaders?.Invoke(response.Headers);
         var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
         return new GeminiGenerateContentResult(response.IsSuccessStatusCode, response.StatusCode, responseBody);
     }
