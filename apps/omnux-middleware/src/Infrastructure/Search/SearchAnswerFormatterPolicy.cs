@@ -259,6 +259,46 @@ internal static class SearchAnswerFormatterPolicy
         return Regex.Replace(string.Join('\n', output).Trim(), @"\n{3,}", "\n\n");
     }
 
+    /// <summary>
+    /// 검색 근거가 하나도 없을 때 모델이 스스로 적은 "출처:" 줄을 지우고 확인되지 않았다고 밝힌다.
+    /// 근거 없이 붙은 출처는 사용자가 확인된 사실로 읽는다(실측: 근거 0건인데 답에는 블로그
+    /// 이름까지 출처로 적혀 나갔다).
+    /// </summary>
+    public static string RemoveUnverifiedSourceLine(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return text ?? string.Empty;
+        }
+
+        var lines = text
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace("\r", "\n", StringComparison.Ordinal)
+            .Split('\n', StringSplitOptions.None);
+        var kept = new List<string>(lines.Length);
+        var removed = false;
+        foreach (var line in lines)
+        {
+            if (IsDisplaySourceLine(line?.Trim()))
+            {
+                removed = true;
+                continue;
+            }
+
+            kept.Add(line ?? string.Empty);
+        }
+
+        var body = Regex.Replace(string.Join('\n', kept).Trim(), @"\n{3,}", "\n\n");
+        if (!removed)
+        {
+            return body;
+        }
+
+        return body.Length == 0
+            ? "출처: 확인되지 않음(웹 검색 근거를 받지 못했습니다)"
+            : $"{body}\n\n출처: 확인되지 않음(웹 검색 근거를 받지 못했습니다)";
+    }
+
     public static string NormalizeNarrativeParagraphs(string text)
     {
         if (string.IsNullOrWhiteSpace(text))

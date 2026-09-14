@@ -230,6 +230,35 @@ public sealed partial class CommandService
             );
         }
 
+        // 근거가 하나도 안 온 답은 검색을 안 한 답이다. 같은 제공자의 다른 모델로 한 번 더 물어본다.
+        if ((response.Citations?.Count ?? 0) == 0 && !SearchPromptPolicy.IsGeminiWebFailureText(response.Text))
+        {
+            var retryModel = ModelRegistry
+                .GetFallbackModels("gemini")
+                .FirstOrDefault(candidate =>
+                    !string.Equals(candidate, model, StringComparison.OrdinalIgnoreCase)
+                    && !_llmRouter.Grounding.IsKnownNotGrounding(candidate));
+            if (!string.IsNullOrWhiteSpace(retryModel))
+            {
+                Console.Error.WriteLine($"[gemini] 검색 근거 0건 → {retryModel} 로 한 번 더 시도한다(기존 {model}).");
+                var groundedRetry = await _llmRouter.GenerateGeminiGroundedChatStreamingAsync(
+                    prompt,
+                    retryModel,
+                    maxOutputTokens,
+                    _context.GeminiWebTimeoutMs,
+                    // 델타를 두 번 보내지 않는다. 앞선 시도에서 이미 흘려보냈다.
+                    null,
+                    cancellationToken,
+                    tuning ?? LlmTuning.Default
+                );
+                if ((groundedRetry.Citations?.Count ?? 0) > 0)
+                {
+                    response = groundedRetry;
+                    model = retryModel;
+                }
+            }
+        }
+
         var sanitizeStopwatch = Stopwatch.StartNew();
         string outputText;
         if (SearchPromptPolicy.IsGeminiWebFailureText(response.Text))
@@ -240,6 +269,11 @@ public sealed partial class CommandService
         {
             outputText = ChatOutputSanitizerPolicy.Sanitize(response.Text, keepMarkdownTables: allowMarkdownTable);
             outputText = SearchAnswerFormatterPolicy.EnsureReadableWebAnswerResponse(outputText, input, allowMarkdownTable);
+            if ((response.Citations?.Count ?? 0) == 0)
+            {
+                // 근거가 끝내 없으면 모델이 스스로 적은 출처 줄은 지운다. 확인된 사실처럼 보이면 안 된다.
+                outputText = SearchAnswerFormatterPolicy.RemoveUnverifiedSourceLine(outputText);
+            }
         }
 
         var sanitizeMs = Math.Max(0L, sanitizeStopwatch.ElapsedMilliseconds);
