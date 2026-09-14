@@ -384,19 +384,25 @@ public sealed partial class CommandService
                 return result;
             }
 
-            if (failureKind != CodingProviderFailureKind.RateLimited)
+            if (!CodingProviderFailurePolicy.ShouldFallOverToAnotherModel(failureKind))
             {
                 return result;
             }
 
-            _llmRouter.RateLimits.MarkRateLimited(
-                normalizedProvider,
-                candidate,
-                DateTimeOffset.UtcNow,
-                TimeSpan.FromSeconds(20)
-            );
+            // 한도는 그 모델을 잠시 재워 두지만, 일시 장애는 한도가 아니므로 장부에 적지 않는다.
+            if (failureKind == CodingProviderFailureKind.RateLimited)
+            {
+                _llmRouter.RateLimits.MarkRateLimited(
+                    normalizedProvider,
+                    candidate,
+                    DateTimeOffset.UtcNow,
+                    TimeSpan.FromSeconds(20)
+                );
+            }
+
             lastRateLimited = result;
-            Console.Error.WriteLine($"[provider-chain] {normalizedProvider}/{candidate} 한도 응답. 다음 모델로 넘어간다.");
+            var failoverReason = failureKind == CodingProviderFailureKind.RateLimited ? "한도 응답" : "일시 장애";
+            Console.Error.WriteLine($"[provider-chain] {normalizedProvider}/{candidate} {failoverReason}. 다음 모델로 넘어간다.");
         }
 
         // 같은 제공자의 모델을 다 써도 전부 한도면, 그때는 다른 제공자로 넘긴다. 예전에는 Groq 채팅

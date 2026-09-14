@@ -5,6 +5,8 @@ public enum CodingProviderFailureKind
 {
     None,
     RateLimited,
+    /// <summary>제공자가 잠깐 못 받는 상태(502/503/504·과부하). 같은 요청을 다른 모델·제공자로 넘기면 된다.</summary>
+    Transient,
     RequestTooLarge,
     Auth,
     Timeout,
@@ -31,6 +33,19 @@ public static class CodingProviderFailurePolicy
         if (text.Length > 400)
         {
             return CodingProviderFailureKind.None;
+        }
+
+        // 일시 장애를 한도보다 먼저 본다. 제공자의 503 안내문에도 "잠시 후 다시 시도"가 들어 있어서
+        // 순서가 뒤면 한도로 잘못 분류되고, 멀쩡한 모델이 20초 동안 냉각된다.
+        if (text.Contains("요청 실패: 502", StringComparison.Ordinal)
+            || text.Contains("요청 실패: 503", StringComparison.Ordinal)
+            || text.Contains("요청 실패: 504", StringComparison.Ordinal)
+            || text.Contains("일시적으로 불안정", StringComparison.Ordinal)
+            || text.Contains("overloaded", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("service unavailable", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("temporarily unavailable", StringComparison.OrdinalIgnoreCase))
+        {
+            return CodingProviderFailureKind.Transient;
         }
 
         if (text.Contains("한도를 초과", StringComparison.Ordinal)
@@ -86,6 +101,15 @@ public static class CodingProviderFailurePolicy
         return kind is CodingProviderFailureKind.RateLimited or CodingProviderFailureKind.RequestTooLarge;
     }
 
+    /// <summary>
+    /// 같은 제공자의 다른 모델(그리고 끝내 다른 제공자)로 넘겨 볼 실패인지.
+    /// 한도와 일시 장애는 요청 자체에 문제가 있는 게 아니라 지금 그 모델이 못 받는 상태다.
+    /// </summary>
+    public static bool ShouldFallOverToAnotherModel(CodingProviderFailureKind kind)
+    {
+        return kind is CodingProviderFailureKind.RateLimited or CodingProviderFailureKind.Transient;
+    }
+
     /// <summary>더 시도해도 소용없는 실패인지(키/권한 문제).</summary>
     public static bool IsFatal(CodingProviderFailureKind kind) => kind == CodingProviderFailureKind.Auth;
 
@@ -111,6 +135,8 @@ public static class CodingProviderFailurePolicy
                 $"{label}({model})에 보낼 프롬프트가 너무 큽니다. 컨텍스트를 '간결'로 낮추거나 요청을 나눠 주세요.",
             CodingProviderFailureKind.Auth =>
                 $"{label} API 키를 확인해 주세요. 인증이 거절돼 작업을 시작하지 못했습니다.",
+            CodingProviderFailureKind.Transient =>
+                $"{label}({model}) 서버가 잠시 응답하지 못했습니다. 다시 시도하거나 다른 모델을 골라 주세요.",
             CodingProviderFailureKind.Timeout =>
                 $"{label}({model}) 응답이 제한 시간 안에 오지 않았습니다. 다시 시도하거나 더 빠른 모델을 골라 주세요.",
             _ => $"{label}({model}) 호출이 실패해 작업을 진행하지 못했습니다."
