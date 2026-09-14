@@ -53,9 +53,14 @@ public sealed partial class CommandService
     }
 
     /// <summary>단일 채팅 Route 배지 — 자동 스킬(P0-5)과 자동 회수(P0-1/8) 라벨을 결합.</summary>
-    private static string BuildSingleChatRouteLabel(string? autoSelectedSkillName, string? retrievalLabel)
+    private static string BuildSingleChatRouteLabel(
+        string? autoSelectedSkillName,
+        string? retrievalLabel,
+        string? requestedProvider = null,
+        string? answeredProvider = null
+    )
     {
-        var parts = new List<string>(2);
+        var parts = new List<string>(3);
         if (!string.IsNullOrWhiteSpace(autoSelectedSkillName))
         {
             parts.Add($"skill:{autoSelectedSkillName}(auto)");
@@ -66,7 +71,31 @@ public sealed partial class CommandService
             parts.Add(retrievalLabel);
         }
 
+        // 고른 제공자가 못 답해서 다른 제공자가 답했으면 그 사실을 화면에 남긴다. 조용히 바뀌면
+        // 사용자는 왜 다른 모델 이름이 보이는지 알 수 없다(검색 경로의 "… 대체" 표기와 같은 방식).
+        var substitution = BuildProviderSubstitutionNote(requestedProvider, answeredProvider);
+        if (substitution.Length > 0)
+        {
+            parts.Add(substitution);
+        }
+
         return parts.Count == 0 ? string.Empty : string.Join(" · ", parts);
+    }
+
+    private static string BuildProviderSubstitutionNote(string? requestedProvider, string? answeredProvider)
+    {
+        var requested = (requestedProvider ?? string.Empty).Trim();
+        var answered = (answeredProvider ?? string.Empty).Trim();
+        if (requested.Length == 0
+            || answered.Length == 0
+            || requested.Equals(answered, StringComparison.OrdinalIgnoreCase)
+            || requested.Equals("auto", StringComparison.OrdinalIgnoreCase)
+            || requested.Equals("none", StringComparison.OrdinalIgnoreCase))
+        {
+            return string.Empty;
+        }
+
+        return $"{ModelRegistry.GetLabel(requested)} 대체";
     }
 
     /// <summary>

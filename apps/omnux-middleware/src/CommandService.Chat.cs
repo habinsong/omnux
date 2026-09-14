@@ -767,7 +767,12 @@ public sealed partial class CommandService
             generated.Provider,
             generated.Model,
             responseText,
-            BuildSingleChatRouteLabel(autoSelectedSkillName, autoRetrieval.RouteLabel),
+            BuildSingleChatRouteLabel(
+                autoSelectedSkillName,
+                autoRetrieval.RouteLabel,
+                requestedProvider,
+                generated.Provider
+            ),
             updated,
             null,
             effectiveGuardFailure,
